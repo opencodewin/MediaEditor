@@ -561,6 +561,9 @@ static ImGui::CIE_vulkan *          m_cie {nullptr};
 static ImGui::Vector_vulkan *       m_vector {nullptr};
 #endif
 
+#define MATVIEW_WIDTH   256
+#define MATVIEW_HEIGHT  256
+
 static bool need_update_scope {false};
 static bool need_update_preview {false};
 
@@ -9359,7 +9362,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             }
 
             if (histogram_mat.empty())
-                histogram_mat.create(size.x, size.y, 4, (size_t)1, 4);
+                histogram_mat.create(MATVIEW_WIDTH, MATVIEW_HEIGHT, 4, (size_t)1, 4);
             else
                 histogram_mat.fill((int8_t)0);
             if (!mat_histogram.empty())
@@ -9368,7 +9371,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
                 ImGui::SetCursorScreenPos(pos);
                 float height_scale = g_media_editor_settings.HistogramSplited ? g_media_editor_settings.HistogramYRGB ? 4.f : 3.f : 1.f;
-                float height_offset = g_media_editor_settings.HistogramSplited ? g_media_editor_settings.HistogramYRGB ? size.y / 4.f : size.y / 3.f : 0;
+                float height_offset = g_media_editor_settings.HistogramSplited ? g_media_editor_settings.HistogramYRGB ? MATVIEW_HEIGHT / 4.f : MATVIEW_HEIGHT / 3.f : 0;
                 auto rmat = mat_histogram.channel(0);
                 auto gmat = mat_histogram.channel(1);
                 auto bmat = mat_histogram.channel(2);
@@ -9377,21 +9380,21 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 {
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.6f));
-                    ImGui::PlotMat(histogram_mat, &((float *)rmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
+                    ImGui::PlotMat(histogram_mat, &((float *)rmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
                     ImGui::PopStyleColor(2);
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.6f));
-                    ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset), &((float *)gmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
+                    ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset), &((float *)gmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
                     ImGui::PopStyleColor(2);
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.6f));
-                    ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 2), &((float *)bmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
+                    ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 2), &((float *)bmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
                     ImGui::PopStyleColor(2);
                     if (g_media_editor_settings.HistogramYRGB)
                     {
                         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
                         ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.6f));
-                        ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 3), &((float *)ymat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(size.x, size.y / height_scale), sizeof(float), true);
+                        ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 3), &((float *)ymat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
                         ImGui::PopStyleColor(2);
                     }
                 }
@@ -9401,10 +9404,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             
             // draw graticule line
             float graticule_scale = g_media_editor_settings.HistogramSplited ? g_media_editor_settings.HistogramYRGB ? 4.0f : 3.f : 1.f;
-            auto histogram_step = size.x / 10;
-            auto histogram_sub_vstep = size.x / 50;
-            auto histogram_vstep = size.y * g_media_editor_settings.HistogramScale * 10 / graticule_scale;
-            auto histogram_seg = size.y / histogram_vstep / graticule_scale;
+            auto histogram_step = MATVIEW_WIDTH / 10;
+            auto histogram_sub_vstep = MATVIEW_WIDTH / 50;
+            auto histogram_vstep = MATVIEW_HEIGHT * g_media_editor_settings.HistogramScale * 10 / graticule_scale;
+            auto histogram_seg = MATVIEW_HEIGHT / histogram_vstep / graticule_scale;
             for (int i = 1; i <= 10; i++)
             {
                 ImVec2 p0 = ImVec2(i * histogram_step, 0);
@@ -9413,21 +9416,21 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             }
             for (int i = 0; i < histogram_seg; i++)
             {
-                ImVec2 pr0 = ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
-                ImVec2 pr1 = ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
+                ImVec2 pr0 = ImVec2(0, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
+                ImVec2 pr1 = ImVec2(MATVIEW_WIDTH, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
                 histogram_mat.draw_line(Vec2Point(pr0), Vec2Point(pr1), U32Color(g_media_editor_settings.HistogramSplited ? IM_COL32(255, 128, 0, 128) : COL_GRATICULE_DARK));
                 if (g_media_editor_settings.HistogramSplited)
                 {
-                    ImVec2 pg0 = ImVec2(0, size.y / graticule_scale) + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
-                    ImVec2 pg1 = ImVec2(0, size.y / graticule_scale) + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
+                    ImVec2 pg0 = ImVec2(0, MATVIEW_HEIGHT / graticule_scale) + ImVec2(0, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
+                    ImVec2 pg1 = ImVec2(0, MATVIEW_HEIGHT / graticule_scale) + ImVec2(MATVIEW_WIDTH, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
                     histogram_mat.draw_line(Vec2Point(pg0), Vec2Point(pg1), U32Color(IM_COL32(128, 255, 0, 128)));
-                    ImVec2 pb0 = ImVec2(0, size.y * 2 / graticule_scale) + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
-                    ImVec2 pb1 = ImVec2(0, size.y * 2 / graticule_scale) + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
+                    ImVec2 pb0 = ImVec2(0, MATVIEW_HEIGHT * 2 / graticule_scale) + ImVec2(0, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
+                    ImVec2 pb1 = ImVec2(0, MATVIEW_HEIGHT * 2 / graticule_scale) + ImVec2(MATVIEW_WIDTH, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
                     histogram_mat.draw_line(Vec2Point(pb0), Vec2Point(pb1), U32Color(IM_COL32(128, 128, 255, 128)));
                     if (g_media_editor_settings.HistogramYRGB)
                     {
-                        ImVec2 pw0 = ImVec2(0, size.y * 3 / graticule_scale) + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
-                        ImVec2 pw1 = ImVec2(0, size.y * 3 / graticule_scale) + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
+                        ImVec2 pw0 = ImVec2(0, MATVIEW_HEIGHT * 3 / graticule_scale) + ImVec2(0, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
+                        ImVec2 pw1 = ImVec2(0, MATVIEW_HEIGHT * 3 / graticule_scale) + ImVec2(MATVIEW_WIDTH, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
                         histogram_mat.draw_line(Vec2Point(pw0), Vec2Point(pw1), U32Color(IM_COL32(255, 255, 255, 128)));
                     }
                 }
@@ -9795,9 +9798,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->mAudioAttribute.channel_data.size());
+            ImVec2 mat_channel_view_size = ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / timeline->mAudioAttribute.channel_data.size());
             ImGui::SetCursorScreenPos(pos);
             if (wave_mat.empty())
-                wave_mat.create(size.x, size.y, 4, (size_t)1, 4);
+                wave_mat.create(MATVIEW_WIDTH, MATVIEW_HEIGHT, 4, (size_t)1, 4);
             else
                 wave_mat.fill((int8_t)0);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
@@ -9836,7 +9840,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 }
                 if (!timeline->mAudioAttribute.channel_data[i].m_wave.empty())
                 {
-                    ImGui::PlotMat(wave_mat, ImVec2(0, channel_view_size.y * i), (float *)timeline->mAudioAttribute.channel_data[i].m_wave.data, timeline->mAudioAttribute.channel_data[i].m_wave.w, 0, -1.0 / g_media_editor_settings.AudioWaveScale , 1.0 / g_media_editor_settings.AudioWaveScale, channel_view_size, sizeof(float), false);
+                    ImGui::PlotMat(wave_mat, ImVec2(0, mat_channel_view_size.y * i), (float *)timeline->mAudioAttribute.channel_data[i].m_wave.data, timeline->mAudioAttribute.channel_data[i].m_wave.w, 0, -1.0 / g_media_editor_settings.AudioWaveScale , 1.0 / g_media_editor_settings.AudioWaveScale, mat_channel_view_size, sizeof(float), false);
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
             }
@@ -9980,9 +9984,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->mAudioAttribute.channel_data.size());
+            ImVec2 mat_channel_view_size = ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / timeline->mAudioAttribute.channel_data.size());
             ImGui::SetCursorScreenPos(pos);
             if (fft_mat.empty())
-                fft_mat.create(size.x, size.y, 4, (size_t)1, 4);
+                fft_mat.create(MATVIEW_WIDTH, MATVIEW_HEIGHT, 4, (size_t)1, 4);
             else
                 fft_mat.fill((int8_t)0);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
@@ -9994,17 +9999,17 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 ImVec2 channel_min = pos + ImVec2(0, channel_view_size.y * i);
                 ImVec2 channel_max = pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
                 // draw graticule line
-                ImVec2 p1 = ImVec2(0, channel_view_size.y * i + channel_view_size.y);
+                ImVec2 p1 = ImVec2(0, mat_channel_view_size.y * i + mat_channel_view_size.y);
                 auto grid_number = floor(10 / g_media_editor_settings.AudioFFTScale);
-                auto grid_height = channel_view_size.y / grid_number;
+                auto grid_height = mat_channel_view_size.y / grid_number;
                 if (grid_number > 20) grid_number = 20;
                 for (int x = 0; x < grid_number; x++)
                 {
                     ImVec2 gp1 = p1 - ImVec2(0, grid_height * x);
-                    ImVec2 gp2 = gp1 + ImVec2(channel_view_size.x, 0);
+                    ImVec2 gp2 = gp1 + ImVec2(mat_channel_view_size.x, 0);
                     fft_mat.draw_line(Vec2Point(gp1), Vec2Point(gp2), U32Color(COL_GRAY_GRATICULE));
                 }
-                auto vgrid_number = channel_view_size.x / grid_height;
+                auto vgrid_number = mat_channel_view_size.x / grid_height;
                 for (int x = 0; x < vgrid_number; x++)
                 {
                     ImVec2 gp1 = p1 + ImVec2(grid_height * x, 0);
@@ -10013,7 +10018,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 }
                 if (!timeline->mAudioAttribute.channel_data[i].m_fft.empty())
                 {
-                    ImGui::PlotMat(fft_mat, ImVec2(0, channel_view_size.y * i), (float *)timeline->mAudioAttribute.channel_data[i].m_fft.data, timeline->mAudioAttribute.channel_data[i].m_fft.w, 0, 0.0, 1.0 / g_media_editor_settings.AudioFFTScale, channel_view_size, sizeof(float), true);
+                    ImGui::PlotMat(fft_mat, ImVec2(0, mat_channel_view_size.y * i), (float *)timeline->mAudioAttribute.channel_data[i].m_fft.data, timeline->mAudioAttribute.channel_data[i].m_fft.w, 0, 0.0, 1.0 / g_media_editor_settings.AudioFFTScale, mat_channel_view_size, sizeof(float), true);
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
             }
@@ -10062,9 +10067,10 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->mAudioAttribute.channel_data.size());
+            ImVec2 mat_channel_view_size = ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / timeline->mAudioAttribute.channel_data.size());
             ImGui::SetCursorScreenPos(pos);
             if (db_mat.empty())
-                db_mat.create(size.x, size.y, 4, (size_t)1, 4);
+                db_mat.create(MATVIEW_WIDTH, MATVIEW_HEIGHT, 4, (size_t)1, 4);
             else
                 db_mat.fill((int8_t)0);
             ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
@@ -10076,17 +10082,17 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 ImVec2 channel_min = pos + ImVec2(0, channel_view_size.y * i);
                 ImVec2 channel_max = pos + ImVec2(channel_view_size.x, channel_view_size.y * i);
                 // draw graticule line
-                ImVec2 p1 = ImVec2(0, channel_view_size.y * i + channel_view_size.y);
+                ImVec2 p1 = ImVec2(0, mat_channel_view_size.y * i + mat_channel_view_size.y);
                 auto grid_number = floor(10 / g_media_editor_settings.AudioDBScale);
-                auto grid_height = channel_view_size.y / grid_number;
+                auto grid_height = mat_channel_view_size.y / grid_number;
                 if (grid_number > 20) grid_number = 20;
                 for (int x = 0; x < grid_number; x++)
                 {
                     ImVec2 gp1 = p1 - ImVec2(0, grid_height * x);
-                    ImVec2 gp2 = gp1 + ImVec2(channel_view_size.x, 0);
+                    ImVec2 gp2 = gp1 + ImVec2(mat_channel_view_size.x, 0);
                     db_mat.draw_line(Vec2Point(gp1), Vec2Point(gp2), U32Color(COL_GRAY_GRATICULE));
                 }
-                auto vgrid_number = channel_view_size.x / grid_height;
+                auto vgrid_number = mat_channel_view_size.x / grid_height;
                 for (int x = 0; x < vgrid_number; x++)
                 {
                     ImVec2 gp1 = p1 + ImVec2(grid_height * x, 0);
@@ -10097,7 +10103,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 {
                     ImGui::ImMat db_mat_inv = timeline->mAudioAttribute.channel_data[i].m_db.clone();
                     db_mat_inv += 90.f;
-                    ImGui::PlotMat(db_mat, ImVec2(0, channel_view_size.y * i), (float *)db_mat_inv.data,db_mat_inv.w, 0, 0.f, 90.f / g_media_editor_settings.AudioDBScale, channel_view_size, sizeof(float), true);
+                    ImGui::PlotMat(db_mat, ImVec2(0, mat_channel_view_size.y * i), (float *)db_mat_inv.data, db_mat_inv.w, 0, 0.f, 90.f / g_media_editor_settings.AudioDBScale, mat_channel_view_size, sizeof(float), true);
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
             }
@@ -10404,7 +10410,6 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     ImGuiIO &io = ImGui::GetIO();
     auto platform_io = ImGui::GetPlatformIO();
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
-    static ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
     ImVec2 pos = ImVec2(100, 100);
     ImVec2 size = ImVec2(1600, 800);
     static ImVec2 full_size = size;
@@ -10418,7 +10423,6 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
             auto mon = platform_io.Monitors[MonitorIndexScope];
             full_pos = mon.WorkPos;
             full_size = mon.WorkSize;
-            flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove;
             is_full_size = true;
             change_to_full_size = true;
         }
@@ -10435,8 +10439,12 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
         change_to_full_size = false;
     }
     else
+    {
         ImGui::SetNextWindowSize(is_full_size ? full_size : size, ImGuiCond_None);
+    }
     if (is_full_size) ImGui::SetNextWindowPos(full_pos);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+    if (is_full_size) flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove;
     if (!ImGui::Begin("ScopeView", nullptr, flags))
     {
         ImGui::End();
@@ -10445,7 +10453,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     float scope_gap = is_full_size ? 100 : 48;
-    float scope_size = is_full_size ? (window_size.x - 32) / 4 - scope_gap : 256;
+    float scope_size = is_full_size ? (window_size.x - 32) / 5 - scope_gap : 256;
     float col_second = window_size.y / 2 + 20;
     ImVec2 scope_view_size = ImVec2(scope_size, scope_size);
     // add left tool bar
