@@ -2608,12 +2608,11 @@ void AudioClip::SyncFilterWithDataLayer(MediaCore::AudioClip::Holder hClip, bool
         {
             MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(hNewFilter.get());
             pEsf->SetTimelineHandle(mHandle);
-// wyvern: Still enable the following since UI is not changed to EventStackFilter editing type
-// #ifdef USING_OLD_UI
+#ifdef USING_OLD_UI
             if (isNewFilter)
                 pEsf->AddNewEvent(0, 0, hClip->Duration(), 0);
             pEsf->SetEditingEvent(0);
-// #endif
+#endif
             hClip->SetFilter(hNewFilter);
             mEventStack = static_cast<MEC::EventStack*>(pEsf);
         }
