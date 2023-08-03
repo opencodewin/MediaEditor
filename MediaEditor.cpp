@@ -4105,7 +4105,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
                 if (texture_zoom > scale_range.y) texture_zoom = scale_range.y;
             }
         }
-        float region_sz = 360.0f / texture_zoom;
+        
         std::pair<ImGui::ImMat, ImGui::ImMat> pair;
         bool ret = false;
         bool is_preview_image = attribute ? timeline->bAttributeOutputPreview : timeline->bFilterOutputPreview;
@@ -4135,6 +4135,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
             }
         }
 
+        float region_sz = 360.0f / texture_zoom;
         float pos_x = 0, pos_y = 0;
         bool draw_compare = false;
         ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
@@ -5367,10 +5368,19 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             float event_list_width = window_size.x - timeline_width;
             is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
             g_media_editor_settings.clip_timeline_width = timeline_width / window_size.x;
-            if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, window_size.y), false))
+            if (ImGui::BeginChild("timeline&preview_tool_bar", ImVec2(timeline_width - 4, window_size.y), false))
             {
-                //ImGui::Text("timeline");
-                mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
+                // show preview window with tool bar only
+                if (ImGui::BeginChild("preview_tool_bar", ImVec2(timeline_width - 4, 48), false))
+                {
+                    DrawVideoFilterPreviewWindow(draw_list, editing_clip);
+                }
+                ImGui::EndChild();
+                if (ImGui::BeginChild("timeline", ImVec2(timeline_width - 4, window_size.y - 48), false))
+                {
+                    mouse_hold |= DrawVideoFilterTimelineWindow(show_blueprint);
+                }
+                ImGui::EndChild();
             }
             ImGui::EndChild();
             ImGui::SameLine();
