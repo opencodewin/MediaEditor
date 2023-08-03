@@ -40,7 +40,7 @@
 
 #define PLOT_IMPLOT   0
 #define PLOT_TEXTURE  1
-#define USING_OLD_UI
+//#define USING_OLD_UI
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
@@ -909,7 +909,7 @@ struct MediaTrack
     MediaTrack(std::string name, uint32_t type, void * handle);
     ~MediaTrack();
 
-    bool DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list<imgui_json::value>* pActionList);
+    bool DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, bool editable, std::list<imgui_json::value>* pActionList);
     bool CanInsertClip(Clip * clip, int64_t pos);
     void InsertClip(Clip * clip, int64_t pos = 0, bool update = true, std::list<imgui_json::value>* pActionList = nullptr);
     void SelectClip(Clip * clip, bool appand);

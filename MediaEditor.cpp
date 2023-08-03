@@ -4397,10 +4397,10 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
     
     static const char* buttons[] = { "Delete", "Cancel", NULL };
     static ImGui::MsgBox msgbox_event;
-    msgbox_event.Init("Delete Event?", ICON_MD_WARNING, "Are you really really sure you want to delete event?", buttons, false);
+    msgbox_event.Init("Delete Event?", ICON_MD_WARNING, "Are you really sure you want to delete event?", buttons, false);
 
     static ImGui::MsgBox msgbox_node;
-    msgbox_node.Init("Delete Node?", ICON_MD_WARNING, "Are you really really sure you want to delete node?", buttons, false);
+    msgbox_node.Init("Delete Node?", ICON_MD_WARNING, "Are you really sure you want to delete node?", buttons, false);
 
     auto event_list = editing_clip->mEventStack->GetEventList();
     if (event_list.empty())

@@ -471,7 +471,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
 
     if (m_Events.empty())
         mExpanded = false;
-    else if (rect.Contains(ImGui::GetMousePos()) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !curve_hovered)
+    else if (rect.Contains(ImGui::GetMousePos()) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !curve_hovered && editable)
         mExpanded = !mExpanded;
 
     ImGui::PopClipRect();
@@ -4679,7 +4679,7 @@ MediaTrack::~MediaTrack()
 {
 }
 
-bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list<imgui_json::value>* pActionList)
+bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, bool editable, std::list<imgui_json::value>* pActionList)
 {
     bool is_Hovered = false;
     ImGuiIO &io = ImGui::GetIO();
@@ -4688,7 +4688,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
     int button_count = 0;
     {
         bool ret = TimelineButton(draw_list, mLocked ? ICON_LOCKED : ICON_UNLOCK, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mLocked ? "unlock" : "lock");
-        if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        if (ret && editable && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             mLocked = !mLocked;
         is_Hovered |= ret;
         button_count ++;
@@ -4697,7 +4697,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
     if (IS_AUDIO(mType))
     {
         bool ret = TimelineButton(draw_list, mView ? ICON_SPEAKER : ICON_SPEAKER_MUTE, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "mute" : "voice");
-        if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        if (ret && editable && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
         {
             mView = !mView;
             if (pActionList)
@@ -4716,7 +4716,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
     else
     {
         bool ret = TimelineButton(draw_list, mView ? ICON_VIEW : ICON_VIEW_DISABLE, ImVec2(rc.Min.x + button_size.x * button_count * 1.5 + 6, rc.Max.y - button_size.y - 2), button_size, mView ? "hidden" : "view");
-        if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        if (ret && editable && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
         {
             mView = !mView;
             if (pActionList)
@@ -4734,7 +4734,7 @@ bool MediaTrack::DrawTrackControlBar(ImDrawList *draw_list, ImRect rc, std::list
     }
     // draw zip button
     bool ret = TimelineButton(draw_list, mExpanded ? ICON_TRACK_ZIP : ICON_TRACK_UNZIP, ImVec2(rc.Max.x - 14, rc.Min.y + 2), ImVec2(14, 14), mExpanded ? "zip" : "unzip");
-    if (ret && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    if (ret && editable && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
         mExpanded = !mExpanded;
     }
@@ -7109,7 +7109,7 @@ void TimeLine::CustomDraw(
         ImGui::AddTextComplex(draw_list, legendRect.Min + ImVec2(start_offset_x, start_offset_y), back_icon.c_str(), back_icon_scale * 0.75, back_icon_color, 1.0f, IM_COL32(0, 0, 0, 255));
     }
 
-    auto is_control_hovered = track->DrawTrackControlBar(draw_list, legendRect, pActionList);
+    auto is_control_hovered = track->DrawTrackControlBar(draw_list, legendRect, enable_select, pActionList);
     draw_list->PopClipRect();
 
     // draw clips
@@ -7400,7 +7400,7 @@ void TimeLine::CustomDraw(
         }
     }
 
-    if (!is_control_hovered && legendRect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+    if (!is_control_hovered && enable_select && legendRect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
     {
         track->mExpanded = !track->mExpanded;
     }
@@ -10192,7 +10192,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             ImVec2 button_size = ImVec2(14, 14);
             ImVec2 tpos(contentMin.x, contentMin.y + i * trackHeadHeight + customHeight);
             bool is_delete = TimelineButton(draw_list, ICON_TRASH, ImVec2(contentMin.x + legendWidth - button_size.x - 12 - 4, tpos.y + 2), button_size, "delete");
-            if (is_delete && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            if (is_delete && editable && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                 delTrackEntry = i;
             customHeight += itemCustomHeight;
         }
@@ -10308,7 +10308,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                     continue;
                                 if (!ImRect(childFramePos, childFramePos + childFrameSize).Contains(io.MousePos))
                                     continue;
-                                if (j == 2 && timeline->mIsCutting && mouseClip.size() <= 1)
+                                if (j == 2 && timeline->mIsCutting && mouseClip.size() <= 1 && editable)
                                 {
                                     ImGui::RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
                                 }
@@ -10950,7 +10950,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         draw_list->PopClipRect();
 
         // show cutting line
-        if (timeline->mIsCutting)
+        if (timeline->mIsCutting && editable)
         {
             std::vector<Clip*> cuttingClips;
             // 1. find track on which the mouse is hovering
@@ -12336,7 +12336,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImVec2 window_size = ImGui::GetWindowSize();
     static const char* buttons[] = { "Delete", "Cancel", NULL };
     static ImGui::MsgBox msgbox;
-    msgbox.Init("Delete Event?", ICON_MD_WARNING, "Are you really really sure you want to delete event?", buttons, false);
+    msgbox.Init("Delete Event?", ICON_MD_WARNING, "Are you really sure you want to delete event?", buttons, false);
     static int64_t lastFirstTime = -1;
     static int64_t lastVisiableTime = -1;
     bool changed = false;
@@ -12575,7 +12575,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         clip->DeleteEvent(clip->FindSelectedEvent(), &main_timeline->mUiActions);
         has_selected_event = false;
     }
-    popupDialog = ImGui::IsPopupOpen("Delete Event?");
+    popupDialog = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 
     // draw clip timeline
     ImGui::SetCursorScreenPos(toolbar_pos + ImVec2(0, toolbarHeight));
@@ -12885,7 +12885,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImGui::PopStyleColor();
 
         // event track
-        bool event_editable = !MovingCurrentTime && !ImGui::IsDragDropActive() && !menuIsOpened;
+        bool event_editable = !MovingCurrentTime && !ImGui::IsDragDropActive() && !menuIsOpened && !popupDialog;
         auto prevEventMovingPart = eventMovingPart;
         ImGui::SetCursorScreenPos(trackAreaRect.Min);
         if (ImGui::BeginChild("##clip_event_tracks", trackAreaRect.GetSize(), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse))
@@ -12907,7 +12907,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 ImVec2 track_size = ImVec2(event_track_size.x, trackHeight + (track->mExpanded ? curveHeight : 0));
                 ImRect track_area = ImRect(track_current, track_current + track_size);
                 ImVec2 pos = ImVec2(track_current.x - editingClip->firstTime * editingClip->msPixelWidthTarget, track_current.y);
-                bool is_mouse_hovered = track_area.Contains(io.MousePos);
+                bool is_mouse_hovered = track_area.Contains(io.MousePos) && event_editable;
                 unsigned int col = is_mouse_hovered ? COL_EVENT_HOVERED : (current_index & 1) ? COL_EVENT_ODD : COL_EVENT_EVEN;
                 drawList->AddRectFilled(track_area.Min, track_area.Max, col);
                 ImGui::SetCursorScreenPos(track_current);
