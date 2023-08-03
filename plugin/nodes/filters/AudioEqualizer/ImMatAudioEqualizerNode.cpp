@@ -96,12 +96,12 @@ struct AudioEqualizerNode final : Node
         char abuffersrcArgs[256];
 #if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
         snprintf(abuffersrcArgs, sizeof(abuffersrcArgs), "sample_rate=%d:sample_fmt=%d:channel_layout=%llu:time_base=%d/%d",
-                 sampleRate, sampleFormat, channelLayout, 1, sampleRate);
+                    sampleRate, sampleFormat, channelLayout, 1, sampleRate);
 #else
         char chlytDescBuff[128] = {0};
         av_channel_layout_describe(&chlyt, chlytDescBuff, sizeof(chlytDescBuff));
         snprintf(abuffersrcArgs, sizeof(abuffersrcArgs), "sample_rate=%d:sample_fmt=%d:channel_layout=%s:time_base=%d/%d",
-                 sampleRate, sampleFormat, chlytDescBuff, 1, sampleRate);
+                    sampleRate, sampleFormat, chlytDescBuff, 1, sampleRate);
 #endif
 
         const AVFilter *avFilter;
@@ -296,9 +296,17 @@ struct AudioEqualizerNode final : Node
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
+        float indent_offset = 0;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            indent_offset = (sub_window_size.x - 32 * 11) / 2;
+        }
         bool changed = false;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
         ImGui::BeginDisabled(!m_Enabled);
+        ImGui::Indent(indent_offset);
         ImGui::TextColored({ 0.9, 0.4, 0.4, 1.0 }, "Hz");
         for (int i = 0; i < 10; i++)
         {
@@ -332,7 +340,7 @@ struct AudioEqualizerNode final : Node
             ImGui::EndGroup();
         }
         ImGui::TextColored({ 0.4, 0.4, 0.9, 1.0 }, "Db");
-        ImGui::SameLine(300);
+        ImGui::SameLine(indent_offset + 300);
         if (ImGui::Button(ICON_RESET "##reset_equ##AudioEqualizer"))
         {
             for (int i = 0; i < 10; i++)
@@ -356,6 +364,7 @@ struct AudioEqualizerNode final : Node
                 }
             }
         }
+        ImGui::Unindent();
         ImGui::EndDisabled();
         return m_Enabled ? changed : false;
     }

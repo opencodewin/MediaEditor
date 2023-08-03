@@ -395,7 +395,6 @@ struct MediaEditorSettings
     float audio_clip_timeline_height {0.5}; // audio clip filter view timelime height
     float audio_clip_timeline_width {0.5};  // audio clip filter view timeline width
 
-
     bool ExpandScope {true};
     bool SeparateScope {false};
     // Histogram Scope tools
@@ -4274,18 +4273,14 @@ static void ShowFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
 {
     if (!clip)
         return;
-    
     bool is_audio_clip = IS_AUDIO(clip->mType);
     bool is_video_clip = IS_VIDEO(clip->mType);
     if (!timeline || (!is_audio_clip && !is_video_clip))
         return;
-
     if (is_audio_clip && (!timeline->mAudFilterClip || !timeline->mAudFilterClip->mFilter))
         return;
-    
     if (!is_video_clip && (!timeline->mAudFilterClip || !timeline->mAudFilterClip->mFilter))
         return;
-
     BluePrint::BluePrintUI* pBp = nullptr;
     MEC::Event::Holder hTargetEvent;
 
@@ -4382,6 +4377,393 @@ static void DrawFilterBlueprintWindow(ImDrawList *draw_list, Clip * editing_clip
     ImVec2 sub_window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
     ShowFilterBluePrintWindow(draw_list, editing_clip);
+}
+
+
+static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
+{
+    if (!editing_clip || !editing_clip->mEventStack)
+        return;
+    bool is_audio_clip = IS_AUDIO(editing_clip->mType);
+    bool is_video_clip = IS_VIDEO(editing_clip->mType);
+    if (!timeline || (!is_audio_clip && !is_video_clip))
+        return;
+    if (is_audio_clip && (!timeline->mAudFilterClip || !timeline->mAudFilterClip->mFilter))
+        return;
+    if (!is_video_clip && (!timeline->mAudFilterClip || !timeline->mAudFilterClip->mFilter))
+        return;
+    ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 sub_window_size = ImGui::GetWindowSize();
+    
+    static const char* buttons[] = { "Delete", "Cancel", NULL };
+    static ImGui::MsgBox msgbox_event;
+    msgbox_event.Init("Delete Event?", ICON_MD_WARNING, "Are you really really sure you want to delete event?", buttons, false);
+
+    static ImGui::MsgBox msgbox_node;
+    msgbox_node.Init("Delete Node?", ICON_MD_WARNING, "Are you really really sure you want to delete node?", buttons, false);
+
+    auto event_list = editing_clip->mEventStack->GetEventList();
+    if (event_list.empty())
+    {
+        ImGui::SetWindowFontScale(2);
+        auto pos_center = sub_window_pos + sub_window_size / 2;
+        std::string tips_string = "Please add event first";
+        auto string_width = ImGui::CalcTextSize(tips_string.c_str());
+        auto tips_pos = pos_center - string_width / 2;
+        ImGui::SetWindowFontScale(1);
+        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
+        return;
+    }
+    char ** curve_type_list = nullptr;
+    auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
+
+    auto update_track = [&](BluePrint::BluePrintUI* pBP, BluePrint::Node* node)
+    {
+        auto track = timeline->FindTrackByClipID(editing_clip->mID);
+        if (track) timeline->RefreshTrackView({track->mID});
+        pBP->Blueprint_UpdateNode(node->m_ID);
+    };
+    for (auto event : event_list)
+    {
+        bool is_selected = event->Status() & EVENT_SELECTED;
+        bool is_in_range = event->End() > 0 && event->Start() < editing_clip->Length();
+        std::string event_label = ImGuiHelper::MillisecToString(event->Start(), 3) + " -> " + ImGuiHelper::MillisecToString(event->End(), 3) + "##clip_event##" + std::to_string(event->Id());
+        std::string event_drag_drop_label = "##event_tree##" + std::to_string(event->Id());
+        if (!is_in_range)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 0.0, 0.0, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.3, 0.0, 0.0, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.3, 0.0, 0.0, 1.0));
+        }
+        else
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.4, 0.4, 1.0, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.2, 0.2, 1.0, 1.0));
+        }
+        auto tree_pos = ImGui::GetCursorScreenPos();
+        ImGui::Circle(is_selected);
+        bool event_tree_open = ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None));
+        ImGui::PopStyleColor(3);
+        ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - 48, tree_pos.y));
+        if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_event"))
+        {
+            ImGui::OpenPopup("Delete Event?");
+        }
+        ImGui::ShowTooltipOnHover("Delete Event");
+        if (event_tree_open)
+        {
+            ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
+            auto pBP = event->GetBp();
+            auto pKP = event->GetKeyPoint();
+            auto addCurve = [&](BluePrint::Node* node, std::string name, float _min, float _max, float _default, int64_t pin_id)
+            {
+                if (pKP)
+                {
+                    auto found = pKP->GetCurveIndex(name);
+                    if (found == -1)
+                    {
+                        ImU32 color; ImGui::RandomColor(color, 1.f);
+                        auto curve_index = pKP->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default, node->m_ID, pin_id);
+                        pKP->AddPoint(curve_index, ImVec2(0, _min), ImGui::ImCurveEdit::Smooth);
+                        pKP->AddPoint(curve_index, ImVec2(event->End() - event->Start(), _max), ImGui::ImCurveEdit::Smooth);
+                        pKP->SetCurvePointDefault(curve_index, 0);
+                        pKP->SetCurvePointDefault(curve_index, 1);
+                        if (pBP)
+                        {
+                            auto entry_node = pBP->FindEntryPointNode();
+                            if (entry_node)
+                            {
+                                auto pin = entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
+                                if (pin && pin_id != -1)
+                                {
+                                    auto link_pin = pBP->m_Document->m_Blueprint.FindPin(pin_id);
+                                    if (link_pin) link_pin->LinkTo(*pin);
+                                }
+                            }
+                            update_track(pBP, node);
+                        }
+                    }
+                }
+            };
+            auto delCurve = [&](BluePrint::Node* node, std::string name, int64_t pin_id)
+            {
+                if (pKP)
+                {
+                    auto found = pKP->GetCurveIndex(name);
+                    if (found != -1)
+                    {
+                        pKP->DeleteCurve(found);
+                        if (pBP && pin_id != -1)
+                        {
+                            auto link_pin = pBP->m_Document->m_Blueprint.FindPin(pin_id);
+                            if (link_pin) link_pin->Unlink();
+                            auto entry_node = pBP->FindEntryPointNode();
+                            if (entry_node)
+                            {
+                                auto pin = entry_node->FindPin(name);
+                                if (pin && pin->m_LinkFrom.empty())
+                                {
+                                    entry_node->DeleteOutputPin(name);
+                                }
+                            }
+                            update_track(pBP, node);
+                        }
+                    }
+                }
+            };
+            auto editCurve = [&](ImGui::KeyPointEditor* keypoint, BluePrint::Node* node)
+            {
+                if (!keypoint || !node) return;
+                if (keypoint->GetCurveCount() <= 0) return;
+                ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.2,0.2,1.0,0.5));
+                ImGui::Separator();
+                MediaTimeline::MediaTrack * track = node ? timeline->FindTrackByClipID(node->m_ID) : nullptr;
+                for (int i = 0; i < keypoint->GetCurveCount(); i++)
+                {
+                    bool break_loop = false;
+                    if (keypoint->GetCurveID(i) != node->m_ID)
+                        continue;
+                    ImGui::PushID(i);
+                    auto pCount = keypoint->GetCurvePointCount(i);
+                    std::string lable_id = std::string(ICON_CURVE) + " " + keypoint->GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##event_curve";
+                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                    {
+                        float curve_min = keypoint->GetCurveMin(i);
+                        float curve_max = keypoint->GetCurveMax(i);
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
+                        auto curve_time = timeline->currentTime - (is_audio_clip ? timeline->mAudFilterClip->mStart : timeline->mVidFilterClip->mStart) - event->Start();
+                        float curve_value = keypoint->GetValue(i, curve_time);
+                        bool in_range = curve_time >= keypoint->GetMin().x && 
+                                        curve_time <= keypoint->GetMax().x;
+                        ImGui::BracketSquare(true); 
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
+                        if (in_range) ImGui::Text("%.2f", curve_value); 
+                        else ImGui::TextUnformatted("--.--");
+                        ImGui::PopStyleColor();
+                        ImGui::ShowTooltipOnHover("Current value");
+                        ImGui::SameLine();
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3, 0.3, 1.0, 1.0)); 
+                        if (in_range) ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time + event->Start(), 3).c_str()); 
+                        else ImGui::TextUnformatted("--:--.--");
+                        ImGui::PopStyleColor();
+                        ImGui::ShowTooltipOnHover("Clip time");
+                        ImGui::SameLine();
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
+                        ImGui::Text("%s", ImGuiHelper::MillisecToString(timeline->currentTime, 3).c_str());
+                        ImGui::PopStyleColor();
+                        ImGui::ShowTooltipOnHover("Main time");
+                        ImGui::SameLine();
+                        ImGui::BeginDisabled(!in_range);
+                        if (ImGui::Button(ICON_MD_ADS_CLICK))
+                        {
+                            auto value_range = keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i);
+                            curve_value = (curve_value - keypoint->GetCurveMin(i)) / (value_range + FLT_EPSILON);
+                            keypoint->AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
+                        }
+                        ImGui::EndDisabled();
+                        ImGui::ShowTooltipOnHover("Add key at current");
+
+                        ImGui::PushItemWidth(60);
+                        if (ImGui::DragFloat("##curve_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
+                        {
+                            keypoint->SetCurveMin(i, curve_min);
+                            if (track) timeline->RefreshTrackView({track->mID});
+                        } ImGui::ShowTooltipOnHover("Min");
+                        ImGui::SameLine(0, 8);
+                        if (ImGui::DragFloat("##curve_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
+                        {
+                            keypoint->SetCurveMax(i, curve_max);
+                            if (track) timeline->RefreshTrackView({track->mID});
+                        } ImGui::ShowTooltipOnHover("Max");
+                        ImGui::SameLine(0, 8);
+                        float curve_default = keypoint->GetCurveDefault(i);
+                        if (ImGui::DragFloat("##curve_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
+                        {
+                            keypoint->SetCurveDefault(i, curve_default);
+                            if (track) timeline->RefreshTrackView({track->mID});
+                        } ImGui::ShowTooltipOnHover("Default");
+                        ImGui::PopItemWidth();
+
+                        ImGui::SameLine(0, 8);
+                        ImGui::SetWindowFontScale(0.75);
+                        auto curve_color = ImGui::ColorConvertU32ToFloat4(keypoint->GetCurveColor(i));
+                        if (ImGui::ColorEdit4("##curve_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
+                        {
+                            keypoint->SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
+                        } ImGui::ShowTooltipOnHover("Curve Color");
+                        ImGui::SetWindowFontScale(1.0);
+                        ImGui::SameLine(0, 4);
+                        bool is_visiable = keypoint->IsVisible(i);
+                        if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_filter_visiable"))
+                        {
+                            is_visiable = !is_visiable;
+                            keypoint->SetCurveVisible(i, is_visiable);
+                        } ImGui::ShowTooltipOnHover( is_visiable ? "Hide" : "Show");
+                        ImGui::SameLine(0, 4);
+                        if (ImGui::Button(ICON_MD_ROTATE_90_DEGREES_CCW "##curve_filter_reset"))
+                        {
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                keypoint->SetCurvePointDefault(i, p);
+                            }
+                            if (track) timeline->RefreshTrackView({track->mID});
+                        } ImGui::ShowTooltipOnHover("Reset");
+                        if (!break_loop)
+                        {
+                            // list points
+                            for (int p = 0; p < pCount; p++)
+                            {
+                                bool is_disabled = false;
+                                ImGui::PushID(p);
+                                ImGui::PushItemWidth(96);
+                                auto point = keypoint->GetPoint(i, p);
+                                ImGui::Diamond(true, true);
+                                if (p == 0 || p == pCount - 1)
+                                    is_disabled = true;
+                                ImGui::BeginDisabled(is_disabled);
+                                float point_min = keypoint->GetMin().x + event->Start();
+                                float point_max = keypoint->GetMax().x + event->Start();
+                                float point_current = point.point.x + event->Start();
+                                if (ImGui::DragTimeMS("##curve_filter_point_x", &point_current, point_max / 1000.f, point_min, point_max, 2))
+                                {
+                                    point.point.x = point_current - event->Start();
+                                    keypoint->EditPoint(i, p, point.point, point.type);
+                                    if (track) timeline->RefreshTrackView({track->mID});
+                                }
+                                ImGui::EndDisabled();
+                                ImGui::SameLine();
+                                auto speed = fabs(keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i)) / 500;
+                                if (ImGui::DragFloat("##curve_filter_point_y", &point.point.y, speed, keypoint->GetCurveMin(i), keypoint->GetCurveMax(i), "%.2f"))
+                                {
+                                    keypoint->EditPoint(i, p, point.point, point.type);
+                                    if (track) timeline->RefreshTrackView({track->mID});
+                                }
+                                ImGui::SameLine();
+                                if (ImGui::Combo("##curve_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
+                                {
+                                    keypoint->EditPoint(i, p, point.point, point.type);
+                                    if (track) timeline->RefreshTrackView({track->mID});
+                                }
+                                ImGui::PopItemWidth();
+                                ImGui::PopID();
+                            }
+                        }
+                        ImGui::PopStyleColor();
+                        ImGui::TreePop();
+                    }
+                    ImGui::PopID();
+                    if (break_loop) break;
+                }
+                ImGui::Separator();
+                ImGui::PopStyleColor();
+            };
+            if (pBP)
+            {                
+                auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
+                bool need_redraw = false;
+                for (auto node : nodes)
+                {
+                    if (need_redraw)
+                        break;
+                    auto type = node->GetTypeInfo().m_Type;
+                    if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
+                        continue;
+                    auto label_name = node->m_Name;
+                    std::string lable_id = label_name + "##filter_node" + "@" + std::to_string(node->m_ID);
+                    auto node_pos = ImGui::GetCursorScreenPos();
+                    node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(60, 30));
+                    ImGui::SameLine(30);
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 1.0));
+                    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.2, 0.5, 0.2, 1.0));
+                    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.1, 0.5, 0.1, 1.0));
+                    bool tree_open = ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap);
+                    ImGui::PopStyleColor(3);
+                    if (ImGui::BeginDragDropSource())
+                    {
+                        ImGui::SetDragDropPayload(event_drag_drop_label.c_str(), node, sizeof(BluePrint::Node));
+                        ImGui::TextUnformatted(node->m_Name.c_str());
+                        ImGui::EndDragDropSource();
+                    }
+                    if (ImGui::BeginDragDropTarget())
+                    {
+                        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(event_drag_drop_label.c_str()))
+                        {
+                            BluePrint::Node* src_node = (BluePrint::Node*)payload->Data;
+                            if (src_node)
+                            {
+                                pBP->Blueprint_SwapNode(src_node->m_ID, node->m_ID);
+                                need_redraw = true;
+                            }
+                        }
+                        ImGui::EndDragDropTarget();
+                    }
+                    ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - 80, node_pos.y));
+                    if (ImGui::Button(node->m_Enabled ? ICON_VIEW : ICON_VIEW_DISABLE "##event_list_editor_disable_node"))
+                    {
+                        node->m_Enabled = !node->m_Enabled;
+                        update_track(pBP, node);
+                    }
+                    ImGui::ShowTooltipOnHover(node->m_Enabled ? "Disable Node" : "Enable Node");
+                    ImGui::SameLine();
+                    if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_node"))
+                    {
+                        ImGui::OpenPopup("Delete Node?");
+                    }
+                    ImGui::ShowTooltipOnHover("Delete Node");
+                    if (tree_open && !need_redraw)
+                    {
+                        ImGui::ImCurveEdit::keys key;
+                        key.m_id = node->m_ID;
+                        ImGui::Indent(20);
+                        if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key, false))
+                        {
+                            update_track(pBP, node);
+                        }
+                        ImGui::Indent(-20);
+                        if (!key.name.empty())
+                        {
+                            if (key.checked)
+                                addCurve(node, key.name, key.m_min, key.m_max, key.m_default, key.m_sub_id);
+                            else
+                                delCurve(node, key.name, key.m_sub_id);
+                        }
+                        // list curve
+                        editCurve(pKP, node);
+                    }
+
+                    // Handle node delete
+                    if (msgbox_node.Draw() == 1)
+                    {
+                        if (pKP)
+                        {
+                            int found = -1;
+                            while ((found = pKP->GetCurveIndex(node->m_ID)) != -1)
+                            {
+                                auto key = pKP->GetCurveKey(found);
+                                if (key) delCurve(node, key->name, key->m_sub_id);
+                            }
+                        }
+                        auto track = timeline->FindTrackByClipID(node->m_ID);
+                        pBP->Blueprint_DeleteNode(node->m_ID);
+                        if (track) timeline->RefreshTrackView({track->mID});
+                        need_redraw = true;
+                    }
+                    if (tree_open) ImGui::TreePop();
+                }
+            }
+            // Handle event delete
+            if (msgbox_event.Draw() == 1)
+            {
+                editing_clip->DeleteEvent(event, &timeline->mUiActions);
+            }
+            ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
+            ImGui::TreePop();
+        }
+        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0,1.0,1.0,0.75));
+        ImGui::Separator();
+        ImGui::PopStyleColor();
+    }
 }
 
 /****************************************************************************************
@@ -4930,384 +5312,6 @@ static bool DrawVideoFilterTimelineWindow(bool& show_BP)
     return DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50, show_BP);
 }
 
-static void DrawVideoFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
-{
-    ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
-    ImVec2 sub_window_size = ImGui::GetWindowSize();
-    if (!editing_clip || !editing_clip->mEventStack)
-        return;
-
-    static const char* buttons[] = { "Delete", "Cancel", NULL };
-    static ImGui::MsgBox msgbox_event;
-    msgbox_event.Init("Delete Event?", ICON_MD_WARNING, "Are you really really sure you want to delete event?", buttons, false);
-
-    static ImGui::MsgBox msgbox_node;
-    msgbox_node.Init("Delete Node?", ICON_MD_WARNING, "Are you really really sure you want to delete node?", buttons, false);
-
-    auto event_list = editing_clip->mEventStack->GetEventList();
-    if (event_list.empty())
-    {
-        ImGui::SetWindowFontScale(2);
-        auto pos_center = sub_window_pos + sub_window_size / 2;
-        std::string tips_string = "Please add event first";
-        auto string_width = ImGui::CalcTextSize(tips_string.c_str());
-        auto tips_pos = pos_center - string_width / 2;
-        ImGui::SetWindowFontScale(1);
-        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
-        return;
-    }
-    char ** curve_type_list = nullptr;
-    auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
-
-    auto update_track = [&](BluePrint::BluePrintUI* pBP, BluePrint::Node* node)
-    {
-        auto track = timeline->FindTrackByClipID(editing_clip->mID);
-        if (track) timeline->RefreshTrackView({track->mID});
-        pBP->Blueprint_UpdateNode(node->m_ID);
-    };
-    for (auto event : event_list)
-    {
-        bool is_selected = event->Status() & EVENT_SELECTED;
-        bool is_in_range = event->End() > 0 && event->Start() < editing_clip->Length();
-        std::string event_label = ImGuiHelper::MillisecToString(event->Start(), 3) + " -> " + ImGuiHelper::MillisecToString(event->End(), 3) + "##clip_event##" + std::to_string(event->Id());
-        std::string event_drag_drop_label = "##event_tree##" + std::to_string(event->Id());
-        if (!is_in_range)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 0.0, 0.0, 1.0));
-            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.3, 0.0, 0.0, 1.0));
-            ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.3, 0.0, 0.0, 1.0));
-        }
-        else
-        {
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 1.0));
-            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.4, 0.4, 1.0, 1.0));
-            ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.2, 0.2, 1.0, 1.0));
-        }
-        auto tree_pos = ImGui::GetCursorScreenPos();
-        ImGui::Circle(is_selected);
-        bool event_tree_open = ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None));
-        ImGui::PopStyleColor(3);
-        ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - 48, tree_pos.y));
-        if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_event"))
-        {
-            ImGui::OpenPopup("Delete Event?");
-        }
-        ImGui::ShowTooltipOnHover("Delete Event");
-        if (event_tree_open)
-        {
-            ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
-            auto pBP = event->GetBp();
-            auto pKP = event->GetKeyPoint();
-            auto addCurve = [&](BluePrint::Node* node, std::string name, float _min, float _max, float _default, int64_t pin_id)
-            {
-                if (pKP)
-                {
-                    auto found = pKP->GetCurveIndex(name);
-                    if (found == -1)
-                    {
-                        ImU32 color; ImGui::RandomColor(color, 1.f);
-                        auto curve_index = pKP->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default, node->m_ID, pin_id);
-                        pKP->AddPoint(curve_index, ImVec2(0, _min), ImGui::ImCurveEdit::Smooth);
-                        pKP->AddPoint(curve_index, ImVec2(event->End() - event->Start(), _max), ImGui::ImCurveEdit::Smooth);
-                        pKP->SetCurvePointDefault(curve_index, 0);
-                        pKP->SetCurvePointDefault(curve_index, 1);
-                        if (pBP)
-                        {
-                            auto entry_node = pBP->FindEntryPointNode();
-                            if (entry_node)
-                            {
-                                auto pin = entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
-                                if (pin && pin_id != -1)
-                                {
-                                    auto link_pin = pBP->m_Document->m_Blueprint.FindPin(pin_id);
-                                    if (link_pin) link_pin->LinkTo(*pin);
-                                }
-                            }
-                            update_track(pBP, node);
-                        }
-                    }
-                }
-            };
-            auto delCurve = [&](BluePrint::Node* node, std::string name, int64_t pin_id)
-            {
-                if (pKP)
-                {
-                    auto found = pKP->GetCurveIndex(name);
-                    if (found != -1)
-                    {
-                        pKP->DeleteCurve(found);
-                        if (pBP && pin_id != -1)
-                        {
-                            auto link_pin = pBP->m_Document->m_Blueprint.FindPin(pin_id);
-                            if (link_pin) link_pin->Unlink();
-                            auto entry_node = pBP->FindEntryPointNode();
-                            if (entry_node)
-                            {
-                                auto pin = entry_node->FindPin(name);
-                                if (pin && pin->m_LinkFrom.empty())
-                                {
-                                    entry_node->DeleteOutputPin(name);
-                                }
-                            }
-                            update_track(pBP, node);
-                        }
-                    }
-                }
-            };
-            auto editCurve = [&](ImGui::KeyPointEditor* keypoint, BluePrint::Node* node)
-            {
-                if (!keypoint || !node) return;
-                if (keypoint->GetCurveCount() <= 0) return;
-                ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.2,0.2,1.0,0.5));
-                ImGui::Separator();
-                MediaTimeline::MediaTrack * track = node ? timeline->FindTrackByClipID(node->m_ID) : nullptr;
-                for (int i = 0; i < keypoint->GetCurveCount(); i++)
-                {
-                    bool break_loop = false;
-                    if (keypoint->GetCurveID(i) != node->m_ID)
-                        continue;
-                    ImGui::PushID(i);
-                    auto pCount = keypoint->GetCurvePointCount(i);
-                    std::string lable_id = std::string(ICON_CURVE) + " " + keypoint->GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_event_curve";
-                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
-                    {
-                        float curve_min = keypoint->GetCurveMin(i);
-                        float curve_max = keypoint->GetCurveMax(i);
-                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        auto curve_time = timeline->currentTime - timeline->mVidFilterClip->mStart - event->Start();
-                        float curve_value = keypoint->GetValue(i, curve_time);
-                        bool in_range = curve_time >= keypoint->GetMin().x && 
-                                        curve_time <= keypoint->GetMax().x;
-                        ImGui::BracketSquare(true); 
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
-                        if (in_range) ImGui::Text("%.2f", curve_value); 
-                        else ImGui::TextUnformatted("--.--");
-                        ImGui::PopStyleColor();
-                        ImGui::ShowTooltipOnHover("Current value");
-                        ImGui::SameLine();
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3, 0.3, 1.0, 1.0)); 
-                        if (in_range) ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time + event->Start(), 3).c_str()); 
-                        else ImGui::TextUnformatted("--:--.--");
-                        ImGui::PopStyleColor();
-                        ImGui::ShowTooltipOnHover("Clip time");
-                        ImGui::SameLine();
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
-                        ImGui::Text("%s", ImGuiHelper::MillisecToString(timeline->currentTime, 3).c_str());
-                        ImGui::PopStyleColor();
-                        ImGui::ShowTooltipOnHover("Main time");
-                        ImGui::SameLine();
-                        ImGui::BeginDisabled(!in_range);
-                        if (ImGui::Button(ICON_MD_ADS_CLICK))
-                        {
-                            auto value_range = keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i);
-                            curve_value = (curve_value - keypoint->GetCurveMin(i)) / (value_range + FLT_EPSILON);
-                            keypoint->AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
-                        }
-                        ImGui::EndDisabled();
-                        ImGui::ShowTooltipOnHover("Add key at current");
-
-                        ImGui::PushItemWidth(60);
-                        if (ImGui::DragFloat("##curve_video_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
-                        {
-                            keypoint->SetCurveMin(i, curve_min);
-                            if (track) timeline->RefreshTrackView({track->mID});
-                        } ImGui::ShowTooltipOnHover("Min");
-                        ImGui::SameLine(0, 8);
-                        if (ImGui::DragFloat("##curve_video_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
-                        {
-                            keypoint->SetCurveMax(i, curve_max);
-                            if (track) timeline->RefreshTrackView({track->mID});
-                        } ImGui::ShowTooltipOnHover("Max");
-                        ImGui::SameLine(0, 8);
-                        float curve_default = keypoint->GetCurveDefault(i);
-                        if (ImGui::DragFloat("##curve_video_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
-                        {
-                            keypoint->SetCurveDefault(i, curve_default);
-                            if (track) timeline->RefreshTrackView({track->mID});
-                        } ImGui::ShowTooltipOnHover("Default");
-                        ImGui::PopItemWidth();
-
-                        ImGui::SameLine(0, 8);
-                        ImGui::SetWindowFontScale(0.75);
-                        auto curve_color = ImGui::ColorConvertU32ToFloat4(keypoint->GetCurveColor(i));
-                        if (ImGui::ColorEdit4("##curve_video_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
-                        {
-                            keypoint->SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
-                        } ImGui::ShowTooltipOnHover("Curve Color");
-                        ImGui::SetWindowFontScale(1.0);
-                        ImGui::SameLine(0, 4);
-                        bool is_visiable = keypoint->IsVisible(i);
-                        if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_video_filter_visiable"))
-                        {
-                            is_visiable = !is_visiable;
-                            keypoint->SetCurveVisible(i, is_visiable);
-                        } ImGui::ShowTooltipOnHover( is_visiable ? "Hide" : "Show");
-                        ImGui::SameLine(0, 4);
-                        if (ImGui::Button(ICON_MD_ROTATE_90_DEGREES_CCW "##curve_video_filter_reset"))
-                        {
-                            for (int p = 0; p < pCount; p++)
-                            {
-                                keypoint->SetCurvePointDefault(i, p);
-                            }
-                            if (track) timeline->RefreshTrackView({track->mID});
-                        } ImGui::ShowTooltipOnHover("Reset");
-                        if (!break_loop)
-                        {
-                            // list points
-                            for (int p = 0; p < pCount; p++)
-                            {
-                                bool is_disabled = false;
-                                ImGui::PushID(p);
-                                ImGui::PushItemWidth(96);
-                                auto point = keypoint->GetPoint(i, p);
-                                ImGui::Diamond(true, true);
-                                if (p == 0 || p == pCount - 1)
-                                    is_disabled = true;
-                                ImGui::BeginDisabled(is_disabled);
-                                float point_min = keypoint->GetMin().x + event->Start();
-                                float point_max = keypoint->GetMax().x + event->Start();
-                                float point_current = point.point.x + event->Start();
-                                if (ImGui::DragTimeMS("##curve_video_filter_point_x", &point_current, point_max / 1000.f, point_min, point_max, 2))
-                                {
-                                    point.point.x = point_current - event->Start();
-                                    keypoint->EditPoint(i, p, point.point, point.type);
-                                    if (track) timeline->RefreshTrackView({track->mID});
-                                }
-                                ImGui::EndDisabled();
-                                ImGui::SameLine();
-                                auto speed = fabs(keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i)) / 500;
-                                if (ImGui::DragFloat("##curve_video_filter_point_y", &point.point.y, speed, keypoint->GetCurveMin(i), keypoint->GetCurveMax(i), "%.2f"))
-                                {
-                                    keypoint->EditPoint(i, p, point.point, point.type);
-                                    if (track) timeline->RefreshTrackView({track->mID});
-                                }
-                                ImGui::SameLine();
-                                if (ImGui::Combo("##curve_video_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
-                                {
-                                    keypoint->EditPoint(i, p, point.point, point.type);
-                                    if (track) timeline->RefreshTrackView({track->mID});
-                                }
-                                ImGui::PopItemWidth();
-                                ImGui::PopID();
-                            }
-                        }
-                        ImGui::PopStyleColor();
-                        ImGui::TreePop();
-                    }
-                    ImGui::PopID();
-                    if (break_loop) break;
-                }
-                ImGui::Separator();
-                ImGui::PopStyleColor();
-            };
-            if (pBP)
-            {                
-                auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
-                bool need_redraw = false;
-                for (auto node : nodes)
-                {
-                    if (need_redraw)
-                        break;
-                    auto type = node->GetTypeInfo().m_Type;
-                    if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
-                        continue;
-                    auto label_name = node->m_Name;
-                    std::string lable_id = label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
-                    auto node_pos = ImGui::GetCursorScreenPos();
-                    node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(60, 30));
-                    ImGui::SameLine(30);
-                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 1.0));
-                    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.2, 0.5, 0.2, 1.0));
-                    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.1, 0.5, 0.1, 1.0));
-                    bool tree_open = ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap);
-                    ImGui::PopStyleColor(3);
-                    if (ImGui::BeginDragDropSource())
-                    {
-                        ImGui::SetDragDropPayload(event_drag_drop_label.c_str(), node, sizeof(BluePrint::Node));
-                        ImGui::TextUnformatted(node->m_Name.c_str());
-                        ImGui::EndDragDropSource();
-                    }
-                    if (ImGui::BeginDragDropTarget())
-                    {
-                        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(event_drag_drop_label.c_str()))
-                        {
-                            BluePrint::Node* src_node = (BluePrint::Node*)payload->Data;
-                            if (src_node)
-                            {
-                                pBP->Blueprint_SwapNode(src_node->m_ID, node->m_ID);
-                                need_redraw = true;
-                            }
-                        }
-                        ImGui::EndDragDropTarget();
-                    }
-                    ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - 80, node_pos.y));
-                    if (ImGui::Button(node->m_Enabled ? ICON_VIEW : ICON_VIEW_DISABLE "##event_list_editor_disable_node"))
-                    {
-                        node->m_Enabled = !node->m_Enabled;
-                        update_track(pBP, node);
-                    }
-                    ImGui::ShowTooltipOnHover(node->m_Enabled ? "Disable Node" : "Enable Node");
-                    ImGui::SameLine();
-                    if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_node"))
-                    {
-                        ImGui::OpenPopup("Delete Node?");
-                    }
-                    ImGui::ShowTooltipOnHover("Delete Node");
-                    if (tree_open && !need_redraw)
-                    {
-                        ImGui::ImCurveEdit::keys key;
-                        key.m_id = node->m_ID;
-                        ImGui::Indent(20);
-                        if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key, false))
-                        {
-                            update_track(pBP, node);
-                        }
-                        ImGui::Indent(-20);
-                        if (!key.name.empty())
-                        {
-                            if (key.checked)
-                                addCurve(node, key.name, key.m_min, key.m_max, key.m_default, key.m_sub_id);
-                            else
-                                delCurve(node, key.name, key.m_sub_id);
-                        }
-                        // list curve
-                        editCurve(pKP, node);
-                    }
-
-                    // Handle node delete
-                    if (msgbox_node.Draw() == 1)
-                    {
-                        if (pKP)
-                        {
-                            int found = -1;
-                            while ((found = pKP->GetCurveIndex(node->m_ID)) != -1)
-                            {
-                                auto key = pKP->GetCurveKey(found);
-                                if (key) delCurve(node, key->name, key->m_sub_id);
-                            }
-                        }
-                        auto track = timeline->FindTrackByClipID(node->m_ID);
-                        pBP->Blueprint_DeleteNode(node->m_ID);
-                        if (track) timeline->RefreshTrackView({track->mID});
-                        need_redraw = true;
-                    }
-                    if (tree_open) ImGui::TreePop();
-                }
-            }
-            // Handle event delete
-            if (msgbox_event.Draw() == 1)
-            {
-                editing_clip->DeleteEvent(event, &timeline->mUiActions);
-            }
-            ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
-            ImGui::TreePop();
-        }
-        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0,1.0,1.0,0.75));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-    }
-}
-
 static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*                1. with preview(2 Splitters)                                                   2. without preview(1 Splitter)
@@ -5446,7 +5450,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::SameLine();
             if (ImGui::BeginChild("video_event_list", ImVec2(event_list_width - 4, window_size.y), false))
             {
-                DrawVideoFilterEventWindow(draw_list, editing_clip);
+                DrawFilterEventWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
         }
@@ -5479,7 +5483,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::SameLine();
             if (ImGui::BeginChild("video_event_list", ImVec2(event_list_width - 8, window_size.y), false))
             {
-                DrawVideoFilterEventWindow(draw_list, editing_clip);
+                DrawFilterEventWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
         }
@@ -5508,7 +5512,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::SameLine();
             if (ImGui::BeginChild("video_event_list", ImVec2(event_list_width - 4, timeline_height - 8), false))
             {
-                DrawVideoFilterEventWindow(draw_list, editing_clip);
+                DrawFilterEventWindow(draw_list, editing_clip);
             }
             ImGui::EndChild();
         }
@@ -5542,7 +5546,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 ImGui::SameLine();
                 if (ImGui::BeginChild("event list", ImVec2(event_list_width - 4, timeline_height - 8), false))
                 {
-                    DrawVideoFilterEventWindow(draw_list, editing_clip);
+                    DrawFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
                 }
@@ -5589,7 +5593,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 ImGui::SameLine();
                 if (ImGui::BeginChild("event list", ImVec2(event_list_width - 4, timeline_height - 8), false))
                 {
-                    DrawVideoFilterEventWindow(draw_list, editing_clip);
+                    DrawFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
             }
@@ -6623,16 +6627,6 @@ static bool DrawAudioFilterTimelineWindow(bool& show_BP)
     return DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->currentTime, 30, 50, show_BP);
 }
 
-static void DrawAudioFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
-{
-    ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
-    ImVec2 sub_window_size = ImGui::GetWindowSize();
-    if (!editing_clip || !editing_clip->mEventStack)
-        return;
-    // TODO::Dicky
-    ImGui::TextUnformatted("Audio filter event editor");
-}
-
 static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     /*
@@ -6749,8 +6743,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 ImGui::Dummy(ImVec2(0, 4));
                 if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, window_size.y - 48), false))
                 {
-                    //ImGui::TextUnformatted("audio_event_list");
-                    DrawAudioFilterEventWindow(draw_list, editing_clip);
+                    DrawFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
             }
@@ -6783,8 +6776,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 ImGui::Dummy(ImVec2(0, 4));
                 if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, timeline_height - 8), false))
                 {
-                    //ImGui::TextUnformatted("audio_event_list");
-                    DrawAudioFilterEventWindow(draw_list, editing_clip);
+                    DrawFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
             }
@@ -6830,7 +6822,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 ImGui::Dummy(ImVec2(0, 4));
                 if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, window_size.y - 48), false))
                 {
-                    DrawAudioFilterEventWindow(draw_list, editing_clip);
+                    DrawFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
             }
@@ -6876,7 +6868,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
                 ImGui::Dummy(ImVec2(0, 4));
                 if (ImGui::BeginChild("audio_event_list", ImVec2(event_list_width - 4, timeline_height - 48), false))
                 {
-                    DrawAudioFilterEventWindow(draw_list, editing_clip);
+                    DrawFilterEventWindow(draw_list, editing_clip);
                 }
                 ImGui::EndChild();
             }
@@ -10914,6 +10906,8 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         out_buf->appendf("ShowHelpTips=%d\n", g_media_editor_settings.ShowHelpTooltips ? 1 : 0);
         out_buf->appendf("VideoClipTimelineHeight=%f\n", g_media_editor_settings.video_clip_timeline_height);
         out_buf->appendf("VideoClipTimelineWidth=%f\n", g_media_editor_settings.video_clip_timeline_width);
+        out_buf->appendf("AudioClipTimelineHeight=%f\n", g_media_editor_settings.audio_clip_timeline_height);
+        out_buf->appendf("AudioClipTimelineWidth=%f\n", g_media_editor_settings.audio_clip_timeline_width);
         out_buf->appendf("ExpandScope=%d\n", g_media_editor_settings.ExpandScope ? 1 : 0);
         out_buf->appendf("SeparateScope=%d\n", g_media_editor_settings.SeparateScope ? 1 : 0);
         out_buf->appendf("HistogramLogView=%d\n", g_media_editor_settings.HistogramLog ? 1 : 0);

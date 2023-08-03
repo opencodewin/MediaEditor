@@ -12337,7 +12337,9 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     static const char* buttons[] = { "Delete", "Cancel", NULL };
     static ImGui::MsgBox msgbox;
     msgbox.Init("Delete Event?", ICON_MD_WARNING, "Are you really really sure you want to delete event?", buttons, false);
-
+    static int64_t lastFirstTime = -1;
+    static int64_t lastVisiableTime = -1;
+    bool changed = false;
     if (!editingClip)
     {
         ImGui::SetWindowFontScale(2);
@@ -12424,14 +12426,22 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     static int64_t panningViewHorizonTime;
 
     editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+    if (lastFirstTime != -1 && lastFirstTime != editingClip->firstTime) changed = true;
+    if (lastVisiableTime != -1 && lastVisiableTime != newVisibleTime) changed = true;
+    lastFirstTime = editingClip->firstTime;
+    lastVisiableTime = newVisibleTime;
 
     if (editingClip->visibleTime >= duration)
+    {
         editingClip->firstTime = 0;
+        changed = true;
+    }
     else if (editingClip->firstTime + editingClip->visibleTime > duration)
     {
         editingClip->firstTime = duration - editingClip->visibleTime;
         alignTime(editingClip->firstTime, frame_duration);
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+        changed = true;
     }
     editingClip->lastTime = editingClip->firstTime + editingClip->visibleTime;
 
@@ -12513,6 +12523,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         editingClip->firstTime = currentTime - new_visible_time / 2;
         alignTime(editingClip->firstTime, frame_duration);
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
+        changed = true;
     }
     ImGui::ShowTooltipOnHover("Frame accuracy");
 
@@ -12521,6 +12532,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     {
         editingClip->msPixelWidthTarget = minPixelWidthTarget;
         editingClip->firstTime = 0;
+        changed = true;
     }
     ImGui::ShowTooltipOnHover("Clip accuracy");
 
@@ -12533,6 +12545,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
         alignTime(editingClip->firstTime, frame_duration);
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+        changed = true;
     }
     ImGui::ShowTooltipOnHover("Current time");
 
@@ -12540,6 +12553,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     if (ImGui::RotateButton(ICON_MD_EXIT_TO_APP "##clip_timeline_prev_event", ImVec2(0, 0), 180))
     {
         // TODO::Dicky jump to previous event
+        changed = true;
     }
     ImGui::ShowTooltipOnHover("Previous event");
 
@@ -12547,6 +12561,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     if (ImGui::Button(ICON_MD_EXIT_TO_APP "##clip_timeline_next_event"))
     {
         // TODO::Dicky jump to next event
+        changed = true;
     }
     ImGui::ShowTooltipOnHover("Next event");
 
@@ -12669,18 +12684,21 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     editingClip->firstTime = menuMouseTime - new_visible_time / 2;
                     alignTime(editingClip->firstTime, frame_duration);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
+                    changed = true;
                 }
             }
             if (ImGui::MenuItem(ICON_SLIDER_CLIP " Clip accuracy", nullptr, nullptr))
             {
                 editingClip->msPixelWidthTarget = minPixelWidthTarget;
                 editingClip->firstTime = 0;
+                changed = true;
             }
             if (ImGui::MenuItem(ICON_CURRENT_TIME " Current Time", nullptr, nullptr))
             {
                 editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
                 alignTime(editingClip->firstTime, frame_duration);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                changed = true;
             }
 
             if (HeaderAreaRect.Contains(menuMousePos))
@@ -12742,6 +12760,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 editingClip->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
                 alignTime(editingClip->firstTime, frame_duration);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                changed = true;
             }
         }
         else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
@@ -12757,6 +12776,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             editingClip->firstTime = int((io.MousePos.x - contentMin.x) / msPerPixelInBar);
             alignTime(editingClip->firstTime, frame_duration);
             editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+            changed = true;
         }
 
         // handle mouse wheel event
@@ -12770,12 +12790,14 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     editingClip->firstTime -= editingClip->visibleTime / view_frames;
                     alignTime(editingClip->firstTime, frame_duration);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                    changed = true;
                 }
                 else if (io.MouseWheelH > FLT_EPSILON)
                 {
                     editingClip->firstTime += editingClip->visibleTime / view_frames;
                     alignTime(editingClip->firstTime, frame_duration);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                    changed = true;
                 }
                 // up-down wheel over scrollbar, scale canvas view
                 else if (io.MouseWheel < -FLT_EPSILON && editingClip->visibleTime <= duration)
@@ -12786,6 +12808,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     int64_t offset = new_mouse_time - mouseTime;
                     editingClip->firstTime -= offset;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                    changed = true;
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
@@ -12795,13 +12818,14 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     int64_t offset = new_mouse_time - mouseTime;
                     editingClip->firstTime -= offset;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                    changed = true;
                 }
             }
         }
 
         // draw clip content
         ImGui::PushClipRect(contentMin, contentMax, true);
-        editingClip->DrawContent(draw_list, contentMin, contentMax);
+        editingClip->DrawContent(draw_list, contentMin, contentMax, changed);
         ImGui::PopClipRect();
 
         // time cursor
