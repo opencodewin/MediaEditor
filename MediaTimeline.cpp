@@ -413,27 +413,37 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
 
         if (draw_event && cursor_end > cursor_start)
         {
+            auto pBP = event->GetBp();
+            bool is_event_valid = pBP && pBP->Blueprint_IsExecutable();
             bool is_select = event->Status() & EVENT_SELECTED;
             bool is_hovered = event->Status() & EVENT_HOVERED;
             if (is_select)
-                draw_list->AddRect(event_pos_min, event_pos_max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
+                draw_list->AddRect(event_pos_min, event_pos_max, IM_COL32(0,255,0,224), 4, flag, 2.0f);
             else
                 draw_list->AddRect(event_pos_min, event_pos_max, IM_COL32(128,128,255,224), 4, flag, 2.0f);
-            draw_list->AddRectFilled(event_pos_min, event_pos_max, is_hovered ? IM_COL32(64, 64, 192, 128) : IM_COL32(32, 32, 192, 128), 4, flag);
-            auto pBP = event->GetBp();
+            auto event_color = is_event_valid ? (is_hovered ? IM_COL32(64, 64, 192, 128) : IM_COL32(32, 32, 192, 128)) : IM_COL32(192, 32, 32, 128);
+            draw_list->AddRectFilled(event_pos_min, event_pos_max, event_color, 4, flag);
             if (pBP)
             {
                 auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
                 ImGui::SetCursorScreenPos(event_pos_min);
                 draw_list->PushClipRect(event_pos_min, event_pos_max);
-                int count = 0;
-                for (auto node : nodes)
+                if (!nodes.empty() && event_pos_max.x - event_pos_min.x < 24)
                 {
-                    if (!IS_ENTRY_EXIT_NODE(node->GetType()))
+                    auto center_point = ImVec2(event_pos_min.x + (event_pos_max.x - event_pos_min.x) / 2, event_pos_min.y + (event_pos_max.y - event_pos_min.y) / 2);
+                    draw_list->AddCircleFilled(center_point, 4, IM_COL32_WHITE, 16);
+                }
+                else
+                {
+                    int count = 0;
+                    for (auto node : nodes)
                     {
-                        ImGui::SetCursorScreenPos(event_pos_min + ImVec2(16 * count, 0));
-                        node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(26, 24));
-                        count ++;
+                        if (!IS_ENTRY_EXIT_NODE(node->GetType()))
+                        {
+                            ImGui::SetCursorScreenPos(event_pos_min + ImVec2(16 * count, 0));
+                            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(26, 24));
+                            count ++;
+                        }
                     }
                 }
                 draw_list->PopClipRect();
@@ -12902,10 +12912,14 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 ImVec2 track_size = ImVec2(event_track_size.x, trackHeight + (track->mExpanded ? curveHeight : 0));
                 ImRect track_area = ImRect(track_current, track_current + track_size);
+                ImVec2 track_title_size = ImVec2(event_track_size.x, trackHeight);
+                ImRect track_title_area = ImRect(track_current, track_current + track_title_size);
+                ImRect track_curve_area = track_area; track_curve_area.Min.y += trackHeight;
                 ImVec2 pos = ImVec2(track_current.x - editingClip->firstTime * editingClip->msPixelWidthTarget, track_current.y);
                 bool is_mouse_hovered = track_area.Contains(io.MousePos);
                 unsigned int col = is_mouse_hovered && event_editable ? COL_EVENT_HOVERED : (current_index & 1) ? COL_EVENT_ODD : COL_EVENT_EVEN;
-                drawList->AddRectFilled(track_area.Min, track_area.Max, col);
+                drawList->AddRectFilled(track_title_area.Min, track_title_area.Max, col);
+                if (track->mExpanded) drawList->AddRectFilled(track_curve_area.Min, track_curve_area.Max, IM_COL32_BLACK);
                 ImGui::SetCursorScreenPos(track_current);
                 ImGui::InvisibleButton("##event_track", track_size);
                 if (is_mouse_hovered)
