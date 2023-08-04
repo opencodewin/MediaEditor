@@ -7200,71 +7200,56 @@ void TimeLine::CustomDraw(
         if (draw_clip && cursor_end > cursor_start)
         {
             // draw title bar
-            if (clip->mGroupID != -1)
-            {
-                auto color = GetGroupColor(clip->mGroupID);
-                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, color, 4, flag);
-            }
-            else
-                draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, IM_COL32(64,128,64,128), 4, flag);
+            auto color = clip->mGroupID != -1 ? GetGroupColor(clip->mGroupID) : IM_COL32(64,128,64,128);
+            draw_list->AddRectFilled(clip_title_pos_min, clip_title_pos_max, color, 4, flag);
             
             // draw clip status
-            draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
-            draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, IS_TEXT(clip->mType) ? "T" : clip->mName.c_str());
+            draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);           
             
-#if 0
-            // add clip filter curve point
-            ImGui::KeyPointEditor* keypoint_filter = &clip->mFilterKeyPoints;
-            if (mVidFilterClip && mVidFilterClip->mID == clip->mID && mVidFilterClip->mFilter)
+            // add clip event on title bar
+            if (clip && clip->mEventStack)
             {
-                keypoint_filter = mVidFilterClip->mFilterKp;
-            }
-            else if (mAudFilterClip && mAudFilterClip->mID == clip->mID && mAudFilterClip->mFilter)
-            {
-                keypoint_filter = mAudFilterClip->mFilterKp;
-            }
-            if (keypoint_filter)
-            {
-                for (int i = 0; i < keypoint_filter->GetCurveCount(); i++)
+                auto events = clip->mEventStack->GetEventList();
+                auto start_time = firstTime - clip->Start();
+                auto end_time = viewEndTime - clip->Start();
+                for (auto event : events)
                 {
-                    auto curve_color = keypoint_filter->GetCurveColor(i);
-                    for (int p = 0; p < keypoint_filter->GetCurvePointCount(i); p++)
+                    bool draw_event = false;
+                    float event_cursor_start = 0;
+                    float event_cursor_end  = 0;
+                    if (event->IsInRange(start_time) && event->End() <= end_time)
                     {
-                        auto point = keypoint_filter->GetPoint(i, p);
-                        auto pos = point.point.x + clip->Start();
-                        if (pos >= firstTime && pos <= viewEndTime)
-                        {
-                            ImVec2 center = ImVec2(clippingRect.Min.x + (pos - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
-                            draw_list->AddCircle(center, 3, curve_color, 0, 2);
-                        }
+                        event_cursor_start = clippingRect.Min.x;
+                        event_cursor_end = clippingRect.Min.x + (event->End() - start_time) * msPixelWidthTarget;
+                        draw_event = true;
+                    }
+                    else if (event->Start() >= start_time && event->End() <= end_time)
+                    {
+                        event_cursor_start = clippingRect.Min.x + (event->Start() - start_time) * msPixelWidthTarget;
+                        event_cursor_end = clippingRect.Min.x + (event->End() - start_time) * msPixelWidthTarget;
+                        draw_event = true;
+                    }
+                    else if (event->Start() >= start_time && event->IsInRange(end_time))
+                    {
+                        event_cursor_start = clippingRect.Min.x + (event->Start() - start_time) * msPixelWidthTarget;
+                        event_cursor_end = clippingRect.Max.x;
+                        draw_event = true;
+                    }
+                    else if (event->Start() <= start_time && event->End() >= end_time)
+                    {
+                        event_cursor_start = clippingRect.Min.x;
+                        event_cursor_end  = clippingRect.Max.x;
+                        draw_event = true;
+                    }
+                    if (draw_event)
+                    {
+                        ImVec2 event_pos_min = ImVec2(event_cursor_start, clippingTitleRect.Min.y + titleRect.GetHeight() / 4);
+                        ImVec2 event_pos_max = ImVec2(event_cursor_end, clippingTitleRect.Max.y - titleRect.GetHeight() / 4);
+                        draw_list->AddRectFilled(event_pos_min, event_pos_max, IM_COL32_INVERSE(color));
                     }
                 }
             }
-
-            // add clip attribute curve point
-            ImGui::KeyPointEditor* keypoint_attribute = &clip->mAttributeKeyPoints;
-            if (mVidFilterClip && mVidFilterClip->mID == clip->mID && mVidFilterClip->mAttribute)
-            {
-                keypoint_attribute = mVidFilterClip->mAttribute->GetKeyPoint();
-            }
-            if (keypoint_attribute)
-            {
-                for (int i = 0; i < keypoint_attribute->GetCurveCount(); i++)
-                {
-                    auto curve_color = keypoint_attribute->GetCurveColor(i);
-                    for (int p = 0; p < keypoint_attribute->GetCurvePointCount(i); p++)
-                    {
-                        auto point = keypoint_attribute->GetPoint(i, p);
-                        auto pos = point.point.x + clip->Start();
-                        if (pos >= firstTime && pos <= viewEndTime)
-                        {
-                            ImVec2 center = ImVec2(clippingRect.Min.x + (pos - firstTime) * msPixelWidthTarget, clip_title_pos_min.y + (clip_title_pos_max.y - clip_title_pos_min.y) / 2);
-                            draw_list->AddRect(center - ImVec2(3, 3), center + ImVec2(3, 3), curve_color, 0, 2);
-                        }
-                    }
-                }
-            }
-#endif
+            draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, IS_TEXT(clip->mType) ? "T" : clip->mName.c_str());
             draw_list->PopClipRect();
 
             // draw custom view
