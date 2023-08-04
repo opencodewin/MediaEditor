@@ -420,6 +420,24 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             else
                 draw_list->AddRect(event_pos_min, event_pos_max, IM_COL32(128,128,255,224), 4, flag, 2.0f);
             draw_list->AddRectFilled(event_pos_min, event_pos_max, is_hovered ? IM_COL32(64, 64, 192, 128) : IM_COL32(32, 32, 192, 128), 4, flag);
+            auto pBP = event->GetBp();
+            if (pBP)
+            {
+                auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
+                ImGui::SetCursorScreenPos(event_pos_min);
+                draw_list->PushClipRect(event_pos_min, event_pos_max);
+                int count = 0;
+                for (auto node : nodes)
+                {
+                    if (!IS_ENTRY_EXIT_NODE(node->GetType()))
+                    {
+                        ImGui::SetCursorScreenPos(event_pos_min + ImVec2(16 * count, 0));
+                        node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(26, 24));
+                        count ++;
+                    }
+                }
+                draw_list->PopClipRect();
+            }
             if (is_hovered && editable)
             {
                 if (!mouse_clicked && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
