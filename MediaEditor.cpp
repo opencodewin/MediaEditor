@@ -241,7 +241,8 @@ static const char* MainWindowTabNames[] = {
     ICON_MEDIA_PREVIEW " Preview",
     ICON_MEDIA_VIDEO " Video",
     ICON_MUSIC " Audio",
-    ICON_MEDIA_TEXT " Text"
+    ICON_MEDIA_TEXT " Text",
+    ICON_AUDIO_MIXING " Mixing"
 };
 
 static const char* MainWindowTabTooltips[] = 
@@ -250,6 +251,7 @@ static const char* MainWindowTabTooltips[] =
     "Video Editor",
     "Audio Editor",
     "Text Editor",
+    "Audio Mixing",
 };
 
 #define SCOPE_VIDEO_HISTOGRAM   (1<<0)
@@ -290,29 +292,25 @@ static const char* ScopeWindowTabNames[] = {
 };
 
 static const char* VideoEditorTabNames[] = {
-    ICON_BLUE_PRINT,
+    ICON_FILTER_EDITOR,
     ICON_TRANS,
     ICON_CROP,
-    //ICON_ROTATE
 };
 
 static const char* VideoEditorTabTooltips[] = {
     "Video Filter",
     "Video Transition",
     "Video Attribute",
-    //"Video Rotate"
 };
 
 static const char* AudioEditorTabNames[] = {
-    ICON_BLUE_PRINT,
+    ICON_FILTER_EDITOR,
     ICON_TRANS,
-    ICON_AUDIO_MIXING,
 };
 
 static const char* AudioEditorTabTooltips[] = {
     "Audio Filter",
     "Audio Transition",
-    "Audio Mixing",
 };
 
 static const char* TextEditorTabNames[] = {
@@ -947,10 +945,10 @@ static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size, std::s
 static void CalculateVideoScope(ImGui::ImMat& mat)
 {
 #if IMGUI_VULKAN_SHADER
-    if (m_histogram && (scope_flags & SCOPE_VIDEO_HISTOGRAM)) m_histogram->scope(mat, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
-    if (m_waveform && (scope_flags & SCOPE_VIDEO_WAVEFORM)) m_waveform->scope(mat, mat_video_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate, g_media_editor_settings.WaveformShowY);
-    if (m_cie && (scope_flags & SCOPE_VIDEO_CIE)) m_cie->scope(mat, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
-    if (m_vector && (scope_flags & SCOPE_VIDEO_VECTOR)) m_vector->scope(mat, mat_vector, g_media_editor_settings.VectorIntensity);
+    if (m_histogram && (scope_flags & SCOPE_VIDEO_HISTOGRAM | need_update_scope)) m_histogram->scope(mat, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
+    if (m_waveform && (scope_flags & SCOPE_VIDEO_WAVEFORM | need_update_scope)) m_waveform->scope(mat, mat_video_waveform, 256, g_media_editor_settings.WaveformIntensity, g_media_editor_settings.WaveformSeparate, g_media_editor_settings.WaveformShowY);
+    if (m_cie && (scope_flags & SCOPE_VIDEO_CIE | need_update_scope)) m_cie->scope(mat, mat_cie, g_media_editor_settings.CIEIntensity, g_media_editor_settings.CIEShowColor);
+    if (m_vector && (scope_flags & SCOPE_VIDEO_VECTOR | need_update_scope)) m_vector->scope(mat, mat_vector, g_media_editor_settings.VectorIntensity);
 #endif
     need_update_scope = false;
 }
@@ -4875,7 +4873,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         //draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        mouse_hold |= DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50, clip_keypoint_height, attribute ? attribute->GetKeyPoint() : nullptr);
+        mouse_hold |= DrawAttributeTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50, clip_keypoint_height, attribute ? attribute->GetKeyPoint() : nullptr);
     }
     ImGui::EndChild();
 
@@ -5407,7 +5405,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         auto track = timeline->FindTrackByClipID(editing_clip->mID);
         if (track) trackId = track->mID;
     }
-#ifndef USING_OLD_UI
+
     // every type for area rect
     // preview_rect: could be (0, 0, 0, 0)
     // preview_control_rect: if preview_rect is exist, width shoule equ preview_rect.width, otherwise, alway on top and same width with window
@@ -5600,347 +5598,6 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::EndChild();
         }
     }
-#else
-    float clip_timeline_height = 30 + 50 + 12;
-    float clip_keypoint_height = g_media_editor_settings.VideoFilterCurveExpanded ? 80 : 0;
-    ImVec2 video_preview_pos = window_pos;
-    float video_preview_height = (window_size.y - clip_timeline_height - clip_keypoint_height) * 2 / 3;
-    if (MonitorIndexVideoFilterOrg != -1 && MonitorIndexVideoFiltered != -1)
-        video_preview_height = 48;
-    float video_bluepoint_height = (window_size.y - clip_timeline_height - clip_keypoint_height) - video_preview_height;
-    float clip_setting_width = 400;
-    float clip_setting_height = window_size.y - video_preview_height;
-    ImVec2 clip_setting_pos = video_preview_pos + ImVec2(window_size.x - clip_setting_width, video_preview_height);
-    ImVec2 clip_setting_size(clip_setting_width, clip_setting_height);
-    float video_preview_width = window_size.x;
-    if ((window_size.x / video_preview_height > 4.f) || MonitorIndexVideoFilterOrg != -1 || MonitorIndexVideoFiltered != -1)
-    {
-        video_preview_width = window_size.x - clip_setting_width;
-        clip_setting_height = window_size.y;
-        clip_setting_pos = video_preview_pos + ImVec2(video_preview_width, 0);
-        clip_setting_size = ImVec2(clip_setting_width, clip_setting_height);
-    }
-    
-    ImVec2 video_preview_size(video_preview_width, video_preview_height);
-    ImVec2 video_bluepoint_pos = video_preview_pos + ImVec2(0, video_preview_height);
-    ImVec2 video_bluepoint_size(window_size.x - clip_setting_width, video_bluepoint_height);
-    ImVec2 clip_timeline_pos = video_bluepoint_pos + ImVec2(0, video_bluepoint_height);
-    ImVec2 clip_timeline_size(window_size.x - clip_setting_width, clip_timeline_height);
-    ImVec2 clip_keypoint_pos = g_media_editor_settings.VideoFilterCurveExpanded ? clip_timeline_pos + ImVec2(0, clip_timeline_height) : clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
-    ImVec2 clip_keypoint_size(window_size.x - clip_setting_width, clip_keypoint_height);
-
-    ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
-    ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
-    
-    // draw video filter preview
-    ImGui::SetCursorScreenPos(video_preview_pos);
-    if (ImGui::BeginChild("##video_filter_preview", video_preview_size, false, child_flags))
-    {
-        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
-        if (editing_clip) ShowVideoPreviewWindow(draw_list, editing_clip->Start(), editing_clip->End());
-        else ShowVideoPreviewWindow(draw_list, timeline->GetStart(), timeline->GetEnd());
-    }
-    ImGui::EndChild();
-
-    // draw filter blueprint
-    ImGui::SetCursorScreenPos(video_bluepoint_pos);
-    if (ImGui::BeginChild("##video_filter_blueprint", video_bluepoint_size, false, child_flags))
-    {
-        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        ShowFilterBluePrintWindow(draw_list, editing_clip);
-    }
-    ImGui::EndChild();
-
-    // draw filter timeline
-    ImGui::SetCursorScreenPos(clip_timeline_pos);
-    if (ImGui::BeginChild("##video_filter_timeline", clip_timeline_size + ImVec2(0, clip_keypoint_height), false, child_flags))
-    {
-        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 sub_window_size = ImGui::GetWindowSize();
-        //draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        // Draw Clip TimeLine
-        mouse_hold |= DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50, clip_keypoint_height, keypoint);
-    }
-    ImGui::EndChild();
-
-    // draw keypoint hidden button
-    ImVec2 hidden_button_pos = clip_keypoint_pos - ImVec2(16, 0);
-    ImRect hidden_button_rect = ImRect(hidden_button_pos, hidden_button_pos + ImVec2(16, 16));
-    ImGui::SetWindowFontScale(0.75);
-    if (hidden_button_rect.Contains(ImGui::GetMousePos()))
-    {
-        draw_list->AddRectFilled(hidden_button_rect.Min, hidden_button_rect.Max, IM_COL32(64,64,64,255));
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-        {
-            g_media_editor_settings.VideoFilterCurveExpanded = !g_media_editor_settings.VideoFilterCurveExpanded;
-        }
-        if (ImGui::BeginTooltip())
-        {
-            ImGui::TextUnformatted(g_media_editor_settings.VideoFilterCurveExpanded ? "Hide Curve View" : "Show Curve View");
-            ImGui::EndTooltip();
-        }
-    }
-    draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
-    ImGui::SetWindowFontScale(1.0);
-
-    // draw filter setting
-    ImGui::SetCursorScreenPos(clip_setting_pos);
-    if (ImGui::BeginChild("##video_filter_setting", clip_setting_size, false, setting_child_flags))
-    {
-        auto addCurve = [&](std::string name, float _min, float _max, float _default)
-        {
-            if (keypoint)
-            {
-                auto found = keypoint->GetCurveIndex(name);
-                if (found == -1)
-                {
-                    ImU32 color; ImGui::RandomColor(color, 1.f);
-                    auto curve_index = keypoint->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-                    keypoint->AddPoint(curve_index, ImVec2(/*editing_clip->mStart*/ 0, _min), ImGui::ImCurveEdit::Smooth);
-                    keypoint->AddPoint(curve_index, ImVec2(editing_clip->Length(), _max), ImGui::ImCurveEdit::Smooth);
-                    keypoint->SetCurvePointDefault(curve_index, 0);
-                    keypoint->SetCurvePointDefault(curve_index, 1);
-                    if (blueprint)
-                    {
-                        auto entry_node = blueprint->FindEntryPointNode();
-                        if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
-                        timeline->RefreshTrackView({trackId});
-                    }
-                }
-            }
-        };
-        
-        ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
-        ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
-        if (timeline->mVidFilterClip && keypoint)
-        {
-            // Filter curve setting
-            if (ImGui::TreeNodeEx("Curve Setting##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
-            {
-                char ** curve_type_list = nullptr;
-                auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
-                static std::string curve_name = "";
-                std::string value = curve_name;
-                bool name_input_empty = curve_name.empty();
-                if (ImGui::InputTextWithHint("##new_curve_name_video_filter", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
-                {
-                    if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
-                    {
-                        auto& stringValue = *static_cast<string*>(data->UserData);
-                        ImVector<char>* my_str = (ImVector<char>*)data->UserData;
-                        //IM_ASSERT(stringValue.data() == data->Buf);
-                        stringValue.resize(data->BufSize);
-                        data->Buf = (char*)stringValue.data();
-                    }
-                    else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
-                    {
-                        auto& stringValue = *static_cast<string*>(data->UserData);
-                        stringValue = std::string(data->Buf);
-                    }
-                    return 0;
-                }, &value))
-                {
-                    value.resize(strlen(value.c_str()));
-                    curve_name = value;
-                    name_input_empty = curve_name.empty();
-                }
-
-                ImGui::BeginDisabled(name_input_empty);
-                ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-                ImGui::SameLine();
-                if (ImGui::Button(ICON_ADD "##insert_curve_video_filter"))
-                {
-                    addCurve(curve_name, 0.f, 1.f, 0.5);
-                }
-                ImGui::ShowTooltipOnHover("Add custom curve");
-                ImGui::PopStyleVar();
-                ImGui::EndDisabled();
-
-                // list curves
-                for (int i = 0; i < keypoint->GetCurveCount(); i++)
-                {
-                    bool break_loop = false;
-                    ImGui::PushID(i);
-                    auto pCount = keypoint->GetCurvePointCount(i);
-                    std::string lable_id = std::string(ICON_CURVE) + " " + keypoint->GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##video_filter_curve";
-                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
-                    {
-                        float curve_min = keypoint->GetCurveMin(i);
-                        float curve_max = keypoint->GetCurveMax(i);
-                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        auto curve_time = timeline->currentTime - timeline->mVidFilterClip->mStart;
-                        float curve_value = keypoint->GetValue(i, curve_time);
-                        ImGui::BracketSquare(true); 
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
-                        ImGui::Text("%.2f", curve_value); 
-                        ImGui::PopStyleColor();
-                        ImGui::SameLine();
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
-                        ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time, 3).c_str()); 
-                        ImGui::PopStyleColor();
-                        ImGui::SameLine();
-                        bool in_range = curve_time >= keypoint->GetMin().x && 
-                                        curve_time <= keypoint->GetMax().x;
-                        ImGui::BeginDisabled(!in_range);
-                        if (ImGui::Button(ICON_MD_ADS_CLICK))
-                        {
-                            auto value_range = keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i);
-                            curve_value = (curve_value - keypoint->GetCurveMin(i)) / (value_range + FLT_EPSILON);
-                            keypoint->AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
-                        }
-                        ImGui::EndDisabled();
-                        ImGui::ShowTooltipOnHover("Add key at current");
-                        
-                        ImGui::PushItemWidth(60);
-                        if (ImGui::DragFloat("##curve_video_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
-                        {
-                            keypoint->SetCurveMin(i, curve_min);
-                            timeline->RefreshTrackView({trackId});
-                        } ImGui::ShowTooltipOnHover("Min");
-                        ImGui::SameLine(0, 8);
-                        if (ImGui::DragFloat("##curve_video_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
-                        {
-                            keypoint->SetCurveMax(i, curve_max);
-                            timeline->RefreshTrackView({trackId});
-                        } ImGui::ShowTooltipOnHover("Max");
-                        ImGui::SameLine(0, 8);
-                        float curve_default = keypoint->GetCurveDefault(i);
-                        if (ImGui::DragFloat("##curve_video_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
-                        {
-                            keypoint->SetCurveDefault(i, curve_default);
-                            timeline->RefreshTrackView({trackId});
-                        } ImGui::ShowTooltipOnHover("Default");
-                        ImGui::PopItemWidth();
-                        
-                        ImGui::SameLine(0, 8);
-                        ImGui::SetWindowFontScale(0.75);
-                        auto curve_color = ImGui::ColorConvertU32ToFloat4(keypoint->GetCurveColor(i));
-                        if (ImGui::ColorEdit4("##curve_video_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
-                        {
-                            keypoint->SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
-                        } ImGui::ShowTooltipOnHover("Curve Color");
-                        ImGui::SetWindowFontScale(1.0);
-                        ImGui::SameLine(0, 4);
-                        bool is_visiable = keypoint->IsVisible(i);
-                        if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_video_filter_visiable"))
-                        {
-                            is_visiable = !is_visiable;
-                            keypoint->SetCurveVisible(i, is_visiable);
-                        } ImGui::ShowTooltipOnHover( is_visiable ? "Hide" : "Show");
-                        ImGui::SameLine(0, 4);
-                        if (ImGui::Button(ICON_DELETE "##curve_video_filter_delete"))
-                        {
-                            // delete blueprint entry node pin
-                            auto pin_name = keypoint->GetCurveName(i);
-                            if (blueprint)
-                            {
-                                auto entry_node = blueprint->FindEntryPointNode();
-                                if (entry_node) entry_node->DeleteOutputPin(pin_name);
-                                timeline->RefreshTrackView({trackId});
-                            }
-                            keypoint->DeleteCurve(i);
-                            break_loop = true;
-                        } ImGui::ShowTooltipOnHover("Delete");
-                        ImGui::SameLine(0, 4);
-                        if (ImGui::Button(ICON_MD_ROTATE_90_DEGREES_CCW "##curve_video_filter_reset"))
-                        {
-                            for (int p = 0; p < pCount; p++)
-                            {
-                                keypoint->SetCurvePointDefault(i, p);
-                            }
-                            timeline->RefreshTrackView({trackId});
-                        } ImGui::ShowTooltipOnHover("Reset");
-
-                        if (!break_loop)
-                        {
-                            // list points
-                            for (int p = 0; p < pCount; p++)
-                            {
-                                bool is_disabled = false;
-                                ImGui::PushID(p);
-                                ImGui::PushItemWidth(96);
-                                auto point = keypoint->GetPoint(i, p);
-                                ImGui::Diamond(false);
-                                if (p == 0 || p == pCount - 1)
-                                    is_disabled = true;
-                                ImGui::BeginDisabled(is_disabled);
-                                if (ImGui::DragTimeMS("##curve_video_filter_point_x", &point.point.x, keypoint->GetMax().x / 1000.f, keypoint->GetMin().x, keypoint->GetMax().x, 2))
-                                {
-                                    keypoint->EditPoint(i, p, point.point, point.type);
-                                    timeline->RefreshTrackView({trackId});
-                                }
-                                ImGui::EndDisabled();
-                                ImGui::SameLine();
-                                auto speed = fabs(keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i)) / 500;
-                                if (ImGui::DragFloat("##curve_video_filter_point_y", &point.point.y, speed, keypoint->GetCurveMin(i), keypoint->GetCurveMax(i), "%.2f"))
-                                {
-                                    keypoint->EditPoint(i, p, point.point, point.type);
-                                    timeline->RefreshTrackView({trackId});
-                                }
-                                ImGui::SameLine();
-                                if (ImGui::Combo("##curve_video_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
-                                {
-                                    keypoint->EditPoint(i, p, point.point, point.type);
-                                    timeline->RefreshTrackView({trackId});
-                                }
-                                ImGui::PopItemWidth();
-                                ImGui::PopID();
-                            }
-                        }
-                        ImGui::PopStyleColor();
-                        ImGui::TreePop();
-                    }
-                    ImGui::PopID();
-                    if (break_loop) break;
-                }
-
-                ImGui::TreePop();
-            }
-            // Filter Node setting
-            if (blueprint && blueprint->Blueprint_IsValid())
-            {
-                if (ImGui::TreeNodeEx("Node Configure##video_filter", ImGuiTreeNodeFlags_DefaultOpen))
-                {
-                    auto nodes = blueprint->m_Document->m_Blueprint.GetNodes();
-                    for (auto node : nodes)
-                    {
-                        auto type = node->GetTypeInfo().m_Type;
-                        if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
-                            continue;
-                        if (!node->CustomLayout())
-                            continue;
-                        auto label_name = node->m_Name;
-                        std::string lable_id = label_name + "##video_filter_node" + "@" + std::to_string(node->m_ID);
-                        node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(28, 28));
-                        ImGui::SameLine(40);
-                        if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
-                        {
-                            ImGui::ImCurveEdit::keys key;
-                            key.m_id = node->m_ID;
-                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key, false))
-                            {
-                                timeline->RefreshTrackView({trackId});
-                                blueprint->Blueprint_UpdateNode(node->m_ID);
-                            }
-                            if (!key.name.empty())
-                            {
-                                addCurve(key.name, key.m_min, key.m_max, key.m_default);
-                            }
-                            ImGui::TreePop();
-                        }
-                    }
-                    ImGui::TreePop();
-                }
-            }
-        }
-    }
-    ImGui::EndChild();
-#endif
     if (!timeline->mNeedUpdateTrackIds.empty())
     {
         timeline->RefreshTrackView(timeline->mNeedUpdateTrackIds);
@@ -6704,7 +6361,6 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         keypoint = timeline->mAudFilterClip->mFilterKp;
     }
 
-#ifndef USING_OLD_UI
     // every type for area rect
     // preview_rect: right top of event window
     // preview_control_rect: if preview_rect is exist, width shoule equ preview_rect.width, otherwise, alway on top and same width with window
@@ -6875,335 +6531,6 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::EndChild();
         }
     }
-#else
-    float clip_header_height = 30 + 12;
-    float clip_channel_height = 50;
-    float clip_timeline_height = clip_header_height;
-    float clip_keypoint_height = g_media_editor_settings.AudioFilterCurveExpanded ? 100 : 0;
-    ImVec2 preview_pos = window_pos;
-    float preview_width = audio_view_width;
-
-    if (editing_clip)
-    {
-        int channels = ((AudioClip *)editing_clip)->mAudioChannels;
-        clip_timeline_height += channels * clip_channel_height;
-    }
-    float preview_height = window_size.y - clip_timeline_height - clip_keypoint_height - 4;
-    float audio_blueprint_height = window_size.y / 2;
-    float clip_timeline_width = audio_view_width;
-    ImVec2 clip_timeline_pos = window_pos + ImVec2(0, preview_height);
-    ImVec2 clip_timeline_size(clip_timeline_width, clip_timeline_height);
-    ImVec2 clip_keypoint_pos = g_media_editor_settings.AudioFilterCurveExpanded ? clip_timeline_pos + ImVec2(0, clip_timeline_height) : clip_timeline_pos + ImVec2(0, clip_timeline_height - 16);
-    ImVec2 clip_keypoint_size(audio_view_width, clip_keypoint_height);
-    ImVec2 clip_setting_pos = window_pos + ImVec2(audio_view_width, window_size.y / 2);
-    ImVec2 clip_setting_size(audio_editor_width, window_size.y / 2);
-
-    ImGuiWindowFlags child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;
-    ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
-
-    if (ImGui::BeginChild("##audio_filter_preview", ImVec2(preview_width, preview_height), false, child_flags))
-    {
-        ImRect video_rect;
-        ImVec2 audio_view_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 audio_view_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(audio_view_window_pos, audio_view_window_pos + audio_view_window_size, COL_DEEP_DARK);
-        ShowMediaPreviewWindow(draw_list, "Audio Filter", 1.5f, video_rect, editing_clip ? editing_clip->Start() : -1, editing_clip ? editing_clip->End() : -1, true, false, false);
-    }
-    ImGui::EndChild();
-
-    ImGui::SetCursorScreenPos(clip_timeline_pos);
-    if (ImGui::BeginChild("##audio_filter_timeline", clip_timeline_size + ImVec2(0, clip_keypoint_height), false, child_flags))
-    {
-        ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
-        mouse_hold |= DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->currentTime, clip_header_height, clip_timeline_height - clip_header_height - 12, clip_keypoint_height, keypoint);
-    }
-    ImGui::EndChild();
-
-    // draw keypoint hidden button
-    ImVec2 hidden_button_pos = clip_keypoint_pos - ImVec2(16, 0);
-    ImRect hidden_button_rect = ImRect(hidden_button_pos, hidden_button_pos + ImVec2(16, 16));
-    ImGui::SetWindowFontScale(0.75);
-    if (hidden_button_rect.Contains(ImGui::GetMousePos()))
-    {
-        draw_list->AddRectFilled(hidden_button_rect.Min, hidden_button_rect.Max, IM_COL32(64,64,64,255));
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-        {
-            g_media_editor_settings.AudioFilterCurveExpanded = !g_media_editor_settings.AudioFilterCurveExpanded;
-        }
-        if (ImGui::BeginTooltip())
-        {
-            ImGui::TextUnformatted(g_media_editor_settings.AudioFilterCurveExpanded ? "Hide Curve View" : "Show Curve View");
-            ImGui::EndTooltip();
-        }
-    }
-    draw_list->AddText(hidden_button_pos, IM_COL32_WHITE, ICON_FA_BEZIER_CURVE);
-    ImGui::SetWindowFontScale(1.0);
-
-    ImGui::SetCursorScreenPos(window_pos + ImVec2(audio_view_width, 0));
-    if (ImGui::BeginChild("##audio_filter_blueprint", ImVec2(audio_editor_width, audio_blueprint_height), false, child_flags))
-    {
-        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
-        ShowFilterBluePrintWindow(draw_list, editing_clip);
-    }
-    ImGui::EndChild();
-
-    // Draw Audio filter setting
-    ImGui::SetCursorScreenPos(clip_setting_pos);
-    if (ImGui::BeginChild("##audio_filter_setting", clip_setting_size, false, setting_child_flags))
-    {
-        auto addCurve = [&](std::string name, float _min, float _max, float _default)
-        {
-            if (keypoint)
-            {
-                auto found = keypoint->GetCurveIndex(name);
-                if (found == -1)
-                {
-                    ImU32 color; ImGui::RandomColor(color, 1.f);
-                    auto curve_index = keypoint->AddCurve(name, ImGui::ImCurveEdit::Smooth, color, true, _min, _max, _default);
-                    keypoint->AddPoint(curve_index, ImVec2(0, _min), ImGui::ImCurveEdit::Smooth);
-                    keypoint->AddPoint(curve_index, ImVec2(editing_clip->Length(), _max), ImGui::ImCurveEdit::Smooth);
-                    keypoint->SetCurvePointDefault(curve_index, 0);
-                    keypoint->SetCurvePointDefault(curve_index, 1);
-                    if (blueprint)
-                    {
-                        auto entry_node = blueprint->FindEntryPointNode();
-                        if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
-                        timeline->UpdatePreview();
-                    }
-                }
-            }
-        };
-        ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
-        ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
-        if (timeline->mAudFilterClip && keypoint)
-        {
-            // Filter curve setting
-            if (ImGui::TreeNodeEx("Curve Setting##audio_filter", ImGuiTreeNodeFlags_DefaultOpen))
-            {
-                char ** curve_type_list = nullptr;
-                auto curve_type_count = ImGui::ImCurveEdit::GetCurveTypeName(curve_type_list);
-                static std::string curve_name = "";
-                std::string value = curve_name;
-                bool name_input_empty = curve_name.empty();
-                if (ImGui::InputTextWithHint("##new_curve_name_audio_filter", "Input curve name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
-                {
-                    if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
-                    {
-                        auto& stringValue = *static_cast<string*>(data->UserData);
-                        ImVector<char>* my_str = (ImVector<char>*)data->UserData;
-                        //IM_ASSERT(stringValue.data() == data->Buf);
-                        stringValue.resize(data->BufSize);
-                        data->Buf = (char*)stringValue.data();
-                    }
-                    else if (data->EventFlag == ImGuiInputTextFlags_CallbackEdit)
-                    {
-                        auto& stringValue = *static_cast<string*>(data->UserData);
-                        stringValue = std::string(data->Buf);
-                    }
-                    return 0;
-                }, &value))
-                {
-                    value.resize(strlen(value.c_str()));
-                    curve_name = value;
-                    name_input_empty = curve_name.empty();
-                }
-
-                ImGui::BeginDisabled(name_input_empty);
-                ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-                ImGui::SameLine();
-                if (ImGui::Button(ICON_ADD "##insert_curve_audio_filter"))
-                {
-                    addCurve(curve_name, 0.f, 1.f, 0.5);
-                }
-                ImGui::ShowTooltipOnHover("Add custom curve");
-                ImGui::PopStyleVar();
-                ImGui::EndDisabled();
-
-                // list curves
-                for (int i = 0; i < keypoint->GetCurveCount(); i++)
-                {
-                    bool break_loop = false;
-                    ImGui::PushID(i);
-                    auto pCount = keypoint->GetCurvePointCount(i);
-                    std::string lable_id = std::string(ICON_CURVE) + " " + keypoint->GetCurveName(i) + " (" + std::to_string(pCount) + " keys)" + "##audio_filter_curve";
-                    if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
-                    {
-                        float curve_min = keypoint->GetCurveMin(i);
-                        float curve_max = keypoint->GetCurveMax(i);
-                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        auto curve_time = timeline->currentTime - timeline->mAudFilterClip->mStart;
-                        float curve_value = keypoint->GetValue(i, curve_time);
-                        ImGui::BracketSquare(true); 
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
-                        ImGui::Text("%.2f", curve_value); 
-                        ImGui::PopStyleColor();
-                        ImGui::SameLine();
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
-                        ImGui::Text("%s", ImGuiHelper::MillisecToString(curve_time, 3).c_str()); 
-                        ImGui::PopStyleColor();
-                        ImGui::SameLine();
-                        bool in_range = curve_time >= keypoint->GetMin().x && 
-                                        curve_time <= keypoint->GetMax().x;
-                        ImGui::BeginDisabled(!in_range);
-                        if (ImGui::Button(ICON_MD_ADS_CLICK))
-                        {
-                            auto value_range = keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i);
-                            curve_value = (curve_value - keypoint->GetCurveMin(i)) / (value_range + FLT_EPSILON);
-                            keypoint->AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
-                        }
-                        ImGui::EndDisabled();
-                        ImGui::ShowTooltipOnHover("Add key at current");
-                        
-                        ImGui::PushItemWidth(60);
-                        if (ImGui::DragFloat("##curve_audio_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
-                        {
-                            keypoint->SetCurveMin(i, curve_min);
-                            timeline->UpdatePreview();
-                        } ImGui::ShowTooltipOnHover("Min");
-                        ImGui::SameLine(0, 8);
-                        if (ImGui::DragFloat("##curve_audio_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
-                        {
-                            keypoint->SetCurveMax(i, curve_max);
-                            timeline->UpdatePreview();
-                        } ImGui::ShowTooltipOnHover("Max");
-                        ImGui::SameLine(0, 8);
-                        float curve_default = keypoint->GetCurveDefault(i);
-                        if (ImGui::DragFloat("##curve_audio_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
-                        {
-                            keypoint->SetCurveDefault(i, curve_default);
-                            timeline->UpdatePreview();
-                        } ImGui::ShowTooltipOnHover("Default");
-                        ImGui::PopItemWidth();
-                        
-                        ImGui::SameLine(0, 8);
-                        ImGui::SetWindowFontScale(0.75);
-                        auto curve_color = ImGui::ColorConvertU32ToFloat4(keypoint->GetCurveColor(i));
-                        if (ImGui::ColorEdit4("##curve_audio_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
-                        {
-                            keypoint->SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
-                        } ImGui::ShowTooltipOnHover("Curve Color");
-                        ImGui::SetWindowFontScale(1.0);
-                        ImGui::SameLine(0, 4);
-                        bool is_visiable = keypoint->IsVisible(i);
-                        if (ImGui::Button(is_visiable ? ICON_WATCH : ICON_UNWATCH "##curve_audio_filter_visiable"))
-                        {
-                            is_visiable = !is_visiable;
-                            keypoint->SetCurveVisible(i, is_visiable);
-                        } ImGui::ShowTooltipOnHover( is_visiable ? "Hide" : "Show");
-                        ImGui::SameLine(0, 4);
-                        if (ImGui::Button(ICON_DELETE "##curve_audio_filter_delete"))
-                        {
-                            // delete blueprint entry node pin
-                            auto pin_name = keypoint->GetCurveName(i);
-                            if (blueprint)
-                            {
-                                auto entry_node = blueprint->FindEntryPointNode();
-                                if (entry_node) entry_node->DeleteOutputPin(pin_name);
-                                timeline->UpdatePreview();
-                            }
-                            keypoint->DeleteCurve(i);
-                            break_loop = true;
-                        } ImGui::ShowTooltipOnHover("Delete");
-                        ImGui::SameLine(0, 4);
-                        if (ImGui::Button(ICON_MD_ROTATE_90_DEGREES_CCW "##curve_audio_filter_reset"))
-                        {
-                            for (int p = 0; p < pCount; p++)
-                            {
-                                keypoint->SetCurvePointDefault(i, p);
-                            }
-                            timeline->UpdatePreview();
-                        } ImGui::ShowTooltipOnHover("Reset");
-
-                        if (!break_loop)
-                        {
-                            // list points
-                            for (int p = 0; p < pCount; p++)
-                            {
-                                bool is_disabled = false;
-                                ImGui::PushID(p);
-                                ImGui::PushItemWidth(96);
-                                auto point = keypoint->GetPoint(i, p);
-                                ImGui::Diamond(false);
-                                if (p == 0 || p == pCount - 1)
-                                    is_disabled = true;
-                                ImGui::BeginDisabled(is_disabled);
-                                if (ImGui::DragTimeMS("##curve_audio_filter_point_x", &point.point.x, keypoint->GetMax().x / 1000.f, keypoint->GetMin().x, keypoint->GetMax().x, 2))
-                                {
-                                    keypoint->EditPoint(i, p, point.point, point.type);
-                                    timeline->UpdatePreview();
-                                }
-                                ImGui::EndDisabled();
-                                ImGui::SameLine();
-                                auto speed = fabs(keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i)) / 500;
-                                if (ImGui::DragFloat("##curve_audio_filter_point_y", &point.point.y, speed, keypoint->GetCurveMin(i), keypoint->GetCurveMax(i), "%.2f"))
-                                {
-                                    keypoint->EditPoint(i, p, point.point, point.type);
-                                    timeline->UpdatePreview();
-                                }
-                                ImGui::SameLine();
-                                if (ImGui::Combo("##curve_audio_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
-                                {
-                                    keypoint->EditPoint(i, p, point.point, point.type);
-                                    timeline->UpdatePreview();
-                                }
-                                ImGui::PopItemWidth();
-                                ImGui::PopID();
-                            }
-                        }
-                        ImGui::PopStyleColor();
-                        ImGui::TreePop();
-                    }
-                    ImGui::PopID();
-                    if (break_loop) break;
-                }
-
-                ImGui::TreePop();
-            }
-            // Filter Node setting
-            if (blueprint && blueprint->Blueprint_IsValid())
-            {
-                if (ImGui::TreeNodeEx("Node Configure##audio_filter", ImGuiTreeNodeFlags_DefaultOpen))
-                {
-                    auto nodes = blueprint->m_Document->m_Blueprint.GetNodes();
-                    for (auto node : nodes)
-                    {
-                        auto type = node->GetTypeInfo().m_Type;
-                        if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
-                            continue;
-                        if (!node->CustomLayout())
-                            continue;
-                        auto label_name = node->m_Name;
-                        std::string lable_id = label_name + "##audio_filter_node" + "@" + std::to_string(node->m_ID);
-                        node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(28, 28));
-                        ImGui::SameLine(40);
-                        if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
-                        {
-                            ImGui::ImCurveEdit::keys key;
-                            key.m_id = node->m_ID;
-                            if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &key, false))
-                            {
-                                timeline->UpdatePreview();
-                                blueprint->Blueprint_UpdateNode(node->m_ID);
-                            }
-                            if (!key.name.empty())
-                            {
-                                addCurve(key.name, key.m_min, key.m_max, key.m_default);
-                            }
-                            ImGui::TreePop();
-                        }
-                    }
-                    ImGui::TreePop();
-                }
-            }
-        }
-    }
-    ImGui::EndChild();
-#endif
 }
 
 static void ShowAudioTransitionBluePrintWindow(ImDrawList *draw_list, Overlap * overlap)
@@ -7720,7 +7047,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImVec2 pan_pos = bottom_view_pos;
     ImVec2 pan_size = ImVec2(bottom_view_size.x / 5, bottom_view_size.y);
     ImVec2 equalizer_pos = pan_pos + ImVec2(pan_size.x, 0);
-    ImVec2 equalizer_size = ImVec2(240 + 96, bottom_view_size.y);
+    ImVec2 equalizer_size = ImVec2(240 + 112, bottom_view_size.y);
     ImVec2 gate_pos = equalizer_pos + ImVec2(equalizer_size.x, 0);
     ImVec2 gate_size = ImVec2(bottom_view_size.x / 5, bottom_view_size.y);
     ImVec2 limiter_pos = gate_pos + ImVec2(gate_size.x, 0);
@@ -7728,6 +7055,10 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImVec2 compressor_pos = limiter_pos + ImVec2(limiter_size.x, 0);
     ImVec2 compressor_size = bottom_view_size - ImVec2(equalizer_size.x + pan_size.x + gate_size.x + limiter_size.x, 0);
 
+    auto draw_separator_line = [&](ImVec2 pos, ImVec2 size)
+    {
+        draw_list->AddLine(pos + ImVec2(16, 0), pos + ImVec2(size.x - 12, 0), COL_MIXING_BORDER_LOW, 2);
+    };
     ImGuiWindowFlags setting_child_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
     auto amFilter = timeline->mMtaReader->GetAudioEffectFilter();
     // draw mixing UI
@@ -7737,10 +7068,16 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
         char value_str[64] = {0};
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BG, 8);
+        draw_list->AddRect(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BORDER, 8);
+        ImGui::Dummy({0, 2});
+        ImGui::Indent(16);
+        ImGui::SetWindowFontScale(1.2);
         ImGui::TextUnformatted("Audio Mixer");
-        ImGui::Separator();
-        auto current_pos = ImGui::GetCursorScreenPos();
+        ImGui::SetWindowFontScale(1);
+        ImGui::Unindent();
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
+        auto current_pos = ImGui::GetCursorScreenPos() + ImVec2(4, 8);
         auto header_height = current_pos.y - sub_window_pos.y;
         auto slider_size = ImVec2(24, sub_window_size.y - header_height - 48);
         // first is draw output gain setting 
@@ -7809,10 +7146,16 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     {
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
+        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BG, 8);
+        draw_list->AddRect(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BORDER, 8);
+        ImGui::Dummy({0, 2});
+        ImGui::Indent(16);
+        ImGui::SetWindowFontScale(1.2);
         ImGui::TextUnformatted("Audio Meters");
-        ImGui::Separator();
-        auto current_pos = ImGui::GetCursorScreenPos();
+        ImGui::SetWindowFontScale(1);
+        ImGui::Unindent();
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
+        auto current_pos = ImGui::GetCursorScreenPos() + ImVec2(4, 8);
         auto header_height = current_pos.y - sub_window_pos.y;
         auto meter_size = ImVec2(24, sub_window_size.y - header_height - 32);
         // first is draw output meter
@@ -7907,28 +7250,35 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     // draw pan UI
     ImGui::SetCursorScreenPos(pan_pos);
     ImGui::BeginGroup();
+    draw_list->AddRectFilled(pan_pos, pan_pos + pan_size, COL_MIXING_BG, 8);
+    draw_list->AddRect(pan_pos, pan_pos + pan_size, COL_MIXING_BORDER, 8);
+    ImGui::Dummy({0, 2});
+    ImGui::Indent(16);
+    ImGui::SetWindowFontScale(1.2);
     bool pan_changed = false;
     ImGui::TextUnformatted("Audio Pan");
+    ImGui::SetWindowFontScale(1);
+    ImGui::Unindent();
     ImGui::SameLine();
     pan_changed |= ImGui::ToggleButton("##audio_pan_enabe", &timeline->mAudioAttribute.bPan);
-    ImGui::Separator();
     if (ImGui::BeginChild("##audio_pan", pan_size - ImVec2(0, 32), false, setting_child_flags))
     {
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
         float scroll_y = ImGui::GetScrollY();
-        draw_list->AddRectFilled(sub_window_pos + ImVec2(0, scroll_y), sub_window_pos + ImVec2(0, scroll_y) + sub_window_size, COL_BLACK_DARK);
-        ImGui::PushItemWidth(sub_window_size.x - 32);
+        ImGui::PushItemWidth(sub_window_size.x - 48);
         float const w = ImGui::CalcItemWidth();
-        float pos_offset = sub_window_size.x <= w ? 0 : (sub_window_size.x - w) / 2;
-        ImGui::SetCursorScreenPos(sub_window_pos + ImVec2(pos_offset, 32));
+        float pos_offset = sub_window_size.x <= w ? 0 : (sub_window_size.x - w) / 2 + 8;
+        ImGui::SetCursorScreenPos(sub_window_pos + ImVec2(pos_offset, 16));
         ImGui::BeginDisabled(!timeline->mAudioAttribute.bPan);
         auto audio_pan = timeline->mAudioAttribute.audio_pan - ImVec2(0.5, 0.5);
         audio_pan.y = -audio_pan.y;
         pan_changed |= ImGui::InputVec2("##audio_pan_input", &audio_pan, ImVec2(-0.5f, -0.5f), ImVec2(0.5f, 0.5f), 1.0, false, false);
         ImGui::PopItemWidth();
-        ImGui::Separator();
-        auto knob_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 40);
+        ImGui::Dummy(ImVec2(0, 16));
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
+        auto knob_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 32);
         auto knob_offset_x = (sub_window_size.x - 160) / 3;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x, 0));
         pan_changed |= ImGui::Knob("Left/Right", &audio_pan.x, -0.5f, 0.5f, NAN, 0.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.2f", 10);
@@ -7953,15 +7303,21 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::SetCursorScreenPos(equalizer_pos);
     ImGui::BeginGroup();
     bool equalizer_changed = false;
+    draw_list->AddRectFilled(equalizer_pos, equalizer_pos + equalizer_size, COL_MIXING_BG, 8);
+    draw_list->AddRect(equalizer_pos, equalizer_pos + equalizer_size, COL_MIXING_BORDER, 8);
+    ImGui::Dummy({0, 2});
+    ImGui::Indent(16);
+    ImGui::SetWindowFontScale(1.2);
     ImGui::TextUnformatted("Equalizer");
+    ImGui::SetWindowFontScale(1);
+    ImGui::Unindent();
     ImGui::SameLine();
     equalizer_changed |= ImGui::ToggleButton("##audio_equalizer_enabe", &timeline->mAudioAttribute.bEqualizer);
-    ImGui::Separator();
     if (ImGui::BeginChild("##audio_equalizer", equalizer_size - ImVec2(0, 32), false, setting_child_flags))
     {
-        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+        ImVec2 sub_window_pos = ImGui::GetCursorScreenPos() + ImVec2(16, 8);
         ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
         ImGui::SetCursorScreenPos(sub_window_pos);
         ImGui::BeginDisabled(!timeline->mAudioAttribute.bEqualizer);
         for (int i = 0; i < 10; i++)
@@ -7998,16 +7354,22 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::SetCursorScreenPos(gate_pos);
     ImGui::BeginGroup();
     bool gate_changed = false;
+    draw_list->AddRectFilled(gate_pos, gate_pos + gate_size, COL_MIXING_BG, 8);
+    draw_list->AddRect(gate_pos, gate_pos + gate_size, COL_MIXING_BORDER, 8);
+    ImGui::Dummy({0, 2});
+    ImGui::Indent(16);
+    ImGui::SetWindowFontScale(1.2);
     ImGui::TextUnformatted("Gate");
+    ImGui::SetWindowFontScale(1);
+    ImGui::Unindent();
     ImGui::SameLine();
     gate_changed |= ImGui::ToggleButton("##audio_gate_enabe", &timeline->mAudioAttribute.bGate);
-    ImGui::Separator();
     if (ImGui::BeginChild("##audio_gate", gate_size - ImVec2(0, 32), false, setting_child_flags))
     {
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
         float scroll_y = ImGui::GetScrollY();
-        draw_list->AddRectFilled(sub_window_pos + ImVec2(0, scroll_y), sub_window_pos + ImVec2(0, scroll_y) + sub_window_size, COL_BLACK_DARK);
         ImGui::BeginDisabled(!timeline->mAudioAttribute.bGate);
         auto knob_pos = ImGui::GetCursorScreenPos();
         auto knob_offset_x = (sub_window_size.x - 240) / 4;
@@ -8017,15 +7379,19 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
         gate_changed |= ImGui::Knob("Range##gate", &timeline->mAudioAttribute.gate_range, 0.f, 1.0f, NAN, 0.06125f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x * 3 + 160, 4));
         gate_changed |= ImGui::Knob("Ratio##gate", &timeline->mAudioAttribute.gate_ratio, 1.f, 9000.0f, NAN, 2.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0f", 10);
+        ImGui::Dummy(ImVec2(0, 4));
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
         auto knob_time_offset_x = (sub_window_size.x - 100) / 3;
-        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x, 140));
+        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x, 148));
         gate_changed |= ImGui::Knob("Attack##gate", &timeline->mAudioAttribute.gate_attack, 0.01f, 9000.0f, NAN, 20.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
-        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x * 2 + 50, 140));
+        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x * 2 + 50, 148));
         gate_changed |= ImGui::Knob("Release##gate", &timeline->mAudioAttribute.gate_release, 0.01f, 9000.0f, NAN, 250.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
+        ImGui::Dummy(ImVec2(0, 4));
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
         auto knob_level_offset_x = (sub_window_size.x - 160) / 3;
-        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x, 240));
+        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x, 264));
         gate_changed |= ImGui::Knob("Make Up##gate", &timeline->mAudioAttribute.gate_makeup, 1.f, 64.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0f", 10);
-        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x * 2 + 80, 240));
+        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x * 2 + 80, 264));
         gate_changed |= ImGui::Knob("Knee##gate", &timeline->mAudioAttribute.gate_knee, 1.0f, 8.0f, NAN, 2.82843f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
         if (gate_changed)
         {
@@ -8048,26 +7414,36 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::SetCursorScreenPos(limiter_pos);
     ImGui::BeginGroup();
     bool limiter_changed = false;
+    draw_list->AddRectFilled(limiter_pos, limiter_pos + limiter_size, COL_MIXING_BG, 8);
+    draw_list->AddRect(limiter_pos, limiter_pos + limiter_size, COL_MIXING_BORDER, 8);
+    ImGui::Dummy({0, 2});
+    ImGui::Indent(16);
+    ImGui::SetWindowFontScale(1.2);
     ImGui::TextUnformatted("Limiter");
+    ImGui::SetWindowFontScale(1);
+    ImGui::Unindent();
     ImGui::SameLine();
     limiter_changed |= ImGui::ToggleButton("##audio_limiter_enabe", &timeline->mAudioAttribute.bLimiter);
-    ImGui::Separator();
     if (ImGui::BeginChild("##audio_limiter", limiter_size - ImVec2(0, 32), false, setting_child_flags))
     {
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
         float scroll_y = ImGui::GetScrollY();
-        draw_list->AddRectFilled(sub_window_pos + ImVec2(0, scroll_y), sub_window_pos + ImVec2(0, scroll_y) + sub_window_size, COL_DEEP_DARK);
         ImGui::BeginDisabled(!timeline->mAudioAttribute.bLimiter);
         auto knob_pos = ImGui::GetCursorScreenPos();
         auto knob_offset_x = (sub_window_size.x - 80) / 2;
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x, 4));
         limiter_changed |= ImGui::Knob("Limit", &timeline->mAudioAttribute.limit, 0.0625f, 1.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
+        ImGui::Dummy(ImVec2(0, 4));
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
         auto knob_time_offset_x = (sub_window_size.x - 50) / 2;
-        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x, 140));
+        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x, 148));
         limiter_changed |= ImGui::Knob("Attack##limiter", &timeline->mAudioAttribute.limiter_attack, 0.1f, 80.0f, NAN, 5.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.1fms", 10);
+        ImGui::Dummy(ImVec2(0, 4));
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
         auto knob_level_offset_x = (sub_window_size.x - 50) / 2;
-        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x, 240));
+        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x, 264));
         limiter_changed |= ImGui::Knob("Release##limiter", &timeline->mAudioAttribute.limiter_release, 1.f, 8000.0f, NAN, 50.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
         if (limiter_changed)
         {
@@ -8086,16 +7462,22 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::SetCursorScreenPos(compressor_pos);
     ImGui::BeginGroup();
     bool compressor_changed = false;
+    draw_list->AddRectFilled(compressor_pos, compressor_pos + compressor_size, COL_MIXING_BG, 8);
+    draw_list->AddRect(compressor_pos, compressor_pos + compressor_size, COL_MIXING_BORDER, 8);
+    ImGui::Dummy({0, 2});
+    ImGui::Indent(16);
+    ImGui::SetWindowFontScale(1.2);
     ImGui::TextUnformatted("Compressor");
+    ImGui::SetWindowFontScale(1);
+    ImGui::Unindent();
     ImGui::SameLine();
     compressor_changed |= ImGui::ToggleButton("##audio_compressor_enabe", &timeline->mAudioAttribute.bCompressor);
-    ImGui::Separator();
     if (ImGui::BeginChild("##audio_compressor", compressor_size - ImVec2(0, 32), false, setting_child_flags))
     {
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
         float scroll_y = ImGui::GetScrollY();
-        draw_list->AddRectFilled(sub_window_pos + ImVec2(0, scroll_y), sub_window_pos + ImVec2(0, scroll_y) + sub_window_size, COL_BLACK_DARK);
         ImGui::BeginDisabled(!timeline->mAudioAttribute.bCompressor);
         auto knob_pos = ImGui::GetCursorScreenPos();
         auto knob_offset_x = (sub_window_size.x - 320) / 5;
@@ -8107,15 +7489,19 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
         compressor_changed |= ImGui::Knob("Knee##compressor", &timeline->mAudioAttribute.compressor_knee, 1.f, 8.0f, NAN, 2.82843f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
         ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_offset_x * 4 + 240, 4));
         compressor_changed |= ImGui::Knob("Mix##compressor", &timeline->mAudioAttribute.compressor_mix, 0.f, 1.0f, NAN, 1.0f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
+        ImGui::Dummy(ImVec2(0, 4));
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
         auto knob_time_offset_x = (sub_window_size.x - 100) / 3;
-        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x, 140));
+        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x, 148));
         compressor_changed |= ImGui::Knob("Attack##compressor", &timeline->mAudioAttribute.compressor_attack, 0.01f, 2000.0f, NAN, 20.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
-        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x * 2 + 50, 140));
+        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_time_offset_x * 2 + 50, 148));
         compressor_changed |= ImGui::Knob("Release##compressor", &timeline->mAudioAttribute.compressor_release, 0.01f, 9000.0f, NAN, 250.f, 50, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0fms", 10);
+        ImGui::Dummy(ImVec2(0, 4));
+        draw_separator_line(ImGui::GetCursorScreenPos(), sub_window_size);
         auto knob_level_offset_x = (sub_window_size.x - 160) / 3;
-        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x, 240));
+        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x, 264));
         compressor_changed |= ImGui::Knob("Make Up##compressor", &timeline->mAudioAttribute.compressor_makeup, 1.f, 64.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.0f", 10);
-        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x * 2 + 80, 240));
+        ImGui::SetCursorScreenPos(knob_pos + ImVec2(knob_level_offset_x * 2 + 80, 264));
         compressor_changed |= ImGui::Knob("Level SC##compressor", &timeline->mAudioAttribute.compressor_level_sc, 0.015f, 64.0f, NAN, 1.f, 80, circle_color,  wiper_color, track_color, tick_color, ImGui::ImGuiKnobType::IMKNOB_STEPPED_DOT, "%.3f", 10);
         if (compressor_changed)
         {
@@ -8158,7 +7544,6 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list, ImRect title_rect)
         {
             case 0: ShowAudioFilterWindow(draw_list, title_rect); break;
             case 1: ShowAudioTransitionWindow(draw_list, title_rect); break;
-            case 2: ShowAudioMixingWindow(draw_list, title_rect); break;
             default: break;
         }
     }
@@ -9597,21 +8982,21 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 //if (!histogram_texture)
                 {
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
-                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.6f));
+                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.5f));
                     ImGui::PlotMat(histogram_mat, &((float *)rmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
                     ImGui::PopStyleColor(2);
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
-                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.6f));
+                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.5f));
                     ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset), &((float *)gmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
                     ImGui::PopStyleColor(2);
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
-                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.6f));
+                    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.5f));
                     ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 2), &((float *)bmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
                     ImGui::PopStyleColor(2);
                     if (g_media_editor_settings.HistogramYRGB)
                     {
                         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
-                        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.6f));
+                        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.5f));
                         ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 3), &((float *)ymat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
                         ImGui::PopStyleColor(2);
                     }
@@ -9619,49 +9004,52 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
 
                 ImGui::PopStyleColor();
             }
-            
             // draw graticule line
+            draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             float graticule_scale = g_media_editor_settings.HistogramSplited ? g_media_editor_settings.HistogramYRGB ? 4.0f : 3.f : 1.f;
-            auto histogram_step = MATVIEW_WIDTH / 10;
-            auto histogram_sub_vstep = MATVIEW_WIDTH / 50;
-            auto histogram_vstep = MATVIEW_HEIGHT * g_media_editor_settings.HistogramScale * 10 / graticule_scale;
-            auto histogram_seg = MATVIEW_HEIGHT / histogram_vstep / graticule_scale;
+            auto histogram_step = size.x / 10;
+            auto histogram_sub_vstep = size.x / 50;
+            auto histogram_vstep = size.y * g_media_editor_settings.HistogramScale * 10 / graticule_scale;
+            auto histogram_seg = size.y / histogram_vstep / graticule_scale;
+            if (histogram_seg <= 1.0) { histogram_vstep /= 10.f; histogram_seg *= 10.f; }
+            else if (histogram_seg > 10.f) { histogram_vstep *= 10.f; histogram_seg /= 10.f; }
             for (int i = 1; i <= 10; i++)
             {
-                ImVec2 p0 = ImVec2(i * histogram_step, 0);
-                ImVec2 p1 = ImVec2(i * histogram_step, scrop_rect.Max.y);
-                histogram_mat.draw_line(Vec2Point(p0), Vec2Point(p1), U32Color(COL_GRATICULE_DARK));
+                ImVec2 p0 = scrop_rect.Min + ImVec2(i * histogram_step, 0);
+                ImVec2 p1 = scrop_rect.Min + ImVec2(i * histogram_step, scrop_rect.Max.y);
+                draw_list->AddLine(p0, p1, COL_GRATICULE_DARK, 1);
             }
             for (int i = 0; i < histogram_seg; i++)
             {
-                ImVec2 pr0 = ImVec2(0, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
-                ImVec2 pr1 = ImVec2(MATVIEW_WIDTH, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
-                histogram_mat.draw_line(Vec2Point(pr0), Vec2Point(pr1), U32Color(g_media_editor_settings.HistogramSplited ? IM_COL32(255, 128, 0, 128) : COL_GRATICULE_DARK));
+                ImVec2 pr0 = scrop_rect.Min + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
+                ImVec2 pr1 = scrop_rect.Min + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
+                draw_list->AddLine(pr0, pr1, g_media_editor_settings.HistogramSplited ? IM_COL32(255, 128, 0, 32) : COL_GRATICULE_DARK, 1);
                 if (g_media_editor_settings.HistogramSplited)
                 {
-                    ImVec2 pg0 = ImVec2(0, MATVIEW_HEIGHT / graticule_scale) + ImVec2(0, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
-                    ImVec2 pg1 = ImVec2(0, MATVIEW_HEIGHT / graticule_scale) + ImVec2(MATVIEW_WIDTH, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
-                    histogram_mat.draw_line(Vec2Point(pg0), Vec2Point(pg1), U32Color(IM_COL32(128, 255, 0, 128)));
-                    ImVec2 pb0 = ImVec2(0, MATVIEW_HEIGHT * 2 / graticule_scale) + ImVec2(0, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
-                    ImVec2 pb1 = ImVec2(0, MATVIEW_HEIGHT * 2 / graticule_scale) + ImVec2(MATVIEW_WIDTH, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
-                    histogram_mat.draw_line(Vec2Point(pb0), Vec2Point(pb1), U32Color(IM_COL32(128, 128, 255, 128)));
+                    ImVec2 pg0 = scrop_rect.Min + ImVec2(0, size.y / graticule_scale) + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
+                    ImVec2 pg1 = scrop_rect.Min + ImVec2(0, size.y / graticule_scale) + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
+                    draw_list->AddLine(pg0, pg1, IM_COL32(128, 255, 0, 32), 1);
+                    ImVec2 pb0 = scrop_rect.Min + ImVec2(0, size.y * 2 / graticule_scale) + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
+                    ImVec2 pb1 = scrop_rect.Min + ImVec2(0, size.y * 2 / graticule_scale) + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
+                    draw_list->AddLine(pb0, pb1, IM_COL32(128, 128, 255, 32), 1);
                     if (g_media_editor_settings.HistogramYRGB)
                     {
-                        ImVec2 pw0 = ImVec2(0, MATVIEW_HEIGHT * 3 / graticule_scale) + ImVec2(0, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
-                        ImVec2 pw1 = ImVec2(0, MATVIEW_HEIGHT * 3 / graticule_scale) + ImVec2(MATVIEW_WIDTH, (MATVIEW_HEIGHT / graticule_scale) - i * histogram_vstep);
-                        histogram_mat.draw_line(Vec2Point(pw0), Vec2Point(pw1), U32Color(IM_COL32(255, 255, 255, 128)));
+                        ImVec2 pw0 = scrop_rect.Min + ImVec2(0, size.y * 3 / graticule_scale) + ImVec2(0, (size.y / graticule_scale) - i * histogram_vstep);
+                        ImVec2 pw1 = scrop_rect.Min + ImVec2(0, size.y * 3 / graticule_scale) + ImVec2(scrop_rect.Max.x, (size.y / graticule_scale) - i * histogram_vstep);
+                        draw_list->AddLine(pw0, pw1, IM_COL32(128, 128, 255, 32), 1);
                     }
                 }
             }
             for (int i = 0; i < 50; i++)
             {
-                ImVec2 p0 = ImVec2(i * histogram_sub_vstep, 0);
-                ImVec2 p1 = ImVec2(i * histogram_sub_vstep, 5);
-                histogram_mat.draw_line(Vec2Point(p0), Vec2Point(p1), U32Color(COL_GRATICULE));
+                ImVec2 p0 = scrop_rect.Min + ImVec2(i * histogram_sub_vstep, 0);
+                ImVec2 p1 = scrop_rect.Min + ImVec2(i * histogram_sub_vstep, 5);
+                draw_list->AddLine(p0, p1, COL_GRATICULE_HALF, 1);
             }
+            draw_list->PopClipRect();
             ImMatToTexture(histogram_mat, histogram_texture);
             if (histogram_texture) draw_list->AddImage(histogram_texture, pos, pos + size, ImVec2(0, 0), ImVec2(1, 1));
-            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 8);
             ImGui::EndGroup();
         }
         break;
@@ -9707,7 +9095,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (mat_video_waveform.flags & IM_MAT_FLAGS_CUSTOM_UPDATED) { ImGui::ImMatToTexture(mat_video_waveform, video_waveform_texture); mat_video_waveform.flags &= ~IM_MAT_FLAGS_CUSTOM_UPDATED; }
                 draw_list->AddImage(video_waveform_texture, scrop_rect.Min, scrop_rect.Max, g_media_editor_settings.WaveformMirror ? ImVec2(0, 1) : ImVec2(0, 0), g_media_editor_settings.WaveformMirror ? ImVec2(1, 0) : ImVec2(1, 1));
             }
-            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 8);
             // draw graticule line
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             auto waveform_step = size.y / 10;
@@ -9788,7 +9176,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (mat_cie.flags & IM_MAT_FLAGS_CUSTOM_UPDATED) { ImGui::ImMatToTexture(mat_cie, cie_texture); mat_cie.flags &= ~IM_MAT_FLAGS_CUSTOM_UPDATED; }
                 draw_list->AddImage(cie_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
             }
-            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 8);
             // draw graticule line
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             auto cie_step = size.y / 10;
@@ -9899,7 +9287,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (mat_vector.flags & IM_MAT_FLAGS_CUSTOM_UPDATED) { ImGui::ImMatToTexture(mat_vector, vector_texture); mat_vector.flags &= ~IM_MAT_FLAGS_CUSTOM_UPDATED; }
                 draw_list->AddImage(vector_texture, scrop_rect.Min, scrop_rect.Max, ImVec2(0, 0), ImVec2(1, 1));
             }
-            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 8);
             // draw graticule line
             ImVec2 center_point = ImVec2(scrop_rect.Min + size / 2);
             float radius = size.x / 2;
@@ -10013,7 +9401,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     g_media_editor_settings.AudioWaveScale = 1.f;
             }
-            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 8);
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->mAudioAttribute.channel_data.size());
             ImVec2 mat_channel_view_size = ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / timeline->mAudioAttribute.channel_data.size());
@@ -10110,7 +9498,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     timeline->mAudioAttribute.mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
                 }
             }
-            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 8);
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             if (!timeline->mAudioAttribute.m_audio_vector.empty())
             {
@@ -10199,7 +9587,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     g_media_editor_settings.AudioFFTScale = 1.f;
             }
-            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 8);
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->mAudioAttribute.channel_data.size());
             ImVec2 mat_channel_view_size = ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / timeline->mAudioAttribute.channel_data.size());
@@ -10282,7 +9670,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     g_media_editor_settings.AudioDBScale = 1.f;
             }
-            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 8);
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->mAudioAttribute.channel_data.size());
             ImVec2 mat_channel_view_size = ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / timeline->mAudioAttribute.channel_data.size());
@@ -10339,7 +9727,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
             // db level view
             timeline->mAudioAttribute.audio_mutex.lock();
             ImGui::BeginGroup();
-            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 8);
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             ImVec2 channel_view_size = ImVec2(size.x, size.y / timeline->mAudioAttribute.channel_data.size());
             ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.5f));
@@ -10428,7 +9816,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                     timeline->mAudioAttribute.mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
                 }
             }
-            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 0);
+            draw_list->AddRect(scrop_rect.Min, scrop_rect.Max, COL_SLIDER_HANDLE, 8);
             draw_list->PushClipRect(scrop_rect.Min, scrop_rect.Max);
             ImVec2 channel_view_size = ImVec2(size.x - 80, size.y / timeline->mAudioAttribute.channel_data.size());
             ImGui::SetCursorScreenPos(pos);
@@ -10518,21 +9906,23 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool spread
         if (expand && timeline)
             timeline->UpdatePreview();
         last_spread = spread;
+        need_update_scope = true;
     }
     
-    auto pos = window_pos + ImVec2(window_size.x - 64, 0);
-    std::vector<int> disabled_monitor;
-    if (MainWindowIndex == 0)
-        disabled_monitor.push_back(MonitorIndexPreviewVideo);
-    else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0)
-    {
-        disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
-        disabled_monitor.push_back(MonitorIndexVideoFiltered);
-    }
-    ImGui::SetCursorScreenPos(pos);
+    //std::vector<int> disabled_monitor;
+    //if (MainWindowIndex == 0)
+    //    disabled_monitor.push_back(MonitorIndexPreviewVideo);
+    //else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0)
+    //{
+    //    disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
+    //    disabled_monitor.push_back(MonitorIndexVideoFiltered);
+    //}
+
+    ImGui::SetCursorScreenPos(window_pos + ImVec2(window_size.x - 32, 0));
     if (ImGui::Button(ICON_EXPANMD "##scope_expand"))
     {
         g_media_editor_settings.SeparateScope = true;
+        need_update_scope = true;
     }
 
     if (expand && !*expand)
@@ -10650,6 +10040,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
         }
         ImGui::SetNextWindowPos(pos);
         MonitorIndexChanged = false;
+        need_update_scope = true;
     }
     if (change_to_full_size)
     {
@@ -11512,7 +10903,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             {
                 bool overExpanded = ExpandButton(draw_list, ImVec2(scope_pos.x - 24, scope_pos.y + 2), g_media_editor_settings.ExpandScope);
                 if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+                {
                     g_media_editor_settings.ExpandScope = !g_media_editor_settings.ExpandScope;
+                    if (g_media_editor_settings.ExpandScope) need_update_scope = true;
+                }
                 ShowMediaAnalyseWindow(timeline, &g_media_editor_settings.ExpandScope, spread);
                 if (!g_media_editor_settings.ExpandScope)
                 {
@@ -11560,6 +10954,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     case 1: ShowVideoEditorWindow(draw_list, title_rect); break;
                     case 2: ShowAudioEditorWindow(draw_list, title_rect); break;
                     case 3: ShowTextEditorWindow(draw_list, title_rect); break;
+                    case 4: ShowAudioMixingWindow(draw_list, title_rect); break;
                     default: break;
                 }
             }

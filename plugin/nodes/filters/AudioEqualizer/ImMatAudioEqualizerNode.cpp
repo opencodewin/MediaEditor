@@ -306,11 +306,12 @@ struct AudioEqualizerNode final : Node
         bool changed = false;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
         ImGui::BeginDisabled(!m_Enabled);
-        ImGui::Indent(indent_offset);
+        ImGui::SetCursorScreenPos(ImGui::GetCursorScreenPos() + ImVec2(indent_offset, 0));
         ImGui::TextColored({ 0.9, 0.4, 0.4, 1.0 }, "Hz");
         for (int i = 0; i < 10; i++)
         {
             if (i > 0) ImGui::SameLine();
+            else ImGui::SetCursorScreenPos(ImGui::GetCursorScreenPos() + ImVec2(indent_offset, 0));
             ImGui::BeginGroup();
             std::string cfTag = GetFrequencyTag(m_bandCfg[i].centerFreq);
             ImGui::TextUnformatted(cfTag.c_str());
@@ -339,6 +340,7 @@ struct AudioEqualizerNode final : Node
             ImGui::Text("%d", gain);
             ImGui::EndGroup();
         }
+        ImGui::SetCursorScreenPos(ImGui::GetCursorScreenPos() + ImVec2(indent_offset, 0));
         ImGui::TextColored({ 0.4, 0.4, 0.9, 1.0 }, "Db");
         ImGui::SameLine(indent_offset + 300);
         if (ImGui::Button(ICON_RESET "##reset_equ##AudioEqualizer"))
@@ -364,7 +366,6 @@ struct AudioEqualizerNode final : Node
                 }
             }
         }
-        ImGui::Unindent();
         ImGui::EndDisabled();
         return m_Enabled ? changed : false;
     }

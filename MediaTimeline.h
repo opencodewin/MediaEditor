@@ -40,7 +40,6 @@
 
 #define PLOT_IMPLOT   0
 #define PLOT_TEXTURE  1
-//#define USING_OLD_UI
 
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
@@ -101,7 +100,7 @@
 #define ICON_MOVING         u8"\ue41f"
 #define ICON_TRANS          u8"\ue882"
 #define ICON_BANK           u8"\uf1b3"
-#define ICON_BLUE_PRINT     u8"\uf55B"
+#define ICON_BLUE_PRINT     u8"\ueabe"
 #define ICON_BRAIN          u8"\uf5dc"
 #define ICON_NEW_PROJECT    u8"\uf271"
 #define ICON_OPEN_PROJECT   u8"\uf115"
@@ -119,6 +118,7 @@
 #define ICON_BP_EDITING     u8"\uf044"
 #define ICON_TRACK_ZIP      u8"\ueacf"
 #define ICON_TRACK_UNZIP    u8"\uead0"
+#define ICON_FILTER_EDITOR  u8"\ueb03"
 
 #define ICON_FONT_BOLD      u8"\ue238"
 #define ICON_FONT_ITALIC    u8"\ue23f"
@@ -254,6 +254,9 @@
 #define COL_ERROR_MEDIA     IM_COL32(160,   0,   0, 224)
 #define COL_TITLE_COLOR     IM_COL32(192, 192, 192, 255)
 #define COL_TITLE_OUTLINE   IM_COL32( 32,  32, 192, 128)
+#define COL_MIXING_BG       IM_COL32( 10,  20,  17, 255)
+#define COL_MIXING_BORDER_LOW   IM_COL32( 30,  60,  50, 255)
+#define COL_MIXING_BORDER IM_COL32( 60, 120, 100, 255)
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 #define TIMELINE_OVER_LENGTH    5000        // add 5 seconds end of timeline
@@ -1257,7 +1260,7 @@ struct TimeLine
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
-bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point);
+bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point);
 bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, bool& show_BP);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
 } // namespace MediaTimeline

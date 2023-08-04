@@ -2272,11 +2272,6 @@ void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool
         {
             MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hNewFilter.get());
             pEsf->SetTimelineHandle(mHandle);
-#ifdef USING_OLD_UI
-            if (isNewFilter)
-                pEsf->AddNewEvent(0, 0, hClip->Duration(), 0);
-            pEsf->SetEditingEvent(0);
-#endif
             hClip->SetFilter(hNewFilter);
             mEventStack = static_cast<MEC::EventStack*>(pEsf);
         }
@@ -2608,11 +2603,6 @@ void AudioClip::SyncFilterWithDataLayer(MediaCore::AudioClip::Holder hClip, bool
         {
             MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(hNewFilter.get());
             pEsf->SetTimelineHandle(mHandle);
-#ifdef USING_OLD_UI
-            if (isNewFilter)
-                pEsf->AddNewEvent(0, 0, hClip->Duration(), 0);
-            pEsf->SetEditingEvent(0);
-#endif
             hClip->SetFilter(hNewFilter);
             mEventStack = static_cast<MEC::EventStack*>(pEsf);
         }
@@ -3355,17 +3345,6 @@ void EditingVideoClip::Save()
     clip->lastTime = lastTime;
     clip->visibleTime = visibleTime;
     clip->msPixelWidthTarget = msPixelWidthTarget;
-#ifdef USING_OLD_UI
-    if (mFilterBp && mFilterBp->Blueprint_IsValid())
-    {
-        auto filterName = mFilter->GetFilterName();
-        if (filterName == "EventStackFilter")
-        {
-            MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(mFilter);
-            clip->mFilterJson = pEsf->SaveAsJson();
-        }
-    }
-#else
     if (mFilter)
     {
         auto filterName = mFilter->GetFilterName();
@@ -3375,7 +3354,6 @@ void EditingVideoClip::Save()
             clip->mFilterJson = pEsf->SaveAsJson();
         }
     }
-#endif
     if (mAttribute)
     {
         clip->mAttributeKeyPoints = *mAttribute->GetKeyPoint();
@@ -7206,7 +7184,7 @@ void TimeLine::CustomDraw(
             draw_list->PushClipRect(clip_title_pos_min, clip_title_pos_max, true);
             draw_list->AddText(clip_title_pos_min + ImVec2(4, 0), IM_COL32_WHITE, IS_TEXT(clip->mType) ? "T" : clip->mName.c_str());
             
-#ifdef USING_OLD_UI
+#if 0
             // add clip filter curve point
             ImGui::KeyPointEditor* keypoint_filter = &clip->mFilterKeyPoints;
             if (mVidFilterClip && mVidFilterClip->mID == clip->mID && mVidFilterClip->mFilter)
@@ -10589,7 +10567,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     track->SelectEditingClip(clip, false);
                     changed = true;
                 }
-                if (ImGui::MenuItem(ICON_BLUE_PRINT " Edit Clip Filter", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_FILTER_EDITOR " Edit Clip Filter", nullptr, nullptr))
                 {
                     track->SelectEditingClip(clip, true);
                     changed = true;
@@ -11831,9 +11809,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 }
 
 /***********************************************************************************************************
- * Draw Clip Timeline
+ * Draw Clip Attribute Timeline
  ***********************************************************************************************************/
-bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point)
+bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point)
 {
     /***************************************************************************************
     |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
@@ -12907,8 +12885,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 ImVec2 track_size = ImVec2(event_track_size.x, trackHeight + (track->mExpanded ? curveHeight : 0));
                 ImRect track_area = ImRect(track_current, track_current + track_size);
                 ImVec2 pos = ImVec2(track_current.x - editingClip->firstTime * editingClip->msPixelWidthTarget, track_current.y);
-                bool is_mouse_hovered = track_area.Contains(io.MousePos) && event_editable;
-                unsigned int col = is_mouse_hovered ? COL_EVENT_HOVERED : (current_index & 1) ? COL_EVENT_ODD : COL_EVENT_EVEN;
+                bool is_mouse_hovered = track_area.Contains(io.MousePos);
+                unsigned int col = is_mouse_hovered && event_editable ? COL_EVENT_HOVERED : (current_index & 1) ? COL_EVENT_ODD : COL_EVENT_EVEN;
                 drawList->AddRectFilled(track_area.Min, track_area.Max, col);
                 ImGui::SetCursorScreenPos(track_current);
                 ImGui::InvisibleButton("##event_track", track_size);
