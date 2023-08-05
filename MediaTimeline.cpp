@@ -10032,13 +10032,155 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     {
         // normal view
         // ToolBar view
-        ImVec2 toolBarSize(timline_size.x - 4.f, (float)toolbar_height);
+        ImVec2 toolBarSize(timline_size.x, (float)toolbar_height);
         ImRect ToolBarAreaRect(canvas_pos, canvas_pos + toolBarSize);
-        ImGui::InvisibleButton("toolBar", toolBarSize);
+        //ImGui::InvisibleButton("toolBar", toolBarSize);
+        ImVec2 HeaderPos = ImGui::GetCursorScreenPos() + ImVec2(0, toolbar_height);
         // draw ToolBar bg
         draw_list->AddRectFilled(ToolBarAreaRect.Min, ToolBarAreaRect.Max, COL_DARK_PANEL, 0);
-        // TODO::Dicky Add Toolbar
+        
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7, 0.7, 0.7, 1.0));
+        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0, 1.0, 1.0, 0.5));
 
+        ImGui::SetCursorScreenPos(ToolBarAreaRect.Min + ImVec2(legendWidth, 4));
+        
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 0.5));
+        ImGui::TextUnformatted(ICON_TOOLBAR_START);
+        ImGui::PopStyleColor();
+
+        ImGui::SameLine();
+        if (ImGui::Button("+" ICON_MEDIA_VIDEO "##main_timeline_insert_empty_video_track"))
+        {
+            insertEmptyTrackType = MEDIA_VIDEO;
+        }
+        ImGui::ShowTooltipOnHover("Insert Empty Video Track");
+        ImGui::SameLine();
+        if (ImGui::Button("+" ICON_MEDIA_AUDIO "##main_timeline_insert_empty_audio_track"))
+        {
+            insertEmptyTrackType = MEDIA_AUDIO;
+        }
+        ImGui::ShowTooltipOnHover("Insert Empty Audio Track");
+
+        ImGui::SameLine();
+        if (ImGui::Button("+" ICON_MEDIA_TEXT "##main_timeline_insert_empty_text_track"))
+        {
+            insertEmptyTrackType = MEDIA_TEXT;
+        }
+        ImGui::ShowTooltipOnHover("Insert Empty Text Track");
+
+        ImGui::SameLine();
+        ImGui::BeginDisabled(timeline->GetEmptyTrackCount() <= 0);
+        if (ImGui::Button("-" ICON_EMPTY_TRACK "##main_timeline_detele_empty_track"))
+        {
+            removeEmptyTrack = true;
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Delete Empty Track");
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_MARK_IN "##main_timeline_add_mark_in"))
+        {
+            // TODO::Dicky add mark in on current time
+        }
+        ImGui::ShowTooltipOnHover("Add mark in");
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_MARK_OUT "##main_timeline_add_mark_out"))
+        {
+            // TODO::Dicky add mark out on current time
+        }
+        ImGui::ShowTooltipOnHover("Add mark out");
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_MARK_NONE "##main_timeline_add_mark_out"))
+        {
+            // TODO::Dicky delete mark point
+        }
+        ImGui::ShowTooltipOnHover("Delete mark point");
+
+        ImGui::SameLine();
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+
+#if 0
+        auto _clip = timeline->FindClipByID(clipMenuEntry);
+        auto _track = _clip ? timeline->FindTrackByClipID(_clip->mID) : nullptr;
+        bool _disable_editing = _clip ? IS_DUMMY(_clip->mType) : true;
+        ImGui::BeginDisabled(_disable_editing);
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_CROP "##main_timeline_edit_clip_attribute"))
+        {
+            _track->SelectEditingClip(_clip, false);
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Edit Clip Attribute");
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FILTER_EDITOR "##main_timeline_edit_clip_filter"))
+        {
+            _track->SelectEditingClip(_clip, true);
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Edit Clip Filter");
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_MEDIA_DELETE_CLIP "##main_timeline_delete_clip") && clipMenuEntry != -1)
+        {
+            delClipEntry.push_back(clipMenuEntry);
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Delete Clip");
+
+        ImGui::BeginDisabled(!_clip || _clip->mGroupID == -1);
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_MEDIA_UNGROUP "##main_timeline_ungroup_clip") && clipMenuEntry != -1)
+        {
+            unGroupClipEntry.push_back(clipMenuEntry);
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Ungroup Clip");
+        ImGui::EndDisabled();
+        ImGui::EndDisabled();
+#endif
+        ImGui::BeginDisabled(timeline->GetSelectedClipCount() <= 0);
+        
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_MEDIA_DELETE_CLIP "##main_timeline_delete_selected"))
+        {
+            // TODO::Dicky Delete selected clips
+        }
+        ImGui::ShowTooltipOnHover("Delete Selected");
+
+        ImGui::BeginDisabled(timeline->GetSelectedClipCount() <= 1);
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_MEDIA_GROUP "##main_timeline_group_selected"))
+        {
+            // TODO::Dicky group selected clips
+        }
+        ImGui::ShowTooltipOnHover("Group Selected");
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_MEDIA_UNGROUP "##main_timeline_ungroup_selected"))
+        {
+            // TODO::Dicky ungroup selected clips
+        }
+        ImGui::ShowTooltipOnHover("Ungroup Selected");
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        //TODO::Dicky Add more toolbar items
+
+        ImGui::PopStyleColor(4);
+        draw_list->AddLine(ToolBarAreaRect.Min + ImVec2(0, toolbar_height - 1), ToolBarAreaRect.Max + ImVec2(0, -1), IM_COL32(255, 255, 255, 224));
+
+        ImGui::SetCursorScreenPos(HeaderPos);
         ImVec2 headerSize(timline_size.x - 4.f, (float)HeadHeight);
         ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
         ImVec2 VerticalScrollBarSize(scrollSize / 2, canvas_size.y - scrollSize - HeadHeight);
@@ -10514,7 +10656,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             if (headerMarkPos >= 0)
             {
                 int64_t mouse_time = (int64_t)((headerMarkPos - timeMeterRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
-                if (ImGui::MenuItem("+ Add mark in", nullptr, nullptr))
+                if (ImGui::MenuItem( ICON_MARK_IN " Add mark in", nullptr, nullptr))
                 {
                     if (timeline->mark_out != -1 && mouse_time > timeline->mark_out)
                         timeline->mark_out = -1;
@@ -10522,7 +10664,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     headerMarkPos = -1;
                     changed = true;
                 }
-                if (ImGui::MenuItem("+ Add mark out", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MARK_OUT " Add mark out", nullptr, nullptr))
                 {
                     if (timeline->mark_in != -1 && mouse_time < timeline->mark_in)
                         timeline->mark_in = -1;
@@ -10530,7 +10672,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     headerMarkPos = -1;
                     changed = true;
                 }
-                if (ImGui::MenuItem("- Delete mark point", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MARK_NONE " Delete mark point", nullptr, nullptr))
                 {
                     timeline->mark_in = timeline->mark_out = -1;
                     headerMarkPos = -1;
@@ -11402,7 +11544,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::PopStyleVar();
     }
     // Show help tips end
-
     ImGui::EndGroup();
 
     // handle drag drop
@@ -12382,9 +12523,9 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImVec2 toolbar_pos = window_pos;
     ImVec2 toolbar_size = ImVec2(window_size.x, toolbarHeight);
     
-    ImVec2 canvas_pos = window_pos + ImVec2(0, toolbarHeight); //ImGui::GetCursorScreenPos();
+    ImVec2 canvas_pos = window_pos + ImVec2(0, toolbarHeight + 1); //ImGui::GetCursorScreenPos();
     ImVec2 canvas_size = ImGui::GetContentRegionAvail();
-    canvas_size.y -= toolbarHeight;
+    canvas_size.y -= toolbarHeight + 1;
     ImVec2 timline_size = canvas_size;
     ImVec2 event_track_size = ImVec2(canvas_size.x, trackHeight);
     float minPixelWidthTarget = (float)(timline_size.x) / (float)duration;
@@ -12439,15 +12580,17 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     // draw toolbar
     draw_list->AddRectFilled(toolbar_pos, toolbar_pos + toolbar_size, COL_DARK_ONE, 0);
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2, 0.2, 0.2, 0.5));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.5, 0.5, 0.5, 1.0));
-    ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.7, 0.7, 0.7, 1.0));
+    ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0, 1.0, 1.0, 0.5));
 
-    ImGui::SetCursorScreenPos(toolbar_pos + ImVec2(0, 4));
-    if (ImGui::CheckButton(ICON_BLUE_PRINT "##clip_timeline_show_bp", &show_BP, ImVec4(0.5, 0.5, 0.0, 1.0), true))
-    {
+    ImGui::SetCursorScreenPos(toolbar_pos + ImVec2(8, 4));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 0.5));
+    ImGui::TextUnformatted(ICON_TOOLBAR_START);
+    ImGui::PopStyleColor();
 
-    }
+    ImGui::SameLine();
+    ImGui::CheckButton(ICON_BLUE_PRINT "##clip_timeline_show_bp", &show_BP, ImVec4(0.5, 0.5, 0.0, 1.0), false);
     ImGui::ShowTooltipOnHover("Show BluePrint");
 
     ImGui::SameLine();
@@ -12558,7 +12701,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
 
     ImGui::PopStyleColor(4);
 
-    draw_list->AddLine(canvas_pos + ImVec2(2, 0), canvas_pos + ImVec2(canvas_size.x - 4, 0), IM_COL32(255, 255, 255, 128));
+    draw_list->AddLine(canvas_pos + ImVec2(2, 1), canvas_pos + ImVec2(canvas_size.x - 4, 1), IM_COL32(255, 255, 255, 224));
     
     // Handle event delete
     if (msgbox.Draw() == 1)
@@ -12569,21 +12712,22 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     popupDialog = ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
 
     // draw clip timeline
-    ImGui::SetCursorScreenPos(toolbar_pos + ImVec2(0, toolbarHeight));
+    ImGui::SetCursorScreenPos(toolbar_pos + ImVec2(0, toolbarHeight + 1));
     ImGui::BeginGroup();
     bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
     {
-        ImGui::SetCursorScreenPos(canvas_pos);
+        ImVec2 HeaderPos = canvas_pos + ImVec2(0, 1);
+        ImGui::SetCursorScreenPos(HeaderPos);
         ImVec2 headerSize(timline_size.x, (float)header_height);
         ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
-        ImRect HeaderAreaRect(canvas_pos, canvas_pos + headerSize);
+        ImRect HeaderAreaRect(HeaderPos, HeaderPos + headerSize);
         ImGui::InvisibleButton("clip_topBar", headerSize);
 
         // draw Header bg
         draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Max, COL_DARK_ONE, 0);
         ImGui::PushStyleColor(ImGuiCol_FrameBg, 0);
 
-        ImVec2 childFramePos = window_pos + ImVec2(0, header_height + toolbarHeight); // add tool bar height
+        ImVec2 childFramePos = window_pos + ImVec2(0, header_height + toolbarHeight + 1); // add tool bar height
         ImVec2 childFrameSize(timline_size.x, custom_height); // clip snapshot
         ImGui::BeginChildFrame(ImGui::GetID("clip_timeline"), childFrameSize, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         ImGui::InvisibleButton("clip_contentBar", ImVec2(timline_size.x, float(header_height + custom_height)));
@@ -12594,7 +12738,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         const ImRect topRect(ImVec2(contentMin.x, canvas_pos.y), ImVec2(contentMin.x + timline_size.x, canvas_pos.y + header_height));
         const float contentHeight = contentMax.y - contentMin.y;
         // full canvas background
-        draw_list->AddRectFilled(canvas_pos + ImVec2(0, header_height), canvas_pos + ImVec2(0, header_height) + timline_size - ImVec2(0, header_height + scrollSize), COL_CANVAS_BG, 0);
+        draw_list->AddRectFilled(HeaderPos + ImVec2(0, header_height), HeaderPos + ImVec2(0, header_height) + timline_size - ImVec2(0, header_height + scrollSize), COL_CANVAS_BG, 0);
 
         // calculate mouse pos to time
         mouseTime = (int64_t)((cx - contentMin.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;

@@ -205,6 +205,12 @@
 #define ICON_ERROR_FRAME    u8"\uf410"
 #define ICON_ERROR_AUDIO    u8"\ue440"
 
+#define ICON_TOOLBAR_START  u8"\uf142"
+#define ICON_MARK_IN        u8"\ueaf2"
+#define ICON_MARK_OUT       u8"\ueaea"
+#define ICON_MARK_NONE      u8"\ueaf4"
+#define ICON_EMPTY_TRACK    u8"\ue3c0"
+
 #define COL_FRAME_RECT      IM_COL32( 16,  16,  96, 255)
 #define COL_LIGHT_BLUR      IM_COL32( 16, 128, 255, 255)
 #define COL_CANVAS_BG       IM_COL32( 36,  36,  36, 255)
