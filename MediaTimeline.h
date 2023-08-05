@@ -254,9 +254,14 @@
 #define COL_ERROR_MEDIA     IM_COL32(160,   0,   0, 224)
 #define COL_TITLE_COLOR     IM_COL32(192, 192, 192, 255)
 #define COL_TITLE_OUTLINE   IM_COL32( 32,  32, 192, 128)
-#define COL_MIXING_BG       IM_COL32( 10,  20,  17, 255)
-#define COL_MIXING_BORDER_LOW   IM_COL32( 30,  60,  50, 255)
-#define COL_MIXING_BORDER IM_COL32( 60, 120, 100, 255)
+//#define COL_MIXING_BG       IM_COL32( 10,  20,  17, 255)
+//#define COL_MIXING_BG_MID   IM_COL32( 17,  28,  19, 255)
+//#define COL_MIXING_BG_HIGH  IM_COL32( 25,  35,  20, 255)
+#define COL_MIXING_BG       IM_COL32( 10,  10,  10, 255)
+#define COL_MIXING_BG_MID   IM_COL32( 20,  20,  20, 255)
+#define COL_MIXING_BG_HIGH  IM_COL32( 30,  30,  30, 255)
+#define COL_MIXING_BORDER_LOW   IM_COL32( 30,  50,  60, 255)
+#define COL_MIXING_BORDER IM_COL32( 60, 100, 120, 255)
 
 #define HALF_COLOR(c)       (c & 0xFFFFFF) | 0x40000000;
 #define TIMELINE_OVER_LENGTH    5000        // add 5 seconds end of timeline

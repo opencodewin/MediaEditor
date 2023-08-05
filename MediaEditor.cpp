@@ -1014,7 +1014,7 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
             {
                 ImGui::SetItemDefaultFocus();
             }
-            if (ImGui::IsItemHovered())
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             {
                 show_monitor_tooltips(i);
             }
@@ -1023,7 +1023,7 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
     }
     ImGui::PopItemWidth();
     ImGui::PopStyleColor(4);
-    if (ImGui::IsItemHovered())
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
     {
         show_monitor_tooltips(monitor_index);
     }
@@ -2102,7 +2102,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             ImGui::EndDragDropSource();
         }
         RenderUtils::ManagedTexture::Holder hTx;
-        if (ImGui::IsItemHovered())
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         {
             float pos_x = io.MousePos.x - icon_pos.x;
             float percent = pos_x / icon_size.x;
@@ -2239,7 +2239,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                     auto video_icon = GetVideoIcon(stream->width, stream->height);
                     ImGui::SetWindowFontScale(1.2);
                     ImGui::Button(video_icon.c_str(), ImVec2(24, 24));
-                    if (ImGui::IsItemHovered() && ImGui::BeginTooltip())
+                    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) && ImGui::BeginTooltip())
                     {
                         std::string bitrate_str = stream->bitRate >= 1000000 ? "Mbps" :
                                                 stream->bitRate >= 1000 ? "Kbps" : "bps";
@@ -2273,7 +2273,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                     auto audio_sample_rate = stream->sampleRate;
                     std::string audio_icon = audio_channels >= 2 ? ICON_STEREO : ICON_MONO;
                     ImGui::Button(audio_icon.c_str(), ImVec2(24, 24));
-                    if (ImGui::IsItemHovered() && ImGui::BeginTooltip())
+                    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) && ImGui::BeginTooltip())
                     {
                         ImGui::TextUnformatted("sample rate:"); ImGui::SameLine(); ImGui::Text("%d", audio_sample_rate);
                         ImGui::TextUnformatted("   channels:"); ImGui::SameLine(); ImGui::Text("%s", GetAudioChannelName(audio_channels).c_str());
@@ -2551,7 +2551,7 @@ static void ShowTransitionBankIconWindow(ImDrawList *_draw_list)
                     ImGui::TextUnformatted(type.m_Name.c_str());
                     ImGui::EndDragDropSource();
                 }
-                if (ImGui::IsItemHovered())
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                 {
                     // Show help tooltip
                     if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
@@ -2689,7 +2689,7 @@ static void ShowTransitionBankTreeWindow(ImDrawList *_draw_list)
                     ImGui::TextUnformatted(type.m_Name.c_str());
                     ImGui::EndDragDropSource();
                 }
-                if (ImGui::IsItemHovered())
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                 {
                     // Show help tooltip
                     if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
@@ -2801,7 +2801,7 @@ static void ShowFilterBankIconWindow(ImDrawList *_draw_list)
                     ImGui::TextUnformatted(type.m_Name.c_str());
                     ImGui::EndDragDropSource();
                 }
-                if (ImGui::IsItemHovered())
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                 {
                     // Show help tooltip
                     if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
@@ -2940,7 +2940,7 @@ static void ShowFilterBankTreeWindow(ImDrawList *_draw_list)
                     ImGui::TextUnformatted(type.m_Name.c_str());
                     ImGui::EndDragDropSource();
                 }
-                if (ImGui::IsItemHovered())
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
                 {
                     // Show help tooltip
                     if (timeline->mShowHelpTooltips && !ImGui::IsDragDropActive() && ImGui::BeginTooltip())
@@ -3089,7 +3089,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                     timeline->mOutputPath = value;
                 }
             }
-            if (ImGui::IsItemHovered() && !timeline->mOutputPath.empty() && ImGui::BeginTooltip())
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) && !timeline->mOutputPath.empty() && ImGui::BeginTooltip())
             {
                 ImGui::TextUnformatted(timeline->mOutputPath.c_str());
                 ImGui::EndTooltip();
@@ -7068,7 +7068,8 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
         char value_str[64] = {0};
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BG, 8);
+        //draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BG, 8);
+        draw_list->AddRectFilledMultiColor(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BG_HIGH, COL_MIXING_BG_MID, COL_MIXING_BG, COL_MIXING_BG_MID);
         draw_list->AddRect(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BORDER, 8);
         ImGui::Dummy({0, 2});
         ImGui::Indent(16);
@@ -7146,7 +7147,8 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     {
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
-        draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BG, 8);
+        //draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BG, 8);
+        draw_list->AddRectFilledMultiColor(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BG_HIGH, COL_MIXING_BG_MID, COL_MIXING_BG, COL_MIXING_BG_MID);
         draw_list->AddRect(sub_window_pos, sub_window_pos + sub_window_size, COL_MIXING_BORDER, 8);
         ImGui::Dummy({0, 2});
         ImGui::Indent(16);
@@ -7250,7 +7252,8 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     // draw pan UI
     ImGui::SetCursorScreenPos(pan_pos);
     ImGui::BeginGroup();
-    draw_list->AddRectFilled(pan_pos, pan_pos + pan_size, COL_MIXING_BG, 8);
+    //draw_list->AddRectFilled(pan_pos, pan_pos + pan_size, COL_MIXING_BG, 8);
+    draw_list->AddRectFilledMultiColor(pan_pos, pan_pos + pan_size, COL_MIXING_BG_HIGH, COL_MIXING_BG_MID, COL_MIXING_BG, COL_MIXING_BG_MID);
     draw_list->AddRect(pan_pos, pan_pos + pan_size, COL_MIXING_BORDER, 8);
     ImGui::Dummy({0, 2});
     ImGui::Indent(16);
@@ -7303,7 +7306,8 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::SetCursorScreenPos(equalizer_pos);
     ImGui::BeginGroup();
     bool equalizer_changed = false;
-    draw_list->AddRectFilled(equalizer_pos, equalizer_pos + equalizer_size, COL_MIXING_BG, 8);
+    //draw_list->AddRectFilled(equalizer_pos, equalizer_pos + equalizer_size, COL_MIXING_BG, 8);
+    draw_list->AddRectFilledMultiColor(equalizer_pos, equalizer_pos + equalizer_size, COL_MIXING_BG_HIGH, COL_MIXING_BG_MID, COL_MIXING_BG, COL_MIXING_BG_MID);
     draw_list->AddRect(equalizer_pos, equalizer_pos + equalizer_size, COL_MIXING_BORDER, 8);
     ImGui::Dummy({0, 2});
     ImGui::Indent(16);
@@ -7354,7 +7358,8 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::SetCursorScreenPos(gate_pos);
     ImGui::BeginGroup();
     bool gate_changed = false;
-    draw_list->AddRectFilled(gate_pos, gate_pos + gate_size, COL_MIXING_BG, 8);
+    //draw_list->AddRectFilled(gate_pos, gate_pos + gate_size, COL_MIXING_BG, 8);
+    draw_list->AddRectFilledMultiColor(gate_pos, gate_pos + gate_size, COL_MIXING_BG_HIGH, COL_MIXING_BG_MID, COL_MIXING_BG, COL_MIXING_BG_MID);
     draw_list->AddRect(gate_pos, gate_pos + gate_size, COL_MIXING_BORDER, 8);
     ImGui::Dummy({0, 2});
     ImGui::Indent(16);
@@ -7414,7 +7419,8 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::SetCursorScreenPos(limiter_pos);
     ImGui::BeginGroup();
     bool limiter_changed = false;
-    draw_list->AddRectFilled(limiter_pos, limiter_pos + limiter_size, COL_MIXING_BG, 8);
+    //draw_list->AddRectFilled(limiter_pos, limiter_pos + limiter_size, COL_MIXING_BG, 8);
+    draw_list->AddRectFilledMultiColor(limiter_pos, limiter_pos + limiter_size, COL_MIXING_BG_HIGH, COL_MIXING_BG_MID, COL_MIXING_BG, COL_MIXING_BG_MID);
     draw_list->AddRect(limiter_pos, limiter_pos + limiter_size, COL_MIXING_BORDER, 8);
     ImGui::Dummy({0, 2});
     ImGui::Indent(16);
@@ -7462,7 +7468,8 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::SetCursorScreenPos(compressor_pos);
     ImGui::BeginGroup();
     bool compressor_changed = false;
-    draw_list->AddRectFilled(compressor_pos, compressor_pos + compressor_size, COL_MIXING_BG, 8);
+    //draw_list->AddRectFilled(compressor_pos, compressor_pos + compressor_size, COL_MIXING_BG, 8);
+    draw_list->AddRectFilledMultiColor(compressor_pos, compressor_pos + compressor_size, COL_MIXING_BG_HIGH, COL_MIXING_BG_MID, COL_MIXING_BG, COL_MIXING_BG_MID);
     draw_list->AddRect(compressor_pos, compressor_pos + compressor_size, COL_MIXING_BORDER, 8);
     ImGui::Dummy({0, 2});
     ImGui::Indent(16);

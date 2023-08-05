@@ -9881,7 +9881,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     *************************************************************************************************************/
     bool changed = false;
     ImGuiIO &io = ImGui::GetIO();
-    const int toolbar_height = 24;
+    const int toolbar_height = 32;
     const int scrollSize = 16;
     const int trackHeadHeight = 16;
     const int HeadHeight = 28;
