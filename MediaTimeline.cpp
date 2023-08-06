@@ -10150,7 +10150,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::BeginDisabled(timeline->GetSelectedClipCount() <= 0);
         
         ImGui::SameLine();
-        if (ImGui::Button(ICON_MEDIA_DELETE_CLIP "##main_timeline_delete_selected"))
+        if (ImGui::Button(ICON_DELETE_CLIPS "##main_timeline_delete_selected"))
         {
             // TODO::Dicky Delete selected clips
         }
@@ -10194,14 +10194,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::ShowTooltipOnHover("Frame accuracy");
 
         ImGui::SameLine();
-        if (ImGui::Button(ICON_ZOOM_IN "##slider_zoom_in"))
+        if (ImGui::RotateButton(ICON_ZOOM_IN "##slider_zoom_in", ImVec2(0, 0), -90))
         {
             timeline->msPixelWidthTarget *= 2.0f;
             if (timeline->msPixelWidthTarget > maxPixelWidthTarget)
                 timeline->msPixelWidthTarget = maxPixelWidthTarget;
             changed = true;
         }
-        ImGui::ShowTooltipOnHover("Slider Zoom In");
+        ImGui::ShowTooltipOnHover("Accuracy Zoom In");
 
         ImGui::SameLine();
         if (ImGui::Button(ICON_CURRENT_TIME "##timeline_current_time"))
@@ -10214,14 +10214,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::ShowTooltipOnHover("Current time");
 
         ImGui::SameLine();
-        if (ImGui::Button(ICON_ZOOM_OUT "##slider_zoom_out"))
+        if (ImGui::RotateButton(ICON_ZOOM_OUT "##slider_zoom_out", ImVec2(0, 0), -90))
         {
             timeline->msPixelWidthTarget *= 0.5f;
             if (timeline->msPixelWidthTarget < minPixelWidthTarget)
                 timeline->msPixelWidthTarget = minPixelWidthTarget;
             changed = true;
         }
-        ImGui::ShowTooltipOnHover("Slider Zoom Out");
+        ImGui::ShowTooltipOnHover("Accuracy Zoom Out");
 
         ImGui::SameLine();
         if (ImGui::Button(ICON_SLIDER_CLIP "##slider_minimum"))
