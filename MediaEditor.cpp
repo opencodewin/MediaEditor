@@ -3676,7 +3676,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    bool is_small_window = window_size.x < 540;
+    bool is_small_window = window_size.x < 600;
     int bar_height = is_small_window ? 32 : 48;
     int bar_y_offset = is_small_window ? 4 : 8;
     ImVec2 PanelBarPos = window_pos + (control_only ? ImVec2(0, 0) : window_size - ImVec2(window_size.x, bar_height));
@@ -3692,7 +3692,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
     const int b_size = is_small_window ? 24 : 32;
-    const int b_gap = is_small_window ? 2 : 8;
+    const int b_gap = window_size.x < 600 ? 0 : window_size.x < 800 ? 2 : 8;
     const int button_gap = b_size + b_gap;
     const ImVec2 button_size = ImVec2(b_size, b_size);
 
@@ -3798,13 +3798,14 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
         ImGui::ShowTooltipOnHover("Magnifying");
     }
 
-    // Time stamp on left of control panel
-    auto PanelRightX = PanelBarPos.x + 48;
-    auto PanelRightY = PanelBarPos.y + (is_small_window ? 8 : 12);
-    auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 3);
-    ImGui::SetWindowFontScale(is_small_window ? 1.2 : 1.5);
-    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? IM_COL32_WHITE : COL_MARK, time_str.c_str());
+    // Time stamp on right of control panel
+    ImRect TimeStampRect = ImRect(PanelBarPos.x + (monitors ? 48 : 16), PanelBarPos.y + (is_small_window ? 8 : 12), 
+                                PanelCenterX - b_size / 2 - button_gap * 3, PanelBarPos.y + bar_height);
+    draw_list->PushClipRect(TimeStampRect.Min, TimeStampRect.Max, true);
+    ImGui::SetWindowFontScale(is_small_window ? 1.0 : 1.5);
+    ImGui::ShowDigitalTime(draw_list, timeline->currentTime, 3, TimeStampRect.Min, timeline->mIsPreviewPlaying ? IM_COL32(255, 255, 0, 255) : COL_MARK);
     ImGui::SetWindowFontScale(1.0);
+    draw_list->PopClipRect();
 
     // audio meters
     if (audio_bar && !control_only)
@@ -3933,7 +3934,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     {
         // Show monitors
         std::vector<int> disabled_monitor = {MonitorIndexScope};
-        MonitorButton("##preview_monitor_select", ImVec2(PanelBarPos.x + 8, PanelBarPos.y + (is_small_window ? 8 : 12)), MonitorIndexPreviewVideo, disabled_monitor);
+        MonitorButton("##preview_monitor_select", ImVec2(PanelBarPos.x + 8, PanelBarPos.y + (is_small_window ? 8 : 16)), MonitorIndexPreviewVideo, disabled_monitor);
     }
 
     ImGui::PopStyleColor(3);
@@ -3951,7 +3952,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    bool is_small_window = window_size.x < 512;
+    bool is_small_window = window_size.x < 600;
     int bar_height = is_small_window ? 32 : 48;
     int bar_y_offset = is_small_window ? 4 : 8;
     ImVec2 PanelBarPos = window_pos + window_size - ImVec2(window_size.x, bar_height);
@@ -3959,7 +3960,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     draw_list->AddRectFilled(PanelBarPos, PanelBarPos + PanelBarSize, COL_DARK_PANEL);
 
     // Preview buttons Stop button is center of Panel bar
-    auto PanelCenterX = PanelBarPos.x + window_size.x / 2;
+    auto PanelCenterX = PanelBarPos.x + window_size.x / 2 + (is_small_window ? 16 : 0);
     auto PanelButtonY = PanelBarPos.y + bar_y_offset;
     bool out_of_border = false;
 
@@ -3967,7 +3968,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0.5));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.2, 0.2, 0.2, 1.0));
     const int b_size = is_small_window ? 24 : 32;
-    const int b_gap = is_small_window ? 2 : 8;
+    const int b_gap = window_size.x < 600 ? 0 : window_size.x < 800 ? 2 : 8;
     const int button_gap = b_size + b_gap;
     const ImVec2 button_size = ImVec2(b_size, b_size);
 
@@ -4071,19 +4072,20 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     ImGui::RotateCheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare, ImVec4(0.5, 0.5, 0.0, 1.0), 0, button_size);
     ImGui::ShowTooltipOnHover("Zoom Compare");
 
-    // Time stamp on left of control panel
-    auto PanelRightX = PanelBarPos.x + 48;
-    auto PanelRightY = PanelBarPos.y + (is_small_window ? 8 : 12);
-    auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 3);
-    ImGui::SetWindowFontScale(is_small_window ? 1.2 : 1.5);
-    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? IM_COL32_WHITE : COL_MARK, time_str.c_str());
+    // Time stamp on right of control panel
+    ImRect TimeStampRect = ImRect(PanelBarPos.x + 32, PanelBarPos.y + (is_small_window ? 8 : 12), 
+                                PanelCenterX - b_size / 2 - button_gap * 3, PanelBarPos.y + bar_height);
+    draw_list->PushClipRect(TimeStampRect.Min, TimeStampRect.Max, true);
+    ImGui::SetWindowFontScale(is_small_window ? 1.0 : 1.5);
+    ImGui::ShowDigitalTime(draw_list, timeline->currentTime, 3, TimeStampRect.Min, timeline->mIsPreviewPlaying ? IM_COL32(255, 255, 0, 255) : COL_MARK);
     ImGui::SetWindowFontScale(1.0);
+    draw_list->PopClipRect();
 
     // Show monitors
     std::vector<int> org_disabled_monitor = {MonitorIndexVideoFiltered, MonitorIndexScope};
-    MonitorButton("##video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 8, PanelRightY), MonitorIndexVideoFilterOrg, org_disabled_monitor);
+    MonitorButton("##video_filter_org_monitor_select", ImVec2(PanelBarPos.x + 8, PanelBarPos.y + (is_small_window ? 8 : 16)), MonitorIndexVideoFilterOrg, org_disabled_monitor);
     std::vector<int> filter_disabled_monitor = {MonitorIndexVideoFilterOrg, MonitorIndexScope};
-    MonitorButton("##video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 8 - b_size, PanelRightY), MonitorIndexVideoFiltered, filter_disabled_monitor);
+    MonitorButton("##video_filter_monitor_select", ImVec2(PanelBarPos.x + PanelBarSize.x - 8 - b_size, PanelBarPos.y + (is_small_window ? 8 : 16)), MonitorIndexVideoFiltered, filter_disabled_monitor);
 
     int show_video_number = 0;
     if (MonitorIndexVideoFilterOrg == -1) show_video_number++;
@@ -5734,13 +5736,14 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     }
     ImGui::ShowTooltipOnHover(timeline->bTransitionOutputPreview ? "Transition Output" : "Preview Output");
 
-    // Time stamp on left of control panel
-    auto PanelRightX = PanelBarPos.x + window_size.x - 300;
-    auto PanelRightY = PanelBarPos.y + 8;
-    auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 3);
+    // Time stamp on right of control panel
+    ImRect TimeStampRect = ImRect(PanelBarPos.x + 64, PanelBarPos.y + 6, 
+                                PanelBarPos.x + window_size.x, PanelBarPos.y + PanelBarSize.y);
+    draw_list->PushClipRect(TimeStampRect.Min, TimeStampRect.Max, true);
     ImGui::SetWindowFontScale(1.5);
-    draw_list->AddText(ImVec2(PanelRightX, PanelRightY), timeline->mIsPreviewPlaying ? COL_MARK : COL_MARK_HALF, time_str.c_str());
+    ImGui::ShowDigitalTime(draw_list, timeline->currentTime, 3, TimeStampRect.Min, timeline->mIsPreviewPlaying ? IM_COL32(255, 255, 0, 255) : COL_MARK);
     ImGui::SetWindowFontScale(1.0);
+    draw_list->PopClipRect();
 
     // transition texture area
     ImVec2 InputFirstVideoPos = window_pos + ImVec2(4, 4);
