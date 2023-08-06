@@ -10175,6 +10175,74 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
         ImGui::SameLine();
         ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+
+        ImGui::SameLine();
+        if (ImGui::RotateButton(ICON_CLIP_START "##slider_to_start", ImVec2(0, 0), -180))
+        {
+            timeline->firstTime = timeline->GetStart();
+            timeline->AlignTime(timeline->firstTime);
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Slider to Start");
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_SLIDER_FRAME "##slider_maximum"))
+        {
+            timeline->msPixelWidthTarget = maxPixelWidthTarget;
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Frame accuracy");
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_ZOOM_IN "##slider_zoom_in"))
+        {
+            timeline->msPixelWidthTarget *= 2.0f;
+            if (timeline->msPixelWidthTarget > maxPixelWidthTarget)
+                timeline->msPixelWidthTarget = maxPixelWidthTarget;
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Slider Zoom In");
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_CURRENT_TIME "##timeline_current_time"))
+        {
+            timeline->firstTime = timeline->currentTime - timeline->visibleTime / 2;
+            alignTime(timeline->firstTime, frame_duration);
+            timeline->firstTime = ImClamp(timeline->firstTime, (int64_t)0, ImMax(duration - timeline->visibleTime, (int64_t)0));
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Current time");
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_ZOOM_OUT "##slider_zoom_out"))
+        {
+            timeline->msPixelWidthTarget *= 0.5f;
+            if (timeline->msPixelWidthTarget < minPixelWidthTarget)
+                timeline->msPixelWidthTarget = minPixelWidthTarget;
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Slider Zoom Out");
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_SLIDER_CLIP "##slider_minimum"))
+        {
+            timeline->msPixelWidthTarget = minPixelWidthTarget;
+            timeline->firstTime = timeline->GetStart();
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Timeline accuracy");
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_CLIP_START "##slider_to_end"))
+        {
+            timeline->firstTime = timeline->GetEnd() - timeline->visibleTime;
+            timeline->AlignTime(timeline->firstTime);
+            changed = true;
+        }
+        ImGui::ShowTooltipOnHover("Slider to End");
+
+        ImGui::SameLine();
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
         //TODO::Dicky Add more toolbar items
 
         ImGui::PopStyleColor(4);
@@ -10812,73 +10880,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::Dummy(ImVec2(0, trackHeadHeight * 2));
 
         ImGui::EndChildFrame(); // finished track view
-
-        // Horizon Scroll bar control buttons
         auto horizon_scroll_pos = ImGui::GetCursorScreenPos();
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(16, 0));
         ImGui::SetWindowFontScale(0.7);
-        int button_offset = 16;
-        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
-        if (ImGui::Button(ICON_FAST_TO_END "##slider_to_end", ImVec2(16, 16)))
-        {
-            timeline->firstTime = timeline->GetEnd() - timeline->visibleTime;
-            timeline->AlignTime(timeline->firstTime);
-            changed = true;
-        }
-        ImGui::ShowTooltipOnHover("Slider to End");
-
-        button_offset += 16;
-        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
-        if (ImGui::Button(ICON_SLIDER_MAXIMUM "##slider_maximum", ImVec2(16, 16)))
-        {
-            timeline->msPixelWidthTarget = maxPixelWidthTarget;
-            changed = true;
-        }
-        ImGui::ShowTooltipOnHover("Maximum Slider");
-
-        button_offset += 16;
-        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
-        if (ImGui::Button(ICON_ZOOM_IN "##slider_zoom_in", ImVec2(16, 16)))
-        {
-            timeline->msPixelWidthTarget *= 2.0f;
-            if (timeline->msPixelWidthTarget > maxPixelWidthTarget)
-                timeline->msPixelWidthTarget = maxPixelWidthTarget;
-            changed = true;
-        }
-        ImGui::ShowTooltipOnHover("Slider Zoom In");
-
-        button_offset += 16;
-        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
-        if (ImGui::Button(ICON_ZOOM_OUT "##slider_zoom_out", ImVec2(16, 16)))
-        {
-            timeline->msPixelWidthTarget *= 0.5f;
-            if (timeline->msPixelWidthTarget < minPixelWidthTarget)
-                timeline->msPixelWidthTarget = minPixelWidthTarget;
-            changed = true;
-        }
-        ImGui::ShowTooltipOnHover("Slider Zoom Out");
-
-        button_offset += 16;
-        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
-        if (ImGui::Button(ICON_SLIDER_MINIMUM "##slider_minimum", ImVec2(16, 16)))
-        {
-            timeline->msPixelWidthTarget = minPixelWidthTarget;
-            timeline->firstTime = timeline->GetStart();
-            changed = true;
-        }
-        ImGui::ShowTooltipOnHover("Minimum Slider");
-
-        button_offset += 16;
-        ImGui::SetCursorScreenPos(horizon_scroll_pos + ImVec2(legendWidth - button_offset - 4, 0));
-        if (ImGui::Button(ICON_FAST_TO_START "##slider_to_start", ImVec2(16, 16)))
-        {
-            timeline->firstTime = timeline->GetStart();
-            timeline->AlignTime(timeline->firstTime);
-            changed = true;
-        }
-        ImGui::ShowTooltipOnHover("Slider to Start");
+        auto info_str = ImGuiHelper::MillisecToString(duration, 3);
+        info_str += " / ";
+        info_str += std::to_string(trackCount) + " tracks";
+        ImGui::Text("%s", info_str.c_str());
         ImGui::SetWindowFontScale(1.0);
-        ImGui::PopStyleColor();
 
         // Horizon Scroll bar
         ImGui::SetCursorScreenPos(horizon_scroll_pos);
