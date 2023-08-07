@@ -219,7 +219,8 @@ static const char * font_italic_list[] = {
 
 static const char* ConfigureTabNames[] = {
     "System",
-    "Timeline"
+    "Timeline",
+    "Text"
 };
 
 static const char* ControlPanelTabNames[] = {
@@ -602,6 +603,18 @@ static void GetVersion(int& major, int& minor, int& patch, int& build)
     minor = MEDIAEDITOR_VERSION_MINOR;
     patch = MEDIAEDITOR_VERSION_PATCH;
     build = MEDIAEDITOR_VERSION_BUILD;
+}
+
+static bool TimelineConfChanged(MediaEditorSettings &old_setting, MediaEditorSettings &new_setting)
+{
+    if (old_setting.VideoHeight != new_setting.VideoHeight || old_setting.VideoWidth != new_setting.VideoWidth ||
+        old_setting.PreviewScale != new_setting.PreviewScale || old_setting.PixelAspectRatio.den != new_setting.PixelAspectRatio.den ||
+        old_setting.PixelAspectRatio.num != new_setting.PixelAspectRatio.num || old_setting.VideoFrameRate.den != new_setting.VideoFrameRate.den ||
+        old_setting.VideoFrameRate.num != new_setting.VideoFrameRate.num || old_setting.ColorSpaceIndex != new_setting.ColorSpaceIndex ||
+        old_setting.ColorTransferIndex != new_setting.ColorTransferIndex || old_setting.HardwareCodec != new_setting.HardwareCodec ||
+        old_setting.AudioSampleRate != new_setting.AudioSampleRate || old_setting.AudioChannels != new_setting.AudioChannels ||old_setting.AudioFormat != new_setting.AudioFormat)
+        return true;
+    return false;
 }
 
 static void UpdateBreathing()
@@ -1408,7 +1421,8 @@ static void ShowConfigure(MediaEditorSettings & config)
                 if (g.LanguagesLoaded && !g.StringMap.empty())
                 {
                     const char* language_name = config.UILanguage.c_str();
-                    ImGui::TextUnformatted("UI Language");
+                    ImGui::BulletText("UI Language");
+                    // ImGui::TextUnformatted("UI Language");
                     if (ImGui::BeginCombo("##system_setting_language", language_name))
                     {
                         for (auto it = g.StringMap.begin(); it != g.StringMap.end(); ++it)
@@ -1425,16 +1439,20 @@ static void ShowConfigure(MediaEditorSettings & config)
                     }
                 }
 
-                ImGui::TextUnformatted("Show UI Help Tips");
+                ImGui::BulletText("Show UI Help Tips");
+                // ImGui::TextUnformatted("Show UI Help Tips");
                 ImGui::ToggleButton("##show_ui_help_tooltips", &config.ShowHelpTooltips);
                 ImGui::Separator();
-                ImGui::TextUnformatted("Show UI Meters");
+                ImGui::BulletText("Show UI Meters");
+                // ImGui::TextUnformatted("Show UI Meters");
                 ImGui::ToggleButton("##show_ui_meters", &config.showMeters);
                 ImGui::Separator();
-                ImGui::TextUnformatted("Bank View Style");
+                ImGui::BulletText("Bank View Style");
+                // ImGui::TextUnformatted("Bank View Style");
                 ImGui::RadioButton("Icons",  (int *)&config.BankViewStyle, 0); ImGui::SameLine();
                 ImGui::RadioButton("Tree",  (int *)&config.BankViewStyle, 1);
-                ImGui::TextUnformatted("Video Frame Cache Size");
+                ImGui::BulletText("Video Frame Cache Size");
+                // ImGui::TextUnformatted("Video Frame Cache Size");
                 ImGui::PushItemWidth(60);
                 ImGui::InputText("##Video_cache_size", buf_cache_size, 64, ImGuiInputTextFlags_CharsDecimal);
                 config.VideoFrameCacheSize = atoi(buf_cache_size);
@@ -1528,7 +1546,10 @@ static void ShowConfigure(MediaEditorSettings & config)
                 {
                     SetAudioFormat(config, format_index);
                 }
-                ImGui::Separator();
+            }
+            break;
+            case 2:
+            {
                 ImGui::BulletText(ICON_MEDIA_TEXT " Text");
                 const char* familyValue = config.FontName.c_str();
                 if (ImGui::BeginCombo("Font family##system_setting", familyValue))
@@ -1600,7 +1621,6 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::ColorEdit4("FontColor##Back", (float*)&config.FontBackColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
                 ImGui::SameLine(item_width); ImGui::TextUnformatted("Font shadow color");
             }
-
             break;
             default: break;
         }
@@ -10646,6 +10666,13 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button("OK", ImVec2(60, 0)))
         {
             show_configure = false;
+            if (TimelineConfChanged(g_media_editor_settings, g_new_setting))
+            {
+                pfd::message("Need Reboot", "Changing timeline's Settings requires restart application to take effect!",
+                                    pfd::choice::ok,
+                                    pfd::icon::warning);
+            }
+
             g_media_editor_settings = g_new_setting;
             if (timeline)
             {
