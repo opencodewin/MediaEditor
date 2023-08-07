@@ -9975,8 +9975,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
     std::list<imgui_json::value> actionList; // wyvern: add this 'actionList' to save the operation records, for UNDO/REDO.
 
-    // draw backbround
-    //draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DARK_TWO);
     if (lastFirstTime != -1 && lastFirstTime != timeline->firstTime) changed = true;
     if (lastVisiableTime != -1 && lastVisiableTime != newVisibleTime) changed = true;
     lastFirstTime = timeline->firstTime;
@@ -10035,7 +10033,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // ToolBar view
         ImVec2 toolBarSize(timline_size.x, (float)toolbar_height);
         ImRect ToolBarAreaRect(canvas_pos, canvas_pos + toolBarSize);
-        //ImGui::InvisibleButton("toolBar", toolBarSize);
         ImVec2 HeaderPos = ImGui::GetCursorScreenPos() + ImVec2(0, toolbar_height);
         // draw ToolBar bg
         draw_list->AddRectFilled(ToolBarAreaRect.Min, ToolBarAreaRect.Max, COL_DARK_PANEL, 0);
@@ -10161,11 +10158,17 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::EndDisabled();
 #endif
         ImGui::BeginDisabled(timeline->GetSelectedClipCount() <= 0);
-        
         ImGui::SameLine();
         if (ImGui::Button(ICON_DELETE_CLIPS "##main_timeline_delete_selected"))
         {
-            // TODO::Dicky Delete selected clips
+            for (auto clip : timeline->m_Clips)
+            {
+                if (clip->bSelected)
+                {
+                    delClipEntry.push_back(clip->mID);
+                    changed = true;
+                }
+            }
         }
         ImGui::ShowTooltipOnHover("Delete Selected");
 
@@ -10173,7 +10176,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::SameLine();
         if (ImGui::Button(ICON_MEDIA_GROUP "##main_timeline_group_selected"))
         {
-            // TODO::Dicky group selected clips
+            for (auto clip : timeline->m_Clips)
+            {
+                if (clip->bSelected)
+                {
+                    groupClipEntry.push_back(clip->mID);
+                    changed = true;
+                }
+            }
         }
         ImGui::ShowTooltipOnHover("Group Selected");
         ImGui::EndDisabled();
@@ -10181,7 +10191,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::SameLine();
         if (ImGui::Button(ICON_MEDIA_UNGROUP "##main_timeline_ungroup_selected"))
         {
-            // TODO::Dicky ungroup selected clips
+            for (auto clip : timeline->m_Clips)
+            {
+                if (clip->bSelected)
+                {
+                    unGroupClipEntry.push_back(clip->mID);
+                    changed = true;
+                }
+            }
         }
         ImGui::ShowTooltipOnHover("Ungroup Selected");
         ImGui::EndDisabled();
@@ -12761,7 +12778,25 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::SameLine();
     if (ImGui::Button(ICON_EXPAND_EVENT "##clip_timeline_expand_event"))
     {
-        // TODO::Dicky expand event to clip range
+        auto select_event = clip->FindSelectedEvent();
+        if (select_event)
+        {
+            int track_index = select_event->Z();
+            if (track_index >= 0 && track_index < clip->mEventTracks.size())
+            {
+                auto track = clip->mEventTracks[track_index];
+                if (track)
+                {
+                    int64_t new_start = 0;
+                    int64_t new_end = clip->Length();
+                    auto prev_event = track->FindPreviousEvent(select_event->Id());
+                    auto next_event = track->FindNextEvent(select_event->Id());
+                    if (prev_event) new_start = prev_event->End();
+                    if (next_event) new_end = next_event->Start();
+                    select_event->ChangeRange(new_start, new_end);
+                }
+            }
+        }
     }
     ImGui::ShowTooltipOnHover("Expand Event");
     ImGui::EndDisabled();
