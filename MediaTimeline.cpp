@@ -10087,23 +10087,35 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::SameLine();
         if (ImGui::Button(ICON_MARK_IN "##main_timeline_add_mark_in"))
         {
-            // TODO::Dicky add mark in on current time
+            if (timeline->mark_out != -1 && timeline->currentTime > timeline->mark_out)
+                timeline->mark_out = -1;
+            timeline->mark_in = timeline->currentTime;
+            headerMarkPos = -1;
+            changed = true;
         }
         ImGui::ShowTooltipOnHover("Add mark in");
 
         ImGui::SameLine();
         if (ImGui::Button(ICON_MARK_OUT "##main_timeline_add_mark_out"))
         {
-            // TODO::Dicky add mark out on current time
+            if (timeline->mark_in != -1 && timeline->currentTime < timeline->mark_in)
+                timeline->mark_in = -1;
+            timeline->mark_out = timeline->currentTime;
+            headerMarkPos = -1;
+            changed = true;
         }
         ImGui::ShowTooltipOnHover("Add mark out");
 
+        ImGui::BeginDisabled(timeline->mark_out == -1 && timeline->mark_in == -1);
         ImGui::SameLine();
         if (ImGui::Button(ICON_MARK_NONE "##main_timeline_add_mark_out"))
         {
-            // TODO::Dicky delete mark point
+            timeline->mark_in = timeline->mark_out = -1;
+            headerMarkPos = -1;
+            changed = true;
         }
         ImGui::ShowTooltipOnHover("Delete mark point");
+        ImGui::EndDisabled();
 
         ImGui::SameLine();
         ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
