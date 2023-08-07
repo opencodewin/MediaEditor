@@ -9889,7 +9889,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
     int trackCount = timeline->GetTrackCount();
     int64_t duration = ImMax(timeline->GetEnd() - timeline->GetStart(), (int64_t)1);
     ImVector<TimelineCustomDraw> customDraws;
-    static bool MovingHorizonScrollBar = false;
+    static int MovingHorizonScrollBar = -1;
     static bool MovingVerticalScrollBar = false;
     static bool MovingCurrentTime = false;
     static int trackMovingEntry = -1;
@@ -10436,7 +10436,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             // Ensure grabable handles for track
             if (legendEntry != -1 && legendEntry < timeline->m_Tracks.size())
             {
-                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDragging(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsMouseDragging(ImGuiMouseButton_Left) && MovingHorizonScrollBar == -1 && !MovingCurrentTime && !menuIsOpened && editable)
                 {
                     trackMovingEntry = legendEntry;
                 }
@@ -10472,7 +10472,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                         if (clip_view_width <= 20)
                         {
                             // clip is too small, don't dropping
-                            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
+                            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingHorizonScrollBar == -1 && !MovingCurrentTime && !menuIsOpened && editable)
                             {
                                 clipMovingEntry = mouse_clip->mID;
                                 clipMovingPart = 3;
@@ -10513,7 +10513,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                                 {
                                     ImGui::RenderMouseCursor(ICON_CUTTING, ImVec2(7, 0), 1.0, -90);
                                 }
-                                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingHorizonScrollBar && !MovingCurrentTime && !menuIsOpened && editable)
+                                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && MovingHorizonScrollBar == -1 && !MovingCurrentTime && !menuIsOpened && editable)
                                 {
                                     if (j == 2 && timeline->mIsCutting && mouseClip.size() <= 1)
                                     {
@@ -10902,14 +10902,57 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         draw_list->AddRectFilled(HorizonScrollBarMin, HorizonScrollBarMax, COL_SLIDER_BG, 8);
         ImVec2 HorizonScrollHandleBarMin(HorizonScrollAreaMin.x + legendWidth + HorizonStartOffset, HorizonScrollAreaMin.y);  // current bar area
         ImVec2 HorizonScrollHandleBarMax(HorizonScrollAreaMin.x + legendWidth + HorizonBarWidthInPixels + HorizonStartOffset, HorizonScrollAreaMax.y - 2);
+        ImRect HorizonScrollThumbLeft(HorizonScrollHandleBarMin + ImVec2(2, 2), HorizonScrollHandleBarMin + ImVec2(scrollSize - 4, scrollSize - 4));
+        ImRect HorizonScrollThumbRight(HorizonScrollHandleBarMax - ImVec2(scrollSize - 4, scrollSize - 4), HorizonScrollHandleBarMax - ImVec2(2, 2));
         HorizonScrollHandleBarRect = ImRect(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax);
         bool inHorizonScrollHandle = HorizonScrollHandleBarRect.Contains(io.MousePos);
-        draw_list->AddRectFilled(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax, (inHorizonScrollBar || MovingHorizonScrollBar) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
-        if (MovingHorizonScrollBar)
+        bool inHorizonScrollThumbLeft = HorizonScrollThumbLeft.Contains(io.MousePos);
+        bool inHorizonScrollThumbRight = HorizonScrollThumbRight.Contains(io.MousePos);
+        draw_list->AddRectFilled(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax, (inHorizonScrollBar || MovingHorizonScrollBar == 0) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
+        draw_list->AddRectFilled(HorizonScrollThumbLeft.Min, HorizonScrollThumbLeft.Max, (inHorizonScrollThumbLeft || MovingHorizonScrollBar == 1) ? COL_SLIDER_THUMB_IN : COL_SLIDER_HANDLE, 6);
+        draw_list->AddRectFilled(HorizonScrollThumbRight.Min, HorizonScrollThumbRight.Max, (inHorizonScrollThumbRight || MovingHorizonScrollBar == 2) ? COL_SLIDER_THUMB_IN : COL_SLIDER_HANDLE, 6);
+        if (MovingHorizonScrollBar == 1)
         {
+            // Scroll Thumb Left
             if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
-                MovingHorizonScrollBar = false;
+                MovingHorizonScrollBar = -1;
+            }
+            else
+            {
+                auto new_start_offset = ImMax(io.MousePos.x - HorizonScrollBarMin.x, 0.f);
+                auto current_scroll_width = ImMax(HorizonScrollHandleBarMax.x - new_start_offset - HorizonScrollBarMin.x, (float)scrollSize);
+                timeline->msPixelWidthTarget = (HorizonScrollBarRect.GetWidth() * HorizonScrollBarRect.GetWidth()) / (current_scroll_width * duration);
+                timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+                timeline->firstTime = new_start_offset / HorizonScrollBarRect.GetWidth() * (float)duration + timeline->GetStart();
+                timeline->AlignTime(timeline->firstTime);
+                int64_t new_visible_time = (int64_t)floorf((timline_size.x - legendWidth) / timeline->msPixelWidthTarget);
+                timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - new_visible_time, timeline->GetStart()));
+                changed = true;
+            }
+        }
+        else if (MovingHorizonScrollBar == 2)
+        {
+            // Scroll Thumb Right
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                MovingHorizonScrollBar = -1;
+            }
+            else
+            {
+                auto new_end_offset = ImClamp(io.MousePos.x - HorizonScrollBarMin.x, HorizonScrollHandleBarMin.x - HorizonScrollBarMin.x + scrollSize, HorizonScrollBarMax.x - HorizonScrollBarMin.x);
+                auto current_scroll_width = ImMax(new_end_offset + HorizonScrollBarMin.x - HorizonScrollHandleBarMin.x, (float)scrollSize);
+                timeline->msPixelWidthTarget = (HorizonScrollBarRect.GetWidth() * HorizonScrollBarRect.GetWidth()) / (current_scroll_width * duration);
+                timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+                changed = true;
+            }
+        }
+        else if (MovingHorizonScrollBar == 0)
+        {
+            // Scroll
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                MovingHorizonScrollBar = -1;
             }
             else
             {
@@ -10920,21 +10963,31 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 changed = true;
             }
         }
+        else if (inHorizonScrollThumbLeft && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
+        {
+            ImGui::CaptureMouseFromApp();
+            MovingHorizonScrollBar = 1;
+        }
+        else if (inHorizonScrollThumbRight && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
+        {
+            ImGui::CaptureMouseFromApp();
+            MovingHorizonScrollBar = 2;
+        }
         else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
             ImGui::CaptureMouseFromApp();
-            MovingHorizonScrollBar = true;
+            MovingHorizonScrollBar = 0;
             panningViewHorizonSource = io.MousePos;
             panningViewHorizonTime = - timeline->firstTime;
         }
-        else if (inHorizonScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened && editable)
-        {
-            float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
-            timeline->firstTime = int((io.MousePos.x - legendWidth - contentMin.x) / msPerPixelInBar);
-            timeline->AlignTime(timeline->firstTime);
-            timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
-            changed = true;
-        }
+        //else if (inHorizonScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened && editable)
+        //{
+        //    float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
+        //    timeline->firstTime = int((io.MousePos.x - legendWidth - contentMin.x) / msPerPixelInBar);
+        //    timeline->AlignTime(timeline->firstTime);
+        //    timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+        //    changed = true;
+        //}
 
         // Vertical Scroll bar
         auto vertical_scroll_pos = ImVec2(canvas_pos.x - scrollSize * 2, canvas_pos.y + HeadHeight);
@@ -11037,6 +11090,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                     changed = true;
                 }
+#if 0
                 // up-down wheel over scrollbar, scale canvas view
                 else if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
                 {
@@ -11058,6 +11112,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                     changed = true;
                 }
+#endif
             }
         }
 
@@ -11333,7 +11388,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::PopClipRect();
 
         // check current time moving
-        if (isFocused && movable && !MovingCurrentTime && markMovingEntry == -1 && !MovingHorizonScrollBar && clipMovingEntry == -1 && timeline->currentTime >= 0 && timeMeterRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        if (isFocused && movable && !MovingCurrentTime && markMovingEntry == -1 && MovingHorizonScrollBar == -1 && clipMovingEntry == -1 && timeline->currentTime >= 0 && timeMeterRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             MovingCurrentTime = true;
         }
@@ -12007,7 +12062,7 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
     int64_t end = editingClip->mEnd;
     int64_t currentTime = CurrentTime - start;
     int64_t duration = ImMax(end - start, (int64_t)1);
-    static bool MovingHorizonScrollBar = false;
+    static int MovingHorizonScrollBar = -1;
     static bool MovingVerticalScrollBar = false;
     static bool MovingCurrentTime = false;
     static bool menuIsOpened = false;
@@ -12253,23 +12308,64 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
         ImGui::InvisibleButton("clip_HorizonScrollBar", HorizonScrollBarSize);
         ImVec2 HorizonScrollAreaMin = window_pos + ImVec2(0, header_height + custom_height + curve_height);
         ImVec2 HorizonScrollAreaMax = HorizonScrollAreaMin + HorizonScrollBarSize;
-        float HorizonStartOffset = ((float)(editingClip->firstTime) / (float)duration) * (timline_size.x - scrollSize);
+        float HorizonStartOffset = ((float)(editingClip->firstTime) / (float)duration) * timline_size.x;
         ImVec2 HorizonScrollBarMin(HorizonScrollAreaMin.x, HorizonScrollAreaMin.y - 2);        // whole bar area
-        ImVec2 HorizonScrollBarMax(HorizonScrollAreaMin.x + timline_size.x - scrollSize, HorizonScrollAreaMax.y - 1);      // whole bar area
+        ImVec2 HorizonScrollBarMax(HorizonScrollAreaMin.x + timline_size.x, HorizonScrollAreaMax.y - 1);      // whole bar area
         HorizonScrollBarRect = ImRect(HorizonScrollBarMin, HorizonScrollBarMax);
         bool inHorizonScrollBar = HorizonScrollBarRect.Contains(io.MousePos);
         draw_list->AddRectFilled(HorizonScrollBarMin, HorizonScrollBarMax, COL_SLIDER_BG, 8);
         ImVec2 HorizonScrollHandleBarMin(HorizonScrollAreaMin.x + HorizonStartOffset, HorizonScrollAreaMin.y);  // current bar area
         ImVec2 HorizonScrollHandleBarMax(HorizonScrollAreaMin.x + HorizonBarWidthInPixels + HorizonStartOffset, HorizonScrollAreaMax.y - 2);
+        ImRect HorizonScrollThumbLeft(HorizonScrollHandleBarMin + ImVec2(2, 2), HorizonScrollHandleBarMin + ImVec2(scrollSize - 4, scrollSize - 4));
+        ImRect HorizonScrollThumbRight(HorizonScrollHandleBarMax - ImVec2(scrollSize - 4, scrollSize - 4), HorizonScrollHandleBarMax - ImVec2(2, 2));
         HorizonScrollHandleBarRect = ImRect(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax);
         bool inHorizonScrollHandle = HorizonScrollHandleBarRect.Contains(io.MousePos);
-        draw_list->AddRectFilled(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax, (inHorizonScrollBar || MovingHorizonScrollBar) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
-
-        if (MovingHorizonScrollBar)
+        bool inHorizonScrollThumbLeft = HorizonScrollThumbLeft.Contains(io.MousePos);
+        bool inHorizonScrollThumbRight = HorizonScrollThumbRight.Contains(io.MousePos);
+        draw_list->AddRectFilled(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax, (inHorizonScrollBar || MovingHorizonScrollBar == 0) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
+        draw_list->AddRectFilled(HorizonScrollThumbLeft.Min, HorizonScrollThumbLeft.Max, (inHorizonScrollThumbLeft || MovingHorizonScrollBar == 1) ? COL_SLIDER_THUMB_IN : COL_SLIDER_HANDLE, 6);
+        draw_list->AddRectFilled(HorizonScrollThumbRight.Min, HorizonScrollThumbRight.Max, (inHorizonScrollThumbRight || MovingHorizonScrollBar == 2) ? COL_SLIDER_THUMB_IN : COL_SLIDER_HANDLE, 6);
+        if (MovingHorizonScrollBar == 1)
+        {
+            // Scroll Thumb Left
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                MovingHorizonScrollBar = -1;
+            }
+            else
+            {
+                auto new_start_offset = ImMax(io.MousePos.x - HorizonScrollBarMin.x, 0.f);
+                auto current_scroll_width = ImMax(HorizonScrollHandleBarMax.x - new_start_offset - HorizonScrollBarMin.x, (float)scrollSize);
+                editingClip->msPixelWidthTarget = (HorizonScrollBarRect.GetWidth() * HorizonScrollBarRect.GetWidth()) / (current_scroll_width * duration);
+                editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+                editingClip->firstTime = new_start_offset / HorizonScrollBarRect.GetWidth() * (float)duration;
+                main_timeline->AlignTime(editingClip->firstTime);
+                int64_t new_visible_time = (int64_t)floorf(timline_size.x / editingClip->msPixelWidthTarget);
+                editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
+                changed = true;
+            }
+        }
+        else if (MovingHorizonScrollBar == 2)
+        {
+            // Scroll Thumb Right
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                MovingHorizonScrollBar = -1;
+            }
+            else
+            {
+                auto new_end_offset = ImClamp(io.MousePos.x - HorizonScrollBarMin.x, HorizonScrollHandleBarMin.x - HorizonScrollBarMin.x + scrollSize, HorizonScrollBarMax.x - HorizonScrollBarMin.x);
+                auto current_scroll_width = ImMax(new_end_offset + HorizonScrollBarMin.x - HorizonScrollHandleBarMin.x, (float)scrollSize);
+                editingClip->msPixelWidthTarget = (HorizonScrollBarRect.GetWidth() * HorizonScrollBarRect.GetWidth()) / (current_scroll_width * duration);
+                editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+                changed = true;
+            }
+        }
+        else if (MovingHorizonScrollBar == 0)
         {
             if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
-                MovingHorizonScrollBar = false;
+                MovingHorizonScrollBar = -1;
             }
             else
             {
@@ -12280,21 +12376,31 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                 changed = true;
             }
         }
+        else if (inHorizonScrollThumbLeft && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
+        {
+            ImGui::CaptureMouseFromApp();
+            MovingHorizonScrollBar = 1;
+        }
+        else if (inHorizonScrollThumbRight && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
+        {
+            ImGui::CaptureMouseFromApp();
+            MovingHorizonScrollBar = 2;
+        }
         else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
         {
             ImGui::CaptureMouseFromApp();
-            MovingHorizonScrollBar = true;
+            MovingHorizonScrollBar = 0;
             panningViewHorizonSource = io.MousePos;
             panningViewHorizonTime = - editingClip->firstTime;
         }
-        else if (inHorizonScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened && !mouse_hold)
-        {
-            float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
-            editingClip->firstTime = int((io.MousePos.x - contentMin.x) / msPerPixelInBar);
-            main_timeline->AlignTime(editingClip->firstTime);
-            editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-            changed = true;
-        }
+        //else if (inHorizonScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened && !mouse_hold)
+        //{
+        //    float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
+        //    editingClip->firstTime = int((io.MousePos.x - contentMin.x) / msPerPixelInBar);
+        //    main_timeline->AlignTime(editingClip->firstTime);
+        //    editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+        //    changed = true;
+        //}
 
         // handle mouse wheel event
         if (regionRect.Contains(io.MousePos) && !menuIsOpened)
@@ -12333,6 +12439,7 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
+#if 0
                 // up-down wheel over scrollbar, scale canvas view
                 else if (io.MouseWheel < -FLT_EPSILON && editingClip->visibleTime <= duration)
                 {
@@ -12354,6 +12461,7 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
+#endif
             }
         }
 
@@ -12363,7 +12471,7 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
         ImGui::PopClipRect();
 
         // time cursor
-        if (!MovingCurrentTime && !MovingHorizonScrollBar && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !mouse_hold && isFocused)
+        if (!MovingCurrentTime && MovingHorizonScrollBar == -1 && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !mouse_hold && isFocused)
         {
             MovingCurrentTime = true;
             editingClip->bSeeking = true;
@@ -12503,7 +12611,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     int64_t end = editingClip->mEnd;
     int64_t currentTime = CurrentTime - start;
     int64_t duration = ImMax(end - start, (int64_t)1);
-    static bool MovingHorizonScrollBar = false;
+    static int MovingHorizonScrollBar = -1;
     static bool MovingVerticalScrollBar = false;
     static bool MovingCurrentTime = false;
     static bool menuIsOpened = false;
@@ -12863,7 +12971,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImGui::InvisibleButton("clip_HorizonScrollBar", HorizonScrollBarSize);
         ImVec2 HorizonScrollAreaMin = HorizonScrollPos;
         ImVec2 HorizonScrollAreaMax = HorizonScrollAreaMin + HorizonScrollBarSize;
-        float HorizonStartOffset = ((float)(editingClip->firstTime) / (float)duration) * (timline_size.x - scrollSize);
+        float HorizonStartOffset = ((float)(editingClip->firstTime) / (float)duration) * timline_size.x;
         ImVec2 HorizonScrollBarMin(HorizonScrollAreaMin.x, HorizonScrollAreaMin.y - 2);        // whole bar area
         ImVec2 HorizonScrollBarMax(HorizonScrollAreaMin.x + timline_size.x, HorizonScrollAreaMax.y - 1);      // whole bar area
         HorizonScrollBarRect = ImRect(HorizonScrollBarMin, HorizonScrollBarMax);
@@ -12871,9 +12979,92 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         draw_list->AddRectFilled(HorizonScrollBarMin, HorizonScrollBarMax, COL_SLIDER_BG, 8);
         ImVec2 HorizonScrollHandleBarMin(HorizonScrollAreaMin.x + HorizonStartOffset, HorizonScrollAreaMin.y);  // current bar area
         ImVec2 HorizonScrollHandleBarMax(HorizonScrollAreaMin.x + HorizonBarWidthInPixels + HorizonStartOffset, HorizonScrollAreaMax.y - 2);
+        ImRect HorizonScrollThumbLeft(HorizonScrollHandleBarMin + ImVec2(2, 2), HorizonScrollHandleBarMin + ImVec2(scrollSize - 4, scrollSize - 4));
+        ImRect HorizonScrollThumbRight(HorizonScrollHandleBarMax - ImVec2(scrollSize - 4, scrollSize - 4), HorizonScrollHandleBarMax - ImVec2(2, 2));
         HorizonScrollHandleBarRect = ImRect(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax);
         bool inHorizonScrollHandle = HorizonScrollHandleBarRect.Contains(io.MousePos);
-        draw_list->AddRectFilled(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax, (inHorizonScrollBar || MovingHorizonScrollBar) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
+        bool inHorizonScrollThumbLeft = HorizonScrollThumbLeft.Contains(io.MousePos);
+        bool inHorizonScrollThumbRight = HorizonScrollThumbRight.Contains(io.MousePos);
+        draw_list->AddRectFilled(HorizonScrollHandleBarMin, HorizonScrollHandleBarMax, (inHorizonScrollBar || MovingHorizonScrollBar == 0) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
+        draw_list->AddRectFilled(HorizonScrollThumbLeft.Min, HorizonScrollThumbLeft.Max, (inHorizonScrollThumbLeft || MovingHorizonScrollBar == 1) ? COL_SLIDER_THUMB_IN : COL_SLIDER_HANDLE, 6);
+        draw_list->AddRectFilled(HorizonScrollThumbRight.Min, HorizonScrollThumbRight.Max, (inHorizonScrollThumbRight || MovingHorizonScrollBar == 2) ? COL_SLIDER_THUMB_IN : COL_SLIDER_HANDLE, 6);
+
+        if (MovingHorizonScrollBar == 1)
+        {
+            // Scroll Thumb Left
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                MovingHorizonScrollBar = -1;
+            }
+            else
+            {
+                auto new_start_offset = ImMax(io.MousePos.x - HorizonScrollBarMin.x, 0.f);
+                auto current_scroll_width = ImMax(HorizonScrollHandleBarMax.x - new_start_offset - HorizonScrollBarMin.x, (float)scrollSize);
+                editingClip->msPixelWidthTarget = (HorizonScrollBarRect.GetWidth() * HorizonScrollBarRect.GetWidth()) / (current_scroll_width * duration);
+                editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+                editingClip->firstTime = new_start_offset / HorizonScrollBarRect.GetWidth() * (float)duration;
+                alignTime(editingClip->firstTime, frame_duration);
+                int64_t new_visible_time = (int64_t)floorf(timline_size.x / editingClip->msPixelWidthTarget);
+                editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
+                changed = true;
+            }
+        }
+        else if (MovingHorizonScrollBar == 2)
+        {
+            // Scroll Thumb Right
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                MovingHorizonScrollBar = -1;
+            }
+            else
+            {
+                auto new_end_offset = ImClamp(io.MousePos.x - HorizonScrollBarMin.x, HorizonScrollHandleBarMin.x - HorizonScrollBarMin.x + scrollSize, HorizonScrollBarMax.x - HorizonScrollBarMin.x);
+                auto current_scroll_width = ImMax(new_end_offset + HorizonScrollBarMin.x - HorizonScrollHandleBarMin.x, (float)scrollSize);
+                editingClip->msPixelWidthTarget = (HorizonScrollBarRect.GetWidth() * HorizonScrollBarRect.GetWidth()) / (current_scroll_width * duration);
+                editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+                changed = true;
+            }
+        }
+        else if (MovingHorizonScrollBar == 0)
+        {
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                MovingHorizonScrollBar = -1;
+            }
+            else
+            {
+                float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
+                editingClip->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
+                alignTime(editingClip->firstTime, frame_duration);
+                editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+                changed = true;
+            }
+        }
+        else if (inHorizonScrollThumbLeft && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
+        {
+            ImGui::CaptureMouseFromApp();
+            MovingHorizonScrollBar = 1;
+        }
+        else if (inHorizonScrollThumbRight && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
+        {
+            ImGui::CaptureMouseFromApp();
+            MovingHorizonScrollBar = 2;
+        }
+        else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
+        {
+            ImGui::CaptureMouseFromApp();
+            MovingHorizonScrollBar = 0;
+            panningViewHorizonSource = io.MousePos;
+            panningViewHorizonTime = - editingClip->firstTime;
+        }
+        //else if (inHorizonScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened && !mouse_hold)
+        //{
+        //    float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
+        //    editingClip->firstTime = int((io.MousePos.x - contentMin.x) / msPerPixelInBar);
+        //    alignTime(editingClip->firstTime, frame_duration);
+        //    editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
+        //    changed = true;
+        //}
 
         if (topRect.Contains(io.MousePos))
         {
@@ -12890,37 +13081,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         if (trackAreaRect.Contains(io.MousePos))
         {
             overTrackView = true;
-        }
-
-        if (MovingHorizonScrollBar)
-        {
-            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
-            {
-                MovingHorizonScrollBar = false;
-            }
-            else
-            {
-                float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
-                editingClip->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
-                alignTime(editingClip->firstTime, frame_duration);
-                editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-                changed = true;
-            }
-        }
-        else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
-        {
-            ImGui::CaptureMouseFromApp();
-            MovingHorizonScrollBar = true;
-            panningViewHorizonSource = io.MousePos;
-            panningViewHorizonTime = - editingClip->firstTime;
-        }
-        else if (inHorizonScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !menuIsOpened && !mouse_hold)
-        {
-            float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
-            editingClip->firstTime = int((io.MousePos.x - contentMin.x) / msPerPixelInBar);
-            alignTime(editingClip->firstTime, frame_duration);
-            editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-            changed = true;
         }
 
         // handle mouse wheel event
@@ -12943,6 +13103,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
+#if 0
                 // up-down wheel over scrollbar, scale canvas view
                 else if (io.MouseWheel < -FLT_EPSILON && editingClip->visibleTime <= duration)
                 {
@@ -12964,6 +13125,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
+#endif
             }
         }
 
@@ -12973,7 +13135,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImGui::PopClipRect();
 
         // time cursor
-        if (!MovingCurrentTime && !MovingHorizonScrollBar && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !popupDialog && !mouse_hold && isFocused)
+        if (!MovingCurrentTime && MovingHorizonScrollBar == -1 && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !popupDialog && !mouse_hold && isFocused)
         {
             MovingCurrentTime = true;
             editingClip->bSeeking = true;
