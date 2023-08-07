@@ -427,7 +427,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
             {
                 auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
                 ImGui::SetCursorScreenPos(event_pos_min);
-                draw_list->PushClipRect(event_pos_min, event_pos_max);
+                draw_list->PushClipRect(event_pos_min, event_pos_max, true);
                 if (!nodes.empty() && event_pos_max.x - event_pos_min.x < 24)
                 {
                     auto center_point = ImVec2(event_pos_min.x + (event_pos_max.x - event_pos_min.x) / 2, event_pos_min.y + (event_pos_max.y - event_pos_min.y) / 2);
@@ -455,6 +455,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                     SelectEvent(event, false);
                     mouse_clicked = true;
                 }
+                // TODO::Dicky event draw tooltips
                 //event->DrawTooltips();
             }
         }
@@ -10284,8 +10285,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         const float contentHeight = contentMax.y - contentMin.y;
         // full canvas background
         draw_list->AddRectFilled(canvas_pos + ImVec2(4, HeadHeight + 4), canvas_pos + ImVec2(4, HeadHeight + 4) + timline_size - ImVec2(8, HeadHeight + scrollSize + 8), COL_CANVAS_BG, 0);
-        // full legend background
-        draw_list->AddRectFilled(legendRect.Min, legendRect.Max, COL_LEGEND_BG, 0);
 
         // for debug
         //draw_list->AddRect(trackRect.Min, trackRect.Max, IM_COL32(255, 0, 0, 255), 0, 0, 2);
@@ -11067,7 +11066,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 if (io.MouseWheel < -FLT_EPSILON || io.MouseWheel > FLT_EPSILON)
                 {
                     auto scroll_y = VerticalScrollPos;
-                    float offset = io.MouseWheel * 5 / VerticalBarHeightRatio + scroll_y;
+                    float offset = -io.MouseWheel * 5 / VerticalBarHeightRatio + scroll_y;
                     offset = ImClamp(offset, 0.f, VerticalScrollMax);
                     ImGui::SetScrollY(VerticalWindow, offset);
                     panningViewVerticalPos = offset;
@@ -11075,8 +11074,17 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             }
             if (overCustomDraw || overTrackView || overHorizonScrollBar || overTopBar)
             {
+                // up-down wheel to scroll vertical
+                if (io.MouseWheel < -FLT_EPSILON || io.MouseWheel > FLT_EPSILON)
+                {
+                    auto scroll_y = VerticalScrollPos;
+                    float offset = -io.MouseWheel * 5 / VerticalBarHeightRatio + scroll_y;
+                    offset = ImClamp(offset, 0.f, VerticalScrollMax);
+                    ImGui::SetScrollY(VerticalWindow, offset);
+                    panningViewVerticalPos = offset;
+                }
                 // left-right wheel over blank area, moving canvas view
-                if (io.MouseWheelH < -FLT_EPSILON)
+                else if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     timeline->firstTime -= timeline->visibleTime / view_frames;
                     timeline->AlignTime(timeline->firstTime);
@@ -12739,7 +12747,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     }
     ImGui::ShowTooltipOnHover("Copy Event");
     ImGui::SameLine();
-    if (ImGui::RotateButton(ICON_EXPAND_ROTATE "##clip_timeline_expand_event", ImVec2(0, 0), -90))
+    if (ImGui::Button(ICON_EXPAND_EVENT "##clip_timeline_expand_event"))
     {
         // TODO::Dicky expand event to clip range
     }
@@ -12779,16 +12787,14 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::ShowTooltipOnHover("Frame accuracy");
 
     ImGui::SameLine();
-    if (ImGui::Button(ICON_SLIDER_CLIP "##clip_timeline_clip_accuracy"))
+    if (ImGui::RotateButton(ICON_ZOOM_IN "##slider_zoom_in", ImVec2(0, 0), -90))
     {
-        editingClip->msPixelWidthTarget = minPixelWidthTarget;
-        editingClip->firstTime = 0;
+        editingClip->msPixelWidthTarget *= 2.0f;
+        if (editingClip->msPixelWidthTarget > maxPixelWidthTarget)
+            editingClip->msPixelWidthTarget = maxPixelWidthTarget;
         changed = true;
     }
-    ImGui::ShowTooltipOnHover("Clip accuracy");
-
-    ImGui::SameLine();
-    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+    ImGui::ShowTooltipOnHover("Accuracy Zoom In");
 
     ImGui::SameLine();
     if (ImGui::Button(ICON_CURRENT_TIME "##clip_timeline_current_time"))
@@ -12799,6 +12805,38 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         changed = true;
     }
     ImGui::ShowTooltipOnHover("Current time");
+
+    ImGui::SameLine();
+    if (ImGui::RotateButton(ICON_ZOOM_OUT "##slider_zoom_out", ImVec2(0, 0), -90))
+    {
+        editingClip->msPixelWidthTarget *= 0.5f;
+        if (editingClip->msPixelWidthTarget < minPixelWidthTarget)
+            editingClip->msPixelWidthTarget = minPixelWidthTarget;
+        changed = true;
+    }
+    ImGui::ShowTooltipOnHover("Accuracy Zoom Out");
+
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_SLIDER_CLIP "##clip_timeline_clip_accuracy"))
+    {
+        editingClip->msPixelWidthTarget = minPixelWidthTarget;
+        editingClip->firstTime = 0;
+        changed = true;
+    }
+    ImGui::ShowTooltipOnHover("Clip accuracy");
+
+    ImGui::BeginDisabled(!has_selected_event);
+    ImGui::SameLine();
+    if (ImGui::Button(ICON_EVENT_ZOOM "##clip_timeline_event_accuracy"))
+    {
+        // TODO::Dicky Event
+        changed = true;
+    }
+    ImGui::ShowTooltipOnHover("Event accuracy");
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+    ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
 
     ImGui::SameLine();
     if (ImGui::RotateButton(ICON_MD_EXIT_TO_APP "##clip_timeline_prev_event", ImVec2(0, 0), 180))
@@ -13200,6 +13238,17 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             ImDrawList * drawList = ImGui::GetWindowDrawList();
             ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
 
+            // up-down wheel to scroll vertical
+            if (trackAreaRect.Contains(io.MousePos))
+            {
+                if (io.MouseWheel < -FLT_EPSILON || io.MouseWheel > FLT_EPSILON)
+                {
+                    auto scroll_y = ImGui::GetScrollY();
+                    float offset = -io.MouseWheel * 5 + scroll_y;
+                    offset = ImClamp(offset, 0.f, ImGui::GetScrollMaxY());
+                    ImGui::SetScrollY(ImGui::GetCurrentWindow(), offset);
+                }
+            }
             // show tracks
             int mouse_track_index = -1;
             auto tracks = clip->mEventTracks;
