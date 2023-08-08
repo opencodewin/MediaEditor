@@ -1436,7 +1436,7 @@ bool Clip::AddEvent(int64_t id, int evtTrackIndex, int64_t start, int64_t durati
         action["node_name"] = imgui_json::string(nodeName);
         pActionList->push_back(std::move(action));
     }
-
+    mEventTracks[evtTrackIndex]->Update();
     return true;
 }
 
@@ -1489,6 +1489,7 @@ bool Clip::DeleteEvent(MEC::Event::Holder event, std::list<imgui_json::value>* p
     mEventStack->RemoveEvent(event->Id());
     auto clip_track = timeline->FindTrackByClipID(mID);
     if (clip_track) timeline->RefreshTrackView({clip_track->mID});
+    track->Update();
     return true;
 }
 
@@ -12711,6 +12712,17 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     static ImVec2 panningViewHorizonSource;
     static int64_t panningViewHorizonTime;
 
+    ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
+    ImVec2 HorizonScrollPos = window_pos + ImVec2(0, window_size.y - scrollSize);
+    ImGui::SetCursorScreenPos(HorizonScrollPos);
+    ImGui::InvisibleButton("clip_HorizonScrollBar", HorizonScrollBarSize);
+    ImVec2 HorizonScrollAreaMin = HorizonScrollPos;
+    ImVec2 HorizonScrollAreaMax = HorizonScrollAreaMin + HorizonScrollBarSize;
+    ImVec2 HorizonScrollBarMin(HorizonScrollAreaMin.x, HorizonScrollAreaMin.y - 2);        // whole bar area
+    ImVec2 HorizonScrollBarMax(HorizonScrollAreaMin.x + timline_size.x, HorizonScrollAreaMax.y - 1);      // whole bar area
+    HorizonScrollBarRect = ImRect(HorizonScrollBarMin, HorizonScrollBarMax);
+
+
     editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
     if (lastFirstTime != -1 && lastFirstTime != editingClip->firstTime) changed = true;
     if (lastVisiableTime != -1 && lastVisiableTime != newVisibleTime) changed = true;
@@ -12794,13 +12806,15 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     if (prev_event) new_start = prev_event->End();
                     if (next_event) new_end = next_event->Start();
                     select_event->ChangeRange(new_start, new_end);
+                    track->Update();
+                    changed = true;
                 }
             }
         }
     }
     ImGui::ShowTooltipOnHover("Expand Event");
     ImGui::EndDisabled();
-
+#if 0
     ImGui::SameLine();
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
 
@@ -12817,7 +12831,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         // TODO::Dicky redo
     }
     ImGui::ShowTooltipOnHover("Redo");
-
+#endif
     ImGui::SameLine();
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
 
@@ -12876,8 +12890,18 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::SameLine();
     if (ImGui::Button(ICON_EVENT_ZOOM "##clip_timeline_event_accuracy"))
     {
-        // TODO::Dicky Event
-        changed = true;
+        auto select_event = clip->FindSelectedEvent();
+        if (select_event)
+        {
+            editingClip->firstTime = select_event->Start();
+            int64_t new_visible_time = select_event->Length();
+            if (new_visible_time > 0)
+            {
+                editingClip->msPixelWidthTarget = HorizonScrollBarRect.GetWidth() / (float)new_visible_time;
+                editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
+            }
+            changed = true;
+        }
     }
     ImGui::ShowTooltipOnHover("Event accuracy");
     ImGui::EndDisabled();
@@ -12885,23 +12909,78 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::SameLine();
     ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
 
+    ImGui::BeginDisabled(!has_selected_event);
     ImGui::SameLine();
     if (ImGui::RotateButton(ICON_MD_EXIT_TO_APP "##clip_timeline_prev_event", ImVec2(0, 0), 180))
     {
-        // TODO::Dicky jump to previous event
-        changed = true;
+        auto select_event = clip->FindSelectedEvent();
+        if (select_event)
+        {
+            int track_index = select_event->Z();
+            if (track_index >= 0 && track_index < clip->mEventTracks.size())
+            {
+                auto track = clip->mEventTracks[track_index];
+                if (track)
+                {
+                    auto prev_event = track->FindPreviousEvent(select_event->Id());
+                    if (prev_event)
+                    {
+                        if (prev_event->Start() < editingClip->firstTime || prev_event->Start() > editingClip->lastTime)
+                        {
+                            editingClip->firstTime = prev_event->Start();
+                        }
+                        clip->SelectEvent(prev_event);
+                        changed = true;
+                    }
+                }
+            }
+        }
     }
     ImGui::ShowTooltipOnHover("Previous event");
 
     ImGui::SameLine();
+    if (ImGui::Button(ICON_EVENT_HIDE "##clip_timeline_current_event"))
+    {
+        auto select_event = clip->FindSelectedEvent();
+        if (select_event)
+        {
+            editingClip->firstTime = select_event->Start();
+            changed = true;
+        }
+    }
+    ImGui::ShowTooltipOnHover("Current event");
+
+    ImGui::SameLine();
     if (ImGui::Button(ICON_MD_EXIT_TO_APP "##clip_timeline_next_event"))
     {
-        // TODO::Dicky jump to next event
-        changed = true;
+        auto select_event = clip->FindSelectedEvent();
+        if (select_event)
+        {
+            int track_index = select_event->Z();
+            if (track_index >= 0 && track_index < clip->mEventTracks.size())
+            {
+                auto track = clip->mEventTracks[track_index];
+                if (track)
+                {
+                    auto next_event = track->FindNextEvent(select_event->Id());
+                    if (next_event)
+                    {
+                        if (next_event->Start() < editingClip->firstTime || next_event->Start() > editingClip->lastTime)
+                        {
+                            editingClip->firstTime = next_event->Start();
+                        }
+                        clip->SelectEvent(next_event);
+                        changed = true;
+                    }
+                }
+            }
+        }
     }
     ImGui::ShowTooltipOnHover("Next event");
+    ImGui::EndDisabled();
 
     ImGui::PopStyleColor(4);
+    // tool bar end
 
     draw_list->AddLine(canvas_pos + ImVec2(2, 1), canvas_pos + ImVec2(canvas_size.x - 4, 1), IM_COL32(255, 255, 255, 224));
     
@@ -12921,7 +13000,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImVec2 HeaderPos = canvas_pos + ImVec2(0, 1);
         ImGui::SetCursorScreenPos(HeaderPos);
         ImVec2 headerSize(timline_size.x, (float)header_height);
-        ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
         ImRect HeaderAreaRect(HeaderPos, HeaderPos + headerSize);
         ImGui::InvisibleButton("clip_topBar", headerSize);
 
@@ -13051,15 +13129,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImGui::EndChildFrame();
 
         // Horizon Scroll bar
-        ImVec2 HorizonScrollPos = window_pos + ImVec2(0, window_size.y - scrollSize);
-        ImGui::SetCursorScreenPos(HorizonScrollPos);
-        ImGui::InvisibleButton("clip_HorizonScrollBar", HorizonScrollBarSize);
-        ImVec2 HorizonScrollAreaMin = HorizonScrollPos;
-        ImVec2 HorizonScrollAreaMax = HorizonScrollAreaMin + HorizonScrollBarSize;
         float HorizonStartOffset = ((float)(editingClip->firstTime) / (float)duration) * timline_size.x;
-        ImVec2 HorizonScrollBarMin(HorizonScrollAreaMin.x, HorizonScrollAreaMin.y - 2);        // whole bar area
-        ImVec2 HorizonScrollBarMax(HorizonScrollAreaMin.x + timline_size.x, HorizonScrollAreaMax.y - 1);      // whole bar area
-        HorizonScrollBarRect = ImRect(HorizonScrollBarMin, HorizonScrollBarMax);
         bool inHorizonScrollBar = HorizonScrollBarRect.Contains(io.MousePos);
         draw_list->AddRectFilled(HorizonScrollBarMin, HorizonScrollBarMax, COL_SLIDER_BG, 8);
         ImVec2 HorizonScrollHandleBarMin(HorizonScrollAreaMin.x + HorizonStartOffset, HorizonScrollAreaMin.y);  // current bar area
