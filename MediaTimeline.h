@@ -380,7 +380,7 @@ struct Overlap
     Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_second, uint32_t type, void* handle);
     ~Overlap();
 
-    bool IsOverlapValid();
+    bool IsOverlapValid(bool fixRange = false);
     bool IsOverlapEmpty();
     void Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id);
     void Seek();
@@ -439,7 +439,7 @@ struct Clip
     MEC::EventStack*            mEventStack {nullptr};// clip event stack,
     std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
 
-    int64_t frame_duration {0};
+    int64_t mDragAnchorTime{0};
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;
@@ -466,6 +466,8 @@ struct Clip
     int64_t Length() const { return mEnd-mStart; }
     int64_t StartOffset() const { return mStartOffset; }
     int64_t EndOffset() const { return mEndOffset; }
+    void SetPositionAndRange(int64_t start, int64_t end, int64_t startOffset, int64_t endOffset)
+    { mStart = start; mEnd = end; mStartOffset = startOffset; mEndOffset = endOffset; }
     bool IsInClipRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
     
     int AddEventTrack();
@@ -498,7 +500,6 @@ struct VideoClip : Clip
     MediaCore::Snapshot::Viewer::Holder mSsViewer;
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // clip snapshots info, with all croped range
     std::list<Snapshot> mVideoSnapshots;                // clip snapshots, including texture and timestamp info
-    MediaCore::Ratio mClipFrameRate {25, 1};            // clip Frame rate, project saved
 
     // image info
     int mWidth          {0};        // image width, project saved
@@ -709,7 +710,6 @@ struct EditingVideoClip : BaseEditingClip
     ImVec2 mSnapSize            {0, 0};
     uint32_t mWidth             {0};
     uint32_t mHeight            {0};
-    MediaCore::Ratio mClipFrameRate {25, 1};                    // clip Frame rate
 
     // for image clip
     ImTextureID mImgTexture     {0};
@@ -781,8 +781,6 @@ struct EditingVideoOverlap : BaseEditingOverlap
     ImTextureID mImgTexture1 {0};
     ImTextureID mImgTexture2 {0};
     ImVec2 mSnapSize{0, 0};
-    MediaCore::Ratio mClipFirstFrameRate {25, 1};     // overlap clip first Frame rate
-    MediaCore::Ratio mClipSecondFrameRate {25, 1};     // overlap clip second Frame rate
 
     BluePrintVideoTransition* mTransition{nullptr};
 
@@ -1082,7 +1080,7 @@ struct TimeLine
     int64_t attract_docking_pixels {10};    // clip attract docking sucking in pixels range, pulling range is 1/5
     int64_t mConnectedPoints = -1;
 
-    int64_t currentTime = 0;
+    int64_t mCurrentTime = 0;
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;
@@ -1195,7 +1193,9 @@ struct TimeLine
     size_t GetCustomHeight(int index) { return (index < m_Tracks.size() && m_Tracks[index]->mExpanded) ? m_Tracks[index]->mTrackHeight : 0; }
     void Update();
     void UpdateRange();
-    void AlignTime(int64_t& time, bool useCeil = false);
+    int64_t AlignTime(int64_t time, int mode = 0);  // mode: 0=floor, 1=round, 2=ceil
+    int64_t AlignTimeToPrevFrame(int64_t time);
+    int64_t AlignTimeToNextFrame(int64_t time);
     std::pair<int64_t, int64_t> AlignClipRange(const std::pair<int64_t, int64_t>& startAndLength);  // (start, length) => aligned (start, end)
 
     int GetTrackCount() const { return (int)m_Tracks.size(); }

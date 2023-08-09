@@ -2012,7 +2012,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                             if (IS_IMAGE(clip->mType))
                                 hVidClip = vidTrack->AddImageClip(clip->mID, clip->mMediaParser, clip->Start(), clip->Length());
                             else
-                                hVidClip = vidTrack->AddVideoClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), timeline->currentTime - clip->Start());
+                                hVidClip = vidTrack->AddVideoClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), timeline->mCurrentTime - clip->Start());
                             VideoClip* vclip = dynamic_cast<VideoClip*>(clip);
                             vclip->SyncFilterWithDataLayer(hVidClip);
                             vclip->SyncAttributesWithDataLayer(hVidClip);
@@ -3733,7 +3733,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
         if (timeline)
         {
             if (start < 0) timeline->Step(false);
-            else if (timeline->currentTime > start) timeline->Step(false);
+            else if (timeline->mCurrentTime > start) timeline->Step(false);
         }
     }
     ImGui::ShowTooltipOnHover("Step Prev");
@@ -3747,7 +3747,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
         if (timeline)
         {
             if (start < 0) timeline->Play(true, false);
-            else if (timeline->currentTime > start) timeline->Play(true, false);
+            else if (timeline->mCurrentTime > start) timeline->Play(true, false);
         }
     }
     ImGui::ShowTooltipOnHover("Reverse");
@@ -3766,7 +3766,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
         if (timeline)
         {
             if (start < 0 || end < 0) timeline->Play(true, true);
-            else if (timeline->currentTime < end) timeline->Play(true, true);
+            else if (timeline->mCurrentTime < end) timeline->Play(true, true);
         }
     }
     ImGui::ShowTooltipOnHover("Play");
@@ -3777,7 +3777,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
         if (timeline)
         {
             if (end < 0) timeline->Step(true);
-            else if (timeline->currentTime < end) timeline->Step(true);
+            else if (timeline->mCurrentTime < end) timeline->Step(true);
         }
     }
     ImGui::ShowTooltipOnHover("Step Next");
@@ -3823,7 +3823,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
                                 PanelCenterX - b_size / 2 - button_gap * 3, PanelBarPos.y + bar_height);
     draw_list->PushClipRect(TimeStampRect.Min, TimeStampRect.Max, true);
     ImGui::SetWindowFontScale(is_small_window ? 1.0 : 1.5);
-    ImGui::ShowDigitalTime(draw_list, timeline->currentTime, 3, TimeStampRect.Min, timeline->mIsPreviewPlaying ? IM_COL32(255, 255, 0, 255) : COL_MARK);
+    ImGui::ShowDigitalTime(draw_list, timeline->mCurrentTime, 3, TimeStampRect.Min, timeline->mIsPreviewPlaying ? IM_COL32(255, 255, 0, 255) : COL_MARK);
     ImGui::SetWindowFontScale(1.0);
     draw_list->PopClipRect();
 
@@ -3889,14 +3889,14 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
 
     if (start >= 0 && end >= 0)
     {
-        if (timeline->currentTime < start || timeline->currentTime > end)
+        if (timeline->mCurrentTime < start || timeline->mCurrentTime > end)
         {
             out_of_border = true;
             // reach clip border
             if (timeline->mIsPreviewPlaying)
             {
-                if (timeline->currentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
-                if (timeline->currentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
+                if (timeline->mCurrentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
+                if (timeline->mCurrentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
             }
         }
     }
@@ -4007,7 +4007,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            if (timeline->currentTime > start)
+            if (timeline->mCurrentTime > start)
                 timeline->Step(false);
         }
     }
@@ -4021,7 +4021,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            if (timeline->currentTime > start)
+            if (timeline->mCurrentTime > start)
                 timeline->Play(true, false);
         }
     }
@@ -4041,7 +4041,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            if (timeline->currentTime < end)
+            if (timeline->mCurrentTime < end)
                 timeline->Play(true, true);
         }
     }
@@ -4052,7 +4052,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            if (timeline->currentTime < end)
+            if (timeline->mCurrentTime < end)
                 timeline->Step(true);
         }
     }
@@ -4063,7 +4063,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     {
         if (timeline && timeline->mVidFilterClip)
         {
-            if (timeline->currentTime < end)
+            if (timeline->mCurrentTime < end)
                 timeline->Seek(end - 40);
         }
     }
@@ -4097,7 +4097,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
                                 PanelCenterX - b_size / 2 - button_gap * 3, PanelBarPos.y + bar_height);
     draw_list->PushClipRect(TimeStampRect.Min, TimeStampRect.Max, true);
     ImGui::SetWindowFontScale(is_small_window ? 1.0 : 1.5);
-    ImGui::ShowDigitalTime(draw_list, timeline->currentTime, 3, TimeStampRect.Min, timeline->mIsPreviewPlaying ? IM_COL32(255, 255, 0, 255) : COL_MARK);
+    ImGui::ShowDigitalTime(draw_list, timeline->mCurrentTime, 3, TimeStampRect.Min, timeline->mIsPreviewPlaying ? IM_COL32(255, 255, 0, 255) : COL_MARK);
     ImGui::SetWindowFontScale(1.0);
     draw_list->PopClipRect();
 
@@ -4162,14 +4162,14 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
             timeline->mIsPreviewNeedUpdate = false;
         }
 
-        if (timeline->currentTime < start || timeline->currentTime > end)
+        if (timeline->mCurrentTime < start || timeline->mCurrentTime > end)
         {
             out_of_border = true;
             // reach clip border
             if (timeline->mIsPreviewPlaying)
             {
-                if (timeline->currentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
-                if (timeline->currentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
+                if (timeline->mCurrentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
+                if (timeline->mCurrentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
             }
         }
 
@@ -4552,7 +4552,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                         float curve_min = keypoint->GetCurveMin(i);
                         float curve_max = keypoint->GetCurveMax(i);
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        auto curve_time = timeline->currentTime - (is_audio_clip ? timeline->mAudFilterClip->mStart : timeline->mVidFilterClip->mStart) - event->Start();
+                        auto curve_time = timeline->mCurrentTime - (is_audio_clip ? timeline->mAudFilterClip->mStart : timeline->mVidFilterClip->mStart) - event->Start();
                         float curve_value = keypoint->GetValue(i, curve_time);
                         bool in_range = curve_time >= keypoint->GetMin().x && 
                                         curve_time <= keypoint->GetMax().x;
@@ -4570,7 +4570,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                         ImGui::ShowTooltipOnHover("Clip time");
                         ImGui::SameLine();
                         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0)); 
-                        ImGui::Text("%s", ImGuiHelper::MillisecToString(timeline->currentTime, 3).c_str());
+                        ImGui::Text("%s", ImGuiHelper::MillisecToString(timeline->mCurrentTime, 3).c_str());
                         ImGui::PopStyleColor();
                         ImGui::ShowTooltipOnHover("Main time");
                         ImGui::SameLine();
@@ -4895,7 +4895,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         //draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
-        mouse_hold |= DrawAttributeTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50, clip_keypoint_height, attribute ? attribute->GetKeyPoint() : nullptr);
+        mouse_hold |= DrawAttributeTimeLine(timeline, timeline->mVidFilterClip, timeline->mCurrentTime, 30, 50, clip_keypoint_height, attribute ? attribute->GetKeyPoint() : nullptr);
     }
     ImGui::EndChild();
 
@@ -4940,7 +4940,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                     if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
                     {
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        float value = attribute_keypoint->GetValue(index, timeline->currentTime);
+                        float value = attribute_keypoint->GetValue(index, timeline->mCurrentTime);
                         ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                         
                         ImGui::PushItemWidth(60);
@@ -5055,7 +5055,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                 // Crop Margin Left
                 int curve_margin_l_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginL") : -1;
                 bool has_curve_margin_l = attribute_keypoint ? curve_margin_l_index != -1 : false;
-                float margin_l = has_curve_margin_l ? attribute_keypoint->GetValue(curve_margin_l_index, timeline->currentTime) : attribute->GetCropMarginLScale();
+                float margin_l = has_curve_margin_l ? attribute_keypoint->GetValue(curve_margin_l_index, timeline->mCurrentTime) : attribute->GetCropMarginLScale();
                 ImGui::BeginDisabled(has_curve_margin_l);
                 if (ImGui::SliderFloat("Crop Left", &margin_l, 0.f, 1.f))
                 {
@@ -5075,7 +5075,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                 // Crop Margin Top
                 int curve_margin_t_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginT") : -1;
                 bool has_curve_margin_t = attribute_keypoint ? curve_margin_t_index != -1 : false;
-                float margin_t = has_curve_margin_t ? attribute_keypoint->GetValue(curve_margin_t_index, timeline->currentTime) : attribute->GetCropMarginTScale();
+                float margin_t = has_curve_margin_t ? attribute_keypoint->GetValue(curve_margin_t_index, timeline->mCurrentTime) : attribute->GetCropMarginTScale();
                 ImGui::BeginDisabled(has_curve_margin_t);
                 if (ImGui::SliderFloat("Crop Top", &margin_t, 0.f, 1.f))
                 {
@@ -5095,7 +5095,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                 // Crop Margin Right
                 int curve_margin_r_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginR") : -1;
                 bool has_curve_margin_r = attribute_keypoint ? curve_margin_r_index != -1 : false;
-                float margin_r = has_curve_margin_r ? attribute_keypoint->GetValue(curve_margin_r_index, timeline->currentTime) : attribute->GetCropMarginRScale();
+                float margin_r = has_curve_margin_r ? attribute_keypoint->GetValue(curve_margin_r_index, timeline->mCurrentTime) : attribute->GetCropMarginRScale();
                 ImGui::BeginDisabled(has_curve_margin_r);
                 if (ImGui::SliderFloat("Crop Right", &margin_r, 0.f, 1.f))
                 {
@@ -5115,7 +5115,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                 // Crop Margin Bottom
                 int curve_margin_b_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginB") : -1;
                 bool has_curve_margin_b = attribute_keypoint ? curve_margin_b_index != -1 : false;
-                float margin_b = has_curve_margin_b ? attribute_keypoint->GetValue(curve_margin_b_index, timeline->currentTime) : attribute->GetCropMarginBScale();
+                float margin_b = has_curve_margin_b ? attribute_keypoint->GetValue(curve_margin_b_index, timeline->mCurrentTime) : attribute->GetCropMarginBScale();
                 ImGui::BeginDisabled(has_curve_margin_b);
                 if (ImGui::SliderFloat("Crop Bottom", &margin_b, 0.f, 1.f))
                 {
@@ -5141,7 +5141,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                 // Position offset H
                 int curve_position_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetH") : -1;
                 bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
-                float position_h = has_curve_position_h ? attribute_keypoint->GetValue(curve_position_h_index, timeline->currentTime) : attribute->GetPositionOffsetHScale();
+                float position_h = has_curve_position_h ? attribute_keypoint->GetValue(curve_position_h_index, timeline->mCurrentTime) : attribute->GetPositionOffsetHScale();
                 ImGui::BeginDisabled(has_curve_position_h);
                 if (ImGui::SliderFloat("Position H", &position_h, -1.f, 1.f))
                 {
@@ -5161,7 +5161,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                 // Position offset V
                 int curve_position_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetV") : -1;
                 bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
-                float position_v = has_curve_position_v ? attribute_keypoint->GetValue(curve_position_v_index, timeline->currentTime) : attribute->GetPositionOffsetVScale();
+                float position_v = has_curve_position_v ? attribute_keypoint->GetValue(curve_position_v_index, timeline->mCurrentTime) : attribute->GetPositionOffsetVScale();
                 ImGui::BeginDisabled(has_curve_position_v);
                 if (ImGui::SliderFloat("Position V", &position_v, -1.f, 1.f))
                 {
@@ -5213,7 +5213,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                 {
                     int curve_scale_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("Scale") : -1;
                     bool has_curve_scale = attribute_keypoint ? curve_scale_index != -1 : false;
-                    float scale = has_curve_scale ? attribute_keypoint->GetValue(curve_scale_index, timeline->currentTime) : (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
+                    float scale = has_curve_scale ? attribute_keypoint->GetValue(curve_scale_index, timeline->mCurrentTime) : (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
                     ImGui::BeginDisabled(has_curve_scale);
                     if (ImGui::SliderFloat("Scale", &scale, 0, 8.f, "%.1f"))
                     {
@@ -5236,7 +5236,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                     // Scale H
                     int curve_scale_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleH") : -1;
                     bool has_curve_scale_h = attribute_keypoint ? curve_scale_h_index != -1 : false;
-                    float scale_h = has_curve_scale_h ? attribute_keypoint->GetValue(curve_scale_h_index, timeline->currentTime) : attribute->GetScaleH();
+                    float scale_h = has_curve_scale_h ? attribute_keypoint->GetValue(curve_scale_h_index, timeline->mCurrentTime) : attribute->GetScaleH();
                     ImGui::BeginDisabled(has_curve_scale_h);
                     if (ImGui::SliderFloat("Scale H", &scale_h, 0, 8.f, "%.1f"))
                     {
@@ -5256,7 +5256,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                     // Scale V
                     int curve_scale_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") : -1;
                     bool has_curve_scale_v = attribute_keypoint ? curve_scale_v_index != -1 : false;
-                    float scale_v = has_curve_scale_v ? attribute_keypoint->GetValue(curve_scale_v_index, timeline->currentTime) : attribute->GetScaleV();
+                    float scale_v = has_curve_scale_v ? attribute_keypoint->GetValue(curve_scale_v_index, timeline->mCurrentTime) : attribute->GetScaleV();
                     ImGui::BeginDisabled(has_curve_scale_v);
                     if (ImGui::SliderFloat("Scale V", &scale_v, 0, 8.f, "%.1f"))
                     {
@@ -5284,7 +5284,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
                 // Rotate angle
                 int curve_angle_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("RotateAngle") : -1;
                 bool has_curve_angle = attribute_keypoint ? curve_angle_index != -1 : false;
-                float angle = has_curve_angle ? attribute_keypoint->GetValue(curve_angle_index, timeline->currentTime) : attribute->GetRotationAngle();
+                float angle = has_curve_angle ? attribute_keypoint->GetValue(curve_angle_index, timeline->mCurrentTime) : attribute->GetRotationAngle();
                 ImGui::BeginDisabled(has_curve_angle);
                 if (ImGui::SliderFloat("Rotate Angle", &angle, -360.f, 360.f, "%.0f"))
                 {
@@ -5329,7 +5329,7 @@ static bool DrawVideoFilterTimelineWindow(bool& show_BP)
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    return DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->currentTime, 30, 50, show_BP);
+    return DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->mCurrentTime, 30, 50, show_BP);
 }
 
 static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
@@ -5697,7 +5697,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     {
         if (timeline && timeline->mVidOverlap)
         {
-            if (timeline->currentTime > timeline->mVidOverlap->mStart)
+            if (timeline->mCurrentTime > timeline->mVidOverlap->mStart)
                 timeline->Step(false);
         }
     } ImGui::ShowTooltipOnHover("Step Prev");
@@ -5709,7 +5709,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     {
         if (timeline && timeline->mVidOverlap)
         {
-            if (timeline->currentTime > timeline->mVidOverlap->mStart)
+            if (timeline->mCurrentTime > timeline->mVidOverlap->mStart)
                 timeline->Play(true, false);
         }
     } ImGui::ShowTooltipOnHover("Reverse");
@@ -5727,7 +5727,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     {
         if (timeline && timeline->mVidOverlap)
         {
-            if (timeline->currentTime < timeline->mVidOverlap->mEnd)
+            if (timeline->mCurrentTime < timeline->mVidOverlap->mEnd)
                 timeline->Play(true, true);
         }
     } ImGui::ShowTooltipOnHover("Play");
@@ -5737,7 +5737,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     {
         if (timeline && timeline->mVidOverlap)
         {
-            if (timeline->currentTime < timeline->mVidOverlap->mEnd)
+            if (timeline->mCurrentTime < timeline->mVidOverlap->mEnd)
                 timeline->Step(true);
         }
     } ImGui::ShowTooltipOnHover("Step Next");
@@ -5761,7 +5761,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
                                 PanelBarPos.x + window_size.x, PanelBarPos.y + PanelBarSize.y);
     draw_list->PushClipRect(TimeStampRect.Min, TimeStampRect.Max, true);
     ImGui::SetWindowFontScale(1.5);
-    ImGui::ShowDigitalTime(draw_list, timeline->currentTime, 3, TimeStampRect.Min, timeline->mIsPreviewPlaying ? IM_COL32(255, 255, 0, 255) : COL_MARK);
+    ImGui::ShowDigitalTime(draw_list, timeline->mCurrentTime, 3, TimeStampRect.Min, timeline->mIsPreviewPlaying ? IM_COL32(255, 255, 0, 255) : COL_MARK);
     ImGui::SetWindowFontScale(1.0);
     draw_list->PopClipRect();
 
@@ -5795,14 +5795,14 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
         ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
         float offset_x = 0, offset_y = 0;
         float tf_x = 0, tf_y = 0;
-        if (timeline->currentTime < timeline->mVidOverlap->mStart || timeline->currentTime > timeline->mVidOverlap->mEnd)
+        if (timeline->mCurrentTime < timeline->mVidOverlap->mStart || timeline->mCurrentTime > timeline->mVidOverlap->mEnd)
         {
             out_of_border = true;
             // reach clip border
             if (timeline->mIsPreviewPlaying)
             {
-                if (timeline->currentTime < timeline->mVidOverlap->mStart) { timeline->Play(false, false); timeline->Seek(timeline->mVidOverlap->mStart); }
-                if (timeline->currentTime > timeline->mVidOverlap->mEnd) { timeline->Play(false, true); timeline->Seek(timeline->mVidOverlap->mEnd); }
+                if (timeline->mCurrentTime < timeline->mVidOverlap->mStart) { timeline->Play(false, false); timeline->Seek(timeline->mVidOverlap->mStart); }
+                if (timeline->mCurrentTime > timeline->mVidOverlap->mEnd) { timeline->Play(false, true); timeline->Seek(timeline->mVidOverlap->mEnd); }
             }
         }
         // transition first input texture area
@@ -5948,7 +5948,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         // Draw Clip TimeLine
-        DrawOverlapTimeLine(timeline->mVidOverlap, timeline->currentTime - (timeline->mVidOverlap ? timeline->mVidOverlap->mStart : 0), clip_header_height, clip_channel_height);
+        DrawOverlapTimeLine(timeline->mVidOverlap, timeline->mCurrentTime - (timeline->mVidOverlap ? timeline->mVidOverlap->mStart : 0), clip_header_height, clip_channel_height);
     }
     ImGui::EndChild();
 
@@ -5984,7 +5984,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
             if (timeline->mVidOverlap && transition)
             {
                 bool _changed = false;
-                float current_time = timeline->currentTime - timeline->mVidOverlap->mStart;
+                float current_time = timeline->mCurrentTime - timeline->mVidOverlap->mStart;
                 mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         &transition->mKeyPoints, 
                                                         sub_window_size, 
@@ -6001,7 +6001,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
             if (timeline && timeline->mVidOverlap)
             {
                 static const float cursorWidth = 2.f;
-                float cursorOffset = sub_window_pos.x + (timeline->currentTime - timeline->mVidOverlap->mStart) * timeline->mVidOverlap->msPixelWidth - 0.5f;
+                float cursorOffset = sub_window_pos.x + (timeline->mCurrentTime - timeline->mVidOverlap->mStart) * timeline->mVidOverlap->msPixelWidth - 0.5f;
                 draw_list->AddLine(ImVec2(cursorOffset, sub_window_pos.y), ImVec2(cursorOffset, sub_window_pos.y + sub_window_size.y), COL_CURSOR_LINE_R, cursorWidth);
             }
         }
@@ -6092,7 +6092,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
                         float curve_min = transition->mKeyPoints.GetCurveMin(i);
                         float curve_max = transition->mKeyPoints.GetCurveMax(i);
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        auto curve_time = timeline->currentTime - timeline->mVidOverlap->mStart;
+                        auto curve_time = timeline->mCurrentTime - timeline->mVidOverlap->mStart;
                         float curve_value = transition->mKeyPoints.GetValue(i, curve_time);
                         ImGui::BracketSquare(true); 
                         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
@@ -6304,7 +6304,7 @@ static bool DrawAudioFilterTimelineWindow(bool& show_BP)
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    return DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->currentTime, 30, 50, show_BP);
+    return DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->mCurrentTime, 30, 50, show_BP);
 }
 
 static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
@@ -6701,7 +6701,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
-        DrawOverlapTimeLine(timeline->mAudOverlap, timeline->currentTime - (timeline->mAudOverlap ? timeline->mAudOverlap->mStart : 0), clip_header_height, clip_channel_height);
+        DrawOverlapTimeLine(timeline->mAudOverlap, timeline->mCurrentTime - (timeline->mAudOverlap ? timeline->mAudOverlap->mStart : 0), clip_header_height, clip_channel_height);
     }
     ImGui::EndChild();
 
@@ -6737,7 +6737,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
             if (timeline->mAudOverlap && transition)
             {
                 bool _changed = false;
-                float current_time = timeline->currentTime - timeline->mAudOverlap->mStart;
+                float current_time = timeline->mCurrentTime - timeline->mAudOverlap->mStart;
                 mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         &transition->mKeyPoints,
                                                         sub_window_size, 
@@ -6754,7 +6754,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
             if (timeline && timeline->mAudOverlap)
             {
                 static const float cursorWidth = 2.f;
-                float cursorOffset = sub_window_pos.x + (timeline->currentTime - timeline->mAudOverlap->mStart) * timeline->mAudOverlap->msPixelWidth - 0.5f;
+                float cursorOffset = sub_window_pos.x + (timeline->mCurrentTime - timeline->mAudOverlap->mStart) * timeline->mAudOverlap->msPixelWidth - 0.5f;
                 draw_list->AddLine(ImVec2(cursorOffset, sub_window_pos.y), ImVec2(cursorOffset, sub_window_pos.y + sub_window_size.y), COL_CURSOR_LINE_R, cursorWidth);
             }
         }
@@ -6854,7 +6854,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
                         float curve_min = transition->mKeyPoints.GetCurveMin(i);
                         float curve_max = transition->mKeyPoints.GetCurveMax(i);
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        auto curve_time = timeline->currentTime - timeline->mAudOverlap->mStart;
+                        auto curve_time = timeline->mCurrentTime - timeline->mAudOverlap->mStart;
                         float curve_value = transition->mKeyPoints.GetValue(i, curve_time);
                         ImGui::BracketSquare(true); 
                         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); 
@@ -7620,7 +7620,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
             if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                float value = key_point->GetValue(index, timeline->currentTime - clip->Start());
+                float value = key_point->GetValue(index, timeline->mCurrentTime - clip->Start());
                 ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                 
                 ImGui::PushItemWidth(60);
@@ -8070,7 +8070,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
             if (ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
             {
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                float value = keyPointsPtr->GetValue(index, timeline->currentTime);
+                float value = keyPointsPtr->GetValue(index, timeline->mCurrentTime);
                 ImGui::BracketSquare(true); ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0)); ImGui::Text("%.2f", value); ImGui::PopStyleColor();
                 
                 ImGui::PushItemWidth(60);
@@ -8496,7 +8496,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     else if (editing_clip && editing_clip->mClipHolder)
     {
         editing_track = (MediaTrack *)editing_clip->mTrack;
-        current_image = editing_clip->mClipHolder->Image(timeline->currentTime-editing_clip->Start());
+        current_image = editing_clip->mClipHolder->Image(timeline->mCurrentTime-editing_clip->Start());
         default_size = ImVec2((float)current_image.Area().w / (float)timeline->GetPreviewWidth(), (float)current_image.Area().h / (float)timeline->GetPreviewHeight());
         editing_clip->mFontPosX = (float)current_image.Area().x / (float)timeline->GetPreviewWidth();
         editing_clip->mFontPosY = (float)current_image.Area().y / (float)timeline->GetPreviewHeight();
@@ -8580,7 +8580,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                     if (StyleWindowIndex == 0)
                     {
                         // clip style
-                        bool bEnabled = editing_clip->IsInClipRange(timeline->currentTime);
+                        bool bEnabled = editing_clip->IsInClipRange(timeline->mCurrentTime);
                         ImGui::BeginDisabled(editing_clip->mTrackStyle || !bEnabled);
                         force_update_preview |= edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_size);
                         ImGui::EndDisabled();
@@ -8610,7 +8610,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
         ShowMediaPreviewWindow(draw_list, "Text Preview", 2.f, video_rect, editing_clip ? editing_clip->Start() : -1, editing_clip ? editing_clip->End() : -1, false, false, force_update_preview || MovingTextPos);
         // show test rect on preview view and add UI editor
         draw_list->PushClipRect(video_rect.Min, video_rect.Max);
-        if (editing_clip && current_image.Valid() && editing_clip->IsInClipRange(timeline->currentTime))
+        if (editing_clip && current_image.Valid() && editing_clip->IsInClipRange(timeline->mCurrentTime))
         {
             ImVec2 text_pos_min = ImVec2(editing_clip->mFontPosX * video_rect.GetWidth(), editing_clip->mFontPosY * video_rect.GetHeight());
             ImVec2 text_pos_max = text_pos_min + ImVec2(default_size.x * video_rect.GetWidth(), default_size.y * video_rect.GetHeight());
@@ -8698,7 +8698,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
             if (StyleWindowIndex == 0 && editing_clip)
             {
                 bool _changed = false;
-                float current_time = timeline->currentTime - editing_clip->Start();
+                float current_time = timeline->mCurrentTime - editing_clip->Start();
                 auto keyPointsPtr = &editing_clip->mAttributeKeyPoints;
                 mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         keyPointsPtr,
@@ -8711,13 +8711,13 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                                                         &_changed
                                                         );
                 current_time += editing_clip->Start();
-                if ((int64_t)current_time != timeline->currentTime) { timeline->Seek(current_time); }
+                if ((int64_t)current_time != timeline->mCurrentTime) { timeline->Seek(current_time); }
                 if (_changed && editing_clip->mClipHolder) { editing_clip->mClipHolder->SetKeyPoints(editing_clip->mAttributeKeyPoints); timeline->UpdatePreview(); }
             }
             else if (StyleWindowIndex == 1 && editing_track)
             {
                 bool _changed = false;
-                float current_time = timeline->currentTime;
+                float current_time = timeline->mCurrentTime;
                 auto keyPointsPtr = editing_track->mMttReader->GetKeyPoints();
                 mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         keyPointsPtr,
@@ -8729,7 +8729,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                                                         nullptr, // clippingRect
                                                         &_changed
                                                         );
-                if ((int64_t)current_time != timeline->currentTime) { timeline->Seek(current_time); }
+                if ((int64_t)current_time != timeline->mCurrentTime) { timeline->Seek(current_time); }
                 if (_changed)
                 {
                     timeline->UpdatePreview();

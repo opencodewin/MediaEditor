@@ -56,26 +56,15 @@ static bool TimelineButton(ImDrawList *draw_list, const char * label, ImVec2 pos
     return overButton;
 }
 
-static void alignTime(int64_t& time, MediaCore::Ratio rate, bool useCeil = false)
+static int64_t alignTime(int64_t time, const MediaCore::Ratio& rate, bool useCeil = false)
 {
     if (rate.den && rate.num)
     {
-        int64_t frame_index = useCeil ?
-                (int64_t)ceil((double)time * (double)rate.num / (double)rate.den / 1000.0) :
-                (int64_t)floor((double)time * (double)rate.num / (double)rate.den / 1000.0);
-        time = frame_index * 1000 * rate.den / rate.num;
+        const float frame_index_f = (double)time * rate.num / ((double)rate.den * 1000.0);
+        const int64_t frame_index = useCeil ? (int64_t)ceil(frame_index_f) : (int64_t)floor(frame_index_f);
+        time = round((double)frame_index * 1000 * rate.den / rate.num);
     }
-}
-
-static void alignTime(int64_t& time, int64_t frame_time, bool useCeil = false)
-{
-    if (frame_time > 0)
-    {
-        int64_t frame_index = useCeil ?
-                (int64_t)ceil((double)time / (double)frame_time) :
-                (int64_t)floor((double)time / (double)frame_time);
-        time = frame_index * frame_time;
-    }
+    return time;
 }
 
 static int64_t frameTime(MediaCore::Ratio rate)
@@ -476,8 +465,9 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                 auto pKP = event->GetKeyPoint();
                 if (pKP)
                 {
-                    float current_time = timeline->currentTime - clip->Start();
-                    pKP->SetCurveAlign(ImVec2(clip->frame_duration, -1.0));
+                    float current_time = timeline->mCurrentTime - clip->Start();
+                    ImVec2 alignX = { (float)timeline->mFrameRate.num, (float)timeline->mFrameRate.den*1000 };
+                    pKP->SetCurveAlignX(alignX);
                     mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         pKP,
                                                         sub_window_size, 
@@ -791,6 +781,9 @@ int64_t Clip::Cropping(int64_t diff, int type)
         return 0;
     if (IS_DUMMY(mType))
         return 0;
+    diff = timeline->AlignTime(diff);
+    if (diff == 0)
+        return 0;
 
     int64_t length = Length();
     int64_t old_offset = mStartOffset;
@@ -802,11 +795,12 @@ int64_t Clip::Cropping(int64_t diff, int type)
         {
             if (diff + mStartOffset < 0)
                 diff = -mStartOffset;  // mStartOffset can NOT be NEGATIVE
-            else if (diff >= length)
-                diff = length-1;
             int64_t newStart = mStart + diff;
-            timeline->AlignTime(newStart);
-            diff = newStart-mStart;
+            if (newStart >= mEnd)
+            {
+                newStart = timeline->AlignTimeToPrevFrame(mEnd);
+                diff = newStart - mStart;
+            }
             int64_t newStartOffset = mStartOffset + diff;
             assert(newStartOffset >= 0);
             int64_t newLength = length-diff;
@@ -818,11 +812,12 @@ int64_t Clip::Cropping(int64_t diff, int type)
         // for clips that have no length limitation
         else
         {
-            if (diff >= length)
-                diff = length-1;
-            int64_t newStart = mStart+diff;
-            timeline->AlignTime(newStart);
-            diff = newStart-mStart;
+            int64_t newStart = mStart + diff;
+            if (newStart >= mEnd)
+            {
+                newStart = timeline->AlignTimeToPrevFrame(mEnd);
+                diff = newStart - mStart;
+            }
             int64_t newLength = length-diff;
             assert(newLength > 0);
 
@@ -835,13 +830,14 @@ int64_t Clip::Cropping(int64_t diff, int type)
         // for clips that have length limitation
         if ((IS_VIDEO(mType) && !IS_IMAGE(mType)) || IS_AUDIO(mType))
         {
-            if (mEndOffset-diff < 0)
+            if (mEndOffset < diff)
                 diff = mEndOffset;  // mEndOffset can NOT be NEGATIVE
-            else if (diff <= -length)
-                diff = -length+1;
-            int64_t newEnd = mStart+length+diff;
-            timeline->AlignTime(newEnd, true);
-            diff = newEnd-End();
+            int64_t newEnd = mStart + length + diff;
+            if (newEnd <= mStart)
+            {
+                newEnd = timeline->AlignTimeToNextFrame(mStart);
+                diff = newEnd - mEnd;
+            }
             int64_t newEndOffset = mEndOffset-diff;
             assert(newEndOffset >= 0);
             int64_t newLength = length+diff;
@@ -853,11 +849,12 @@ int64_t Clip::Cropping(int64_t diff, int type)
         // for clips that have no length limitation
         else
         {
-            if (diff <= -length)
-                diff = -length+1;
-            int64_t newEnd = mStart+length+diff;
-            timeline->AlignTime(newEnd);
-            diff = newEnd-End();
+            int64_t newEnd = mStart + length + diff;
+            if (newEnd <= mStart)
+            {
+                newEnd = timeline->AlignTimeToNextFrame(mStart);
+                diff = newEnd - mEnd;
+            }
             int64_t newLength = length+diff;
             assert(newLength > 0);
 
@@ -914,7 +911,7 @@ void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_
     if (IS_DUMMY(mType))
         return;
     // check if the cut position is inside the clip
-    timeline->AlignTime(pos);
+    pos = timeline->AlignTime(pos);
     if (pos <= mStart || pos >= mEnd)
         return;
 
@@ -1006,12 +1003,15 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         return index;
     if (IS_DUMMY(mType))
         return index;
-    
+    int track_index = timeline->FindTrackIndexByClipID(mID);
+    diff = timeline->AlignTime(diff);
+    if (diff == 0 && track_index == mouse_track)
+        return index;
+
     ImGuiIO &io = ImGui::GetIO();
     // [shortcut]: left ctrl into single moving status
     bool single = ImGui::IsKeyDown(ImGuiKey_LeftCtrl);
 
-    int track_index = timeline->FindTrackIndexByClipID(mID);
     int64_t length = mEnd - mStart;
     int64_t start = timeline->mStart;
     int64_t end = -1;
@@ -1060,7 +1060,6 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
             // align clip end to timeline frame rate
             int64_t _start = clip->mStart;
             int64_t _end = clip->mEnd;
-            timeline->AlignTime(_end);
             if ((single && clip->mID == mID) || (!single && clip->bSelected && clip->bMoving))
             {
                 selected_start_points.push_back(_start);
@@ -1260,7 +1259,6 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     {
         new_diff = diff;
         mStart += new_diff;
-        timeline->AlignTime(mStart);
         mEnd = mStart + length;
     }
     else
@@ -1269,14 +1267,12 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
         {
             new_diff = start - group_start;
             mStart += new_diff;
-            timeline->AlignTime(mStart);
             mEnd = mStart + length;
         }
         if (diff > 0 && end != -1 && group_end + diff > end)
         {
             new_diff = end - group_end;
             mStart = end - length;
-            timeline->AlignTime(mStart);
             mEnd = mStart + length;
         }
     }
@@ -1346,7 +1342,6 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
             {
                 int64_t clip_length = clip->mEnd - clip->mStart;
                 clip->mStart += new_diff;
-                timeline->AlignTime(clip->mStart);
                 clip->mEnd = clip->mStart + clip_length;
                 moving_clip_keypoint(clip);
             }
@@ -1395,9 +1390,9 @@ bool Clip::AddEvent(int64_t id, int evtTrackIndex, int64_t start, int64_t durati
     TimeLine * timeline = (TimeLine *)mHandle;
     if (id == -1)
         id = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
+    start = timeline->AlignTime(start);
     auto end = start + duration;
-    alignTime(start, frame_duration);
-    alignTime(end, frame_duration);
+    end = timeline->AlignTime(end);
     auto event = mEventStack->AddNewEvent(id, start, end, evtTrackIndex);
     if (!event)
     {
@@ -1598,6 +1593,10 @@ bool Clip::hasSelectedEvent()
 
 void Clip::EventMoving(int64_t event_id, int64_t diff, int64_t mouse, std::list<imgui_json::value>* pActionList)
 {
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline) return;
+    diff = timeline->AlignTime(diff);
+    if (diff == 0) return;
     auto event = FindEventByID(event_id);
     if (!event || !(event->Status() & EVENT_SELECTED)) return;
     auto index = event->Z();
@@ -1657,7 +1656,6 @@ void Clip::EventMoving(int64_t event_id, int64_t diff, int64_t mouse, std::list<
     if (new_start < 0) new_start = 0;
     if (new_start + length > Length())
         new_start = Length() - length;
-    alignTime(new_start, frame_duration);
     event->Move(new_start, index);
     track->Update();
 
@@ -1676,6 +1674,10 @@ void Clip::EventMoving(int64_t event_id, int64_t diff, int64_t mouse, std::list<
 
 int64_t Clip::EventCropping(int64_t event_id, int64_t diff, int type, std::list<imgui_json::value>* pActionList)
 {
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline) return 0;
+    diff = timeline->AlignTime(diff);
+    if (diff == 0) return 0;
     auto event = FindEventByID(event_id);
     if (!event || !(event->Status() & EVENT_SELECTED)) return 0;
     auto index = event->Z();
@@ -1698,8 +1700,7 @@ int64_t Clip::EventCropping(int64_t event_id, int64_t diff, int type, std::list<
         }
         auto new_start = event->Start() + new_diff;
         if (new_start < 0) new_start = 0;
-        if (new_start >= event->End()) new_start = event->End() - frame_duration;
-        alignTime(new_start, frame_duration);
+        if (new_start >= event->End()) new_start = timeline->AlignTimeToPrevFrame(event->End());
         new_diff = new_start - new_diff;
         event->ChangeRange(new_start, event->End());
     }
@@ -1713,9 +1714,8 @@ int64_t Clip::EventCropping(int64_t event_id, int64_t diff, int type, std::list<
                 new_diff = next_event->Start() - event->End();
         }
         auto new_end = event->End() + new_diff;
-        if (new_end > Length()) new_end = Length();
-        if (new_end <= event->Start()) new_end = event->Start() + frame_duration;
-        alignTime(new_end, frame_duration);
+        if (new_end > End()) new_end = End();
+        if (new_end <= event->Start()) new_end = timeline->AlignTimeToNextFrame(event->Start());
         new_diff = new_end - new_diff;
         event->ChangeRange(event->Start(), new_end);
     }
@@ -1767,20 +1767,6 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
         mWidth = video_stream->width;
         mHeight = video_stream->height;
         mPath = info->url;
-        if (video_stream->avgFrameRate.den > 0 && video_stream->avgFrameRate.num > 0)
-        {
-            mClipFrameRate = video_stream->avgFrameRate;
-        }
-        else if (video_stream->realFrameRate.den > 0 && video_stream->realFrameRate.num > 0)
-        {
-            mClipFrameRate = video_stream->realFrameRate;
-        }
-        else if (handle)
-        {
-            TimeLine * timeline = (TimeLine *)handle;
-            mClipFrameRate = timeline->mFrameRate;
-        }
-        frame_duration = (mClipFrameRate.den > 0 && mClipFrameRate.num > 0) ? mClipFrameRate.den * 1000.0 / mClipFrameRate.num : 40;
     }
 }
 
@@ -1802,8 +1788,6 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
         TimeLine * timeline = (TimeLine *)handle;
         mWidth = video_stream->width;
         mHeight = video_stream->height;
-        mClipFrameRate = timeline->mFrameRate;
-        frame_duration = (mClipFrameRate.den > 0 && mClipFrameRate.num > 0) ? mClipFrameRate.den * 1000.0 / mClipFrameRate.num : 40;
         int _width = 0, _height = 0;
         std::vector<ImGui::ImMat> snap_images;
         if (mOverview->GetSnapshots(snap_images))
@@ -1988,21 +1972,6 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
             }
             Clip::Load(new_clip, value);
             // load video info
-            if (value.contains("FrameRateDen"))
-            {
-                auto& val = value["FrameRateDen"];
-                if (val.is_number()) new_clip->mClipFrameRate.den = val.get<imgui_json::number>();
-            }
-            if (value.contains("FrameRateNum"))
-            {
-                auto& val = value["FrameRateNum"];
-                if (val.is_number()) new_clip->mClipFrameRate.num = val.get<imgui_json::number>();
-            }
-            if (value.contains("FrameRateDen"))
-            {
-                auto& val = value["FrameRateDen"];
-                if (val.is_number()) new_clip->mClipFrameRate.den = val.get<imgui_json::number>();
-            }
             if (value.contains("ScaleType"))
             {
                 auto& val = value["ScaleType"];
@@ -2255,8 +2224,6 @@ void VideoClip::Save(imgui_json::value& value)
     // save video clip info
     value["width"] = imgui_json::number(mWidth);
     value["height"] = imgui_json::number(mHeight);
-    value["FrameRateNum"] = imgui_json::number(mClipFrameRate.num);
-    value["FrameRateDen"] = imgui_json::number(mClipFrameRate.den);
 
     value["CropMarginL"] = imgui_json::number(mCropMarginL);
     value["CropMarginT"] = imgui_json::number(mCropMarginT);
@@ -2379,7 +2346,6 @@ AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, M
             return;
         }
         TimeLine * timeline = (TimeLine *)mHandle;
-        frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
         mAudioSampleRate = audio_stream->sampleRate;
         mAudioChannels = audio_stream->channels;
         mPath = info->url;
@@ -2681,7 +2647,6 @@ TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, std
         mText = text;
         mTrackStyle = true;
         TimeLine * timeline = (TimeLine *)mHandle;
-        frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
     }
 }
 
@@ -3266,7 +3231,6 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
 {
     TimeLine * timeline = (TimeLine *)vidclip->mHandle;
     mDuration = mEnd-mStart;
-    mClipFrameRate = vidclip->mClipFrameRate;
     mWidth = vidclip->mWidth;
     mHeight = vidclip->mHeight;
     firstTime = vidclip->firstTime;
@@ -3785,12 +3749,11 @@ Overlap::~Overlap()
 {
 }
 
-bool Overlap::IsOverlapValid()
+bool Overlap::IsOverlapValid(bool fixRange)
 {
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return false;
-    
     auto clip_start = timeline->FindClipByID(m_Clip.first);
     auto clip_end = timeline->FindClipByID(m_Clip.second);
     if (!clip_start || !clip_end)
@@ -3799,11 +3762,15 @@ bool Overlap::IsOverlapValid()
     auto track_end = timeline->FindTrackByClipID(clip_end->mID);
     if (!track_start || !track_end || track_start->mID != track_end->mID)
         return false;
-    
     if (clip_start->End() <= clip_end->Start() ||
         clip_end->End() <= clip_start->Start())
         return false;
-    
+
+    if (fixRange)
+    {
+        mStart = clip_end->Start() > clip_start->Start() ? clip_end->Start() : clip_start->Start();
+        mEnd = clip_start->End() < clip_end->End() ? clip_start->End() : clip_end->End();
+    }
     return true;
 }
 
@@ -4052,8 +4019,6 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             MediaCore::VideoTransition::Holder hTrans(mTransition);
             hOvlp->SetTransition(hTrans);
         }
-        mClipFirstFrameRate = mClip1->mClipFrameRate;
-        mClipSecondFrameRate = mClip2->mClipFrameRate;
     }
     else
     {
@@ -4765,7 +4730,7 @@ void MediaTrack::Update()
     // check all overlaps
     for (auto iter = m_Overlaps.begin(); iter != m_Overlaps.end();)
     {
-        if (!(*iter)->IsOverlapValid())
+        if (!(*iter)->IsOverlapValid(true))
         {
             int64_t id = (*iter)->mID;
             iter = m_Overlaps.erase(iter);
@@ -4890,7 +4855,7 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update, std::list<img
         return _clip->mID == clip->mID;
     });
     if (pos < 0) pos = 0;
-    timeline->AlignTime(pos);
+    pos = timeline->AlignTime(pos);
     clip->ChangeStart(pos);
     if (iter == m_Clips.end())
     {
@@ -5032,7 +4997,7 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     {
         updated = timeline->m_CallBacks.EditingClipAttribute(clip->mType, clip);
     }
-    if (!clip->IsInClipRange(timeline->currentTime) || timeline->currentTime < timeline->firstTime || timeline->currentTime > timeline->lastTime)
+    if (!clip->IsInClipRange(timeline->mCurrentTime) || timeline->mCurrentTime < timeline->firstTime || timeline->mCurrentTime > timeline->lastTime)
         timeline->Seek(clip->Start());
 
     // find old editing clip and reset BP
@@ -5716,19 +5681,36 @@ TimeLine::~TimeLine()
     mEncoder = nullptr;
 }
 
-void TimeLine::AlignTime(int64_t& time, bool useCeil)
+int64_t TimeLine::AlignTime(int64_t time, int mode)
 {
-    alignTime(time, mFrameRate, useCeil);
+    const float frame_index_f = (double)time * mFrameRate.num / ((double)mFrameRate.den * 1000.0);
+    const int64_t frame_index = mode==0 ? (int64_t)floor(frame_index_f) : mode==1 ? (int64_t)round(frame_index_f) : (int64_t)ceil(frame_index_f);
+    time = round((double)frame_index * 1000 * mFrameRate.den / mFrameRate.num);
+    return time;
+}
+
+int64_t TimeLine::AlignTimeToPrevFrame(int64_t time)
+{
+    int64_t frame_index = round((double)time * mFrameRate.num / ((double)mFrameRate.den * 1000.0));
+    frame_index--;
+    time = round((double)frame_index * 1000 * mFrameRate.den / mFrameRate.num);
+    return time;
+}
+
+int64_t TimeLine::AlignTimeToNextFrame(int64_t time)
+{
+    int64_t frame_index = round((double)time * mFrameRate.num / ((double)mFrameRate.den * 1000.0));
+    frame_index++;
+    time = round((double)frame_index * 1000 * mFrameRate.den / mFrameRate.num);
+    return time;
 }
 
 std::pair<int64_t, int64_t> TimeLine::AlignClipRange(const std::pair<int64_t, int64_t>& startAndLength)
 {
-    int64_t start = startAndLength.first;
-    int64_t length = startAndLength.second;
-    alignTime(start, mFrameRate);
-    int64_t end = start+length;
-    alignTime(end, mFrameRate, true);
-    return {start, end};
+    int64_t start = AlignTime(startAndLength.first);
+    int64_t length = AlignTime(startAndLength.second);
+    if (length == 0) length = AlignTimeToNextFrame(0);
+    return {start, start+length};
 }
 
 void TimeLine::UpdateRange()
@@ -5914,7 +5896,7 @@ int64_t TimeLine::DeleteTrack(int index, std::list<imgui_json::value>* pActionLi
     if (m_Tracks.size() == 0)
     {
         mStart = mEnd = 0;
-        currentTime = firstTime = lastTime = visibleTime = 0;
+        mCurrentTime = firstTime = lastTime = visibleTime = 0;
         mark_in = mark_out = -1;
     }
 
@@ -6151,7 +6133,7 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
             if (IS_IMAGE(c->mType))
                 hVidClip = hVidTrk->AddImageClip(c->mID, c->mMediaParser, c->Start(), c->Length());
             else
-                hVidClip = hVidTrk->AddVideoClip(c->mID, c->mMediaParser, c->Start(), c->End(), c->StartOffset(), c->EndOffset(), currentTime-c->Start());
+                hVidClip = hVidTrk->AddVideoClip(c->mID, c->mMediaParser, c->Start(), c->End(), c->StartOffset(), c->EndOffset(), mCurrentTime-c->Start());
             VideoClip* vclip = dynamic_cast<VideoClip*>(c);
             vclip->SyncFilterWithDataLayer(hVidClip);
             vclip->SyncAttributesWithDataLayer(hVidClip);
@@ -6178,7 +6160,7 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
         volParams.volume = t->mAudioTrackAttribute.mAudioGain;
         aeFilter->SetVolumeParams(&volParams);
         mMtaReader->UpdateDuration();
-        mMtaReader->SeekTo(currentTime);
+        mMtaReader->SeekTo(mCurrentTime);
     }
 
     SyncDataLayer(true);
@@ -6402,38 +6384,38 @@ void TimeLine::UpdateCurrent()
         return;
     if (!mIsPreviewForward)
     {
-        if (currentTime < firstTime + visibleTime / 2)
+        if (mCurrentTime < firstTime + visibleTime / 2)
         {
             //firstTime = currentTime - visibleTime / 2;
-            auto step = (firstTime + visibleTime / 2 - currentTime) / 4;
+            auto step = (firstTime + visibleTime / 2 - mCurrentTime) / 4;
             if (step <= visibleTime / 32)
-                firstTime = currentTime - visibleTime / 2;
+                firstTime = mCurrentTime - visibleTime / 2;
             else
                 firstTime -= step;
         }
-        else if (currentTime > firstTime + visibleTime)
+        else if (mCurrentTime > firstTime + visibleTime)
         {
-            firstTime = currentTime - visibleTime;
+            firstTime = mCurrentTime - visibleTime;
         }
     }
     else
     {
-        if (mEnd - currentTime < visibleTime / 2)
+        if (mEnd - mCurrentTime < visibleTime / 2)
         {
             firstTime = mEnd - visibleTime;
         }
-        else if (currentTime > firstTime + visibleTime / 2)
+        else if (mCurrentTime > firstTime + visibleTime / 2)
         {
             //firstTime = currentTime - visibleTime / 2;
-            auto step = (currentTime - firstTime - visibleTime / 2) / 4;
+            auto step = (mCurrentTime - firstTime - visibleTime / 2) / 4;
             if (step <= visibleTime / 32)
-                firstTime = currentTime - visibleTime / 2;
+                firstTime = mCurrentTime - visibleTime / 2;
             else
                 firstTime += step;
         }
-        else if (currentTime < firstTime)
+        else if (mCurrentTime < firstTime)
         {
-            firstTime = currentTime;
+            firstTime = mCurrentTime;
         }
     }
     if (firstTime < 0) firstTime = 0;
@@ -6474,41 +6456,44 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
         previewPos = mPreviewResumePos;
     }
 
-    currentTime = previewPos;
     if (mIsPreviewPlaying)
     {
         bool playEof = false;
         int64_t dur = ValidDuration();
-        if (!mIsPreviewForward && currentTime <= 0)
+        if (!mIsPreviewForward && mCurrentTime <= 0)
         {
             if (bLoop)
             {
-                currentTime = dur;
-                Seek(currentTime);
+                mCurrentTime = AlignTime(dur);
+                Seek(mCurrentTime);
             }
             else
             {
-                currentTime = 0;
+                mCurrentTime = 0;
                 playEof = true;
             }
         }
-        else if (mIsPreviewForward && currentTime >= dur)
+        else if (mIsPreviewForward && mCurrentTime >= dur)
         {
             if (bLoop)
             {
-                currentTime = 0;
-                Seek(currentTime);
+                mCurrentTime = 0;
+                Seek(mCurrentTime);
             }
             else
             {
-                currentTime = dur;
+                mCurrentTime = AlignTime(dur);
                 playEof = true;
             }
+        }
+        else
+        {
+            mCurrentTime = AlignTime(previewPos);
         }
         if (playEof)
         {
             mIsPreviewPlaying = false;
-            mPreviewResumePos = currentTime;
+            mPreviewResumePos = mCurrentTime;
             if (mAudioRender)
                 mAudioRender->Pause();
             for (auto& audio : mAudioAttribute.channel_data) audio.m_decibel = 0;
@@ -6525,7 +6510,7 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
 
     std::vector<MediaCore::CorrelativeFrame> frames;
     const bool needPreciseFrame = !(bSeeking || mIsPreviewPlaying);
-    mMtvReader->ReadVideoFrameEx(currentTime, frames, true, needPreciseFrame);
+    mMtvReader->ReadVideoFrameEx(mCurrentTime, frames, true, needPreciseFrame);
     if (mIsPreviewPlaying) UpdateCurrent();
     return frames;
 }
@@ -6569,11 +6554,11 @@ void TimeLine::Play(bool play, bool forward)
             mAudioRender->Pause();
             mAudioRender->Flush();
         }
-        mMtvReader->SetDirection(forward, currentTime);
-        mMtaReader->SetDirection(forward, currentTime);
+        mMtvReader->SetDirection(forward, mCurrentTime);
+        mMtaReader->SetDirection(forward, mCurrentTime);
         mIsPreviewForward = forward;
         mPlayTriggerTp = PlayerClock::now();
-        mPreviewResumePos = currentTime;
+        mPreviewResumePos = mCurrentTime;
         if (mAudioRender)
         {
             mAudioRender->Resume();
@@ -6582,7 +6567,7 @@ void TimeLine::Play(bool play, bool forward)
     if (needSeekAudio && mAudioRender)
     {
         mAudioRender->Flush();
-        mMtaReader->SeekTo(currentTime);
+        mMtaReader->SeekTo(mCurrentTime);
     }
     if (play != mIsPreviewPlaying)
     {
@@ -6596,7 +6581,7 @@ void TimeLine::Play(bool play, bool forward)
         else
         {
             mLastFrameTime = -1;
-            mPreviewResumePos = currentTime;
+            mPreviewResumePos = mCurrentTime;
             if (mAudioRender)
                 mAudioRender->Pause();
             for (int i = 0; i < mAudioAttribute.channel_data.size(); i++) SetAudioLevel(i, 0);
@@ -6610,6 +6595,7 @@ void TimeLine::Play(bool play, bool forward)
 
 void TimeLine::Seek(int64_t msPos, bool enterSeekingState)
 {
+    msPos = AlignTime(msPos);
     if (enterSeekingState && !bSeeking)
     {
         // begin to seek
@@ -6636,7 +6622,7 @@ void TimeLine::Seek(int64_t msPos, bool enterSeekingState)
         if (mMtvReader)
             mMtvReader->SeekTo(msPos);
     }
-    mPreviewResumePos = msPos;
+    mCurrentTime = mPreviewResumePos = msPos;
 }
 
 void TimeLine::StopSeek()
@@ -6688,8 +6674,8 @@ void TimeLine::Step(bool forward)
     }
     ImGui::ImMat vmat;
     mMtvReader->ReadNextVideoFrame(vmat);
-    currentTime = std::round(vmat.time_stamp*1000);
-    mPreviewResumePos = currentTime;
+    mCurrentTime = std::round((double)vmat.index_count*mFrameRate.den*1000/mFrameRate.num);
+    mPreviewResumePos = mCurrentTime;
 
     UpdateCurrent();
 }
@@ -7474,8 +7460,7 @@ int TimeLine::Load(const imgui_json::value& value)
     if (value.contains("CurrentTime"))
     {
         auto& val = value["CurrentTime"];
-        if (val.is_number()) currentTime = val.get<imgui_json::number>();
-        mPreviewResumePos = currentTime;
+        if (val.is_number()) mCurrentTime = val.get<imgui_json::number>();
     }
     if (value.contains("MarkIn"))
     {
@@ -7569,8 +7554,8 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["OutputAudio"];
         if (val.is_boolean()) bExportAudio = val.get<imgui_json::boolean>();
     }
-    Update();
-    //Seek();
+
+    mPreviewResumePos = mCurrentTime = AlignTime(mCurrentTime);
 
     // load data layer
     ConfigureDataLayer();
@@ -7811,6 +7796,48 @@ int TimeLine::Load(const imgui_json::value& value)
         }
     }
 
+    // Adjust the position and range of clips and overlaps according to timeline's frame rate
+    for (auto clip : m_Clips)
+    {
+        const auto alignedStart = AlignTime(clip->Start());
+        auto alignedEnd = AlignTime(clip->End());
+        if (alignedEnd <= alignedStart)
+            alignedEnd = AlignTimeToNextFrame(alignedStart);
+        const auto alignedStartOffset = AlignTime(clip->StartOffset());
+        const auto alignedEndOffset = AlignTime(clip->EndOffset());
+        if (IS_IMAGE(clip->mType))
+        {
+            if (alignedStart != clip->Start() || alignedEnd != clip->End())
+                clip->SetPositionAndRange(alignedStart, alignedEnd, 0, 0);
+        }
+        else
+        {
+            const auto alignedSourceDuration = AlignTime(clip->mMediaParser->GetMediaInfo()->duration*1000);
+            if (alignedEnd-alignedStart+alignedStartOffset+alignedEndOffset != alignedSourceDuration)
+            {
+                auto newStart = alignedStart;
+                auto newEnd = alignedEnd;
+                auto newStartOffset = alignedStartOffset;
+                auto newEndOffset = alignedSourceDuration-newEnd+newStart-newStartOffset;
+                if (newEndOffset < 0)
+                {
+                    newStartOffset += newEndOffset;
+                    newEndOffset = 0;
+                }
+                if (newStartOffset < 0)
+                {
+                    newEnd += newStartOffset;
+                    newStartOffset = 0;
+                }
+                clip->SetPositionAndRange(newStart, newEnd, newStartOffset, newEndOffset);
+            }
+            else if (alignedStart != clip->Start() || alignedEnd != clip->End() || alignedStartOffset != clip->StartOffset() || alignedEndOffset != clip->EndOffset())
+            {
+                clip->SetPositionAndRange(alignedStart, alignedEnd, alignedStartOffset, alignedEndOffset);
+            }
+        }
+    }
+
     // build data layer multi-track media reader
     for (auto track : m_Tracks)
     {
@@ -7826,7 +7853,7 @@ int TimeLine::Load(const imgui_json::value& value)
                 if (IS_IMAGE(clip->mType))
                     hVidClip = vidTrack->AddImageClip(clip->mID, clip->mMediaParser, clip->Start(), clip->Length());
                 else
-                    hVidClip = vidTrack->AddVideoClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), currentTime-clip->Start());
+                    hVidClip = vidTrack->AddVideoClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), mCurrentTime-clip->Start());
                 VideoClip* vclip = dynamic_cast<VideoClip*>(clip);
                 vclip->SyncFilterWithDataLayer(hVidClip);
                 vclip->SyncAttributesWithDataLayer(hVidClip);
@@ -7901,9 +7928,10 @@ int TimeLine::Load(const imgui_json::value& value)
         amFilter->SetEqualizerParamsByIndex(&equalizerParams, i);
     }
 
-    mMtvReader->SeekTo(currentTime);
+    Update();
+    mMtvReader->SeekTo(mCurrentTime);
     mMtaReader->UpdateDuration();
-    mMtaReader->SeekTo(currentTime, false);
+    mMtaReader->SeekTo(mCurrentTime, false);
     SyncDataLayer(true);
     return 0;
 }
@@ -8016,7 +8044,7 @@ void TimeLine::Save(imgui_json::value& value)
     value["AudioFormat"] = imgui_json::number(mAudioFormat);
     value["msPixelWidth"] = imgui_json::number(msPixelWidthTarget);
     value["FirstTime"] = imgui_json::number(firstTime);
-    value["CurrentTime"] = imgui_json::number(currentTime);
+    value["CurrentTime"] = imgui_json::number(mCurrentTime);
     value["MarkIn"] = imgui_json::number(mark_in);
     value["MarkOut"] = imgui_json::number(mark_out);
     value["PreviewForward"] = imgui_json::boolean(mIsPreviewForward);
@@ -8124,7 +8152,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         Clip* clip = FindClipByID(clipId);
         MediaCore::VideoClip::Holder hVidClip = MediaCore::VideoClip::CreateVideoInstance(
             clip->mID, clip->mMediaParser, mMtvReader->GetSharedSettings(),
-            clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), currentTime-clip->Start(), vidTrack->Direction());
+            clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), mCurrentTime-clip->Start(), vidTrack->Direction());
         VideoClip* vclip = dynamic_cast<VideoClip*>(clip);
         vclip->SyncFilterWithDataLayer(hVidClip);
         vclip->SyncAttributesWithDataLayer(hVidClip);
@@ -8199,7 +8227,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         int64_t newClipId = action["new_clip_id"].get<imgui_json::number>();
         MediaCore::VideoClip::Holder hNewClip = MediaCore::VideoClip::CreateVideoInstance(
             newClipId, hClip->GetMediaParser(), mMtvReader->GetSharedSettings(),
-            newClipStart, newClipEnd, newClipStartOffset, newClipEndOffset, currentTime-newClipStart, hVidTrk->Direction());
+            newClipStart, newClipEnd, newClipStartOffset, newClipEndOffset, mCurrentTime-newClipStart, hVidTrk->Direction());
         auto hNewFilter = hClip->GetFilter()->Clone();
         if (hNewFilter)
         {
@@ -10085,9 +10113,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::SameLine();
         if (ImGui::Button(ICON_MARK_IN "##main_timeline_add_mark_in"))
         {
-            if (timeline->mark_out != -1 && timeline->currentTime > timeline->mark_out)
+            if (timeline->mark_out != -1 && timeline->mCurrentTime > timeline->mark_out)
                 timeline->mark_out = -1;
-            timeline->mark_in = timeline->currentTime;
+            timeline->mark_in = timeline->mCurrentTime;
             headerMarkPos = -1;
             changed = true;
         }
@@ -10096,9 +10124,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::SameLine();
         if (ImGui::Button(ICON_MARK_OUT "##main_timeline_add_mark_out"))
         {
-            if (timeline->mark_in != -1 && timeline->currentTime < timeline->mark_in)
+            if (timeline->mark_in != -1 && timeline->mCurrentTime < timeline->mark_in)
                 timeline->mark_in = -1;
-            timeline->mark_out = timeline->currentTime;
+            timeline->mark_out = timeline->mCurrentTime;
             headerMarkPos = -1;
             changed = true;
         }
@@ -10211,7 +10239,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (ImGui::RotateButton(ICON_CLIP_START "##slider_to_start", ImVec2(0, 0), -180))
         {
             timeline->firstTime = timeline->GetStart();
-            timeline->AlignTime(timeline->firstTime);
             changed = true;
         }
         ImGui::ShowTooltipOnHover("Slider to Start");
@@ -10237,8 +10264,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::SameLine();
         if (ImGui::Button(ICON_CURRENT_TIME "##timeline_current_time"))
         {
-            timeline->firstTime = timeline->currentTime - timeline->visibleTime / 2;
-            alignTime(timeline->firstTime, frame_duration);
+            timeline->firstTime = timeline->mCurrentTime - timeline->visibleTime / 2;
             timeline->firstTime = ImClamp(timeline->firstTime, (int64_t)0, ImMax(duration - timeline->visibleTime, (int64_t)0));
             changed = true;
         }
@@ -10267,7 +10293,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (ImGui::Button(ICON_CLIP_START "##slider_to_end"))
         {
             timeline->firstTime = timeline->GetEnd() - timeline->visibleTime;
-            timeline->AlignTime(timeline->firstTime);
             changed = true;
         }
         ImGui::ShowTooltipOnHover("Slider to End");
@@ -10325,8 +10350,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
         // calculate mouse pos to time
         mouseTime = (int64_t)((io.MousePos.x - contentMin.x - legendWidth) / timeline->msPixelWidthTarget) + timeline->firstTime;
-        //timeline->AlignTime(mouseTime);
-        auto alignedTime = mouseTime; timeline->AlignTime(alignedTime);
+        auto alignedTime = timeline->AlignTime(mouseTime);
         if (alignedTime >= timeline->firstTime)
             alignedMousePosX = ((alignedTime - timeline->firstTime) * timeline->msPixelWidthTarget) + contentMin.x + legendWidth;
         menuIsOpened = ImGui::IsPopupOpen("##timeline-context-menu") || ImGui::IsPopupOpen("##timeline-header-context-menu");
@@ -10378,15 +10402,15 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         }
 
         // cursor Arrow
-        if (timeline->currentTime >= timeline->firstTime && timeline->currentTime <= timeline->GetEnd())
+        if (timeline->mCurrentTime >= timeline->firstTime && timeline->mCurrentTime <= timeline->GetEnd())
         {
             const float arrowWidth = draw_list->_Data->FontSize;
-            float arrowOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - arrowWidth * 0.5f + 1;
+            float arrowOffset = contentMin.x + legendWidth + (timeline->mCurrentTime - timeline->firstTime) * timeline->msPixelWidthTarget - arrowWidth * 0.5f + 1;
             ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, HeaderAreaRect.Min.y), COL_CURSOR_ARROW, ImGuiDir_Down);
             ImGui::SetWindowFontScale(0.8);
-            auto time_str = ImGuiHelper::MillisecToString(timeline->currentTime, 2);
+            auto time_str = ImGuiHelper::MillisecToString(timeline->mCurrentTime, 2);
             ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-            float strOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget - str_size.x * 0.5f + 1;
+            float strOffset = contentMin.x + legendWidth + (timeline->mCurrentTime - timeline->firstTime) * timeline->msPixelWidthTarget - str_size.x * 0.5f + 1;
             if (strOffset + str_size.x > contentMax.x) strOffset = contentMax.x - str_size.x;
             ImVec2 str_pos = ImVec2(strOffset, HeaderAreaRect.Min.y + 10);
             draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BG, 2.0, ImDrawFlags_RoundCornersAll);
@@ -10621,40 +10645,40 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // clip cropping or moving
         if (clipMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         {
+            Clip * clip = timeline->FindClipByID(clipMovingEntry);
             ImGui::CaptureMouseFromApp();
+            if (diffTime == 0)
+            {
+                if (clipMovingPart == 3 || clipMovingPart == 1)
+                    clip->mDragAnchorTime = clip->Start();
+                else if (clipMovingPart == 2)
+                    clip->mDragAnchorTime = clip->End();
+            }
             diffTime += io.MouseDelta.x / timeline->msPixelWidthTarget;
 
-            if (diffTime > frameTime(timeline->mFrameRate) || diffTime < -frameTime(timeline->mFrameRate))
+            if (clipMovingPart == 3)
             {
-                Clip * clip = timeline->FindClipByID(clipMovingEntry);
-                if (clip && clip->bSelected)
-                {
-                    if (clipMovingPart == 3)
-                    {
-                        bClipMoving = true;
-                        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
-                        // whole slot moving
-                        int dst_entry = clip->Moving(diffTime, mouseEntry);
-                        if (dst_entry >= 0)
-                            mouseEntry = dst_entry;
-                    }
-                    else if (clipMovingPart & 1)
-                    {
-                        // clip left moving
-                        clip->Cropping(diffTime, 0);
-                    }
-                    else if (clipMovingPart & 2)
-                    {
-                        // clip right moving
-                        clip->Cropping(diffTime, 1);
-                    }
-                }
-                //int64_t align_time = diffTime;
-                //timeline->AlignTime(align_time);
-                //diffTime -= align_time;
-                diffTime = 0;
-                changed = true;
+                bClipMoving = true;
+                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+                // whole slot moving
+                auto diff = diffTime-clip->Start()+clip->mDragAnchorTime;
+                int dst_entry = clip->Moving(diff, mouseEntry);
+                if (dst_entry >= 0)
+                    mouseEntry = dst_entry;
             }
+            else if (clipMovingPart & 1)
+            {
+                // clip left cropping
+                auto diff = diffTime-clip->Start()+clip->mDragAnchorTime;
+                clip->Cropping(diff, 0);
+            }
+            else if (clipMovingPart & 2)
+            {
+                // clip right cropping
+                auto diff = diffTime-clip->End()+clip->mDragAnchorTime;
+                clip->Cropping(diff, 1);
+            }
+            changed = true;
         }
 
         // mark moving
@@ -10954,7 +10978,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 timeline->msPixelWidthTarget = (HorizonScrollBarRect.GetWidth() * HorizonScrollBarRect.GetWidth()) / (current_scroll_width * duration);
                 timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
                 timeline->firstTime = new_start_offset / HorizonScrollBarRect.GetWidth() * (float)duration + timeline->GetStart();
-                timeline->AlignTime(timeline->firstTime);
                 int64_t new_visible_time = (int64_t)floorf((timline_size.x - legendWidth) / timeline->msPixelWidthTarget);
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - new_visible_time, timeline->GetStart()));
                 changed = true;
@@ -10987,7 +11010,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             {
                 float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
                 timeline->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
-                timeline->AlignTime(timeline->firstTime);
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                 changed = true;
             }
@@ -11013,7 +11035,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         //{
         //    float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
         //    timeline->firstTime = int((io.MousePos.x - legendWidth - contentMin.x) / msPerPixelInBar);
-        //    timeline->AlignTime(timeline->firstTime);
         //    timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
         //    changed = true;
         //}
@@ -11117,14 +11138,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 else if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     timeline->firstTime -= timeline->visibleTime / view_frames;
-                    timeline->AlignTime(timeline->firstTime);
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                     changed = true;
                 }
                 else if (io.MouseWheelH > FLT_EPSILON)
                 {
                     timeline->firstTime += timeline->visibleTime / view_frames;
-                    timeline->AlignTime(timeline->firstTime);
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                     changed = true;
                 }
@@ -11426,7 +11445,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         ImGui::PopClipRect();
 
         // check current time moving
-        if (isFocused && movable && !MovingCurrentTime && markMovingEntry == -1 && MovingHorizonScrollBar == -1 && clipMovingEntry == -1 && timeline->currentTime >= 0 && timeMeterRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        if (isFocused && movable && !MovingCurrentTime && markMovingEntry == -1 && MovingHorizonScrollBar == -1 && clipMovingEntry == -1 && timeline->mCurrentTime >= 0 && timeMeterRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
             MovingCurrentTime = true;
         }
@@ -11434,18 +11453,17 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             if (!timeline->mIsPreviewPlaying || !timeline->bSeeking || ImGui::IsMouseDragging(ImGuiMouseButton_Left))
             {
-                timeline->currentTime = (int64_t)((io.MousePos.x - timeMeterRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
-                timeline->AlignTime(timeline->currentTime);
-                if (timeline->currentTime < timeline->firstTime)
-                    timeline->firstTime = timeline->currentTime;
-                if (timeline->currentTime > timeline->lastTime)
-                    timeline->firstTime = timeline->currentTime - timeline->visibleTime;
-                if (timeline->currentTime < timeline->GetStart())
-                    timeline->currentTime = timeline->GetStart();
-                if (timeline->currentTime >= timeline->GetEnd())
-                    timeline->currentTime = timeline->GetEnd();
-                timeline->Seek(timeline->currentTime, true);
-                timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+                auto mouseTime = (int64_t)((io.MousePos.x - timeMeterRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
+                if (mouseTime < timeline->GetStart())
+                    mouseTime = timeline->GetStart();
+                if (mouseTime >= timeline->GetEnd())
+                    mouseTime = timeline->GetEnd();
+                if (mouseTime < timeline->firstTime)
+                    timeline->firstTime = mouseTime;
+                if (mouseTime > timeline->lastTime)
+                    timeline->firstTime = mouseTime - timeline->visibleTime;
+                timeline->mCurrentTime = timeline->AlignTime(mouseTime, 1);
+                timeline->Seek(timeline->mCurrentTime, true);
                 changed = true;
             }
         }
@@ -11459,10 +11477,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         // cursor line
         ImRect custom_view_rect(childFramePos + ImVec2(float(legendWidth), 0.f), childFramePos + childFrameSize);
         draw_list->PushClipRect(custom_view_rect.Min, custom_view_rect.Max);
-        if (trackCount > 0 && timeline->currentTime >= timeline->firstTime && timeline->currentTime <= timeline->GetEnd())
+        if (trackCount > 0 && timeline->mCurrentTime >= timeline->firstTime && timeline->mCurrentTime <= timeline->GetEnd())
         {
             static const float cursorWidth = 2.f;
-            float cursorOffset = contentMin.x + legendWidth + (timeline->currentTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
+            float cursorOffset = contentMin.x + legendWidth + (timeline->mCurrentTime - timeline->firstTime) * timeline->msPixelWidthTarget + 1;
             draw_list->AddLine(ImVec2(cursorOffset, contentMin.y), ImVec2(cursorOffset, contentMin.y + trackRect.Max.y - scrollSize), COL_CURSOR_LINE, cursorWidth);
         }
         draw_list->PopClipRect();
@@ -11601,6 +11619,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         bCropping = false;
         bClipMoving = false;
         bTrackMoving = false;
+        diffTime = 0;
         timeline->mConnectedPoints = -1;
         ImGui::CaptureMouseFromApp(false);
     }
@@ -12112,7 +12131,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
     bool overCustomDraw = false;
     bool overTopBar = false;
     bool overCurveDraw = false;
-    float frame_duration = 40;
 
     ImVec2 canvas_pos = ImGui::GetCursorScreenPos();                    // ImDrawList API uses screen coordinates!
     ImVec2 canvas_size = ImGui::GetContentRegionAvail();                // Resize canvas to what's available
@@ -12127,14 +12145,12 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
     if (IS_VIDEO(editingClip->mType))
     {
         EditingVideoClip * video_clip = (EditingVideoClip *)editingClip;
-        frame_duration = (video_clip->mClipFrameRate.den > 0 && video_clip->mClipFrameRate.num > 0) ? video_clip->mClipFrameRate.den * 1000.0 / video_clip->mClipFrameRate.num : 40;
-        maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) / frame_duration;
+        maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) * main_timeline->mFrameRate.num / (main_timeline->mFrameRate.den * 1000);
         view_frames = video_clip->mSnapSize.x > 0 ? (window_size.x / video_clip->mSnapSize.x) : 16;
     }
     else if (IS_AUDIO(editingClip->mType))
     {
-        frame_duration = (main_timeline->mFrameRate.den > 0 && main_timeline->mFrameRate.num > 0) ? main_timeline->mFrameRate.den * 1000.0 / main_timeline->mFrameRate.num : 40;
-        maxPixelWidthTarget = 40.f / frame_duration;
+        maxPixelWidthTarget = 1;
         view_frames = window_size.x / 40.f;
     }
 
@@ -12170,7 +12186,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
     else if (editingClip->firstTime + editingClip->visibleTime > duration)
     {
         editingClip->firstTime = duration - editingClip->visibleTime;
-        main_timeline->AlignTime(editingClip->firstTime);
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
         changed = true;
     }
@@ -12207,7 +12222,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
 
         // calculate mouse pos to time
         mouseTime = (int64_t)((io.MousePos.x - contentMin.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
-        main_timeline->AlignTime(mouseTime);
         menuIsOpened = ImGui::IsPopupOpen("##clip_timeline-context-menu");
 
         //header
@@ -12283,7 +12297,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                 {
                     int64_t new_visible_time = (int64_t)floorf((timline_size.x) / editingClip->msPixelWidthTarget);
                     editingClip->firstTime = menuMouseTime - new_visible_time / 2;
-                    main_timeline->AlignTime(editingClip->firstTime);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
                     changed = true;
                 }
@@ -12297,7 +12310,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
             if (ImGui::MenuItem(ICON_CURRENT_TIME " Current Time", nullptr, nullptr))
             {
                 editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
-                main_timeline->AlignTime(editingClip->firstTime);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                 changed = true;
             }
@@ -12320,7 +12332,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                     currentTime = point.x;
                     main_timeline->Seek(currentTime + start);
                     editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
-                    main_timeline->AlignTime(editingClip->firstTime);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
@@ -12330,7 +12341,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                     currentTime = point.x;
                     main_timeline->Seek(currentTime + start);
                     editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
-                    main_timeline->AlignTime(editingClip->firstTime);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
@@ -12377,7 +12387,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                 editingClip->msPixelWidthTarget = (HorizonScrollBarRect.GetWidth() * HorizonScrollBarRect.GetWidth()) / (current_scroll_width * duration);
                 editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
                 editingClip->firstTime = new_start_offset / HorizonScrollBarRect.GetWidth() * (float)duration;
-                main_timeline->AlignTime(editingClip->firstTime);
                 int64_t new_visible_time = (int64_t)floorf(timline_size.x / editingClip->msPixelWidthTarget);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
                 changed = true;
@@ -12409,7 +12418,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
             {
                 float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
                 editingClip->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
-                main_timeline->AlignTime(editingClip->firstTime);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                 changed = true;
             }
@@ -12435,7 +12443,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
         //{
         //    float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
         //    editingClip->firstTime = int((io.MousePos.x - contentMin.x) / msPerPixelInBar);
-        //    main_timeline->AlignTime(editingClip->firstTime);
         //    editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
         //    changed = true;
         //}
@@ -12466,14 +12473,12 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                 if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     editingClip->firstTime -= editingClip->visibleTime / view_frames;
-                    main_timeline->AlignTime(editingClip->firstTime);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
                 else if (io.MouseWheelH > FLT_EPSILON)
                 {
                     editingClip->firstTime += editingClip->visibleTime / view_frames;
-                    main_timeline->AlignTime(editingClip->firstTime);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
@@ -12516,9 +12521,7 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
         }
         if (MovingCurrentTime && duration)
         {
-            auto old_time = currentTime;
             currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
-            main_timeline->AlignTime(currentTime);
             if (currentTime < editingClip->firstTime)
                 currentTime = editingClip->firstTime;
             if (currentTime > editingClip->lastTime)
@@ -12573,7 +12576,8 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                 draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
                 bool _changed = false;
                 float current_time = currentTime;// + start;
-                key_point->SetCurveAlign(ImVec2(frame_duration, -1.0));
+                ImVec2 alignX = { (float)main_timeline->mFrameRate.num, (float)main_timeline->mFrameRate.den*1000 };
+                key_point->SetCurveAlignX(alignX);
                 mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         key_point,
                                                         sub_window_size, 
@@ -12664,7 +12668,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     bool overTopBar = false;
     bool overTrackView = false;
     bool popupDialog = false;
-    float frame_duration = 40;
 
     static int64_t eventMovingEntry = -1;
     static int eventMovingPart = -1;
@@ -12689,14 +12692,12 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     if (IS_VIDEO(editingClip->mType))
     {
         EditingVideoClip * video_clip = (EditingVideoClip *)editingClip;
-        frame_duration = (video_clip->mClipFrameRate.den > 0 && video_clip->mClipFrameRate.num > 0) ? video_clip->mClipFrameRate.den * 1000.0 / video_clip->mClipFrameRate.num : 40;
-        maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) / frame_duration;
+        maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) * main_timeline->mFrameRate.num / (main_timeline->mFrameRate.den * 1000);
         view_frames = video_clip->mSnapSize.x > 0 ? (window_size.x / video_clip->mSnapSize.x) : 16;
     }
     else if (IS_AUDIO(editingClip->mType))
     {
-        frame_duration = (main_timeline->mFrameRate.den > 0 && main_timeline->mFrameRate.num > 0) ? main_timeline->mFrameRate.den * 1000.0 / main_timeline->mFrameRate.num : 40;
-        maxPixelWidthTarget = 40.f / frame_duration;
+        maxPixelWidthTarget = 1;
         view_frames = window_size.x / 40.f;
     }
     if (editingClip->msPixelWidthTarget < 0) editingClip->msPixelWidthTarget = minPixelWidthTarget;
@@ -12737,7 +12738,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     else if (editingClip->firstTime + editingClip->visibleTime > duration)
     {
         editingClip->firstTime = duration - editingClip->visibleTime;
-        alignTime(editingClip->firstTime, frame_duration);
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
         changed = true;
     }
@@ -12841,7 +12841,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         editingClip->msPixelWidthTarget = maxPixelWidthTarget;
         int64_t new_visible_time = (int64_t)floorf((timline_size.x) / editingClip->msPixelWidthTarget);
         editingClip->firstTime = currentTime - new_visible_time / 2;
-        alignTime(editingClip->firstTime, frame_duration);
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
         changed = true;
     }
@@ -12861,7 +12860,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     if (ImGui::Button(ICON_CURRENT_TIME "##clip_timeline_current_time"))
     {
         editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
-        alignTime(editingClip->firstTime, frame_duration);
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
         changed = true;
     }
@@ -13097,7 +13095,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 {
                     int64_t new_visible_time = (int64_t)floorf((timline_size.x) / editingClip->msPixelWidthTarget);
                     editingClip->firstTime = menuMouseTime - new_visible_time / 2;
-                    alignTime(editingClip->firstTime, frame_duration);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
                     changed = true;
                 }
@@ -13111,7 +13108,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             if (ImGui::MenuItem(ICON_CURRENT_TIME " Current Time", nullptr, nullptr))
             {
                 editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
-                alignTime(editingClip->firstTime, frame_duration);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                 changed = true;
             }
@@ -13158,7 +13154,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 editingClip->msPixelWidthTarget = (HorizonScrollBarRect.GetWidth() * HorizonScrollBarRect.GetWidth()) / (current_scroll_width * duration);
                 editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
                 editingClip->firstTime = new_start_offset / HorizonScrollBarRect.GetWidth() * (float)duration;
-                alignTime(editingClip->firstTime, frame_duration);
                 int64_t new_visible_time = (int64_t)floorf(timline_size.x / editingClip->msPixelWidthTarget);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
                 changed = true;
@@ -13190,7 +13185,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
                 editingClip->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
-                alignTime(editingClip->firstTime, frame_duration);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                 changed = true;
             }
@@ -13247,14 +13241,12 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     editingClip->firstTime -= editingClip->visibleTime / view_frames;
-                    alignTime(editingClip->firstTime, frame_duration);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
                 else if (io.MouseWheelH > FLT_EPSILON)
                 {
                     editingClip->firstTime += editingClip->visibleTime / view_frames;
-                    alignTime(editingClip->firstTime, frame_duration);
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
@@ -13297,19 +13289,17 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         }
         if (MovingCurrentTime && duration)
         {
-            auto old_time = currentTime;
             currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
-            alignTime(currentTime, frame_duration);
-            if (currentTime < editingClip->firstTime)
-                editingClip->firstTime = currentTime;
-            if (currentTime > editingClip->lastTime)
-                editingClip->firstTime = currentTime - editingClip->visibleTime;
+            currentTime = main_timeline->AlignTime(currentTime, 1);
             if (currentTime < 0)
                 currentTime = 0;
             if (currentTime >= duration)
                 currentTime = duration;
+            if (currentTime < editingClip->firstTime)
+                editingClip->firstTime = currentTime;
+            if (currentTime > editingClip->lastTime)
+                editingClip->firstTime = currentTime - editingClip->visibleTime;
             main_timeline->Seek(currentTime + start, true);
-            editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
         }
         if (editingClip->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
