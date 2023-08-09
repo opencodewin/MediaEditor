@@ -8228,7 +8228,9 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         MediaCore::VideoClip::Holder hNewClip = MediaCore::VideoClip::CreateVideoInstance(
             newClipId, hClip->GetMediaParser(), mMtvReader->GetSharedSettings(),
             newClipStart, newClipEnd, newClipStartOffset, newClipEndOffset, mCurrentTime-newClipStart, hVidTrk->Direction());
-        auto hNewFilter = hClip->GetFilter()->Clone();
+        MediaCore::VideoFilter::Holder hNewFilter;
+        if (hClip->GetFilter())
+            hNewFilter = hClip->GetFilter()->Clone();
         if (hNewFilter)
         {
             const auto filterName = hNewFilter->GetFilterName();
@@ -8384,7 +8386,9 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
             newClipId, hClip->GetMediaParser(),
             hAudTrk->OutChannels(), hAudTrk->OutSampleRate(), hAudTrk->OutSampleFormat(),
             newClipStart, newClipEnd, newClipStartOffset, newClipEndOffset);
-        auto hNewFilter = hClip->GetFilter()->Clone();
+        MediaCore::AudioFilter::Holder hNewFilter;
+        if (hClip->GetFilter())
+            hNewFilter = hClip->GetFilter()->Clone();
         if (hNewFilter)
         {
             const auto filterName = hNewFilter->GetFilterName();
