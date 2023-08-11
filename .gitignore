@@ -1,4 +1,5 @@
 # Add any directories, files, or patterns you don't want to be tracked by version control
+._*
 .DS_Store 
 *build*
 config/*
