@@ -911,6 +911,7 @@ void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_
     if (IS_DUMMY(mType))
         return;
     // check if the cut position is inside the clip
+    auto cut_pos = pos;
     pos = timeline->AlignTime(pos);
     if (pos <= mStart || pos >= mEnd)
         return;
@@ -984,9 +985,10 @@ void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_
         action["media_type"] = imgui_json::number(mType);
         action["clip_id"] = imgui_json::number(mID);
         action["track_id"] = imgui_json::number(track->mID);
-        action["cut_pos"] = imgui_json::number(pos);
+        action["cut_pos"] = imgui_json::number(cut_pos);
         action["org_end"] = imgui_json::number(org_end);
         action["new_clip_id"] = imgui_json::number(newClipId);
+        action["new_clip_start"] = imgui_json::number(pos);
         action["group_id"] = imgui_json::number(gid);
         pActionList->push_back(std::move(action));
     }
@@ -8218,12 +8220,11 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         auto hVidTrk = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         auto hClip = hVidTrk->GetClipById(clipId);
-        int64_t cutPos = action["cut_pos"].get<imgui_json::number>();
-        int64_t newClipStart = cutPos;
+        int64_t newClipStart = action["new_clip_start"].get<imgui_json::number>();
         int64_t newClipEnd = hClip->End();
-        int64_t newClipStartOffset = hClip->StartOffset()+cutPos-hClip->Start();
+        int64_t newClipStartOffset = hClip->StartOffset()+newClipStart-hClip->Start();
         int64_t newClipEndOffset = hClip->EndOffset();
-        hVidTrk->ChangeClipRange(clipId, hClip->StartOffset(), hClip->EndOffset()+hClip->End()-cutPos);
+        hVidTrk->ChangeClipRange(clipId, hClip->StartOffset(), hClip->EndOffset()+hClip->End()-newClipStart);
         int64_t newClipId = action["new_clip_id"].get<imgui_json::number>();
         MediaCore::VideoClip::Holder hNewClip = MediaCore::VideoClip::CreateVideoInstance(
             newClipId, hClip->GetMediaParser(), mMtvReader->GetSharedSettings(),
@@ -8240,7 +8241,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
                 BluePrint::BluePrintCallbackFunctions bpCallbacks;
                 bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoEventStackFilterBpChanged;
                 pEsf->SetBluePrintCallbacks(bpCallbacks);
-                pEsf->MoveAllEvents(hClip->Start()-cutPos);
+                pEsf->MoveAllEvents(hClip->Start()-newClipStart);
                 // generate new ids for cloned events
                 auto eventList = pEsf->GetEventList();
                 for (auto& e : eventList)
@@ -8375,12 +8376,11 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         auto hAudTrk = mMtaReader->GetTrackById(trackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         auto hClip = hAudTrk->GetClipById(clipId);
-        int64_t cutPos = action["cut_pos"].get<imgui_json::number>();
-        int64_t newClipStart = cutPos;
+        int64_t newClipStart = action["new_clip_start"].get<imgui_json::number>();
         int64_t newClipEnd = hClip->End();
-        int64_t newClipStartOffset = hClip->StartOffset()+cutPos-hClip->Start();
+        int64_t newClipStartOffset = hClip->StartOffset()+newClipStart-hClip->Start();
         int64_t newClipEndOffset = hClip->EndOffset();
-        hAudTrk->ChangeClipRange(clipId, hClip->StartOffset(), hClip->EndOffset()+hClip->End()-cutPos);
+        hAudTrk->ChangeClipRange(clipId, hClip->StartOffset(), hClip->EndOffset()+hClip->End()-newClipStart);
         int64_t newClipId = action["new_clip_id"].get<imgui_json::number>();
         MediaCore::AudioClip::Holder hNewClip = MediaCore::AudioClip::CreateInstance(
             newClipId, hClip->GetMediaParser(),
@@ -8398,7 +8398,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
                 BluePrint::BluePrintCallbackFunctions bpCallbacks;
                 bpCallbacks.BluePrintOnChanged = TimeLine::OnAudioEventStackFilterBpChanged;
                 pEsf->SetBluePrintCallbacks(bpCallbacks);
-                pEsf->MoveAllEvents(hClip->Start()-cutPos);
+                pEsf->MoveAllEvents(hClip->Start()-newClipStart);
                 // generate new ids for cloned events
                 auto eventList = pEsf->GetEventList();
                 for (auto& e : eventList)
@@ -8500,10 +8500,9 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         auto hVidTrk = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_id"].get<imgui_json::number>();
         auto hClip = hVidTrk->GetClipById(clipId);
-        int64_t cutPos = action["cut_pos"].get<imgui_json::number>();
-        int64_t newClipStart = cutPos;
-        int64_t newClipLength = hClip->End()-cutPos;
-        hVidTrk->ChangeClipRange(clipId, hClip->Start(), cutPos);
+        int64_t newClipStart = action["new_clip_start"].get<imgui_json::number>();
+        int64_t newClipLength = hClip->End()-newClipStart;
+        hVidTrk->ChangeClipRange(clipId, hClip->Start(), newClipStart);
         int64_t newClipId = action["new_clip_id"].get<imgui_json::number>();
         MediaCore::VideoClip::Holder hNewClip = MediaCore::VideoClip::CreateImageInstance(
             newClipId, hClip->GetMediaParser(), mMtvReader->GetSharedSettings(),
@@ -8518,7 +8517,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
                 BluePrint::BluePrintCallbackFunctions bpCallbacks;
                 bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoEventStackFilterBpChanged;
                 pEsf->SetBluePrintCallbacks(bpCallbacks);
-                pEsf->MoveAllEvents(hClip->Start()-cutPos);
+                pEsf->MoveAllEvents(hClip->Start()-newClipStart);
                 // generate new ids for cloned events
                 auto eventList = pEsf->GetEventList();
                 for (auto& e : eventList)
@@ -9400,9 +9399,9 @@ bool TimeLine::UndoOneRecord()
             DeleteClip(newClipId, nullptr);
 
             int64_t clipId = action["clip_id"].get<imgui_json::number>();
-            int64_t cutPos = action["cut_pos"].get<imgui_json::number>();
+            int64_t newClipStart = action["new_clip_start"].get<imgui_json::number>();
             int64_t orgEnd = action["org_end"].get<imgui_json::number>();
-            int64_t endDiff = orgEnd-cutPos;
+            int64_t endDiff = orgEnd-newClipStart;
             pUiClip = FindClipByID(clipId);
             pUiClip->Cropping(endDiff, 1);
             undoAction = imgui_json::value();
