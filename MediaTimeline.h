@@ -1065,8 +1065,8 @@ struct TimeLine
     bool mIsEncoding {false};
     bool mQuitEncoding {false};
     bool mEncodingInRange {false};
-    int64_t mEncoding_start {0};
-    int64_t mEncoding_end {0};
+    int64_t mEncodingStart {0};
+    int64_t mEncodingEnd {0};
     std::string mEncodeProcErrMsg;
     float mEncodingProgress {0};
     float mEncodingDuration {0};
@@ -1081,6 +1081,7 @@ struct TimeLine
     int64_t mConnectedPoints = -1;
 
     int64_t mCurrentTime = 0;
+    int64_t mFrameIndex = 0;
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;

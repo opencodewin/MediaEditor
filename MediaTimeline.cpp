@@ -3258,7 +3258,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
             return;
         }
         if (timeline) mSsGen->EnableHwAccel(timeline->mHardwareCodec);
-        if (!mSsGen->Open(vidclip->mSsViewer->GetMediaParser()))
+        if (!mSsGen->Open(vidclip->mSsViewer->GetMediaParser(), timeline->mFrameRate))
         {
             Logger::Log(Logger::Error) << mSsGen->GetError() << std::endl;
             return;
@@ -3960,7 +3960,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             if (mi && mi->mMediaOverview)
                 mSsGen1->SetOverview(mi->mMediaOverview);
             if (timeline) mSsGen1->EnableHwAccel(timeline->mHardwareCodec);
-            if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser()))
+            if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser(), timeline->mFrameRate))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
             mSsGen1->SetCacheFactor(1.0);
             RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
@@ -3990,7 +3990,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             if (mi && mi->mMediaOverview)
                 mSsGen2->SetOverview(mi->mMediaOverview);
             if (timeline) mSsGen2->EnableHwAccel(timeline->mHardwareCodec);
-            if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser()))
+            if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser(), timeline->mFrameRate))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
             mSsGen2->SetCacheFactor(1.0);
             RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
@@ -6461,37 +6461,38 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
     if (mIsPreviewPlaying)
     {
         bool playEof = false;
+        bool needSeek = false;
         int64_t dur = ValidDuration();
-        if (!mIsPreviewForward && mCurrentTime <= 0)
+        if (!mIsPreviewForward && previewPos <= 0)
         {
             if (bLoop)
             {
-                mCurrentTime = AlignTime(dur);
-                Seek(mCurrentTime);
+                previewPos = dur;
+                needSeek = true;
             }
             else
             {
-                mCurrentTime = 0;
+                previewPos = 0;
                 playEof = true;
             }
         }
-        else if (mIsPreviewForward && mCurrentTime >= dur)
+        else if (mIsPreviewForward && previewPos >= dur)
         {
             if (bLoop)
             {
-                mCurrentTime = 0;
-                Seek(mCurrentTime);
+                previewPos = 0;
+                needSeek = true;
             }
             else
             {
-                mCurrentTime = AlignTime(dur);
+                previewPos = dur;
                 playEof = true;
             }
         }
-        else
-        {
-            mCurrentTime = AlignTime(previewPos);
-        }
+        mFrameIndex = mMtvReader->MillsecToFrameIndex(previewPos);
+        mCurrentTime = mMtvReader->FrameIndexToMillsec(mFrameIndex);
+        if (needSeek)
+            Seek(mCurrentTime);
         if (playEof)
         {
             mIsPreviewPlaying = false;
@@ -6512,7 +6513,8 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
 
     std::vector<MediaCore::CorrelativeFrame> frames;
     const bool needPreciseFrame = !(bSeeking || mIsPreviewPlaying);
-    mMtvReader->ReadVideoFrameEx(mCurrentTime, frames, true, needPreciseFrame);
+    mMtvReader->ReadVideoFrameByIdxEx(mFrameIndex, frames, true, needPreciseFrame);
+    mCurrentTime = mMtvReader->FrameIndexToMillsec(mFrameIndex);
     if (mIsPreviewPlaying) UpdateCurrent();
     return frames;
 }
@@ -6611,20 +6613,17 @@ void TimeLine::Seek(int64_t msPos, bool enterSeekingState)
     if (bSeeking)
     {
         mPlayTriggerTp = PlayerClock::now();
-        if (mMtaReader)
-            mMtaReader->SeekTo(msPos, true);
-        if (mMtvReader)
-            mMtvReader->ConsecutiveSeek(msPos);
+        mMtaReader->SeekTo(msPos, true);
+        mMtvReader->ConsecutiveSeek(msPos);
     }
     else
     {
         mPlayTriggerTp = PlayerClock::now();
-        if (mMtaReader)
-            mMtaReader->SeekTo(msPos, false);
-        if (mMtvReader)
-            mMtvReader->SeekTo(msPos);
+        mMtaReader->SeekTo(msPos, false);
+        mMtvReader->SeekTo(msPos);
     }
-    mCurrentTime = mPreviewResumePos = msPos;
+    mFrameIndex = mMtvReader->MillsecToFrameIndex(msPos);
+    mCurrentTime = mPreviewResumePos = mMtvReader->FrameIndexToMillsec(mFrameIndex);
 }
 
 void TimeLine::StopSeek()
@@ -6676,7 +6675,8 @@ void TimeLine::Step(bool forward)
     }
     ImGui::ImMat vmat;
     mMtvReader->ReadNextVideoFrame(vmat);
-    mCurrentTime = std::round((double)vmat.index_count*mFrameRate.den*1000/mFrameRate.num);
+    mFrameIndex = vmat.index_count;
+    mCurrentTime = mMtvReader->FrameIndexToMillsec(mFrameIndex);
     mPreviewResumePos = mCurrentTime;
 
     UpdateCurrent();
@@ -6706,14 +6706,14 @@ int64_t TimeLine::ValidDuration()
     int64_t media_range = vdur > adur ? vdur : adur;
     if (!mEncodingInRange)
     {
-        mEncoding_start = 0;
-        mEncoding_end = media_range;
+        mEncodingStart = 0;
+        mEncodingEnd = media_range;
         return media_range;
     }
     else if (mark_out == -1 || mark_in == -1 || mark_out <= mark_in)
     {
-        mEncoding_start = 0;
-        mEncoding_end = media_range;
+        mEncodingStart = 0;
+        mEncodingEnd = media_range;
         return media_range;
     }
     else
@@ -6723,12 +6723,12 @@ int64_t TimeLine::ValidDuration()
         if (mark_out > media_range) _mark_out = media_range;
         if (_mark_out <= _mark_in)
         {
-            mEncoding_start = 0;
-            mEncoding_end = 0;
+            mEncodingStart = 0;
+            mEncodingEnd = 0;
             return 0;
         }
-        mEncoding_start = _mark_in;
-        mEncoding_end = _mark_out;
+        mEncodingStart = _mark_in;
+        mEncodingEnd = _mark_out;
         return _mark_out - _mark_in;
     }
 }
@@ -8792,7 +8792,7 @@ MediaCore::Snapshot::Generator::Holder TimeLine::GetSnapshotGenerator(int64_t me
     MediaCore::Snapshot::Generator::Holder hSsGen = MediaCore::Snapshot::Generator::CreateInstance();
     hSsGen->SetOverview(mi->mMediaOverview);
     hSsGen->EnableHwAccel(mHardwareCodec);
-    if (!hSsGen->Open(mi->mMediaOverview->GetMediaParser()))
+    if (!hSsGen->Open(mi->mMediaOverview->GetMediaParser(), mFrameRate))
     {
         Logger::Log(Logger::Error) << hSsGen->GetError() << std::endl;
         return nullptr;
@@ -9106,30 +9106,28 @@ void TimeLine::_EncodeProc()
     mEncoder->Start();
     bool vidInputEof = false;
     bool audInputEof = false;
-    double audpos = 0, vidpos = 0;
+    int64_t audpos = 0, vidpos = 0;
     double maxEncodeDuration = 0;
-    uint32_t vidFrameCount = 0;
     MediaCore::Ratio outFrameRate = mEncoder->GetVideoFrameRate();
     ImGui::ImMat vmat, amat;
     uint32_t pcmbufSize = 8192;
     uint8_t* pcmbuf = new uint8_t[pcmbufSize];
-    double viddur = (double)mEncMtvReader->Duration() / 1000;
-    double dur = (double)ValidDuration() / 1000;
-    double encpos = 0;
-    double enc_start = (double)mEncoding_start / 1000;
-    double enc_end = (double)mEncoding_end / 1000;
-    if (mEncMtvReader) mEncMtvReader->SeekTo(mEncoding_start);
-    if (mEncMtaReader) mEncMtaReader->SeekTo(mEncoding_start);
+    auto dur = ValidDuration();
+    int64_t encpos = 0;
+    int64_t vidFrameCount = mEncMtvReader->MillsecToFrameIndex(mEncodingStart);
+    int64_t startTimeOffset = mEncMtvReader->FrameIndexToMillsec(vidFrameCount);
+    if (mEncMtvReader) mEncMtvReader->SeekTo(mEncodingStart);
+    if (mEncMtaReader) mEncMtaReader->SeekTo(mEncodingStart);
     while (!mQuitEncoding && (!vidInputEof || !audInputEof))
     {
         bool idleLoop = true;
         if ((!vidInputEof && vidpos <= audpos) || audInputEof)
         {
-            vidpos = (double)vidFrameCount * outFrameRate.den / outFrameRate.num + enc_start;
-            bool eof = vidpos >= enc_end; //viddur;
+            vidpos = mEncMtvReader->FrameIndexToMillsec(vidFrameCount);
+            bool eof = vidpos >= mEncodingEnd;
             if (!eof)
             {
-                if (!mEncMtvReader->ReadVideoFrame((int64_t)(vidpos * 1000), vmat))
+                if (!mEncMtvReader->ReadVideoFrameByIdx(vidFrameCount, vmat))
                 {
                     std::ostringstream oss;
                     oss << "[video] '" << mEncMtvReader->GetError() << "'.";
@@ -9139,7 +9137,7 @@ void TimeLine::_EncodeProc()
                 if (!vmat.empty())
                 {
                     vidFrameCount++;
-                    vmat.time_stamp = vidpos - enc_start;
+                    vmat.time_stamp = (double)(vidpos-startTimeOffset)/1000.;
                     {
                         std::lock_guard<std::mutex> lk(mEncodingMutex);
                         mEncodingVFrame = vmat;
@@ -9154,7 +9152,7 @@ void TimeLine::_EncodeProc()
                     if (vidpos > encpos)
                     {
                         encpos = vidpos;
-                        mEncodingProgress = (encpos - enc_start) / dur;
+                        mEncodingProgress = (float)((double)(encpos - startTimeOffset) / dur);
                     }
                 }
             }
@@ -9182,11 +9180,11 @@ void TimeLine::_EncodeProc()
                 mEncodeProcErrMsg = oss.str();
                 break;
             }
-            if (audpos > enc_end) eof = true;
+            if (audpos > mEncodingEnd) eof = true;
             if (!eof && !amat.empty())
             {
-                audpos = amat.time_stamp;
-                amat.time_stamp -= enc_start;
+                audpos = amat.time_stamp * 1000;
+                amat.time_stamp = (double)(audpos-startTimeOffset)/1000.;
                 if (!mEncoder->EncodeAudioSamples(amat))
                 {
                     std::ostringstream oss;
@@ -9197,7 +9195,7 @@ void TimeLine::_EncodeProc()
                 if (audpos > encpos)
                 {
                     encpos = audpos;
-                    mEncodingProgress = (encpos - enc_start) / dur;
+                    mEncodingProgress = (float)((double)(encpos - startTimeOffset) / dur);
                 }
             }
             else
