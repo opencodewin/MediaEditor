@@ -7814,7 +7814,7 @@ int TimeLine::Load(const imgui_json::value& value)
         }
         else
         {
-            const auto alignedSourceDuration = AlignTime(clip->mMediaParser->GetMediaInfo()->duration*1000);
+            const auto alignedSourceDuration = clip->mMediaParser ? AlignTime(clip->mMediaParser->GetMediaInfo()->duration*1000) : AlignTime(clip->Length());
             if (alignedEnd-alignedStart+alignedStartOffset+alignedEndOffset != alignedSourceDuration)
             {
                 auto newStart = alignedStart;
