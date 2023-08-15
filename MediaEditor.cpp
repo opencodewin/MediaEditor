@@ -33,6 +33,7 @@
 #include "MediaTimeline.h"
 #include "EventStackFilter.h"
 #include "MediaEncoder.h"
+#include "HwaccelManager.h"
 #include "TextureManager.h"
 #include "FFUtils.h"
 #include "FontManager.h"
@@ -521,6 +522,9 @@ static bool g_plugin_loaded {false};
 static float g_plugin_loading_percentage {0};
 static int g_plugin_loading_current_index {0};
 static std::string g_plugin_loading_message;
+static std::thread g_env_scan_thread;
+static bool g_env_scanned = false;
+static bool g_env_scanning = false;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 static MediaEditorSettings g_media_editor_settings;
 static MediaEditorSettings g_new_setting;
@@ -1684,10 +1688,12 @@ static void NewProject()
 static void LoadProjectThread(std::string path, bool in_splash)
 {
     // waiting plugin loading
-    while (g_plugin_loading || !g_plugin_loaded)
+    while (g_plugin_loading || !g_plugin_loaded || g_env_scanning || !g_env_scanned)
     {
         ImGui::sleep(100);
     }
+    if (g_env_scan_thread.joinable())
+        g_env_scan_thread.join();
     g_project_loading = true;
     g_project_loading_percentage = 0;
     Logger::Log(Logger::DEBUG) << "[Project] Load project from file!!!" << std::endl;
@@ -11244,13 +11250,20 @@ static bool MediaEditor_Frame_wrapper(void * handle, bool app_will_quit)
 
 static void LoadPluginThread()
 {
-    Logger::Log(Logger::DEBUG) << "[Plugin] Load Plugins from path!!!" << std::endl;
     std::vector<std::string> plugin_paths;
     plugin_paths.push_back(g_plugin_path);
     int plugins = BluePrint::BluePrintUI::CheckPlugins(plugin_paths);
     BluePrint::BluePrintUI::LoadPlugins(plugin_paths, g_plugin_loading_current_index, g_plugin_loading_message, g_plugin_loading_percentage, plugins);
     g_plugin_loading_message = "Plugin load finished!!!";
     g_plugin_loading = false;
+}
+
+static void EnvScanThread()
+{
+    auto hHwaMgr = MediaCore::HwaccelManager::GetDefaultInstance();
+    if (!hHwaMgr->Init())
+        Logger::Log(Logger::Error) << "FAILED to init 'HwaccelManager' instance! Error is '" << hHwaMgr->GetError() << "'." << std::endl;
+    g_env_scanning = false;
 }
 
 bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
@@ -11275,6 +11288,12 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
         g_plugin_loading = true;
         g_loading_plugin_thread = new std::thread(LoadPluginThread);
         g_plugin_loaded = true;
+    }
+    if (!g_env_scanned)
+    {
+        g_env_scanning = true;
+        g_env_scan_thread = std::thread(EnvScanThread);
+        g_env_scanned = true;
     }
     std::string load_str;
     if (g_plugin_loading)
