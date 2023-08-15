@@ -11375,7 +11375,7 @@ void Application_Setup(ApplicationWindowProperty& property)
     //property.power_save = false;
     property.font_scale = 2.0f;
 #if 1
-    property.resizable = false;
+    //property.resizable = false;
     property.full_size = true;
     //property.full_screen = true;
 #else
