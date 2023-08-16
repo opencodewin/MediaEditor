@@ -3209,9 +3209,9 @@ void BaseEditingClip::UpdateCurrent(bool forward, int64_t currentTime)
     }
     else
     {
-        if (mEnd - currentTime < visibleTime / 2)
+        if (mEnd - mStart - currentTime < visibleTime / 2)
         {
-            firstTime = mEnd - visibleTime;
+            firstTime = mEnd - mStart - visibleTime;
         }
         else if (currentTime > firstTime + visibleTime / 2)
         {
