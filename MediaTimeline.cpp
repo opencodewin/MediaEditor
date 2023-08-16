@@ -11148,9 +11148,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                     changed = true;
                 }
-#if 0
+            }
+            if (overHorizonScrollBar && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
                 // up-down wheel over scrollbar, scale canvas view
-                else if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
+                if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
                 {
                     timeline->msPixelWidthTarget *= 0.9f;
                     timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
@@ -11170,7 +11172,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
                     changed = true;
                 }
-#endif
             }
         }
 
@@ -12483,9 +12484,11 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
-#if 0
+            }
+            if (overHorizonScrollBar && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
                 // up-down wheel over scrollbar, scale canvas view
-                else if (io.MouseWheel < -FLT_EPSILON && editingClip->visibleTime <= duration)
+                if (io.MouseWheel < -FLT_EPSILON && editingClip->visibleTime <= duration)
                 {
                     editingClip->msPixelWidthTarget *= 0.9f;
                     editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
@@ -12505,7 +12508,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
-#endif
             }
         }
 
@@ -13251,9 +13253,11 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
-#if 0
+            }
+            if (overHorizonScrollBar && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
                 // up-down wheel over scrollbar, scale canvas view
-                else if (io.MouseWheel < -FLT_EPSILON && editingClip->visibleTime <= duration)
+                if (io.MouseWheel < -FLT_EPSILON && editingClip->visibleTime <= duration)
                 {
                     editingClip->msPixelWidthTarget *= 0.9f;
                     editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
@@ -13273,7 +13277,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                     changed = true;
                 }
-#endif
             }
         }
 
