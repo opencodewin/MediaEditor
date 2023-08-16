@@ -7932,6 +7932,7 @@ int TimeLine::Load(const imgui_json::value& value)
 
     Update();
     mMtvReader->SeekTo(mCurrentTime);
+    mFrameIndex = mMtvReader->MillsecToFrameIndex(mCurrentTime);
     mMtaReader->UpdateDuration();
     mMtaReader->SeekTo(mCurrentTime, false);
     SyncDataLayer(true);
