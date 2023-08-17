@@ -6621,6 +6621,7 @@ void TimeLine::Seek(int64_t msPos, bool enterSeekingState)
         mPlayTriggerTp = PlayerClock::now();
         mMtaReader->SeekTo(msPos, false);
         mMtvReader->SeekTo(msPos);
+        mAudioRender->Flush();
     }
     mFrameIndex = mMtvReader->MillsecToFrameIndex(msPos);
     mCurrentTime = mPreviewResumePos = mMtvReader->FrameIndexToMillsec(mFrameIndex);
