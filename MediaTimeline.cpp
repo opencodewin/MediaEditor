@@ -10844,12 +10844,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 if (ImGui::MenuItem(ICON_CROP " Edit Clip Attribute", nullptr, nullptr))
                 {
                     track->SelectEditingClip(clip, false);
-                    changed = true;
+                    //changed = true;
                 }
                 if (ImGui::MenuItem(ICON_FILTER_EDITOR " Edit Clip Filter", nullptr, nullptr))
                 {
                     track->SelectEditingClip(clip, true);
-                    changed = true;
+                    //changed = true;
                 }
                 ImGui::EndDisabled();
                 if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
@@ -10923,6 +10923,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                             {
                                 timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
                             }
+                            changed = true;
                         }
                     }
                 }
@@ -11302,6 +11303,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 {
                     clip->Cutting(doCutPos, newGroup.mID, -1, &timeline->mUiActions);
                 }
+                changed = true;
             }
         }
 
@@ -11468,7 +11470,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     timeline->firstTime = mouseTime - timeline->visibleTime;
                 timeline->mCurrentTime = timeline->AlignTime(mouseTime, 1);
                 timeline->Seek(timeline->mCurrentTime, true);
-                changed = true;
+                changed = true; // ?
             }
         }
         if (timeline->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
