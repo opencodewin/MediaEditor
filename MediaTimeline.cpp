@@ -6515,7 +6515,7 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
     const bool needPreciseFrame = !(bSeeking || mIsPreviewPlaying);
     mMtvReader->ReadVideoFrameByIdxEx(mFrameIndex, frames, true, needPreciseFrame);
     mCurrentTime = mMtvReader->FrameIndexToMillsec(mFrameIndex);
-    if (mIsPreviewPlaying) UpdateCurrent();
+    if (mIsPreviewPlaying && !ImGui::IsMouseDragging(ImGuiMouseButton_Left)) UpdateCurrent();
     return frames;
 }
 
@@ -12540,7 +12540,7 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
         }
         
         // handle playing cursor move
-        if (main_timeline->mIsPreviewPlaying) editingClip->UpdateCurrent(main_timeline->mIsPreviewForward, currentTime);
+        if (main_timeline->mIsPreviewPlaying && !ImGui::IsMouseDragging(ImGuiMouseButton_Left)) editingClip->UpdateCurrent(main_timeline->mIsPreviewForward, currentTime);
         
         // draw cursor
         ImRect custom_view_rect(window_pos, window_pos + ImVec2(window_size.x, header_height + custom_height));
@@ -13314,7 +13314,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         }
 
         // handle playing cursor move
-        if (main_timeline->mIsPreviewPlaying) editingClip->UpdateCurrent(main_timeline->mIsPreviewForward, currentTime);
+        if (main_timeline->mIsPreviewPlaying && !ImGui::IsMouseDragging(ImGuiMouseButton_Left)) editingClip->UpdateCurrent(main_timeline->mIsPreviewForward, currentTime);
         
         // draw cursor
         static const float cursorWidth = 2.f;

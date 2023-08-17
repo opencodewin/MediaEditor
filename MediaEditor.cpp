@@ -10845,6 +10845,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button(ICON_FA_WHMCS "##Configure", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Show Setting
+            g_new_setting = g_media_editor_settings; // update current setting
             show_configure = true;
         }
         ImGui::ShowTooltipOnHover("Configure");
