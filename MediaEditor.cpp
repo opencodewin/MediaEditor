@@ -536,6 +536,7 @@ static std::vector<MediaCore::MediaEncoder::Description> g_currAudEncDescList;
 static std::string g_encoderConfigErrorMessage;
 static bool quit_save_confirm = true;
 static bool project_need_save = false;
+static bool project_changed = false;
 static bool mouse_hold = false;
 static uint32_t scope_flags = 0xFFFFFFFF;
 static bool set_context_in_splash = false;
@@ -1683,6 +1684,7 @@ static void NewProject()
     g_media_editor_settings.project_path = "";
     quit_save_confirm = true;
     project_need_save = true;
+    project_changed = false;
 }
 
 static void LoadProjectThread(std::string path, bool in_splash)
@@ -1771,6 +1773,7 @@ static void LoadProjectThread(std::string path, bool in_splash)
     g_media_editor_settings.project_path = path;
     quit_save_confirm = false;
     project_need_save = true;
+    project_changed = false;
     g_project_loading_percentage = 1.0;
     g_project_loading = false;
     timeline->m_in_threads = false;
@@ -1832,7 +1835,8 @@ static void SaveProject(std::string path)
 
     g_project.save(path);
     g_media_editor_settings.project_path = path;
-    //quit_save_confirm = false;
+    project_need_save = false;
+    project_changed = false;
 }
 
 /****************************************************************************************
@@ -10734,6 +10738,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     else if (codewin_texture) { ImGui::Image(codewin_texture, ImVec2(24, 24)); ImGui::SameLine(); }
     ImGui::TextUnformatted("Project:"); ImGui::SameLine();
     ImGui::Text("%s", project_name.c_str());
+    if (project_changed) { ImGui::SameLine(); ImGui::TextUnformatted("*"); }
     ImGui::SetWindowFontScale(1.0);
     // show meters
     if (g_media_editor_settings.showMeters)
@@ -10828,7 +10833,25 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             }
         }
         ImGui::ShowTooltipOnHover("New Project");
-        if (ImGui::Button(ICON_SAVE_PROJECT "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
+        if (ImGui::Button(ICON_MD_SAVE "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
+        {
+            if (!g_media_editor_settings.project_path.empty())
+            {
+                SaveProject(g_media_editor_settings.project_path);
+            }
+            else
+            {
+                show_file_dialog = true;
+                ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
+                                                    pfilters.c_str(),
+                                                    "Untitled.mep",
+                                                    1, 
+                                                    IGFDUserDatas("ProjectSave"), 
+                                                    pflags);
+            }
+        }
+        ImGui::ShowTooltipOnHover("Save Project");
+        if (ImGui::Button(ICON_MD_SAVE_AS "##SaveProjectAs", ImVec2(tool_icon_size, tool_icon_size)))
         {
             // Save Project
             show_file_dialog = true;
@@ -11019,8 +11042,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             _expanded = !_expanded;
         ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
-        bool changed = DrawTimeLine(timeline,  &_expanded, !is_splitter_hold && !mouse_hold && !show_configure && !show_about && !show_file_dialog);
-        project_need_save |= changed;
+        project_changed |= DrawTimeLine(timeline,  &_expanded, !is_splitter_hold && !mouse_hold && !show_configure && !show_about && !show_file_dialog);
+        project_need_save |= project_changed;
         if (g_media_editor_settings.BottomViewExpanded != _expanded)
         {
             if (!_expanded)

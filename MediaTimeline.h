@@ -104,7 +104,7 @@
 #define ICON_BRAIN          u8"\uf5dc"
 #define ICON_NEW_PROJECT    u8"\uf271"
 #define ICON_OPEN_PROJECT   u8"\uf115"
-#define ICON_SAVE_PROJECT   u8"\uf0c7"
+#define ICON_SAVE           u8"\uf0c7"
 #define ICON_CLIP_START     u8"\uf090"
 #define ICON_CLIP_END       u8"\uf08b"
 #define ICON_RETURN_DEFAULT u8"\ue042"
