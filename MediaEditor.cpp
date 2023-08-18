@@ -7085,6 +7085,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ┗━━━━━━━━━━━━━━┻━━━━━━━━━━━━━┻━━━━━━━━━━┻━━━━━━━━━━┻━━━━━━━━━━━━━━━┛
     */
     // draw page title
+    bool changed = false;
     ImGui::SetWindowFontScale(1.8);
     auto title_size = ImGui::CalcTextSize("Audio Mixer");
     float str_offset = title_rect.Max.x - title_size.x - 16;
@@ -7162,6 +7163,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             timeline->mAudioAttribute.mAudioGain = (vol / 96.f) + 1.f;
             volMaster.volume = timeline->mAudioAttribute.mAudioGain;
             amFilter->SetVolumeParams(&volMaster);
+            changed = true;
         }
         snprintf(value_str, 64, "%.1fdB", vol);
         auto vol_str_size = ImGui::CalcTextSize(value_str);
@@ -7193,6 +7195,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
                         track->mAudioTrackAttribute.mAudioGain = (volTrack / 96.f) + 1.f;
                         volParams.volume = track->mAudioTrackAttribute.mAudioGain;
                         aeFilter->SetVolumeParams(&volParams);
+                        changed = true;
                     }
                 }
                 ImGui::PopID();
@@ -7363,6 +7366,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             panParams.x = timeline->mAudioAttribute.bPan ? timeline->mAudioAttribute.audio_pan.x : 0.5f;
             panParams.y = timeline->mAudioAttribute.bPan ? timeline->mAudioAttribute.audio_pan.y : 0.5f;
             amFilter->SetPanParams(&panParams);
+            changed = true;
         }
         ImGui::EndDisabled();
     }
@@ -7418,6 +7422,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             equalizerParams.gain = timeline->mAudioAttribute.bEqualizer ? timeline->mAudioAttribute.mBandCfg[i].gain : 0.0f;
             amFilter->SetEqualizerParamsByIndex(&equalizerParams, i);
         }
+        changed = true;
     }
     ImGui::EndGroup();
 
@@ -7476,6 +7481,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             gateParams.makeup = timeline->mAudioAttribute.bGate ? timeline->mAudioAttribute.gate_makeup : 1.f;
             gateParams.knee = timeline->mAudioAttribute.bGate ? timeline->mAudioAttribute.gate_knee : 2.82843f;
             amFilter->SetGateParams(&gateParams);
+            changed = true;
         }
         ImGui::EndDisabled();
     }
@@ -7525,6 +7531,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             limiterParams.attack = timeline->mAudioAttribute.bLimiter ? timeline->mAudioAttribute.limiter_attack : 5;
             limiterParams.release = timeline->mAudioAttribute.bLimiter ? timeline->mAudioAttribute.limiter_release : 50;
             amFilter->SetLimiterParams(&limiterParams);
+            changed = true;
         }
         ImGui::EndDisabled();
     }
@@ -7589,6 +7596,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             compressorParams.makeup = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_makeup : 1.f;
             compressorParams.levelIn = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_level_sc : 1.f;
             amFilter->SetCompressorParams(&compressorParams);
+            changed = true;
         }
         ImGui::EndDisabled();
     }
@@ -7596,6 +7604,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::EndGroup();
 
     ImGui::PopStyleColor();
+    if (!g_project_loading) project_changed |= changed;
 }
 
 static void ShowAudioEditorWindow(ImDrawList *draw_list, ImRect title_rect)
