@@ -2102,7 +2102,7 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
     return ret;
 }
 
-static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem *>::iterator item, ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size)
+static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem *>::iterator item, ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size, bool& changed)
 {
     ImGuiIO& io = ImGui::GetIO();
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
@@ -2413,6 +2413,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         MediaItem * it = *item;
         delete it;
         item = timeline->media_items.erase(item);
+        changed = true;
     }
     else
         item++;
@@ -2428,7 +2429,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     static std::vector<std::string> failed_items;
-    
+    bool changed = false;
     if (!timeline)
         return;
 
@@ -2465,7 +2466,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
             for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
             {
                 auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
-                item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size);
+                item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size, changed);
                 if (item == timeline->media_items.end())
                     break;
             }
@@ -2497,6 +2498,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                         else
                         {
                             pfd::notify("Import File Succeed", path, pfd::icon::info);
+                            changed = true;
                         }
                     }
                     import_url.clear();
@@ -2527,6 +2529,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
         }
     }
     ImGui::EndChild();
+    if (!g_project_loading) project_changed |= changed;
 }
 
 /****************************************************************************************
@@ -11245,6 +11248,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             if (userDatas.compare("Media Source") == 0)
             {
                 InsertMedia(file_path);
+                project_changed = true;
             }
             if (userDatas.compare("ProjectOpen") == 0)
             {
