@@ -1837,6 +1837,7 @@ static void SaveProject(std::string path)
     g_media_editor_settings.project_path = path;
     project_need_save = false;
     project_changed = false;
+    timeline->mIsBluePrintChanged = false;
 }
 
 /****************************************************************************************
@@ -4376,6 +4377,7 @@ static void ShowFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
                 if (payload->Data)
                 {
                     clip->AppendEvent(hTargetEvent, payload->Data);
+                    project_changed = true;
                 }
             }
             ImGui::EndDragDropTarget();
@@ -4386,6 +4388,7 @@ static void ShowFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
             pBp->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
         }
         ImGui::EndChild();
+        if (timeline->mIsBluePrintChanged) { project_changed = true; project_need_save = true; }
     }
     else
     {
@@ -4412,6 +4415,7 @@ static void DrawFilterBlueprintWindow(ImDrawList *draw_list, Clip * editing_clip
 
 static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
 {
+    bool changed = false;
     if (!editing_clip || !editing_clip->mEventStack)
         return;
     bool is_audio_clip = IS_AUDIO(editing_clip->mType);
@@ -4452,6 +4456,12 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
         auto track = timeline->FindTrackByClipID(editing_clip->mID);
         if (track) timeline->RefreshTrackView({track->mID});
         pBP->Blueprint_UpdateNode(node->m_ID);
+        changed = true;
+    };
+    auto Reflush = [&](MediaTimeline::MediaTrack* track)
+    {
+        if (track) timeline->RefreshTrackView({track->mID});
+        changed = true;
     };
     for (auto event : event_list)
     {
@@ -4590,6 +4600,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                             auto value_range = keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i);
                             curve_value = (curve_value - keypoint->GetCurveMin(i)) / (value_range + FLT_EPSILON);
                             keypoint->AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
+                            changed = true;
                         }
                         ImGui::EndDisabled();
                         ImGui::ShowTooltipOnHover("Add key at current");
@@ -4598,20 +4609,20 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                         if (ImGui::DragFloat("##curve_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             keypoint->SetCurveMin(i, curve_min);
-                            if (track) timeline->RefreshTrackView({track->mID});
+                            Reflush(track);
                         } ImGui::ShowTooltipOnHover("Min");
                         ImGui::SameLine(0, 8);
                         if (ImGui::DragFloat("##curve_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
                         {
                             keypoint->SetCurveMax(i, curve_max);
-                            if (track) timeline->RefreshTrackView({track->mID});
+                            Reflush(track);
                         } ImGui::ShowTooltipOnHover("Max");
                         ImGui::SameLine(0, 8);
                         float curve_default = keypoint->GetCurveDefault(i);
                         if (ImGui::DragFloat("##curve_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                         {
                             keypoint->SetCurveDefault(i, curve_default);
-                            if (track) timeline->RefreshTrackView({track->mID});
+                            Reflush(track);
                         } ImGui::ShowTooltipOnHover("Default");
                         ImGui::PopItemWidth();
 
@@ -4621,6 +4632,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                         if (ImGui::ColorEdit4("##curve_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
                         {
                             keypoint->SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
+                            changed = true;
                         } ImGui::ShowTooltipOnHover("Curve Color");
                         ImGui::SetWindowFontScale(1.0);
                         ImGui::SameLine(0, 4);
@@ -4637,7 +4649,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                             {
                                 keypoint->SetCurvePointDefault(i, p);
                             }
-                            if (track) timeline->RefreshTrackView({track->mID});
+                            Reflush(track);
                         } ImGui::ShowTooltipOnHover("Reset");
                         if (!break_loop)
                         {
@@ -4659,7 +4671,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                                 {
                                     point.point.x = point_current - event->Start();
                                     keypoint->EditPoint(i, p, point.point, point.type);
-                                    if (track) timeline->RefreshTrackView({track->mID});
+                                    Reflush(track);
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
@@ -4667,13 +4679,13 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                                 if (ImGui::DragFloat("##curve_filter_point_y", &point.point.y, speed, keypoint->GetCurveMin(i), keypoint->GetCurveMax(i), "%.2f"))
                                 {
                                     keypoint->EditPoint(i, p, point.point, point.type);
-                                    if (track) timeline->RefreshTrackView({track->mID});
+                                    Reflush(track);
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
                                     keypoint->EditPoint(i, p, point.point, point.type);
-                                    if (track) timeline->RefreshTrackView({track->mID});
+                                    Reflush(track);
                                 }
                                 ImGui::PopItemWidth();
                                 ImGui::PopID();
@@ -4776,7 +4788,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                         }
                         auto track = timeline->FindTrackByClipID(node->m_ID);
                         pBP->Blueprint_DeleteNode(node->m_ID);
-                        if (track) timeline->RefreshTrackView({track->mID});
+                        Reflush(track);
                         need_redraw = true;
                     }
                     if (tree_open) ImGui::TreePop();
@@ -4786,6 +4798,8 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
             if (msgbox_event.Draw() == 1)
             {
                 editing_clip->DeleteEvent(event, &timeline->mUiActions);
+                auto track = timeline->FindTrackByClipID(editing_clip->mID);
+                Reflush(track);
             }
             ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
             ImGui::TreePop();
@@ -4794,6 +4808,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
         ImGui::Separator();
         ImGui::PopStyleColor();
     }
+    if (!g_project_loading) project_changed |= changed;
 }
 
 /****************************************************************************************
@@ -5350,7 +5365,10 @@ static bool DrawVideoFilterTimelineWindow(bool& show_BP)
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    return DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->mCurrentTime, 30, 50, show_BP);
+    bool timeline_changed = false;
+    auto mouse_hold = DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->mCurrentTime, 30, 50, show_BP, timeline_changed);
+    if (!g_project_loading) project_changed |= timeline_changed;
+    return mouse_hold;
 }
 
 static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
@@ -5686,6 +5704,7 @@ static void ShowVideoTransitionBluePrintWindow(ImDrawList *draw_list, Overlap * 
             timeline->mVidOverlap->mTransition->mBp->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Transition);
         }
         ImGui::EndChild();
+        if (timeline->mIsBluePrintChanged) { project_changed = true; project_need_save = true; }
     }
 }
 
@@ -6325,7 +6344,10 @@ static bool DrawAudioFilterTimelineWindow(bool& show_BP)
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    return DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->mCurrentTime, 30, 50, show_BP);
+    bool timeline_changed = false;
+    auto mouse_hild = DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->mCurrentTime, 30, 50, show_BP, timeline_changed);
+    if (!g_project_loading) project_changed |= timeline_changed;
+    return mouse_hild;
 }
 
 static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
@@ -6610,6 +6632,7 @@ static void ShowAudioTransitionBluePrintWindow(ImDrawList *draw_list, Overlap * 
             timeline->mAudOverlap->mTransition->mBp->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Transition);
         }
         ImGui::EndChild();
+        if (timeline->mIsBluePrintChanged) { project_changed = true; project_need_save = true; }
     }
 }
 

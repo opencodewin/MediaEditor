@@ -336,6 +336,7 @@ struct AudioEqualizerNode final : Node
                     }
                 }
                 m_bandCfg[i].gain = gain;
+                changed = true;
             }
             ImGui::Text("%d", gain);
             ImGui::EndGroup();

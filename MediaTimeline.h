@@ -405,7 +405,7 @@ struct EventTrack
     static EventTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 
-    void DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int curve_height, int64_t view_start, int64_t view_end, float pixelWidthMS, bool editable);
+    void DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int curve_height, int64_t view_start, int64_t view_end, float pixelWidthMS, bool editable, bool& changed);
     void SelectEvent(MEC::Event::Holder event, bool appand);
     MEC::Event::Holder FindPreviousEvent(int64_t id);
     MEC::Event::Holder FindNextEvent(int64_t id);
@@ -1169,6 +1169,7 @@ struct TimeLine
     std::mutex mTrackLock;                  // timeline track mutex
     
     // BP CallBacks
+    bool mIsBluePrintChanged {false};
     static int OnBluePrintChange(int type, std::string name, void* handle);
     // This callback can only be assigned to a EventStackFilter, since it will interpret the 'handle' as a 'MEC::EventStackFilterContext' pointer
     static int OnVideoEventStackFilterBpChanged(int type, std::string name, void* handle);
@@ -1276,6 +1277,6 @@ struct TimeLine
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool editable = true);
 bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point, bool& changed);
-bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, bool& show_BP);
+bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, bool& show_BP, bool& changed);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
 } // namespace MediaTimeline
