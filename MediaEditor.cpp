@@ -8508,6 +8508,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     ┃              curves                        ┃                       ┃
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
     */
+    bool changed = false;
     // draw page title
     ImGui::SetWindowFontScale(1.8);
     auto title_size = ImGui::CalcTextSize("Text Style");
@@ -8597,6 +8598,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                     editing_clip->mText = value;
                     editing_clip->mClipHolder->SetText(editing_clip->mText);
                     force_update_preview = true;
+                    changed = true;
                 }
             }
             // show style control
@@ -8605,6 +8607,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
             {
                 editing_clip->EnableUsingTrackStyle(useTrackStyle);
                 force_update_preview = true;
+                changed = true;
             }
             ImGui::Separator();
             static const int numTabs = sizeof(TextEditorTabNames)/sizeof(TextEditorTabNames[0]);
@@ -8627,12 +8630,14 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                         bool bEnabled = editing_clip->IsInClipRange(timeline->mCurrentTime);
                         ImGui::BeginDisabled(editing_clip->mTrackStyle || !bEnabled);
                         force_update_preview |= edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_size);
+                        changed |= force_update_preview;
                         ImGui::EndDisabled();
                     }
                     else
                     {
                         // track style
                         force_update_preview |= edit_text_track_style(draw_list, editing_track, style_setting_window_size);
+                        changed |= force_update_preview;
                     }
                 }
                 ImGui::EndChild();
@@ -8699,6 +8704,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                     // draw meters on video
                     draw_list->AddLine(video_rect.Min + ImVec2(video_rect.GetWidth() / 2, 0), video_rect.Min + ImVec2(video_rect.GetWidth() / 2, video_rect.GetHeight()), IM_COL32(128, 128, 128, 128));
                     draw_list->AddLine(video_rect.Min + ImVec2(0, video_rect.GetHeight() / 2), video_rect.Min + ImVec2(video_rect.GetWidth(), video_rect.GetHeight() / 2), IM_COL32(128, 128, 128, 128));
+                    changed = true;
                 }
             }
             else
@@ -8757,6 +8763,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                 current_time += editing_clip->Start();
                 if ((int64_t)current_time != timeline->mCurrentTime) { timeline->Seek(current_time); }
                 if (_changed && editing_clip->mClipHolder) { editing_clip->mClipHolder->SetKeyPoints(editing_clip->mAttributeKeyPoints); timeline->UpdatePreview(); }
+                changed |= _changed;
             }
             else if (StyleWindowIndex == 1 && editing_track)
             {
@@ -8778,6 +8785,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                 {
                     timeline->UpdatePreview();
                     editing_track->mMttReader->Refresh();
+                    changed = true;
                 }
             }
         }
@@ -8790,6 +8798,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
         mouse_is_dragging = false;
         ImGui::CaptureMouseFromApp(false);
     }
+    if (!g_project_loading) project_changed |= changed;
 }
 /****************************************************************************************
  * 
