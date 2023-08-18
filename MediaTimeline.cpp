@@ -9888,7 +9888,7 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * Draw Main Timeline
  ***********************************************************************************************************/
-bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
+bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool editable)
 {
     /************************************************************************************************************
     * [v]------------------------------------ header area ----------------------------------------------------- +
@@ -10007,8 +10007,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 
     std::list<imgui_json::value> actionList; // wyvern: add this 'actionList' to save the operation records, for UNDO/REDO.
 
-    if (lastFirstTime != -1 && lastFirstTime != timeline->firstTime) changed = true;
-    if (lastVisiableTime != -1 && lastVisiableTime != newVisibleTime) changed = true;
+    if (lastFirstTime != -1 && lastFirstTime != timeline->firstTime) need_save = true;
+    if (lastVisiableTime != -1 && lastVisiableTime != newVisibleTime) need_save = true;
     lastFirstTime = timeline->firstTime;
     lastVisiableTime = newVisibleTime;
 
@@ -10242,7 +10242,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (ImGui::RotateButton(ICON_CLIP_START "##slider_to_start", ImVec2(0, 0), -180))
         {
             timeline->firstTime = timeline->GetStart();
-            changed = true;
+            need_save = true;
         }
         ImGui::ShowTooltipOnHover("Slider to Start");
 
@@ -10250,7 +10250,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (ImGui::Button(ICON_SLIDER_FRAME "##slider_maximum"))
         {
             timeline->msPixelWidthTarget = maxPixelWidthTarget;
-            changed = true;
+            need_save = true;
         }
         ImGui::ShowTooltipOnHover("Frame accuracy");
 
@@ -10260,7 +10260,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             timeline->msPixelWidthTarget *= 2.0f;
             if (timeline->msPixelWidthTarget > maxPixelWidthTarget)
                 timeline->msPixelWidthTarget = maxPixelWidthTarget;
-            changed = true;
+            need_save = true;
         }
         ImGui::ShowTooltipOnHover("Accuracy Zoom In");
 
@@ -10269,7 +10269,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             timeline->firstTime = timeline->mCurrentTime - timeline->visibleTime / 2;
             timeline->firstTime = ImClamp(timeline->firstTime, (int64_t)0, ImMax(duration - timeline->visibleTime, (int64_t)0));
-            changed = true;
+            need_save = true;
         }
         ImGui::ShowTooltipOnHover("Current time");
 
@@ -10279,7 +10279,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
             timeline->msPixelWidthTarget *= 0.5f;
             if (timeline->msPixelWidthTarget < minPixelWidthTarget)
                 timeline->msPixelWidthTarget = minPixelWidthTarget;
-            changed = true;
+            need_save = true;
         }
         ImGui::ShowTooltipOnHover("Accuracy Zoom Out");
 
@@ -10288,7 +10288,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         {
             timeline->msPixelWidthTarget = minPixelWidthTarget;
             timeline->firstTime = timeline->GetStart();
-            changed = true;
+            need_save = true;
         }
         ImGui::ShowTooltipOnHover("Timeline accuracy");
 
@@ -10296,7 +10296,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         if (ImGui::Button(ICON_CLIP_START "##slider_to_end"))
         {
             timeline->firstTime = timeline->GetEnd() - timeline->visibleTime;
-            changed = true;
+            need_save = true;
         }
         ImGui::ShowTooltipOnHover("Slider to End");
 
@@ -10844,12 +10844,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 if (ImGui::MenuItem(ICON_CROP " Edit Clip Attribute", nullptr, nullptr))
                 {
                     track->SelectEditingClip(clip, false);
-                    //changed = true;
                 }
                 if (ImGui::MenuItem(ICON_FILTER_EDITOR " Edit Clip Filter", nullptr, nullptr))
                 {
                     track->SelectEditingClip(clip, true);
-                    //changed = true;
                 }
                 ImGui::EndDisabled();
                 if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
@@ -10984,7 +10982,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 timeline->firstTime = new_start_offset / HorizonScrollBarRect.GetWidth() * (float)duration + timeline->GetStart();
                 int64_t new_visible_time = (int64_t)floorf((timline_size.x - legendWidth) / timeline->msPixelWidthTarget);
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - new_visible_time, timeline->GetStart()));
-                changed = true;
+                need_save = true;
             }
         }
         else if (MovingHorizonScrollBar == 2)
@@ -11000,7 +10998,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 auto current_scroll_width = ImMax(new_end_offset + HorizonScrollBarMin.x - HorizonScrollHandleBarMin.x, (float)scrollSize);
                 timeline->msPixelWidthTarget = (HorizonScrollBarRect.GetWidth() * HorizonScrollBarRect.GetWidth()) / (current_scroll_width * duration);
                 timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
-                changed = true;
+                need_save = true;
             }
         }
         else if (MovingHorizonScrollBar == 0)
@@ -11015,7 +11013,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
                 timeline->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
                 timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
-                changed = true;
+                need_save = true;
             }
         }
         else if (inHorizonScrollThumbLeft && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
@@ -11040,7 +11038,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
         //    float msPerPixelInBar = HorizonBarPos / (float)timeline->visibleTime;
         //    timeline->firstTime = int((io.MousePos.x - legendWidth - contentMin.x) / msPerPixelInBar);
         //    timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
-        //    changed = true;
+        //    need_save = true;
         //}
 
         // Vertical Scroll bar
@@ -11143,13 +11141,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                 {
                     timeline->firstTime -= timeline->visibleTime / view_frames;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
-                    changed = true;
+                    need_save = true;
                 }
                 else if (io.MouseWheelH > FLT_EPSILON)
                 {
                     timeline->firstTime += timeline->visibleTime / view_frames;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
-                    changed = true;
+                    need_save = true;
                 }
             }
             if (overHorizonScrollBar && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -11163,7 +11161,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     int64_t offset = new_mouse_time - mouseTime;
                     timeline->firstTime -= offset;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
-                    changed = true;
+                    need_save = true;
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
@@ -11173,7 +11171,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     int64_t offset = new_mouse_time - mouseTime;
                     timeline->firstTime -= offset;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
-                    changed = true;
+                    need_save = true;
                 }
             }
         }
@@ -11470,7 +11468,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
                     timeline->firstTime = mouseTime - timeline->visibleTime;
                 timeline->mCurrentTime = timeline->AlignTime(mouseTime, 1);
                 timeline->Seek(timeline->mCurrentTime, true);
-                changed = true; // ?
+                need_save = true;
             }
         }
         if (timeline->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))

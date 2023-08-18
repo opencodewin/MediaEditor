@@ -11053,9 +11053,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         if (overExpanded && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             _expanded = !_expanded;
         ImGui::SetCursorScreenPos(panel_pos + ImVec2(32, 0));
-        auto timeline_changed = DrawTimeLine(timeline,  &_expanded, !is_splitter_hold && !mouse_hold && !show_configure && !show_about && !show_file_dialog);
+        bool timeline_need_save = false;
+        auto timeline_changed = DrawTimeLine(timeline,  &_expanded, timeline_need_save, !is_splitter_hold && !mouse_hold && !show_configure && !show_about && !show_file_dialog);
         if (!g_project_loading) project_changed |= timeline_changed;
-        project_need_save |= timeline_changed;
+        project_need_save |= timeline_changed | timeline_need_save;
         if (g_media_editor_settings.BottomViewExpanded != _expanded)
         {
             if (!_expanded)

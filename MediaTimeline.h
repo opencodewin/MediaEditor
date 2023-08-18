@@ -1274,7 +1274,7 @@ struct TimeLine
     int64_t AddNewClip(int64_t media_id, uint32_t media_type, int64_t track_id, int64_t start, int64_t start_offset, int64_t end, int64_t end_offset, int64_t group_id, int64_t clip_id = -1, std::list<imgui_json::value>* pActionList = nullptr);
 };
 
-bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable = true);
+bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool editable = true);
 bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point, bool& changed);
 bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, bool& show_BP);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
