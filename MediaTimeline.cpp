@@ -12092,7 +12092,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool editable)
 /***********************************************************************************************************
  * Draw Clip Attribute Timeline
  ***********************************************************************************************************/
-bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point)
+bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point, bool& changed)
 {
     /***************************************************************************************
     |  0    5    10 v   15    20 <rule bar> 30     35      40      45       50       55    c
@@ -12107,7 +12107,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
     ImVec2 window_size = ImGui::GetWindowSize();
     static int64_t lastFirstTime = -1;
     static int64_t lastVisiableTime = -1;
-    bool changed = false;
     if (!editingClip)
     {
         ImGui::SetWindowFontScale(2);
@@ -12179,21 +12178,19 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
 
     editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
 
-    if (lastFirstTime != -1 && lastFirstTime != editingClip->firstTime) changed = true;
-    if (lastVisiableTime != -1 && lastVisiableTime != newVisibleTime) changed = true;
+    //if (lastFirstTime != -1 && lastFirstTime != editingClip->firstTime) changed = true;
+    //if (lastVisiableTime != -1 && lastVisiableTime != newVisibleTime) changed = true;
     lastFirstTime = editingClip->firstTime;
     lastVisiableTime = newVisibleTime;
 
     if (editingClip->visibleTime > duration)
     {
         editingClip->firstTime = 0;
-        changed = true;
     }
     else if (editingClip->firstTime + editingClip->visibleTime > duration)
     {
         editingClip->firstTime = duration - editingClip->visibleTime;
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-        changed = true;
     }
     editingClip->lastTime = editingClip->firstTime + editingClip->visibleTime;
 
@@ -12304,20 +12301,17 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                     int64_t new_visible_time = (int64_t)floorf((timline_size.x) / editingClip->msPixelWidthTarget);
                     editingClip->firstTime = menuMouseTime - new_visible_time / 2;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
-                    changed = true;
                 }
             }
             if (ImGui::MenuItem(ICON_SLIDER_CLIP " Clip accuracy", nullptr, nullptr))
             {
                 editingClip->msPixelWidthTarget = minPixelWidthTarget;
                 editingClip->firstTime = 0;
-                changed = true;
             }
             if (ImGui::MenuItem(ICON_CURRENT_TIME " Current Time", nullptr, nullptr))
             {
                 editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-                changed = true;
             }
 
             if (HeaderAreaRect.Contains(menuMousePos))
@@ -12339,7 +12333,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                     main_timeline->Seek(currentTime + start);
                     editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-                    changed = true;
                 }
                 if (ImGui::MenuItem(ICON_CROPPING_LEFT " Prev key", nullptr, nullptr))
                 {
@@ -12348,7 +12341,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                     main_timeline->Seek(currentTime + start);
                     editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-                    changed = true;
                 }
             }
 
@@ -12395,7 +12387,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                 editingClip->firstTime = new_start_offset / HorizonScrollBarRect.GetWidth() * (float)duration;
                 int64_t new_visible_time = (int64_t)floorf(timline_size.x / editingClip->msPixelWidthTarget);
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
-                changed = true;
             }
         }
         else if (MovingHorizonScrollBar == 2)
@@ -12411,7 +12402,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                 auto current_scroll_width = ImMax(new_end_offset + HorizonScrollBarMin.x - HorizonScrollHandleBarMin.x, (float)scrollSize);
                 editingClip->msPixelWidthTarget = (HorizonScrollBarRect.GetWidth() * HorizonScrollBarRect.GetWidth()) / (current_scroll_width * duration);
                 editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
-                changed = true;
             }
         }
         else if (MovingHorizonScrollBar == 0)
@@ -12425,7 +12415,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                 float msPerPixelInBar = HorizonBarPos / (float)editingClip->visibleTime;
                 editingClip->firstTime = int((io.MousePos.x - panningViewHorizonSource.x) / msPerPixelInBar) - panningViewHorizonTime;
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-                changed = true;
             }
         }
         else if (inHorizonScrollThumbLeft && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
@@ -12480,13 +12469,11 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                 {
                     editingClip->firstTime -= editingClip->visibleTime / view_frames;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-                    changed = true;
                 }
                 else if (io.MouseWheelH > FLT_EPSILON)
                 {
                     editingClip->firstTime += editingClip->visibleTime / view_frames;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-                    changed = true;
                 }
             }
             if (overHorizonScrollBar && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -12500,7 +12487,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                     int64_t offset = new_mouse_time - mouseTime;
                     editingClip->firstTime -= offset;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-                    changed = true;
                 }
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
@@ -12510,7 +12496,6 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                     int64_t offset = new_mouse_time - mouseTime;
                     editingClip->firstTime -= offset;
                     editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
-                    changed = true;
                 }
             }
         }
@@ -12597,6 +12582,7 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                                                         nullptr, // clippingRect
                                                         &_changed);
                 if (_changed) main_timeline->UpdatePreview();
+                changed |= _changed;
             }
             ImGui::EndChild();
             // Draw cursor line after curve draw
