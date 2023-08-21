@@ -1837,6 +1837,7 @@ static void SaveProject(std::string path)
     g_media_editor_settings.project_path = path;
     project_need_save = false;
     project_changed = false;
+    timeline->mIsBluePrintChanged = false;
 }
 
 /****************************************************************************************
@@ -2101,7 +2102,7 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
     return ret;
 }
 
-static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem *>::iterator item, ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size)
+static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem *>::iterator item, ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size, bool& changed)
 {
     ImGuiIO& io = ImGui::GetIO();
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
@@ -2412,6 +2413,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         MediaItem * it = *item;
         delete it;
         item = timeline->media_items.erase(item);
+        changed = true;
     }
     else
         item++;
@@ -2427,7 +2429,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     static std::vector<std::string> failed_items;
-    
+    bool changed = false;
     if (!timeline)
         return;
 
@@ -2464,7 +2466,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
             for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
             {
                 auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
-                item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size);
+                item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size, changed);
                 if (item == timeline->media_items.end())
                     break;
             }
@@ -2496,6 +2498,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                         else
                         {
                             pfd::notify("Import File Succeed", path, pfd::icon::info);
+                            changed = true;
                         }
                     }
                     import_url.clear();
@@ -2526,6 +2529,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
         }
     }
     ImGui::EndChild();
+    if (!g_project_loading) project_changed |= changed;
 }
 
 /****************************************************************************************
@@ -4376,6 +4380,7 @@ static void ShowFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
                 if (payload->Data)
                 {
                     clip->AppendEvent(hTargetEvent, payload->Data);
+                    project_changed = true;
                 }
             }
             ImGui::EndDragDropTarget();
@@ -4386,6 +4391,7 @@ static void ShowFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
             pBp->Frame(true, true, clip != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Filter);
         }
         ImGui::EndChild();
+        if (timeline->mIsBluePrintChanged) { project_changed = true; project_need_save = true; }
     }
     else
     {
@@ -4412,6 +4418,7 @@ static void DrawFilterBlueprintWindow(ImDrawList *draw_list, Clip * editing_clip
 
 static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
 {
+    bool changed = false;
     if (!editing_clip || !editing_clip->mEventStack)
         return;
     bool is_audio_clip = IS_AUDIO(editing_clip->mType);
@@ -4452,6 +4459,12 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
         auto track = timeline->FindTrackByClipID(editing_clip->mID);
         if (track) timeline->RefreshTrackView({track->mID});
         pBP->Blueprint_UpdateNode(node->m_ID);
+        changed = true;
+    };
+    auto Reflush = [&](MediaTimeline::MediaTrack* track)
+    {
+        if (track) timeline->RefreshTrackView({track->mID});
+        changed = true;
     };
     for (auto event : event_list)
     {
@@ -4590,6 +4603,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                             auto value_range = keypoint->GetCurveMax(i) - keypoint->GetCurveMin(i);
                             curve_value = (curve_value - keypoint->GetCurveMin(i)) / (value_range + FLT_EPSILON);
                             keypoint->AddPoint(i, ImVec2(curve_time, curve_value), ImGui::ImCurveEdit::Smooth);
+                            changed = true;
                         }
                         ImGui::EndDisabled();
                         ImGui::ShowTooltipOnHover("Add key at current");
@@ -4598,20 +4612,20 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                         if (ImGui::DragFloat("##curve_filter_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             keypoint->SetCurveMin(i, curve_min);
-                            if (track) timeline->RefreshTrackView({track->mID});
+                            Reflush(track);
                         } ImGui::ShowTooltipOnHover("Min");
                         ImGui::SameLine(0, 8);
                         if (ImGui::DragFloat("##curve_filter_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
                         {
                             keypoint->SetCurveMax(i, curve_max);
-                            if (track) timeline->RefreshTrackView({track->mID});
+                            Reflush(track);
                         } ImGui::ShowTooltipOnHover("Max");
                         ImGui::SameLine(0, 8);
                         float curve_default = keypoint->GetCurveDefault(i);
                         if (ImGui::DragFloat("##curve_filter_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                         {
                             keypoint->SetCurveDefault(i, curve_default);
-                            if (track) timeline->RefreshTrackView({track->mID});
+                            Reflush(track);
                         } ImGui::ShowTooltipOnHover("Default");
                         ImGui::PopItemWidth();
 
@@ -4621,6 +4635,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                         if (ImGui::ColorEdit4("##curve_filter_color", (float*)&curve_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
                         {
                             keypoint->SetCurveColor(i, ImGui::ColorConvertFloat4ToU32(curve_color));
+                            changed = true;
                         } ImGui::ShowTooltipOnHover("Curve Color");
                         ImGui::SetWindowFontScale(1.0);
                         ImGui::SameLine(0, 4);
@@ -4637,7 +4652,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                             {
                                 keypoint->SetCurvePointDefault(i, p);
                             }
-                            if (track) timeline->RefreshTrackView({track->mID});
+                            Reflush(track);
                         } ImGui::ShowTooltipOnHover("Reset");
                         if (!break_loop)
                         {
@@ -4659,7 +4674,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                                 {
                                     point.point.x = point_current - event->Start();
                                     keypoint->EditPoint(i, p, point.point, point.type);
-                                    if (track) timeline->RefreshTrackView({track->mID});
+                                    Reflush(track);
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
@@ -4667,13 +4682,13 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                                 if (ImGui::DragFloat("##curve_filter_point_y", &point.point.y, speed, keypoint->GetCurveMin(i), keypoint->GetCurveMax(i), "%.2f"))
                                 {
                                     keypoint->EditPoint(i, p, point.point, point.type);
-                                    if (track) timeline->RefreshTrackView({track->mID});
+                                    Reflush(track);
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_filter_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
                                     keypoint->EditPoint(i, p, point.point, point.type);
-                                    if (track) timeline->RefreshTrackView({track->mID});
+                                    Reflush(track);
                                 }
                                 ImGui::PopItemWidth();
                                 ImGui::PopID();
@@ -4776,7 +4791,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
                         }
                         auto track = timeline->FindTrackByClipID(node->m_ID);
                         pBP->Blueprint_DeleteNode(node->m_ID);
-                        if (track) timeline->RefreshTrackView({track->mID});
+                        Reflush(track);
                         need_redraw = true;
                     }
                     if (tree_open) ImGui::TreePop();
@@ -4786,6 +4801,8 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
             if (msgbox_event.Draw() == 1)
             {
                 editing_clip->DeleteEvent(event, &timeline->mUiActions);
+                auto track = timeline->FindTrackByClipID(editing_clip->mID);
+                Reflush(track);
             }
             ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
             ImGui::TreePop();
@@ -4794,6 +4811,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
         ImGui::Separator();
         ImGui::PopStyleColor();
     }
+    if (!g_project_loading) project_changed |= changed;
 }
 
 /****************************************************************************************
@@ -5350,7 +5368,10 @@ static bool DrawVideoFilterTimelineWindow(bool& show_BP)
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    return DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->mCurrentTime, 30, 50, show_BP);
+    bool timeline_changed = false;
+    auto mouse_hold = DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->mCurrentTime, 30, 50, show_BP, timeline_changed);
+    if (!g_project_loading) project_changed |= timeline_changed;
+    return mouse_hold;
 }
 
 static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
@@ -5686,6 +5707,7 @@ static void ShowVideoTransitionBluePrintWindow(ImDrawList *draw_list, Overlap * 
             timeline->mVidOverlap->mTransition->mBp->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Transition);
         }
         ImGui::EndChild();
+        if (timeline->mIsBluePrintChanged) { project_changed = true; project_need_save = true; }
     }
 }
 
@@ -6325,7 +6347,10 @@ static bool DrawAudioFilterTimelineWindow(bool& show_BP)
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    return DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->mCurrentTime, 30, 50, show_BP);
+    bool timeline_changed = false;
+    auto mouse_hild = DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->mCurrentTime, 30, 50, show_BP, timeline_changed);
+    if (!g_project_loading) project_changed |= timeline_changed;
+    return mouse_hild;
 }
 
 static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
@@ -6610,6 +6635,7 @@ static void ShowAudioTransitionBluePrintWindow(ImDrawList *draw_list, Overlap * 
             timeline->mAudOverlap->mTransition->mBp->Frame(true, true, overlap != nullptr, BluePrint::BluePrintFlag::BluePrintFlag_Transition);
         }
         ImGui::EndChild();
+        if (timeline->mIsBluePrintChanged) { project_changed = true; project_need_save = true; }
     }
 }
 
@@ -7062,6 +7088,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ┗━━━━━━━━━━━━━━┻━━━━━━━━━━━━━┻━━━━━━━━━━┻━━━━━━━━━━┻━━━━━━━━━━━━━━━┛
     */
     // draw page title
+    bool changed = false;
     ImGui::SetWindowFontScale(1.8);
     auto title_size = ImGui::CalcTextSize("Audio Mixer");
     float str_offset = title_rect.Max.x - title_size.x - 16;
@@ -7139,6 +7166,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             timeline->mAudioAttribute.mAudioGain = (vol / 96.f) + 1.f;
             volMaster.volume = timeline->mAudioAttribute.mAudioGain;
             amFilter->SetVolumeParams(&volMaster);
+            changed = true;
         }
         snprintf(value_str, 64, "%.1fdB", vol);
         auto vol_str_size = ImGui::CalcTextSize(value_str);
@@ -7170,6 +7198,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
                         track->mAudioTrackAttribute.mAudioGain = (volTrack / 96.f) + 1.f;
                         volParams.volume = track->mAudioTrackAttribute.mAudioGain;
                         aeFilter->SetVolumeParams(&volParams);
+                        changed = true;
                     }
                 }
                 ImGui::PopID();
@@ -7340,6 +7369,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             panParams.x = timeline->mAudioAttribute.bPan ? timeline->mAudioAttribute.audio_pan.x : 0.5f;
             panParams.y = timeline->mAudioAttribute.bPan ? timeline->mAudioAttribute.audio_pan.y : 0.5f;
             amFilter->SetPanParams(&panParams);
+            changed = true;
         }
         ImGui::EndDisabled();
     }
@@ -7395,6 +7425,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             equalizerParams.gain = timeline->mAudioAttribute.bEqualizer ? timeline->mAudioAttribute.mBandCfg[i].gain : 0.0f;
             amFilter->SetEqualizerParamsByIndex(&equalizerParams, i);
         }
+        changed = true;
     }
     ImGui::EndGroup();
 
@@ -7453,6 +7484,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             gateParams.makeup = timeline->mAudioAttribute.bGate ? timeline->mAudioAttribute.gate_makeup : 1.f;
             gateParams.knee = timeline->mAudioAttribute.bGate ? timeline->mAudioAttribute.gate_knee : 2.82843f;
             amFilter->SetGateParams(&gateParams);
+            changed = true;
         }
         ImGui::EndDisabled();
     }
@@ -7502,6 +7534,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             limiterParams.attack = timeline->mAudioAttribute.bLimiter ? timeline->mAudioAttribute.limiter_attack : 5;
             limiterParams.release = timeline->mAudioAttribute.bLimiter ? timeline->mAudioAttribute.limiter_release : 50;
             amFilter->SetLimiterParams(&limiterParams);
+            changed = true;
         }
         ImGui::EndDisabled();
     }
@@ -7566,6 +7599,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             compressorParams.makeup = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_makeup : 1.f;
             compressorParams.levelIn = timeline->mAudioAttribute.bCompressor ? timeline->mAudioAttribute.compressor_level_sc : 1.f;
             amFilter->SetCompressorParams(&compressorParams);
+            changed = true;
         }
         ImGui::EndDisabled();
     }
@@ -7573,6 +7607,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::EndGroup();
 
     ImGui::PopStyleColor();
+    if (!g_project_loading) project_changed |= changed;
 }
 
 static void ShowAudioEditorWindow(ImDrawList *draw_list, ImRect title_rect)
@@ -8485,6 +8520,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     ┃              curves                        ┃                       ┃
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
     */
+    bool changed = false;
     // draw page title
     ImGui::SetWindowFontScale(1.8);
     auto title_size = ImGui::CalcTextSize("Text Style");
@@ -8574,6 +8610,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                     editing_clip->mText = value;
                     editing_clip->mClipHolder->SetText(editing_clip->mText);
                     force_update_preview = true;
+                    changed = true;
                 }
             }
             // show style control
@@ -8582,6 +8619,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
             {
                 editing_clip->EnableUsingTrackStyle(useTrackStyle);
                 force_update_preview = true;
+                changed = true;
             }
             ImGui::Separator();
             static const int numTabs = sizeof(TextEditorTabNames)/sizeof(TextEditorTabNames[0]);
@@ -8604,12 +8642,14 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                         bool bEnabled = editing_clip->IsInClipRange(timeline->mCurrentTime);
                         ImGui::BeginDisabled(editing_clip->mTrackStyle || !bEnabled);
                         force_update_preview |= edit_text_clip_style(draw_list, editing_clip, style_setting_window_size, default_size);
+                        changed |= force_update_preview;
                         ImGui::EndDisabled();
                     }
                     else
                     {
                         // track style
                         force_update_preview |= edit_text_track_style(draw_list, editing_track, style_setting_window_size);
+                        changed |= force_update_preview;
                     }
                 }
                 ImGui::EndChild();
@@ -8676,6 +8716,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                     // draw meters on video
                     draw_list->AddLine(video_rect.Min + ImVec2(video_rect.GetWidth() / 2, 0), video_rect.Min + ImVec2(video_rect.GetWidth() / 2, video_rect.GetHeight()), IM_COL32(128, 128, 128, 128));
                     draw_list->AddLine(video_rect.Min + ImVec2(0, video_rect.GetHeight() / 2), video_rect.Min + ImVec2(video_rect.GetWidth(), video_rect.GetHeight() / 2), IM_COL32(128, 128, 128, 128));
+                    changed = true;
                 }
             }
             else
@@ -8734,6 +8775,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                 current_time += editing_clip->Start();
                 if ((int64_t)current_time != timeline->mCurrentTime) { timeline->Seek(current_time); }
                 if (_changed && editing_clip->mClipHolder) { editing_clip->mClipHolder->SetKeyPoints(editing_clip->mAttributeKeyPoints); timeline->UpdatePreview(); }
+                changed |= _changed;
             }
             else if (StyleWindowIndex == 1 && editing_track)
             {
@@ -8755,6 +8797,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                 {
                     timeline->UpdatePreview();
                     editing_track->mMttReader->Refresh();
+                    changed = true;
                 }
             }
         }
@@ -8767,6 +8810,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
         mouse_is_dragging = false;
         ImGui::CaptureMouseFromApp(false);
     }
+    if (!g_project_loading) project_changed |= changed;
 }
 /****************************************************************************************
  * 
@@ -11204,6 +11248,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             if (userDatas.compare("Media Source") == 0)
             {
                 InsertMedia(file_path);
+                project_changed = true;
             }
             if (userDatas.compare("ProjectOpen") == 0)
             {
