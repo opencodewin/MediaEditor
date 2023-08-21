@@ -718,7 +718,7 @@ struct EditingVideoClip : BaseEditingClip
     BluePrint::BluePrintUI* mFilterBp {nullptr};
     ImGui::KeyPointEditor* mFilterKp {nullptr};
 
-    MediaCore::VideoTransformFilterHolder mAttribute {nullptr};
+    MediaCore::VideoTransformFilter::Holder mAttribute {nullptr};
 
 public:
     EditingVideoClip(VideoClip* vidclip);
@@ -1265,6 +1265,7 @@ struct TimeLine
     void SyncDataLayer(bool forceRefresh = false);
     MediaCore::Snapshot::Generator::Holder GetSnapshotGenerator(int64_t mediaItemId);
     void ConfigSnapshotWindow(int64_t viewWndDur);
+    void UpdatePreviewSize();
 
     std::list<imgui_json::value> mHistoryRecords;
     std::list<imgui_json::value>::iterator mRecordIter;

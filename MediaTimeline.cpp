@@ -8860,6 +8860,19 @@ void TimeLine::ConfigSnapshotWindow(int64_t viewWndDur)
     mSnapShotWidth = DEFAULT_VIDEO_TRACK_HEIGHT * (float)timelineAspectRatio.num / (float)timelineAspectRatio.den;
 }
 
+void TimeLine::UpdatePreviewSize()
+{
+    auto newWidth = GetPreviewWidth();
+    auto newHeight = GetPreviewHeight();
+    if (newWidth == mMtvReader->GetSharedSettings()->VideoOutWidth() && newHeight == mMtvReader->GetSharedSettings()->VideoOutHeight())
+        return;
+    auto hShdSettings = mMtvReader->GetSharedSettings();
+    hShdSettings->SetVideoOutWidth(newWidth);
+    hShdSettings->SetVideoOutHeight(newHeight);
+    mMtvReader->UpdateVideoOutputSize();
+    UpdatePreview(false);
+}
+
 uint32_t TimeLine::SimplePcmStream::Read(uint8_t* buff, uint32_t buffSize, bool blocking)
 {
     if (!m_areader)

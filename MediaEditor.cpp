@@ -4852,7 +4852,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
     if (!timeline)
         return;
     
-    MediaCore::VideoTransformFilterHolder attribute;
+    MediaCore::VideoTransformFilter::Holder attribute;
     int64_t trackId = -1;
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip && !IS_VIDEO(editing_clip->mType))
@@ -10752,6 +10752,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 timeline->mAudioFormat = (MediaCore::AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
                 timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
                 timeline->mFontName = g_media_editor_settings.FontName;
+                timeline->UpdatePreviewSize();
             }
             ImGui::CloseCurrentPopup(); 
         }
