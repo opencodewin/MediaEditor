@@ -12774,6 +12774,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImGui::OpenPopup("Delete Event?");
     }
     ImGui::ShowTooltipOnHover("Delete Event");
+#if 0
     ImGui::SameLine();
     if (ImGui::Button(ICON_MD_CONTENT_CUT "##clip_timeline_cut_event"))
     {
@@ -12792,6 +12793,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         // TODO::Dicky copy event
     }
     ImGui::ShowTooltipOnHover("Copy Event");
+#endif
     ImGui::SameLine();
     if (ImGui::Button(ICON_EXPAND_EVENT "##clip_timeline_expand_event"))
     {
