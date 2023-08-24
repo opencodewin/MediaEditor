@@ -552,8 +552,8 @@ private:
 
 struct AudioClip : Clip
 {
-    int mAudioChannels  {2};                // clip audio channels, project saved
-    int mAudioSampleRate {44100};           // clip audio sample rate, project saved
+    int mAudioChannels {0};             // clip audio channels, project saved
+    int mAudioSampleRate {0};           // clip audio sample rate, project saved
     MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32}; // clip audio type, project saved
     MediaCore::Overview::Waveform::Holder mWaveform {nullptr};  // clip audio snapshot
     MediaCore::Overview::Holder mOverview;
@@ -1013,9 +1013,8 @@ struct TimeLine
     float mSnapShotWidth        {60.0};
     RenderUtils::TextureManager::Holder mTxMgr;
 
-    int mAudioChannels {2};                 // timeline audio channels, project saved, configured
-    int mAudioSampleRate {44100};           // timeline audio sample rate, project saved, configured
-    MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
+    MediaCore::SharedSettings::Holder mhMediaSettings;
+    MediaCore::AudioRender::PcmFormat mAudioRenderFormat {MediaCore::AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
     AudioAttribute mAudioAttribute;         // timeline audio attribute, need save
 
     BluePrint::BluePrintUI m_BP_UI;         // for node catalog
@@ -1266,6 +1265,7 @@ struct TimeLine
     MediaCore::Snapshot::Generator::Holder GetSnapshotGenerator(int64_t mediaItemId);
     void ConfigSnapshotWindow(int64_t viewWndDur);
     void UpdatePreviewSize();
+    void UpdateAudioSettings(MediaCore::SharedSettings::Holder hSettings, MediaCore::AudioRender::PcmFormat pcmFormat);
 
     std::list<imgui_json::value> mHistoryRecords;
     std::list<imgui_json::value>::iterator mRecordIter;

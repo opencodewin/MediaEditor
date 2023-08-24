@@ -26,6 +26,7 @@
 #include "EventStackFilter.h"
 #include "SysUtils.h"
 #include "TextureManager.h"
+#include "MatUtils.h"
 #include "Logger.h"
 #include "DebugHelper.h"
 
@@ -5608,11 +5609,21 @@ TimeLine::TimeLine(std::string plugin_path)
     if (!mTxMgr->CreateGridTexturePool(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
         Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
 
+    mhMediaSettings = MediaCore::SharedSettings::CreateInstance();
+    // set default audio output attributes
+    mhMediaSettings->SetAudioOutChannels(2);
+    mhMediaSettings->SetAudioOutSampleRate(48000);
+    auto pcmDataType = MatUtils::PcmFormat2ImDataType(mAudioRenderFormat);
+    if (pcmDataType == IM_DT_UNDEFINED)
+        throw std::runtime_error("UNSUPPORTED audio render format!");
+    mhMediaSettings->SetAudioOutDataType(pcmDataType);
+    mhMediaSettings->SetAudioOutIsPlanar(false);
+
     mAudioRender = MediaCore::AudioRender::CreateInstance();
-    if (mAudioRender)
-    {
-        mAudioRender->OpenDevice(mAudioSampleRate, mAudioChannels, mAudioFormat, &mPcmStream);
-    }
+    if (!mAudioRender)
+        throw std::runtime_error("FAILED to create AudioRender instance!");
+    if (!mAudioRender->OpenDevice(mhMediaSettings->AudioOutSampleRate(), mhMediaSettings->AudioOutChannels(), mAudioRenderFormat, &mPcmStream))
+        throw std::runtime_error("FAILED to open audio render device!");
 
     auto exec_path = ImGuiHelper::exec_path();
     m_BP_UI.Initialize();
@@ -5620,7 +5631,7 @@ TimeLine::TimeLine(std::string plugin_path)
     ConfigureDataLayer();
 
     mAudioAttribute.channel_data.clear();
-    mAudioAttribute.channel_data.resize(mAudioChannels);
+    mAudioAttribute.channel_data.resize(mhMediaSettings->AudioOutChannels());
     memcpy(&mAudioAttribute.mBandCfg, &DEFAULT_BAND_CFG, sizeof(mAudioAttribute.mBandCfg));
 
     mRecordIter = mHistoryRecords.begin();
@@ -7439,18 +7450,24 @@ int TimeLine::Load(const imgui_json::value& value)
     }
     if (value.contains("AudioChannels"))
     {
-        auto& val = value["AudioChannels"];
-        if (val.is_number()) mAudioChannels = val.get<imgui_json::number>();
+        if (value["AudioChannels"].is_number())
+        {
+            auto val = value["AudioChannels"].get<imgui_json::number>();
+            mhMediaSettings->SetAudioOutChannels(val);
+        }
     }
     if (value.contains("AudioSampleRate"))
     {
-        auto& val = value["AudioSampleRate"];
-        if (val.is_number()) mAudioSampleRate = val.get<imgui_json::number>();
+        if (value["AudioSampleRate"].is_number())
+        {
+            auto val = value["AudioSampleRate"].get<imgui_json::number>();
+            mhMediaSettings->SetAudioOutSampleRate(val);
+        }
     }
-    if (value.contains("AudioFormat"))
+    if (value.contains("AudioRenderFormat"))
     {
-        auto& val = value["AudioFormat"];
-        if (val.is_number()) mAudioFormat = (MediaCore::AudioRender::PcmFormat)val.get<imgui_json::number>();
+        auto& val = value["AudioRenderFormat"];
+        if (val.is_number()) mAudioRenderFormat = (MediaCore::AudioRender::PcmFormat)val.get<imgui_json::number>();
     }
     if (value.contains("msPixelWidth"))
     {
@@ -7561,6 +7578,17 @@ int TimeLine::Load(const imgui_json::value& value)
     }
 
     mPreviewResumePos = mCurrentTime = AlignTime(mCurrentTime);
+
+    auto pcmDataType = MatUtils::PcmFormat2ImDataType(mAudioRenderFormat);
+    if (pcmDataType == IM_DT_UNDEFINED)
+        throw std::runtime_error("UNSUPPORTED audio render format!");
+    mhMediaSettings->SetAudioOutDataType(pcmDataType);
+    mAudioRender->CloseDevice();
+    mPcmStream.Flush();
+    if (!mAudioRender->OpenDevice(mhMediaSettings->AudioOutSampleRate(), mhMediaSettings->AudioOutChannels(), mAudioRenderFormat, &mPcmStream))
+        throw std::runtime_error("FAILED to open audio render device!");
+    mAudioAttribute.channel_data.clear();
+    mAudioAttribute.channel_data.resize(mhMediaSettings->AudioOutChannels());
 
     // load data layer
     ConfigureDataLayer();
@@ -8045,9 +8073,9 @@ void TimeLine::Save(imgui_json::value& value)
     value["PreviewScale"] = imgui_json::number(mPreviewScale);
     value["FrameRateNum"] = imgui_json::number(mFrameRate.num);
     value["FrameRateDen"] = imgui_json::number(mFrameRate.den);
-    value["AudioChannels"] = imgui_json::number(mAudioChannels);
-    value["AudioSampleRate"] = imgui_json::number(mAudioSampleRate);
-    value["AudioFormat"] = imgui_json::number(mAudioFormat);
+    value["AudioChannels"] = imgui_json::number(mhMediaSettings->AudioOutChannels());
+    value["AudioSampleRate"] = imgui_json::number(mhMediaSettings->AudioOutSampleRate());
+    value["AudioRenderFormat"] = imgui_json::number(mAudioRenderFormat);
     value["msPixelWidth"] = imgui_json::number(msPixelWidthTarget);
     value["FirstTime"] = imgui_json::number(firstTime);
     value["CurrentTime"] = imgui_json::number(mCurrentTime);
@@ -8313,8 +8341,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         Clip* clip = FindClipByID(clipId);
         MediaCore::AudioClip::Holder hAudClip = MediaCore::AudioClip::CreateInstance(
-            clip->mID, clip->mMediaParser,
-            audTrack->OutChannels(), audTrack->OutSampleRate(), audTrack->OutSampleFormat(),
+            clip->mID, clip->mMediaParser, mMtaReader->GetTrackSharedSettings(),
             clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset());
         AudioClip* aclip = dynamic_cast<AudioClip*>(clip);
         aclip->SyncFilterWithDataLayer(hAudClip);
@@ -8387,8 +8414,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         hAudTrk->ChangeClipRange(clipId, hClip->StartOffset(), hClip->EndOffset()+hClip->End()-newClipStart);
         int64_t newClipId = action["new_clip_id"].get<imgui_json::number>();
         MediaCore::AudioClip::Holder hNewClip = MediaCore::AudioClip::CreateInstance(
-            newClipId, hClip->GetMediaParser(),
-            hAudTrk->OutChannels(), hAudTrk->OutSampleRate(), hAudTrk->OutSampleFormat(),
+            newClipId, hClip->GetMediaParser(), mMtaReader->GetTrackSharedSettings(),
             newClipStart, newClipEnd, newClipStartOffset, newClipEndOffset);
         MediaCore::AudioFilter::Holder hNewFilter;
         if (hClip->GetFilter())
@@ -8677,7 +8703,7 @@ void TimeLine::ConfigureDataLayer()
     mMtvReader->Configure(GetPreviewWidth(), GetPreviewHeight(), mFrameRate);
     mMtvReader->Start();
     mMtaReader = MediaCore::MultiTrackAudioReader::CreateInstance();
-    mMtaReader->Configure(mAudioChannels, mAudioSampleRate);
+    mMtaReader->Configure(mhMediaSettings);
     mMtaReader->Start();
     mPcmStream.SetAudioReader(mMtaReader);
 }
@@ -8873,6 +8899,21 @@ void TimeLine::UpdatePreviewSize()
     UpdatePreview(false);
 }
 
+void TimeLine::UpdateAudioSettings(MediaCore::SharedSettings::Holder hSettings, MediaCore::AudioRender::PcmFormat pcmFormat)
+{
+    mAudioRender->CloseDevice();
+    mPcmStream.Flush();
+    if (!mAudioRender->OpenDevice(hSettings->AudioOutSampleRate(), hSettings->AudioOutChannels(), pcmFormat, &mPcmStream))
+        throw std::runtime_error("FAILED to open audio render device!");
+    mAudioRenderFormat = pcmFormat;
+    if (!mMtaReader->UpdateSettings(hSettings))
+        Logger::Log(Logger::Error) << "FAILED to update audio settings!" << std::endl;
+    mAudioAttribute.channel_data.clear();
+    mAudioAttribute.channel_data.resize(hSettings->AudioOutChannels());
+    if (mIsPreviewPlaying)
+        mAudioRender->Resume();
+}
+
 uint32_t TimeLine::SimplePcmStream::Read(uint8_t* buff, uint32_t buffSize, bool blocking)
 {
     if (!m_areader)
@@ -8943,64 +8984,113 @@ void TimeLine::SimplePcmStream::Flush()
 
 void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
 {
-    ImGui::ImMat mat;
     if (mat_in.empty() || mat_in.w < 64)
         return;
-    int fft_size = mat_in.w  > 256 ? 256 : mat_in.w > 128 ? 128 : 64;
-    if (mat_in.elempack > 1)
+    const int fft_size = mat_in.w  > 256 ? 256 : mat_in.w > 128 ? 128 : 64;
+    const int ch = mat_in.c;
+    ImGui::ImMat mat;
+    mat.create_type(fft_size, 1, ch, IM_DT_FLOAT32);
+    // copy fft_size samples from input mat, and convert them into float type
     {
-        mat.create_type(fft_size, 1, mat_in.c, mat_in.type);
-        float * data = (float *)mat_in.data;
-        for (int x = 0; x < mat.w; x++)
+        float** ppDstPtrs = new float*[ch];
+        for (int i = 0; i < ch; i++)
+            ppDstPtrs[i] = (float*)mat.data+mat.w*i;
+        if (mat_in.elempack > 1)
         {
-            for (int i = 0; i < mat.c; i++)
+            if (mat_in.type == IM_DT_FLOAT32)
             {
-                mat.at<float>(x, 0, i) = data[x * mat.c + i];
+                const float* pSrcPtr = (const float*)mat_in.data;
+                for (int i = 0; i < fft_size; i++)
+                {
+                    for (int j = 0; j < ch; j++)
+                    {
+                        auto& pDstPtr = ppDstPtrs[j];
+                        *pDstPtr++ = *pSrcPtr++;
+                    }
+                }
             }
+            else if (mat_in.type == IM_DT_INT16)
+            {
+                const int16_t* pSrcPtr = (const int16_t*)mat_in.data;
+                for (int i = 0; i < fft_size; i++)
+                {
+                    for (int j = 0; j < ch; j++)
+                    {
+                        auto& pDstPtr = ppDstPtrs[j];
+                        *pDstPtr++ = (float)(*pSrcPtr++)/INT16_MAX;
+                    }
+                }
+            }
+            else
+                throw std::runtime_error("This PCM format is NOT SUPPORTED yet!");
         }
+        else
+        {
+            if (mat_in.type == IM_DT_FLOAT32)
+            {
+                const float** ppSrcPtrs = new const float*[ch];
+                for (int i = 0; i < ch; i++)
+                    ppSrcPtrs[i] = (const float*)mat_in.data+mat_in.w*i;
+                for (int i = 0; i < ch; i++)
+                    memcpy(ppDstPtrs[i], ppSrcPtrs[i], fft_size*sizeof(float));
+                delete [] ppSrcPtrs;
+            }
+            else if (mat_in.type == IM_DT_INT16)
+            {
+                const int16_t** ppSrcPtrs = new const int16_t*[ch];
+                for (int i = 0; i < ch; i++)
+                    ppSrcPtrs[i] = (const int16_t*)mat_in.data+mat_in.w*i;
+                for (int i = 0; i < ch; i++)
+                {
+                    auto& pDstPtr = ppDstPtrs[i];
+                    auto& pSrcPtr = ppSrcPtrs[i];
+                    for (int j = 0; j < fft_size; j++)
+                        *pDstPtr++ = (float)(*pSrcPtr++)/INT16_MAX;
+                }
+                delete [] ppSrcPtrs;
+            }
+            else
+                throw std::runtime_error("This PCM format is NOT SUPPORTED yet!");
+        }
+        delete [] ppDstPtrs;
     }
-    else
-    {
-        //mat = mat_in;
-        mat.create_type(fft_size, 1, mat_in.c, mat_in.data, mat_in.type);
-    }
+
     for (int i = 0; i < mat.c; i++)
     {
-        if (i < mAudioChannels)
+        if (i >= (int)mhMediaSettings->AudioOutChannels())
+            break;
+        auto & channel_data = mAudioAttribute.channel_data[i];
+        channel_data.m_wave.clone_from(mat.channel(i));
+        channel_data.m_fft.clone_from(mat.channel(i));
+        ImGui::ImRFFT((float *)channel_data.m_fft.data, channel_data.m_fft.w, true);
+        channel_data.m_db.create_type((mat.w >> 1) + 1, IM_DT_FLOAT32);
+        channel_data.m_DBMaxIndex = ImGui::ImReComposeDB((float*)channel_data.m_fft.data, (float *)channel_data.m_db.data, mat.w, false);
+        channel_data.m_DBShort.create_type(20, IM_DT_FLOAT32);
+        ImGui::ImReComposeDBShort((float*)channel_data.m_fft.data, (float*)channel_data.m_DBShort.data, mat.w);
+        channel_data.m_DBLong.create_type(76, IM_DT_FLOAT32);
+        ImGui::ImReComposeDBLong((float*)channel_data.m_fft.data, (float*)channel_data.m_DBLong.data, mat.w);
+        channel_data.m_decibel = ImGui::ImDoDecibel((float*)channel_data.m_fft.data, mat.w);
+        if (channel_data.m_Spectrogram.w != (mat.w >> 1) + 1)
         {
-            auto & channel_data = mAudioAttribute.channel_data[i];
-            channel_data.m_wave.clone_from(mat.channel(i));
-            channel_data.m_fft.clone_from(mat.channel(i));
-            ImGui::ImRFFT((float *)channel_data.m_fft.data, channel_data.m_fft.w, true);
-            channel_data.m_db.create_type((mat.w >> 1) + 1, IM_DT_FLOAT32);
-            channel_data.m_DBMaxIndex = ImGui::ImReComposeDB((float*)channel_data.m_fft.data, (float *)channel_data.m_db.data, mat.w, false);
-            channel_data.m_DBShort.create_type(20, IM_DT_FLOAT32);
-            ImGui::ImReComposeDBShort((float*)channel_data.m_fft.data, (float*)channel_data.m_DBShort.data, mat.w);
-            channel_data.m_DBLong.create_type(76, IM_DT_FLOAT32);
-            ImGui::ImReComposeDBLong((float*)channel_data.m_fft.data, (float*)channel_data.m_DBLong.data, mat.w);
-            channel_data.m_decibel = ImGui::ImDoDecibel((float*)channel_data.m_fft.data, mat.w);
-            if (channel_data.m_Spectrogram.w != (mat.w >> 1) + 1)
+            channel_data.m_Spectrogram.create_type((mat.w >> 1) + 1, 256, 4, IM_DT_INT8);
+        }
+        if (!channel_data.m_Spectrogram.empty())
+        {
+            auto w = channel_data.m_Spectrogram.w;
+            auto c = channel_data.m_Spectrogram.c;
+            memmove(channel_data.m_Spectrogram.data, (char *)channel_data.m_Spectrogram.data + w * c, channel_data.m_Spectrogram.total() - w * c);
+            uint32_t * last_line = (uint32_t *)channel_data.m_Spectrogram.row_c<uint8_t>(255);
+            for (int n = 0; n < w; n++)
             {
-                channel_data.m_Spectrogram.create_type((mat.w >> 1) + 1, 256, 4, IM_DT_INT8);
+                float value = channel_data.m_db.at<float>(n) * M_SQRT2 + 64 + mAudioAttribute.mAudioSpectrogramOffset;
+                value = ImClamp(value, -64.f, 63.f);
+                float light = (value + 64) / 127.f;
+                value = (int)((value + 64) + 170) % 255; 
+                auto hue = value / 255.f;
+                auto color = ImColor::HSV(hue, 1.0, light * mAudioAttribute.mAudioSpectrogramLight);
+                last_line[n] = color;
             }
-            if (!channel_data.m_Spectrogram.empty())
-            {
-                auto w = channel_data.m_Spectrogram.w;
-                auto c = channel_data.m_Spectrogram.c;
-                memmove(channel_data.m_Spectrogram.data, (char *)channel_data.m_Spectrogram.data + w * c, channel_data.m_Spectrogram.total() - w * c);
-                uint32_t * last_line = (uint32_t *)channel_data.m_Spectrogram.row_c<uint8_t>(255);
-                for (int n = 0; n < w; n++)
-                {
-                    float value = channel_data.m_db.at<float>(n) * M_SQRT2 + 64 + mAudioAttribute.mAudioSpectrogramOffset;
-                    value = ImClamp(value, -64.f, 63.f);
-                    float light = (value + 64) / 127.f;
-                    value = (int)((value + 64) + 170) % 255; 
-                    auto hue = value / 255.f;
-                    auto color = ImColor::HSV(hue, 1.0, light * mAudioAttribute.mAudioSpectrogramLight);
-                    last_line[n] = color;
-                }
-                channel_data.m_Spectrogram.flags |= IM_MAT_FLAGS_CUSTOM_UPDATED;
-            }
+            channel_data.m_Spectrogram.flags |= IM_MAT_FLAGS_CUSTOM_UPDATED;
         }
     }
     if (mat.c >= 2)
