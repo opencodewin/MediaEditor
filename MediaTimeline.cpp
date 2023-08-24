@@ -467,7 +467,8 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                 if (pKP)
                 {
                     float current_time = timeline->mCurrentTime - clip->Start();
-                    ImVec2 alignX = { (float)timeline->mFrameRate.num, (float)timeline->mFrameRate.den*1000 };
+                    const auto frameRate = timeline->mhMediaSettings->VideoOutFrameRate();
+                    ImVec2 alignX = { (float)frameRate.num, (float)frameRate.den*1000 };
                     pKP->SetCurveAlignX(alignX);
                     mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         pKP,
@@ -3261,7 +3262,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
             return;
         }
         if (timeline) mSsGen->EnableHwAccel(timeline->mHardwareCodec);
-        if (!mSsGen->Open(vidclip->mSsViewer->GetMediaParser(), timeline->mFrameRate))
+        if (!mSsGen->Open(vidclip->mSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
         {
             Logger::Log(Logger::Error) << mSsGen->GetError() << std::endl;
             return;
@@ -3963,7 +3964,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             if (mi && mi->mMediaOverview)
                 mSsGen1->SetOverview(mi->mMediaOverview);
             if (timeline) mSsGen1->EnableHwAccel(timeline->mHardwareCodec);
-            if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser(), timeline->mFrameRate))
+            if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
             mSsGen1->SetCacheFactor(1.0);
             RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
@@ -3993,7 +3994,7 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
             if (mi && mi->mMediaOverview)
                 mSsGen2->SetOverview(mi->mMediaOverview);
             if (timeline) mSsGen2->EnableHwAccel(timeline->mHardwareCodec);
-            if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser(), timeline->mFrameRate))
+            if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
             mSsGen2->SetCacheFactor(1.0);
             RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
@@ -5610,7 +5611,13 @@ TimeLine::TimeLine(std::string plugin_path)
         Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
 
     mhMediaSettings = MediaCore::SharedSettings::CreateInstance();
-    // set default audio output attributes
+    // set default video settings
+    mhMediaSettings->SetVideoOutWidth(1920);
+    mhMediaSettings->SetVideoOutHeight(1080);
+    mhMediaSettings->SetVideoOutFrameRate({25, 1});
+    mhMediaSettings->SetVideoOutColorFormat(IM_CF_RGBA);
+    mhMediaSettings->SetVideoOutDataType(IM_DT_INT8);
+    // set default audio settings
     mhMediaSettings->SetAudioOutChannels(2);
     mhMediaSettings->SetAudioOutSampleRate(48000);
     auto pcmDataType = MatUtils::PcmFormat2ImDataType(mAudioRenderFormat);
@@ -5619,10 +5626,13 @@ TimeLine::TimeLine(std::string plugin_path)
     mhMediaSettings->SetAudioOutDataType(pcmDataType);
     mhMediaSettings->SetAudioOutIsPlanar(false);
 
+    // preview use the same settings of timeline as default
+    mhPreviewSettings = mhMediaSettings->Clone();
+
     mAudioRender = MediaCore::AudioRender::CreateInstance();
     if (!mAudioRender)
         throw std::runtime_error("FAILED to create AudioRender instance!");
-    if (!mAudioRender->OpenDevice(mhMediaSettings->AudioOutSampleRate(), mhMediaSettings->AudioOutChannels(), mAudioRenderFormat, &mPcmStream))
+    if (!mAudioRender->OpenDevice(mhPreviewSettings->AudioOutSampleRate(), mhPreviewSettings->AudioOutChannels(), mAudioRenderFormat, &mPcmStream))
         throw std::runtime_error("FAILED to open audio render device!");
 
     auto exec_path = ImGuiHelper::exec_path();
@@ -5698,25 +5708,28 @@ TimeLine::~TimeLine()
 
 int64_t TimeLine::AlignTime(int64_t time, int mode)
 {
-    const float frame_index_f = (double)time * mFrameRate.num / ((double)mFrameRate.den * 1000.0);
+    const auto frameRate = mhMediaSettings->VideoOutFrameRate();
+    const float frame_index_f = (double)time * frameRate.num / ((double)frameRate.den * 1000.0);
     const int64_t frame_index = mode==0 ? (int64_t)floor(frame_index_f) : mode==1 ? (int64_t)round(frame_index_f) : (int64_t)ceil(frame_index_f);
-    time = round((double)frame_index * 1000 * mFrameRate.den / mFrameRate.num);
+    time = round((double)frame_index * 1000 * frameRate.den / frameRate.num);
     return time;
 }
 
 int64_t TimeLine::AlignTimeToPrevFrame(int64_t time)
 {
-    int64_t frame_index = round((double)time * mFrameRate.num / ((double)mFrameRate.den * 1000.0));
+    const auto frameRate = mhMediaSettings->VideoOutFrameRate();
+    int64_t frame_index = round((double)time * frameRate.num / ((double)frameRate.den * 1000.0));
     frame_index--;
-    time = round((double)frame_index * 1000 * mFrameRate.den / mFrameRate.num);
+    time = round((double)frame_index * 1000 * frameRate.den / frameRate.num);
     return time;
 }
 
 int64_t TimeLine::AlignTimeToNextFrame(int64_t time)
 {
-    int64_t frame_index = round((double)time * mFrameRate.num / ((double)mFrameRate.den * 1000.0));
+    const auto frameRate = mhMediaSettings->VideoOutFrameRate();
+    int64_t frame_index = round((double)time * frameRate.num / ((double)frameRate.den * 1000.0));
     frame_index++;
-    time = round((double)frame_index * 1000 * mFrameRate.den / mFrameRate.num);
+    time = round((double)frame_index * 1000 * frameRate.den / frameRate.num);
     return time;
 }
 
@@ -7426,43 +7439,39 @@ int TimeLine::Load(const imgui_json::value& value)
     if (value.contains("VideoWidth"))
     {
         auto& val = value["VideoWidth"];
-        if (val.is_number()) mWidth = val.get<imgui_json::number>();
+        if (val.is_number()) mhMediaSettings->SetVideoOutWidth(val.get<imgui_json::number>());
     }
     if (value.contains("VideoHeight"))
     {
         auto& val = value["VideoHeight"];
-        if (val.is_number()) mHeight = val.get<imgui_json::number>();
+        if (val.is_number()) mhMediaSettings->SetVideoOutHeight(val.get<imgui_json::number>());
     }
     if (value.contains("PreviewScale"))
     {
         auto& val = value["PreviewScale"];
         if (val.is_number()) mPreviewScale = val.get<imgui_json::number>();
     }
+    MediaCore::Ratio frameRate;
     if (value.contains("FrameRateNum"))
     {
         auto& val = value["FrameRateNum"];
-        if (val.is_number()) mFrameRate.num = val.get<imgui_json::number>();
+        if (val.is_number()) frameRate.num = val.get<imgui_json::number>();
     }
     if (value.contains("FrameRateDen"))
     {
         auto& val = value["FrameRateDen"];
-        if (val.is_number()) mFrameRate.den = val.get<imgui_json::number>();
+        if (val.is_number()) frameRate.den = val.get<imgui_json::number>();
     }
+    mhMediaSettings->SetVideoOutFrameRate(frameRate);
     if (value.contains("AudioChannels"))
     {
-        if (value["AudioChannels"].is_number())
-        {
-            auto val = value["AudioChannels"].get<imgui_json::number>();
-            mhMediaSettings->SetAudioOutChannels(val);
-        }
+        auto& val = value["AudioChannels"];
+        if (val.is_number()) mhMediaSettings->SetAudioOutChannels(val.get<imgui_json::number>());
     }
     if (value.contains("AudioSampleRate"))
     {
-        if (value["AudioSampleRate"].is_number())
-        {
-            auto val = value["AudioSampleRate"].get<imgui_json::number>();
-            mhMediaSettings->SetAudioOutSampleRate(val);
-        }
+        auto& val = value["AudioSampleRate"];
+        if (val.is_number()) mhMediaSettings->SetAudioOutSampleRate(val.get<imgui_json::number>());
     }
     if (value.contains("AudioRenderFormat"))
     {
@@ -7583,9 +7592,14 @@ int TimeLine::Load(const imgui_json::value& value)
     if (pcmDataType == IM_DT_UNDEFINED)
         throw std::runtime_error("UNSUPPORTED audio render format!");
     mhMediaSettings->SetAudioOutDataType(pcmDataType);
+    mhPreviewSettings->SyncVideoSettingsFrom(mhMediaSettings.get());
+    auto previewSize = CalcPreviewSize({mhMediaSettings->VideoOutWidth(), mhMediaSettings->VideoOutHeight()}, mPreviewScale);
+    mhPreviewSettings->SetVideoOutWidth(previewSize.x);
+    mhPreviewSettings->SetVideoOutHeight(previewSize.y);
+    mhPreviewSettings->SyncAudioSettingsFrom(mhMediaSettings.get());
     mAudioRender->CloseDevice();
     mPcmStream.Flush();
-    if (!mAudioRender->OpenDevice(mhMediaSettings->AudioOutSampleRate(), mhMediaSettings->AudioOutChannels(), mAudioRenderFormat, &mPcmStream))
+    if (!mAudioRender->OpenDevice(mhPreviewSettings->AudioOutSampleRate(), mhPreviewSettings->AudioOutChannels(), mAudioRenderFormat, &mPcmStream))
         throw std::runtime_error("FAILED to open audio render device!");
     mAudioAttribute.channel_data.clear();
     mAudioAttribute.channel_data.resize(mhMediaSettings->AudioOutChannels());
@@ -8068,11 +8082,12 @@ void TimeLine::Save(imgui_json::value& value)
     // save global timeline info
     value["Start"] = imgui_json::number(mStart);
     value["End"] = imgui_json::number(mEnd);
-    value["VideoWidth"] = imgui_json::number(mWidth);
-    value["VideoHeight"] = imgui_json::number(mHeight);
+    value["VideoWidth"] = imgui_json::number(mhMediaSettings->VideoOutWidth());
+    value["VideoHeight"] = imgui_json::number(mhMediaSettings->VideoOutHeight());
     value["PreviewScale"] = imgui_json::number(mPreviewScale);
-    value["FrameRateNum"] = imgui_json::number(mFrameRate.num);
-    value["FrameRateDen"] = imgui_json::number(mFrameRate.den);
+    const auto frameRate = mhMediaSettings->VideoOutFrameRate();
+    value["FrameRateNum"] = imgui_json::number(frameRate.num);
+    value["FrameRateDen"] = imgui_json::number(frameRate.den);
     value["AudioChannels"] = imgui_json::number(mhMediaSettings->AudioOutChannels());
     value["AudioSampleRate"] = imgui_json::number(mhMediaSettings->AudioOutSampleRate());
     value["AudioRenderFormat"] = imgui_json::number(mAudioRenderFormat);
@@ -8700,10 +8715,10 @@ int TimeLine::OnAudioEventStackFilterBpChanged(int type, std::string name, void*
 void TimeLine::ConfigureDataLayer()
 {
     mMtvReader = MediaCore::MultiTrackVideoReader::CreateInstance();
-    mMtvReader->Configure(GetPreviewWidth(), GetPreviewHeight(), mFrameRate);
+    mMtvReader->Configure(mhPreviewSettings);
     mMtvReader->Start();
     mMtaReader = MediaCore::MultiTrackAudioReader::CreateInstance();
-    mMtaReader->Configure(mhMediaSettings);
+    mMtaReader->Configure(mhPreviewSettings);
     mMtaReader->Start();
     mPcmStream.SetAudioReader(mMtaReader);
 }
@@ -8824,7 +8839,7 @@ MediaCore::Snapshot::Generator::Holder TimeLine::GetSnapshotGenerator(int64_t me
     MediaCore::Snapshot::Generator::Holder hSsGen = MediaCore::Snapshot::Generator::CreateInstance();
     hSsGen->SetOverview(mi->mMediaOverview);
     hSsGen->EnableHwAccel(mHardwareCodec);
-    if (!hSsGen->Open(mi->mMediaOverview->GetMediaParser(), mFrameRate))
+    if (!hSsGen->Open(mi->mMediaOverview->GetMediaParser(), mhMediaSettings->VideoOutFrameRate()))
     {
         Logger::Log(Logger::Error) << hSsGen->GetError() << std::endl;
         return nullptr;
@@ -8882,20 +8897,37 @@ void TimeLine::ConfigSnapshotWindow(int64_t viewWndDur)
     }
     for (auto& track : m_Tracks)
         track->ConfigViewWindow(visibleTime, msPixelWidthTarget);
-    MediaCore::Ratio timelineAspectRatio = { (int32_t)(mWidth), (int32_t)(mHeight) };
+    MediaCore::Ratio timelineAspectRatio = { (int32_t)mhMediaSettings->VideoOutWidth(), (int32_t)mhMediaSettings->VideoOutHeight() };
     mSnapShotWidth = DEFAULT_VIDEO_TRACK_HEIGHT * (float)timelineAspectRatio.num / (float)timelineAspectRatio.den;
 }
 
-void TimeLine::UpdatePreviewSize()
+RenderUtils::Vec2<uint32_t> TimeLine::CalcPreviewSize(const RenderUtils::Vec2<uint32_t>& videoSize, float previewScale)
 {
-    auto newWidth = GetPreviewWidth();
-    auto newHeight = GetPreviewHeight();
-    if (newWidth == mMtvReader->GetSharedSettings()->VideoOutWidth() && newHeight == mMtvReader->GetSharedSettings()->VideoOutHeight())
-        return;
-    auto hShdSettings = mMtvReader->GetSharedSettings();
-    hShdSettings->SetVideoOutWidth(newWidth);
-    hShdSettings->SetVideoOutHeight(newHeight);
-    mMtvReader->UpdateVideoOutputSize();
+    if (previewScale <= 0.0001 || previewScale >= 4)
+    {
+        Logger::Log(Logger::WARN) << "INVALID preview scale " << previewScale << " !" << std::endl;
+        return videoSize;
+    }
+    auto previewWidth = (uint32_t)round((float)videoSize.x*previewScale);
+    previewWidth += previewWidth%2;
+    auto previewHeight = (uint32_t)round((float)videoSize.y*previewScale);
+    previewHeight += previewHeight%2;
+    return {previewWidth, previewHeight};
+}
+
+void TimeLine::UpdateVideoSettings(MediaCore::SharedSettings::Holder hSettings, float previewScale)
+{
+    auto hNewPreviewSettings = hSettings->Clone();
+    auto previewSize = CalcPreviewSize({hSettings->VideoOutWidth(), hSettings->VideoOutHeight()}, previewScale);
+    hNewPreviewSettings->SetVideoOutWidth(previewSize.x);
+    hNewPreviewSettings->SetVideoOutHeight(previewSize.y);
+    if (!mMtvReader->UpdateSettings(hNewPreviewSettings))
+    {
+        std::ostringstream oss; oss << "Update video settings FAILED! Error is '" << mMtvReader->GetError() << "'.";
+        throw std::runtime_error(oss.str());
+    }
+    mhMediaSettings->SyncVideoSettingsFrom(hSettings.get());
+    mPreviewScale = previewScale;
     UpdatePreview(false);
 }
 
@@ -8908,6 +8940,7 @@ void TimeLine::UpdateAudioSettings(MediaCore::SharedSettings::Holder hSettings, 
     mAudioRenderFormat = pcmFormat;
     if (!mMtaReader->UpdateSettings(hSettings))
         Logger::Log(Logger::Error) << "FAILED to update audio settings!" << std::endl;
+    mhMediaSettings->SyncAudioSettingsFrom(mhPreviewSettings.get());
     mAudioAttribute.channel_data.clear();
     mAudioAttribute.channel_data.resize(hSettings->AudioOutChannels());
     if (mIsPreviewPlaying)
@@ -10099,7 +10132,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     static int64_t markMovingShift = 0;
 
     float minPixelWidthTarget = ImMin(timeline->msPixelWidthTarget, (float)(timline_size.x - legendWidth) / (float)duration);
-    float frame_duration = (timeline->mFrameRate.den > 0 && timeline->mFrameRate.num > 0) ? timeline->mFrameRate.den * 1000.0 / timeline->mFrameRate.num : 40;
+    const auto frameRate = timeline->mhMediaSettings->VideoOutFrameRate();
+    float frame_duration = (frameRate.den > 0 && frameRate.num > 0) ? frameRate.den * 1000.0 / frameRate.num : 40;
     float maxPixelWidthTarget = (timeline->mSnapShotWidth > 0.0 ? timeline->mSnapShotWidth : 60.f) / frame_duration;
     timeline->msPixelWidthTarget = ImClamp(timeline->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
     int view_frames = timeline->mSnapShotWidth > 0 ? (float)(timline_size.x - legendWidth) / timeline->mSnapShotWidth : 16;
@@ -12255,7 +12289,8 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
     if (IS_VIDEO(editingClip->mType))
     {
         EditingVideoClip * video_clip = (EditingVideoClip *)editingClip;
-        maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) * main_timeline->mFrameRate.num / (main_timeline->mFrameRate.den * 1000);
+        const auto frameRate = main_timeline->mhMediaSettings->VideoOutFrameRate();
+        maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) * frameRate.num / (frameRate.den * 1000);
         view_frames = video_clip->mSnapSize.x > 0 ? (window_size.x / video_clip->mSnapSize.x) : 16;
     }
     else if (IS_AUDIO(editingClip->mType))
@@ -12673,7 +12708,8 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
                 draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
                 bool _changed = false;
                 float current_time = currentTime;// + start;
-                ImVec2 alignX = { (float)main_timeline->mFrameRate.num, (float)main_timeline->mFrameRate.den*1000 };
+                const auto frameRate = main_timeline->mhMediaSettings->VideoOutFrameRate();
+                ImVec2 alignX = { (float)frameRate.num, (float)frameRate.den*1000 };
                 key_point->SetCurveAlignX(alignX);
                 mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         key_point,
@@ -12789,7 +12825,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     if (IS_VIDEO(editingClip->mType))
     {
         EditingVideoClip * video_clip = (EditingVideoClip *)editingClip;
-        maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) * main_timeline->mFrameRate.num / (main_timeline->mFrameRate.den * 1000);
+        const auto frameRate = main_timeline->mhMediaSettings->VideoOutFrameRate();
+        maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) * frameRate.num / (frameRate.den * 1000);
         view_frames = video_clip->mSnapSize.x > 0 ? (window_size.x / video_clip->mSnapSize.x) : 16;
     }
     else if (IS_AUDIO(editingClip->mType))
@@ -13563,7 +13600,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 ImGui::CaptureMouseFromApp();
                 diffTime += io.MouseDelta.x / editingClip->msPixelWidthTarget;
-                if (diffTime > frameTime(main_timeline->mFrameRate) || diffTime < -frameTime(main_timeline->mFrameRate))
+                const auto frameRate = main_timeline->mhMediaSettings->VideoOutFrameRate();
+                if (diffTime > frameTime(frameRate) || diffTime < -frameTime(frameRate))
                 {
                     std::list<imgui_json::value>* pActionList = nullptr;
                     if (bNewDragOp)

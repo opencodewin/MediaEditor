@@ -1005,15 +1005,13 @@ struct TimeLine
 
     bool mShowHelpTooltips      {true};     // timeline show help tooltips, project saved, configured
     bool mHardwareCodec         {true};     // timeline Video/Audio decode/encode try to enable HW if available;
-    int mWidth  {1920};                     // timeline Media Width, project saved, configured
-    int mHeight {1080};                     // timeline Media Height, project saved, configured
     float mPreviewScale {0.5};              // timeline preview video size scale, usually < 1.0, default is 0.5
-    MediaCore::Ratio mFrameRate {25, 1};    // timeline Media Frame rate, project saved, configured
     int mMaxCachedVideoFrame {MAX_VIDEO_CACHE_FRAMES};  // timeline Media Video Frame cache size, project saved, configured
     float mSnapShotWidth        {60.0};
     RenderUtils::TextureManager::Holder mTxMgr;
 
     MediaCore::SharedSettings::Holder mhMediaSettings;
+    MediaCore::SharedSettings::Holder mhPreviewSettings;
     MediaCore::AudioRender::PcmFormat mAudioRenderFormat {MediaCore::AudioRender::PcmFormat::FLOAT32}; // timeline audio format, project saved, configured
     AudioAttribute mAudioAttribute;         // timeline audio attribute, need save
 
@@ -1185,8 +1183,8 @@ struct TimeLine
 
     TimeLineCallbackFunctions  m_CallBacks;
 
-    int32_t GetPreviewWidth() { return mWidth * mPreviewScale; }
-    int32_t GetPreviewHeight() { return mHeight * mPreviewScale; }
+    uint32_t GetPreviewWidth() { return mhPreviewSettings->VideoOutWidth(); }
+    uint32_t GetPreviewHeight() { return mhPreviewSettings->VideoOutHeight(); }
     int64_t GetStart() const { return mStart; }
     int64_t GetEnd() const { return mEnd; }
     void SetStart(int64_t pos) { mStart = pos; }
@@ -1264,7 +1262,8 @@ struct TimeLine
     void SyncDataLayer(bool forceRefresh = false);
     MediaCore::Snapshot::Generator::Holder GetSnapshotGenerator(int64_t mediaItemId);
     void ConfigSnapshotWindow(int64_t viewWndDur);
-    void UpdatePreviewSize();
+    RenderUtils::Vec2<uint32_t> CalcPreviewSize(const RenderUtils::Vec2<uint32_t>& videoSize, float previewScale);
+    void UpdateVideoSettings(MediaCore::SharedSettings::Holder hSettings, float previewScale);
     void UpdateAudioSettings(MediaCore::SharedSettings::Holder hSettings, MediaCore::AudioRender::PcmFormat pcmFormat);
 
     std::list<imgui_json::value> mHistoryRecords;

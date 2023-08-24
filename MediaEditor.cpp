@@ -510,10 +510,10 @@ struct MediaEditorSettings
     {
         auto& hMediaSettings = tl->mhMediaSettings;
 
-        // disable video part, will be implemented later
-        // VideoWidth = hMediaSettings->VideoOutWidth();
-        // VideoHeight = hMediaSettings->VideoOutHeight();
-        // VideoFrameRate = hMediaSettings->VideoOutFrameRate();
+        VideoWidth = hMediaSettings->VideoOutWidth();
+        VideoHeight = hMediaSettings->VideoOutHeight();
+        VideoFrameRate = hMediaSettings->VideoOutFrameRate();
+        PreviewScale = tl->mPreviewScale;
 
         AudioChannels = hMediaSettings->AudioOutChannels();
         AudioSampleRate = hMediaSettings->AudioOutSampleRate();
@@ -1532,10 +1532,12 @@ static void ShowConfigure(MediaEditorSettings & config)
                     if (config.PixelAspectRatio.den) config.PixelAspectRatio.den = 1;
                 }
 
+                ImGui::BeginDisabled(true);
                 if (ImGui::Combo("Video Frame Rate", &frame_rate_index, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
                 {
                     SetVideoFrameRate(config.VideoFrameRate, frame_rate_index);
                 }
+                ImGui::EndDisabled();
                 ImGui::BeginDisabled(frame_rate_index != 0);
                 ImGui::PushItemWidth(60);
                 ImGui::InputText("##VideoFrameRate_x", buf_fmr_x, 64, ImGuiInputTextFlags_CharsDecimal);
@@ -1665,10 +1667,6 @@ static void NewTimeline()
     {
         g_media_editor_settings.SyncSettingsFromTimeline(timeline);
         timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
-        timeline->mWidth = g_media_editor_settings.VideoWidth;
-        timeline->mHeight = g_media_editor_settings.VideoHeight;
-        timeline->mPreviewScale = g_media_editor_settings.PreviewScale;
-        timeline->mFrameRate = g_media_editor_settings.VideoFrameRate;
         timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
         timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
         timeline->mAudioAttribute.mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
@@ -10764,27 +10762,26 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             if (timeline)
             {
                 timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
-                timeline->mWidth = g_media_editor_settings.VideoWidth;
-                timeline->mHeight = g_media_editor_settings.VideoHeight;
-                timeline->mPreviewScale = g_media_editor_settings.PreviewScale;
-                timeline->mFrameRate = g_media_editor_settings.VideoFrameRate;
                 timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
-                timeline->mAudioRenderFormat = (MediaCore::AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;
                 timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
                 timeline->mFontName = g_media_editor_settings.FontName;
-                timeline->UpdatePreviewSize();
 
-                if (timeline->mMtaReader)
-                {
-                    MediaCore::SharedSettings::Holder hAudSettings = MediaCore::SharedSettings::CreateInstance();
-                    hAudSettings->SetAudioOutChannels(g_media_editor_settings.AudioChannels);
-                    hAudSettings->SetAudioOutSampleRate(g_media_editor_settings.AudioSampleRate);
-                    auto pcmDataType = MatUtils::PcmFormat2ImDataType(timeline->mAudioRenderFormat);
-                    if (pcmDataType == IM_DT_UNDEFINED)
-                        throw std::runtime_error("UNSUPPORTED audio render pcm format!");
-                    hAudSettings->SetAudioOutDataType(pcmDataType);
-                    timeline->UpdateAudioSettings(hAudSettings, timeline->mAudioRenderFormat);
-                }
+                MediaCore::SharedSettings::Holder hTimelineSettings = MediaCore::SharedSettings::CreateInstance();
+                hTimelineSettings->SetVideoOutWidth(g_media_editor_settings.VideoWidth);
+                hTimelineSettings->SetVideoOutHeight(g_media_editor_settings.VideoHeight);
+                hTimelineSettings->SetVideoOutFrameRate(g_media_editor_settings.VideoFrameRate);
+                hTimelineSettings->SetVideoOutColorFormat(timeline->mhPreviewSettings->VideoOutColorFormat());
+                hTimelineSettings->SetVideoOutDataType(timeline->mhPreviewSettings->VideoOutDataType());
+                timeline->UpdateVideoSettings(hTimelineSettings, g_media_editor_settings.PreviewScale);
+
+                hTimelineSettings->SetAudioOutChannels(g_media_editor_settings.AudioChannels);
+                hTimelineSettings->SetAudioOutSampleRate(g_media_editor_settings.AudioSampleRate);
+                auto pcmFormat = (MediaCore::AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;;
+                auto pcmDataType = MatUtils::PcmFormat2ImDataType(pcmFormat);
+                if (pcmDataType == IM_DT_UNDEFINED)
+                    throw std::runtime_error("UNSUPPORTED audio render pcm format!");
+                hTimelineSettings->SetAudioOutDataType(pcmDataType);
+                timeline->UpdateAudioSettings(hTimelineSettings, pcmFormat);
             }
             ImGui::CloseCurrentPopup(); 
         }
