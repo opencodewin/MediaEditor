@@ -851,11 +851,13 @@ static int EditingClipFilter(int type, void* handle)
     {
         MainWindowIndex = 1;
         VideoEditorWindowIndex = 0;
+        ControlPanelIndex = 1;
     }
     else if (IS_AUDIO(type))
     {
         MainWindowIndex = 2;
         AudioEditorWindowIndex = 0;
+        ControlPanelIndex = 1;
     }
     else if (IS_TEXT(type))
     {
@@ -871,11 +873,13 @@ static int EditingOverlap(int type, void* handle)
     {
         MainWindowIndex = 1;
         VideoEditorWindowIndex = 1;
+        ControlPanelIndex = 2;
     }
     else if (IS_AUDIO(type))
     {
         MainWindowIndex = 2;
         AudioEditorWindowIndex = 1;
+        ControlPanelIndex = 2;
     }
     auto updated = UIPageChanged();
     return updated ? 1 : 0;
