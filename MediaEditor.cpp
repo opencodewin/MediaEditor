@@ -1532,12 +1532,10 @@ static void ShowConfigure(MediaEditorSettings & config)
                     if (config.PixelAspectRatio.den) config.PixelAspectRatio.den = 1;
                 }
 
-                ImGui::BeginDisabled(true);
                 if (ImGui::Combo("Video Frame Rate", &frame_rate_index, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
                 {
                     SetVideoFrameRate(config.VideoFrameRate, frame_rate_index);
                 }
-                ImGui::EndDisabled();
                 ImGui::BeginDisabled(frame_rate_index != 0);
                 ImGui::PushItemWidth(60);
                 ImGui::InputText("##VideoFrameRate_x", buf_fmr_x, 64, ImGuiInputTextFlags_CharsDecimal);
@@ -1799,7 +1797,7 @@ static void LoadProjectThread(std::string path, bool in_splash)
     timeline->m_in_threads = false;
 }
 
-static void SaveProject(std::string path)
+static void SaveProject(const std::string& path)
 {
     if (!timeline || path.empty())
         return;
@@ -1858,6 +1856,24 @@ static void SaveProject(std::string path)
     project_need_save = false;
     project_changed = false;
     timeline->mIsBluePrintChanged = false;
+}
+
+static void OpenProject(const std::string& projectPath)
+{
+    if (!g_media_editor_settings.project_path.empty())
+    {
+        SaveProject(g_media_editor_settings.project_path);
+    }
+    if (g_project_loading)
+    {
+        if (g_loading_project_thread && g_loading_project_thread->joinable())
+            g_loading_project_thread->join();
+        g_project_loading = false;
+        g_loading_project_thread = nullptr;
+    }
+    CleanProject();
+    set_context_in_splash = false;
+    g_loading_project_thread = new std::thread(LoadProjectThread, projectPath, set_context_in_splash);
 }
 
 /****************************************************************************************
@@ -10766,22 +10782,36 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
                 timeline->mFontName = g_media_editor_settings.FontName;
 
-                MediaCore::SharedSettings::Holder hTimelineSettings = MediaCore::SharedSettings::CreateInstance();
-                hTimelineSettings->SetVideoOutWidth(g_media_editor_settings.VideoWidth);
-                hTimelineSettings->SetVideoOutHeight(g_media_editor_settings.VideoHeight);
-                hTimelineSettings->SetVideoOutFrameRate(g_media_editor_settings.VideoFrameRate);
-                hTimelineSettings->SetVideoOutColorFormat(timeline->mhPreviewSettings->VideoOutColorFormat());
-                hTimelineSettings->SetVideoOutDataType(timeline->mhPreviewSettings->VideoOutDataType());
-                timeline->UpdateVideoSettings(hTimelineSettings, g_media_editor_settings.PreviewScale);
-
-                hTimelineSettings->SetAudioOutChannels(g_media_editor_settings.AudioChannels);
-                hTimelineSettings->SetAudioOutSampleRate(g_media_editor_settings.AudioSampleRate);
+                MediaCore::SharedSettings::Holder hNewSettings = MediaCore::SharedSettings::CreateInstance();
+                hNewSettings->SetVideoOutWidth(g_media_editor_settings.VideoWidth);
+                hNewSettings->SetVideoOutHeight(g_media_editor_settings.VideoHeight);
+                hNewSettings->SetVideoOutFrameRate(g_media_editor_settings.VideoFrameRate);
+                hNewSettings->SetVideoOutColorFormat(timeline->mhPreviewSettings->VideoOutColorFormat());
+                hNewSettings->SetVideoOutDataType(timeline->mhPreviewSettings->VideoOutDataType());
+                hNewSettings->SetAudioOutChannels(g_media_editor_settings.AudioChannels);
+                hNewSettings->SetAudioOutSampleRate(g_media_editor_settings.AudioSampleRate);
                 auto pcmFormat = (MediaCore::AudioRender::PcmFormat)g_media_editor_settings.AudioFormat;;
                 auto pcmDataType = MatUtils::PcmFormat2ImDataType(pcmFormat);
                 if (pcmDataType == IM_DT_UNDEFINED)
                     throw std::runtime_error("UNSUPPORTED audio render pcm format!");
-                hTimelineSettings->SetAudioOutDataType(pcmDataType);
-                timeline->UpdateAudioSettings(hTimelineSettings, pcmFormat);
+                hNewSettings->SetAudioOutDataType(pcmDataType);
+
+                bool needReloadProject = false;
+                if (hNewSettings->VideoOutFrameRate() != timeline->mhMediaSettings->VideoOutFrameRate())
+                    needReloadProject = true;
+                if (needReloadProject)
+                {
+                    timeline->mhMediaSettings->SyncVideoSettingsFrom(hNewSettings.get());
+                    timeline->mPreviewScale = g_media_editor_settings.PreviewScale;
+                    timeline->mhMediaSettings->SyncAudioSettingsFrom(hNewSettings.get());
+                    timeline->mAudioRenderFormat = pcmFormat;
+                    OpenProject(g_media_editor_settings.project_path);
+                }
+                else
+                {
+                    timeline->UpdateVideoSettings(hNewSettings, g_media_editor_settings.PreviewScale);
+                    timeline->UpdateAudioSettings(hNewSettings, pcmFormat);
+                }
             }
             ImGui::CloseCurrentPopup(); 
         }
@@ -11282,21 +11312,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             }
             if (userDatas.compare("ProjectOpen") == 0)
             {
-                if (!g_media_editor_settings.project_path.empty())
-                {
-                    SaveProject(g_media_editor_settings.project_path);
-                }
-                if (g_project_loading)
-                {
-                    if (g_loading_project_thread && g_loading_project_thread->joinable())
-                        g_loading_project_thread->join();
-                    g_project_loading = false;
-                    g_loading_project_thread = nullptr;
-                }
-                CleanProject();
-                set_context_in_splash = false;
+                OpenProject(file_path);
                 project_name = ImGuiHelper::path_filename_prefix(file_path);
-                g_loading_project_thread = new std::thread(LoadProjectThread, file_path, set_context_in_splash);
             }
             if (userDatas.compare("ProjectSave") == 0)
             {
