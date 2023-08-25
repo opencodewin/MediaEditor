@@ -946,27 +946,28 @@ static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 p
         offset_x = pos.x + tf_x;
         offset_y = pos.y + tf_y;
         draw_list->AddRectFilled(ImVec2(offset_x, offset_y), ImVec2(offset_x + adj_w, offset_y + adj_h), IM_COL32_BLACK);
-        if (!out_border)
-        {
-            draw_list->AddImage(
-                texture,
-                ImVec2(offset_x, offset_y),
-                ImVec2(offset_x + adj_w, offset_y + adj_h),
-                uvMin,
-                uvMax
-            );
-        }
-        else
-        {
-            draw_list->AddLine(ImVec2(offset_x, offset_y), ImVec2(offset_x + adj_w, offset_y + adj_h), IM_COL32(255, 0, 0, 255));
-            draw_list->AddLine(ImVec2(offset_x + adj_w, offset_y), ImVec2(offset_x, offset_y + adj_h), IM_COL32(255, 0, 0, 255));
-        }
+        
+        draw_list->AddImage(
+            texture,
+            ImVec2(offset_x, offset_y),
+            ImVec2(offset_x + adj_w, offset_y + adj_h),
+            uvMin,
+            uvMax
+        );
+        
         tf_x = offset_x + adj_w;
         tf_y = offset_y + adj_h;
         if (!title.empty() && title_size > 0)
         {
             ImGui::AddTextComplex(draw_list, ImVec2(offset_x, offset_y) + ImVec2(20, 10),
                                 title.c_str(), title_size, IM_COL32(224, 224, 224, 128),
+                                0.25f, IM_COL32(128, 128, 128, 255),
+                                ImVec2(title_size * 1.5, title_size * 1.5), IM_COL32(32, 32, 32, 255));
+        }
+        if (out_border)
+        {
+            ImGui::AddTextComplex(draw_list, ImVec2(offset_x, offset_y + adj_h - 48) + ImVec2(20, 10),
+                                "Out of range", title_size, IM_COL32(224, 0, 0, 224),
                                 0.25f, IM_COL32(128, 128, 128, 255),
                                 ImVec2(title_size * 1.5, title_size * 1.5), IM_COL32(32, 32, 32, 255));
         }
@@ -4219,14 +4220,18 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
             {
                 timeline->Play(false, true);
                 timeline->Seek(end);
-                out_of_border = true;
+                //out_of_border = true;
             }
             else if (!timeline->mIsPreviewForward && timeline->mCurrentTime <= start)
             {
                 timeline->Play(false, false);
                 timeline->Seek(start);
-                out_of_border = true;
+                //out_of_border = true;
             }
+        }
+        else if (timeline->mCurrentTime < start || timeline->mCurrentTime > end)
+        {
+            out_of_border = true;
         }
 
         float region_sz = 360.0f / texture_zoom;
@@ -5887,14 +5892,18 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
             {
                 timeline->Play(false, true);
                 timeline->Seek(timeline->mVidOverlap->mEnd);
-                out_of_border = true;
+                //out_of_border = true;
             }
             else if (!timeline->mIsPreviewForward && timeline->mCurrentTime <= timeline->mVidOverlap->mStart)
             {
                 timeline->Play(false, false);
                 timeline->Seek(timeline->mVidOverlap->mStart);
-                out_of_border = true;
+                //out_of_border = true;
             }
+        }
+        else if (timeline->mCurrentTime < timeline->mVidOverlap->mStart || timeline->mCurrentTime > timeline->mVidOverlap->mEnd)
+        {
+            out_of_border = true;
         }
         // transition first input texture area
         ShowVideoWindow(draw_list, timeline->mVideoTransitionInputFirstTexture, InputFirstVideoPos, InputFirstVideoSize, "1", 1.2f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
