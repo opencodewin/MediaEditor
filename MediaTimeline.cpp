@@ -4246,12 +4246,12 @@ void EditingVideoOverlap::CalcDisplayParams()
     if (mSsGen2) mSsGen2->ConfigSnapWindow(snapWndSize, snapCntInView);
 }
 
-void EditingVideoOverlap::Seek(int64_t pos)
+void EditingVideoOverlap::Seek(int64_t pos, bool enterSeekingState)
 {
     TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
     if (!timeline)
         return;
-    timeline->Seek(pos, true);
+    timeline->Seek(pos, enterSeekingState);
 }
 
 void EditingVideoOverlap::Step(bool forward, int64_t step)
@@ -4364,12 +4364,12 @@ EditingAudioOverlap::~EditingAudioOverlap()
     mTransition = nullptr;
 }
 
-void EditingAudioOverlap::Seek(int64_t pos)
+void EditingAudioOverlap::Seek(int64_t pos, bool enterSeekingState)
 {
     TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
     if (!timeline)
         return;
-    timeline->Seek(pos);
+    timeline->Seek(pos, enterSeekingState);
 }
 
 void EditingAudioOverlap::Step(bool forward, int64_t step)
@@ -13791,7 +13791,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         if (newPos >= end)
             newPos = end;
         if (oldPos != newPos)
-            overlap->Seek(newPos + overlap->mStart); // call seek event
+            overlap->Seek(newPos + overlap->mStart, true); // call seek event
     }
     if (overlap->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {

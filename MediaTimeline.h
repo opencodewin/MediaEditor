@@ -766,7 +766,7 @@ struct BaseEditingOverlap
     BaseEditingOverlap(Overlap* ovlp) : mOvlp(ovlp) {}
     std::pair<int64_t, int64_t> m_StartOffset;
 
-    virtual void Seek(int64_t pos) = 0;
+    virtual void Seek(int64_t pos, bool enterSeekingState) = 0;
     virtual void Step(bool forward, int64_t step = 0) = 0;
     virtual bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame = true) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) = 0;
@@ -788,7 +788,7 @@ public:
     EditingVideoOverlap(Overlap* ovlp);
     virtual ~EditingVideoOverlap();
 
-    void Seek(int64_t pos) override;
+    void Seek(int64_t pos, bool enterSeekingState) override;
     void Step(bool forward, int64_t step = 0) override;
     bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
@@ -809,7 +809,7 @@ public:
     EditingAudioOverlap(Overlap* ovlp);
     virtual ~EditingAudioOverlap();
 
-    void Seek(int64_t pos) override;
+    void Seek(int64_t pos, bool enterSeekingState) override;
     void Step(bool forward, int64_t step = 0) override;
     bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override { return false; }
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;

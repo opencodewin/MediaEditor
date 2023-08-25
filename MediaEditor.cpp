@@ -5768,7 +5768,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     if (ImGui::Button(ICON_TO_START "##video_transition_tostart", ImVec2(32, 32)))
     {
         if (timeline && timeline->mVidOverlap)
-            timeline->mVidOverlap->Seek(timeline->mVidOverlap->mStart);
+            timeline->mVidOverlap->Seek(timeline->mVidOverlap->mStart, false);
     } ImGui::ShowTooltipOnHover("To Start");
     
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 2, PanelButtonY));
@@ -5825,7 +5825,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     if (ImGui::Button(ICON_TO_END "##video_transition_toend", ImVec2(32, 32)))
     {
         if (timeline && timeline->mVidOverlap)
-            timeline->mVidOverlap->Seek(timeline->mVidOverlap->mEnd - 40);
+            timeline->mVidOverlap->Seek(timeline->mVidOverlap->mEnd - 40, false);
     } ImGui::ShowTooltipOnHover("To End");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
