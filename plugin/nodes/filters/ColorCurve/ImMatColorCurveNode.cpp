@@ -416,7 +416,7 @@ struct ColorCurveNode final : Node
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.75, 0.75, 0.75, 0.75));
         ImGui::SetCursorScreenPos(pos + ImVec2(scope_view_size.x + 40, 96));
-        if (ImGui::Button(ICON_RESET "##color_curve_reset"))
+        if (ImGui::Button(ICON_RESET_ALL "##color_curve_reset"))
         {
             ResetCurve();
             mTension = 0;
