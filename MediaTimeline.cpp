@@ -5602,13 +5602,13 @@ TimeLine::TimeLine(std::string plugin_path)
     RenderUtils::Vec2<int32_t> snapshotGridTextureSize;
     snapshotGridTextureSize = {64*16/9, 64};
     if (!mTxMgr->CreateGridTexturePool(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
-        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+        Logger::Log(Logger::WARN) << "FAILED to create grid texture pool '" << VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
     snapshotGridTextureSize = {DEFAULT_VIDEO_TRACK_HEIGHT*16/9, DEFAULT_VIDEO_TRACK_HEIGHT};
     if (!mTxMgr->CreateGridTexturePool(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
-        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+        Logger::Log(Logger::WARN) << "FAILED to create grid texture pool '" << VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
     snapshotGridTextureSize = {50*16/9, 50};
     if (!mTxMgr->CreateGridTexturePool(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
-        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+        Logger::Log(Logger::WARN) << "FAILED to create grid texture pool '" << EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
 
     mhMediaSettings = MediaCore::SharedSettings::CreateInstance();
     // set default video settings
@@ -5704,6 +5704,10 @@ TimeLine::~TimeLine()
         StopEncoding();
     }
     mEncoder = nullptr;
+
+    mTxMgr->ReleaseTexturePool(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME);
+    mTxMgr->ReleaseTexturePool(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
+    mTxMgr->ReleaseTexturePool(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
 }
 
 int64_t TimeLine::AlignTime(int64_t time, int mode)

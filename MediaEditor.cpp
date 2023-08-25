@@ -628,17 +628,17 @@ static void GetVersion(int& major, int& minor, int& patch, int& build)
     build = MEDIAEDITOR_VERSION_BUILD;
 }
 
-static bool TimelineConfChanged(MediaEditorSettings &old_setting, MediaEditorSettings &new_setting)
-{
-    if (old_setting.VideoHeight != new_setting.VideoHeight || old_setting.VideoWidth != new_setting.VideoWidth ||
-        old_setting.PreviewScale != new_setting.PreviewScale || old_setting.PixelAspectRatio.den != new_setting.PixelAspectRatio.den ||
-        old_setting.PixelAspectRatio.num != new_setting.PixelAspectRatio.num || old_setting.VideoFrameRate.den != new_setting.VideoFrameRate.den ||
-        old_setting.VideoFrameRate.num != new_setting.VideoFrameRate.num || old_setting.ColorSpaceIndex != new_setting.ColorSpaceIndex ||
-        old_setting.ColorTransferIndex != new_setting.ColorTransferIndex || old_setting.HardwareCodec != new_setting.HardwareCodec ||
-        old_setting.AudioSampleRate != new_setting.AudioSampleRate || old_setting.AudioChannels != new_setting.AudioChannels ||old_setting.AudioFormat != new_setting.AudioFormat)
-        return true;
-    return false;
-}
+// static bool TimelineConfChanged(MediaEditorSettings &old_setting, MediaEditorSettings &new_setting)
+// {
+//     if (old_setting.VideoHeight != new_setting.VideoHeight || old_setting.VideoWidth != new_setting.VideoWidth ||
+//         old_setting.PreviewScale != new_setting.PreviewScale || old_setting.PixelAspectRatio.den != new_setting.PixelAspectRatio.den ||
+//         old_setting.PixelAspectRatio.num != new_setting.PixelAspectRatio.num || old_setting.VideoFrameRate.den != new_setting.VideoFrameRate.den ||
+//         old_setting.VideoFrameRate.num != new_setting.VideoFrameRate.num || old_setting.ColorSpaceIndex != new_setting.ColorSpaceIndex ||
+//         old_setting.ColorTransferIndex != new_setting.ColorTransferIndex || old_setting.HardwareCodec != new_setting.HardwareCodec ||
+//         old_setting.AudioSampleRate != new_setting.AudioSampleRate || old_setting.AudioChannels != new_setting.AudioChannels ||old_setting.AudioFormat != new_setting.AudioFormat)
+//         return true;
+//     return false;
+// }
 
 static void UpdateBreathing()
 {
@@ -1715,7 +1715,7 @@ static void LoadProjectThread(std::string path, bool in_splash)
         g_env_scan_thread.join();
     g_project_loading = true;
     g_project_loading_percentage = 0;
-    Logger::Log(Logger::DEBUG) << "[Project] Load project from file!!!" << std::endl;
+    Logger::Log(Logger::DEBUG) << "[MEC] Load project from '" << path << "'." << std::endl;
     g_project_loading_percentage = 0.1;
     auto loadResult = imgui_json::value::load(path);
     if (!loadResult.second)
@@ -10767,17 +10767,16 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button("OK", ImVec2(60, 0)))
         {
             show_configure = false;
-            if (TimelineConfChanged(g_media_editor_settings, g_new_setting))
-            {
-                pfd::message("Need Reboot", "Changing timeline's Settings requires restart application to take effect!",
-                                    pfd::choice::ok,
-                                    pfd::icon::warning);
-            }
-
             g_media_editor_settings = g_new_setting;
             if (timeline)
             {
-                timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
+                bool needReloadProject = false;
+                if (timeline->mHardwareCodec != g_media_editor_settings.HardwareCodec)
+                {
+                    timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
+                    MediaCore::VideoClip::USE_HWACCEL = g_media_editor_settings.HardwareCodec;
+                    needReloadProject = true;
+                }
                 timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
                 timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
                 timeline->mFontName = g_media_editor_settings.FontName;
@@ -10796,7 +10795,6 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     throw std::runtime_error("UNSUPPORTED audio render pcm format!");
                 hNewSettings->SetAudioOutDataType(pcmDataType);
 
-                bool needReloadProject = false;
                 if (hNewSettings->VideoOutFrameRate() != timeline->mhMediaSettings->VideoOutFrameRate())
                     needReloadProject = true;
                 if (needReloadProject)
