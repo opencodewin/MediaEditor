@@ -11352,7 +11352,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             timeline->CustomDraw(
                     customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect,
                     customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect,
-                    bClipMoving, !menuIsOpened && !timeline->mIsCutting && editable, changed, &actionList);
+                    bClipMoving, !menuIsOpened && !timeline->mIsCutting && editable, changed | need_save, &actionList);
         draw_list->PopClipRect();
 
         // show cutting line
