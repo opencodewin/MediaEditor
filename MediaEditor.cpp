@@ -9114,21 +9114,21 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 {
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 0.f, 0.f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 0.f, 0.f, 0.5f));
-                    ImGui::PlotMat(histogram_mat, &((float *)rmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
+                    ImGui::PlotMat(histogram_mat, &((float *)rmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true, true);
                     ImGui::PopStyleColor(2);
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.5f));
-                    ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset), &((float *)gmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
+                    ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset), &((float *)gmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true, true);
                     ImGui::PopStyleColor(2);
                     ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 0.f, 1.f, 1.0f));
                     ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 0.f, 1.f, 0.5f));
-                    ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 2), &((float *)bmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
+                    ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 2), &((float *)bmat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true, true);
                     ImGui::PopStyleColor(2);
                     if (g_media_editor_settings.HistogramYRGB)
                     {
                         ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(1.f, 1.f, 1.f, 1.0f));
                         ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(1.f, 1.f, 1.f, 0.5f));
-                        ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 3), &((float *)ymat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true);
+                        ImGui::PlotMat(histogram_mat, ImVec2(0, height_offset * 3), &((float *)ymat.data)[1], mat_histogram.w - 1, 0, 0, g_media_editor_settings.HistogramLog ? 10 : 1000, ImVec2(MATVIEW_WIDTH, MATVIEW_HEIGHT / height_scale), sizeof(float), true, true);
                         ImGui::PopStyleColor(2);
                     }
                 }
@@ -9840,7 +9840,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 {
                     ImGui::ImMat db_mat_inv = timeline->mAudioAttribute.channel_data[i].m_db.clone();
                     db_mat_inv += 90.f;
-                    ImGui::PlotMat(db_mat, ImVec2(0, mat_channel_view_size.y * i), (float *)db_mat_inv.data, db_mat_inv.w, 0, 0.f, 90.f / g_media_editor_settings.AudioDBScale, mat_channel_view_size, sizeof(float), true);
+                    ImGui::PlotMat(db_mat, ImVec2(0, mat_channel_view_size.y * i), (float *)db_mat_inv.data, db_mat_inv.w, 0, 0.f, 90.f / g_media_editor_settings.AudioDBScale, mat_channel_view_size, sizeof(float), false);
                 }
                 draw_list->AddRect(channel_min, channel_max, COL_SLIDER_HANDLE, 0);
             }
