@@ -9506,7 +9506,7 @@ bool TimeLine::UndoOneRecord()
             if (startDiff != 0)
                 clip->Cropping(startDiff, 0);
             if (endDiff != 0)
-                clip->Cropping(endDiff, 1);
+                clip->Cropping(-endDiff, 1);
 
             imgui_json::value undoAction;
             undoAction["action"] = "CROP_CLIP";
@@ -9788,7 +9788,7 @@ bool TimeLine::RedoOneRecord()
                 endDiff = newEnd-orgEnd;
             }
             if (startDiff != 0)
-                clip->Cropping(startDiff, 0);
+                clip->Cropping(-startDiff, 0);
             if (endDiff)
                 clip->Cropping(endDiff, 1);
             mUiActions.push_back(action);
