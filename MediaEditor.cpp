@@ -4212,14 +4212,20 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
             timeline->mIsPreviewNeedUpdate = false;
         }
 
-        if (timeline->mCurrentTime < start || timeline->mCurrentTime > end)
+        if (timeline->mIsPreviewPlaying)
         {
-            out_of_border = true;
             // reach clip border
-            if (timeline->mIsPreviewPlaying)
+            if (timeline->mIsPreviewForward && timeline->mCurrentTime >= end)
             {
-                if (timeline->mCurrentTime < start) { timeline->Play(false, false); timeline->Seek(start); }
-                if (timeline->mCurrentTime > end) { timeline->Play(false, true); timeline->Seek(end); }
+                timeline->Play(false, true);
+                timeline->Seek(end);
+                out_of_border = true;
+            }
+            else if (!timeline->mIsPreviewForward && timeline->mCurrentTime <= start)
+            {
+                timeline->Play(false, false);
+                timeline->Seek(start);
+                out_of_border = true;
             }
         }
 
@@ -5874,14 +5880,20 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
         ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
         float offset_x = 0, offset_y = 0;
         float tf_x = 0, tf_y = 0;
-        if (timeline->mCurrentTime < timeline->mVidOverlap->mStart || timeline->mCurrentTime > timeline->mVidOverlap->mEnd)
+        if (timeline->mIsPreviewPlaying)
         {
-            out_of_border = true;
             // reach clip border
-            if (timeline->mIsPreviewPlaying)
+            if (timeline->mIsPreviewForward && timeline->mCurrentTime >= timeline->mVidOverlap->mEnd)
             {
-                if (timeline->mCurrentTime < timeline->mVidOverlap->mStart) { timeline->Play(false, false); timeline->Seek(timeline->mVidOverlap->mStart); }
-                if (timeline->mCurrentTime > timeline->mVidOverlap->mEnd) { timeline->Play(false, true); timeline->Seek(timeline->mVidOverlap->mEnd); }
+                timeline->Play(false, true);
+                timeline->Seek(timeline->mVidOverlap->mEnd);
+                out_of_border = true;
+            }
+            else if (!timeline->mIsPreviewForward && timeline->mCurrentTime <= timeline->mVidOverlap->mStart)
+            {
+                timeline->Play(false, false);
+                timeline->Seek(timeline->mVidOverlap->mStart);
+                out_of_border = true;
             }
         }
         // transition first input texture area
