@@ -6485,7 +6485,7 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
     }
     else
     {
-        previewPos = mPreviewResumePos;
+        previewPos = mCurrentTime;
     }
 
     if (mIsPreviewPlaying)
@@ -6637,8 +6637,12 @@ void TimeLine::Seek(int64_t msPos, bool enterSeekingState)
         if (mAudioRender && !mIsPreviewPlaying)
             mAudioRender->Resume();
     }
-    else if (msPos == mPreviewResumePos)
+
+    auto targetFrameIndex = mMtvReader->MillsecToFrameIndex(msPos);
+    if (targetFrameIndex == mFrameIndex)
         return;
+    mFrameIndex = targetFrameIndex;
+    mCurrentTime = mMtvReader->FrameIndexToMillsec(mFrameIndex);
 
     if (bSeeking)
     {
@@ -6652,9 +6656,8 @@ void TimeLine::Seek(int64_t msPos, bool enterSeekingState)
         mMtaReader->SeekTo(msPos, false);
         mMtvReader->SeekTo(msPos);
         mAudioRender->Flush();
+        mPreviewResumePos = mCurrentTime;
     }
-    mFrameIndex = mMtvReader->MillsecToFrameIndex(msPos);
-    mCurrentTime = mPreviewResumePos = mMtvReader->FrameIndexToMillsec(mFrameIndex);
 }
 
 void TimeLine::StopSeek()
@@ -6663,7 +6666,7 @@ void TimeLine::StopSeek()
     {
         bSeeking = false;
         if (mMtaReader)
-            mMtaReader->SeekTo(mPreviewResumePos, false);
+            mMtaReader->SeekTo(mCurrentTime, false);
         if (mAudioRender)
         {
             if (!mIsPreviewPlaying)
@@ -6673,6 +6676,7 @@ void TimeLine::StopSeek()
         if (mMtvReader)
             mMtvReader->StopConsecutiveSeek();
         mPlayTriggerTp = PlayerClock::now();
+        mPreviewResumePos = mCurrentTime;
     }
     if (!mIsPreviewPlaying)
     {
