@@ -83,17 +83,17 @@ struct ColorBalanceNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         static ImVec2 offset = ImVec2(0, 0);
-        if (ImGui::BalanceSelector("Shadow", ImVec2(100, 100), &_shadows, ImVec4(0, 0, 0, 0), m_ganged ? &offset : nullptr, zoom, 0.5))
+        if (ImGui::BalanceSelector("Shadow", ImVec2(100, 100), &_shadows, ImVec4(0, 0, 0, 0), m_ganged ? &offset : nullptr, zoom, embedded ? 0.5 : 1.0))
         {
             if (m_ganged) _midtones = _highlights = ImVec4(0, 0, 0, 0);
         }
         ImGui::SameLine(); ImGui::Spacing(); ImGui::SameLine();
-        if (ImGui::BalanceSelector("Midtones", ImVec2(100, 100), &_midtones, ImVec4(0, 0, 0, 0), m_ganged ? &offset : nullptr, zoom, 0.5))
+        if (ImGui::BalanceSelector("Midtones", ImVec2(100, 100), &_midtones, ImVec4(0, 0, 0, 0), m_ganged ? &offset : nullptr, zoom, embedded ? 0.5 : 1.0))
         {
             if (m_ganged) _shadows = _highlights = ImVec4(0, 0, 0, 0);
         }
         ImGui::SameLine(); ImGui::Spacing(); ImGui::SameLine();
-        if (ImGui::BalanceSelector("Highlights", ImVec2(100, 100), &_highlights, ImVec4(0, 0, 0, 0), m_ganged ? &offset : nullptr, zoom, 0.5))
+        if (ImGui::BalanceSelector("Highlights", ImVec2(100, 100), &_highlights, ImVec4(0, 0, 0, 0), m_ganged ? &offset : nullptr, zoom, embedded ? 0.5 : 1.0))
         {
             if (m_ganged) _shadows = _midtones = ImVec4(0, 0, 0, 0);
         }
