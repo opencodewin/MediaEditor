@@ -6519,10 +6519,13 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
                 playEof = true;
             }
         }
-        mFrameIndex = mMtvReader->MillsecToFrameIndex(previewPos);
-        mCurrentTime = mMtvReader->FrameIndexToMillsec(mFrameIndex);
         if (needSeek)
-            Seek(mCurrentTime);
+            Seek(previewPos);
+        else
+        {
+            mFrameIndex = mMtvReader->MillsecToFrameIndex(previewPos);
+            mCurrentTime = mMtvReader->FrameIndexToMillsec(mFrameIndex);
+        }
         if (playEof)
         {
             mIsPreviewPlaying = false;
@@ -6730,7 +6733,6 @@ void TimeLine::ToStart()
 void TimeLine::ToEnd()
 {
     int64_t dur = ValidDuration();
-    if (dur > 0) dur -= 1;
     Seek(dur);
 }
 
