@@ -1,6 +1,42 @@
-## Quick Start
-**Let's start the journey of using MEC.**
+# QuickStart for MediaEditor Community
 
+<style>
+  hr {
+    border-style: none !important;
+    border-top-width: 5px !important;
+    border-top-style: double !important;
+  }
+</style>
+
+## Downloads
+#### We provide the following release packages for Windows, Linux and macOS.
+
+| System | Stable / Nightly |
+| ------ | ---------------- |
+| Windows 10 / 11 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/mec_SDL2_OpenGL3_win-x86_64-0.9.8.exe"><img src="../../docs/assets/download.svg"></a> |
+| Ubuntu 20.04 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-ubuntu2004-x86_64-0.9.8.AppImage"><img src="../../docs/assets/download.svg"></a> |
+| Ubuntu 22.04 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-ubuntu2204-x86_64-0.9.8.AppImage"><img src="../../docs/assets/download.svg"></a> |
+| MacOS x86 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-MacOS-x86_64-0.9.8.dmg"><img src="../../docs/assets/download.svg"></a> |
+| MacOS ARM | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-MacOS-arm64-0.9.8.dmg"><img src="../../docs/assets/download.svg"></a> |
+
+## Tutorials
+#### ***Note: <u>This Tutorial will be rewritten in the near future.</u>***
+#### ***Note: <u>The software is still in development, this tutorial maybe has quite different from the actual situation.</u>***
+#### This tutorial contains the following contents for quickly understand and use MediaEditor Community: 
+- [Create a project](#create-a-project)
+- [Add clip to timeline](#add-clip-to-timeline)
+- [Play clips in the media thumbnail](#play-clips-in-the-media-thumbnail)
+- [Create first rough-cut](#create-first-rough-cut)
+- [Add music](#add-music)
+- [Add more materials](#add-more-materials)
+- [Rearrange clips](#rearrange-clips)
+- [Pruning by time](#pruning-by-time)
+- [Sound mixing](#sound-mixing)
+- [Add Transitions](#add-transitions)
+- [Add Filters](#add-filters)
+- [Output sample](#output-sample)
+
+---
 ### Create a project
 1. Click "New Project" in the system sidebar, and Media Editor will pop up a built-in file browser;
 2. Switch the directory to "/Users/fans/Projects" in the file browser;

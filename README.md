@@ -10,7 +10,7 @@
 
 <div align="center">
   <a href="LICENSE"><img alt="License" src="docs/assets/license.svg"></a>
-  <a href="https://github.com/opencodewin/MediaEditor/wiki"><img alt="Documentation" src="docs/assets/code-doc.svg"></a>
+  <a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.8"><img alt="Stable" src="docs/assets/code-doc.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/pulls"><img alt="PRs Welcome" src="docs/assets/prs.svg"></a>
   <a href="#HOW-TO-CONTRIBUTE"><img alt="Contributions Welcome" src="docs/assets/contribute.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/commits/master"><img alt="Commits" src="docs/assets/latest.svg"></a>
@@ -22,14 +22,40 @@
 
 MediaEditor Community(MEC) is a highly integrated and easy to learn application software that can be used to **create, edit, and produce** high-quality videos. The functions involve **video editing, video filters, video transition, audio mixing, and text processing**.🌼
 
-## News
-### **⭐️⭐️⭐️ - 2023/05/19 [v0.9.7](https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.7) is release.**
-  - 🔥 Supported plugin, which can expand filters, transitions, effects and AI, according to your own needs.
-  - 💡 More effect and transition node.
-  - 💡 More convenient way of UI operations.
-  - 💡 Some known bugs fixed and optimizations of core features.
+<style>
+  hr {
+    border-image: linear-gradient(to right, #F00, #0F0 20%, #00F 80%, #000) 1 !important;
+  }
+</style>
 
-⭐️⭐️⭐️ - 2023/04/20 MediaEditor Community first release v0.9.6 is now available; you can download binary-packages from [here](https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.6).
+## NEWS
+#### ***Note:*** For ease of reading, we'll abbreviate <u>***MediaEditor Community***</u> to <u>***Mec***</u>.
+
+---
+<a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.8"><img alt="v0.9.8" src="docs/assets/version_3.svg"></a>
+
+  - **🎉🎉🎉 Released on August 28, 2023.**
+  - **🔥 Supported BluePrint-based event mode.**
+  - **🔥 Supported short-term filters and short-term effects.**
+  - **🔥 Optimized the base framework to improve software performance.**
+  - **🔥 Great changes in the User-Interface.**
+  - 💡 Added some new fliters and effects.
+  - 💡 Fixed a lot of bugs.
+  - More ...
+---
+<a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.7"><img alt="v0.9.7" src="docs/assets/version_2.svg"></a>
+
+  - ⭐️ Released on May 19, 2023.
+  - 🔥 Supported plug-in frameworks for more Filters, Effects, Transitions and etc.
+  - 💡 Added some new effects and transitions.
+  - 💡 Fixed some known bugs.
+
+---
+<a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.6"><img alt="v0.9.6" src="docs/assets/version_1.svg"></a>
+
+  - ⭐️ Released on April 20, 2023.
+  - 💡 Structured the basic framework for non-linear editing.
+---
 
 ## FEATURES
 * Support complete timeline editing functions, including move, crop, cut, thumbnail preview, scale and delete.
