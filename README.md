@@ -1,30 +1,32 @@
-<p align="center"><img src="docs/assets/multi_viewpoint.gif" alt="MediaEditor"></p>
-
-<h1 align="center">MediaEditor Community</h1>
-
 <div align="center">
-  A simple and elegant open-source media editor that focused on convenience and usability.<br>
+
+  # MediaEditor Community
+
+  A lightweight, cross-platform and open-source software for non-linear editing.<br>
   <sub>Available for Linux, macOS and Windows.</sub>
-</div>
-<br>
 
-<div align="center">
   <a href="LICENSE"><img alt="License" src="docs/assets/license.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.8"><img alt="Stable" src="docs/assets/code-doc.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/pulls"><img alt="PRs Welcome" src="docs/assets/prs.svg"></a>
   <a href="#HOW-TO-CONTRIBUTE"><img alt="Contributions Welcome" src="docs/assets/contribute.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/commits/master"><img alt="Commits" src="docs/assets/latest.svg"></a>
+
+  [**Use it now →**](docs/dev/Quick-Start.md)
+  <br>
+
+  <img src="docs/assets/multi_viewpoint.gif" style="width:70%;height:auto;" alt="MediaEditor Community">
+
 </div>
-
-<br>
-
-<h2 align="center">⭐️ Welcome to MediaEditor Community Software! ⭐️</h2>
-
-MediaEditor Community(MEC) is a highly integrated and easy to learn application software that can be used to **create, edit, and produce** high-quality videos. The functions involve **video editing, video filters, video transition, audio mixing, and text processing**.🌼
 
 <style>
   hr {
     border-image: linear-gradient(to right, #F00, #0F0 20%, #00F 80%, #000) 1 !important;
+  }
+  table th:first-of-type {
+    width: 51%;
+  }
+  table th:nth-of-type(2) {
+      width: 49%;
   }
 </style>
 
@@ -57,21 +59,24 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
   - 💡 Structured the basic framework for non-linear editing.
 ---
 
+## PREVIEWS
+|<div>Video Filter</div>|<div>Video Transition</div>|
+|---|---|
+|<img src="docs/assets/video-filter_new.png" />|<img src="docs/assets/video-transition_new.png" />|
+
+|<div>Audio Filter</div>|<div>Audio Mixer</div>|
+|---|---|
+|<img src="docs/assets/audio-filter_new.png" />|<img src="docs/assets/audio-mixing_new.png" />|
+
+|<div>BluePrint</div>|<div>Scope tools</div>|
+|---|---|
+|<img src="docs/assets/blueprint.gif" />|<img src="docs/assets/cie.gif" style="width:32%;height:auto;" /> <img src="docs/assets/waveform.gif" style="width:32%;height:auto;" /> <img src="docs/assets/spec.gif" style="width:32%;height:auto;" />|
+
 ## FEATURES
 * Support complete timeline editing functions, including move, crop, cut, thumbnail preview, scale and delete.
-  &emsp;<img src="docs/assets/timeline.png" alt="timeline">
-* Support more flexible and easily blueprint system. Blueprint💫 is represented in the form of nodes, which can handle complex functions through nodes and flows.
-  &emsp;<img src="docs/assets/blueprint.gif" alt="blueprint">
-* Support about 45+ built-in media filters and 70+ built-in media transitions🤖.
-
-  &emsp;<img src="docs/assets/transition.gif" alt="transition">
-* Support about 10 video and audio analysis tools🍂.
-
-  &emsp;🍂Video CIE&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;🍂Video Waveform&emsp;&emsp;&emsp;&emsp;🍂Audio Spectrogram
-
-  &emsp;<img src="docs/assets/cie.gif" /><img src="docs/assets/waveform.gif" /><img src="docs/assets/spec.gif" />
-
-* A lightweight, cross platform, high-performance software, support Linux, Mac, and Windows.
+* Support more flexible and easily blueprint system. Blueprint is represented in the form of nodes, which can handle complex functions through nodes and flows.
+* Support about 45+ built-in media filters and 70+ built-in media transitions.
+* Support about 10 video and audio analysis tools.
 * Support multiple audio and video codecs, including ProRes, H.264, H.265, VP9, etc.
 * Support import and edit videos from standard definition to 4K resolution.
 * Support magnetic snapping, which can smoothly adjust adjacent clips when arranging them to eliminate gaps, conflicts, and synchronization issues.
@@ -85,49 +90,99 @@ MediaEditor Community(MEC) is a highly integrated and easy to learn application 
 * Support multiple professional export formats, including QuickTime, MKV, MP4, Matroska, etc.
 
 ## GETTING STARTED
-MEC support as many operating systems as possible and provide release packages for those platforms. To get started, head over to the **[releases page💠](https://github.com/opencodewin/MediaEditor/releases)** and select the platform that you want to install it on. A **[quick guide📝](docs/dev/Quick-Start.md)** to help you get acquainted with MEC is available in our docs.
+We provide the following release packages for Windows, Linux and macOS.
 
-There are two things to note:
+| System | Stable / Nightly |
+| ------ | ---------------- |
+| Windows 10 / 11 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/mec_SDL2_OpenGL3_win-x86_64-0.9.8.exe"><img src="docs/assets/download.svg"></a> |
+| Ubuntu 20.04 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-ubuntu2004-x86_64-0.9.8.AppImage"><img src="docs/assets/download.svg"></a> |
+| Ubuntu 22.04 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-ubuntu2204-x86_64-0.9.8.AppImage"><img src="docs/assets/download.svg"></a> |
+| MacOS x86 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-MacOS-x86_64-0.9.8.dmg"><img src="docs/assets/download.svg"></a> |
+| MacOS ARM | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-MacOS-arm64-0.9.8.dmg"><img src="docs/assets/download.svg"></a> |
 
-- ⚠️⚠️⚠️ Vulkan sdk is necessary, please download and install it [here](https://vulkan.lunarg.com/sdk/home).
+In addition, we also provide tutorials for compiling and installing our software from source code, Please go to [here](docs/dev/How-to-Built.md) 🐧.
+
+Until then, there are three things to note.
+
+- ⚠️⚠️⚠️ Vulkan sdk is necessary, please [download](https://vulkan.lunarg.com/sdk/home) and install it.
 - ⚠️⚠️⚠️ For linux, please make the AppImage file executable by the following command:
-``` sh
-chmod +x MEC_SDL2_OpenGL3-linux-x86_64-x.x.x.AppImage
-``` 
-And if you're using linux distros that use fuse3, and miss libfuse.so.2 to run the AppImage file, you can install it by:
-``` sh
-sudo apt install libfuse2
-```
+  ``` sh
+  chmod +x MEC_SDL2_OpenGL3-linux-x86_64-x.x.x.AppImage
+  ``` 
+- ⚠️⚠️⚠️ And if you're using linux distros that use fuse3, and miss libfuse.so.2 to run the AppImage file, you can install it by:
+  ``` sh
+  sudo apt install libfuse2
+  ```
 
-## SCREENSHOT
-|<div>Video Filter</div>|<div>Video Transition</div>|
-|---|---|
-|<img src="docs/assets/video-filter.png" />|<img src="docs/assets/video-transition.png" />|
+## DEPENDENCIES
+Mec relies on some of our other projects. If you are interested in how it's built, you can browse through these projects, which we are constantly updating:
 
-|<div>Audio Mixing</div>|<div>Media Output</div>|
-|---|---|
-|<img src="docs/assets/audio-mixing.png" />|<img src="docs/assets/media-output.png" />|
+*  imgui (https://github.com/opencodewin/imgui.git)
+*  blueprintsdk (https://github.com/opencodewin/blueprintsdk.git)
+*  mediacore (https://github.com/opencodewin/MediaCore.git)
 
-## FILTERS
+## HOW TO CONTRIBUTE
+Mec is created by ours and we welcome every contribution. At present, it has achieved quite a lot functions, which also means that it is becoming increasingly large. We don't recommend that you add new functions to this current code. If you really need this functions, please contact us.
+
+In fact, we have some ideas in the works. If you are interested, please contact us or contribute your code through PR. Here are,
+
+* Media Restoration techniques
+  - [ ] inpaint
+  - [ ] defocusing
+  - [ ] deflicker
+  - [ ] denoising
+  - [ ] blind
+* Media Enhancement techniques
+  - [ ] interpolation
+  - [ ] super resolution
+  - [ ] face enhancement
+  - [ ] speech synthesis
+* More Effects
+  - [ ] ...
+  - [ ] ...
+  - [ ] ...
+
+## PLUGINS
+Mec supports plug-in frameworks, which can expand Filters, Transitions, Effects and AI, according to your own needs. Currently, we offer the following built-in plugins:
+
+<style>
+  table th:first-of-type {
+    width: 20%;
+  }
+  table th:nth-of-type(2) {
+      width: 20%;
+  }
+  table th:nth-of-type(3) {
+      width: 20%;
+  }
+  table th:nth-of-type(4) {
+      width: 20%;
+  }
+  table th:nth-of-type(5) {
+      width: 20%;
+  }
+</style>
+
+### FILTERS AND EFFECTS
 | | | | | |
 |------------------|-----------------|:--------------|:----------------|:---------------|
 | ALM Enhancement  | Audio Equalizer | Audio Gain    | Bilateral Blur  | Binary         |
 | Box Blur         | Brightness      | Canny Edge    | CAS Sharpen     | Chroma Key     |
-| Color Balance    | **Color Curve** | Color Invert  | Contrast        | Crop           |
+| Color Balance    | Color Curve     | Color Invert  | Contrast        | Crop           |
 | Deband           | Deinterlace     | Dilation      | Erosion         | Exposure       |
 | Flip             | Gamma           | Gaussian Blur | Guided Filter   | HQDN3D Denoise |
 | Hue              | Laplacian Edge  | Lut 3D        | SmartDenoise    | Sobel Edge     |
 | USM Sharpen      | Vibrance        | WarpAffine    | WarpPerspective | White Balance  |
 | BarrelDistortion | Distortion      | Jitter        | Kuwahara        | Lighting       |
 | PixeLate         | RadicalBlur     | SmudgeBlur    | Soul            | Star           |
-| Sway             | WaterRipple     | | | |
+| Sway             | WaterRipple     | Bilateral     | Glass           | |
 | | | | | |
 
-**Color Curve**
+**Kuwahara**
 
-<img src="docs/assets/color_curve.jpeg" />
+<img src="docs/assets/mediaeditor_filter.png" style="width:90%;height:auto;" />
 
-## TRANSITIONS
+### TRANSITIONS
 | | | | | |
 |-----------------|----------------|:-----------------|:-----------------|:------------------|
 | Alpha           | AudioFade      | LinearBlur       | BookFlip         | Bounce            |
@@ -148,30 +203,13 @@ sudo apt install libfuse2
 
 **Cube**
 
-<img src="docs/assets/fs1.jpeg" />
+<img src="docs/assets/fs1.jpeg" style="width:90%;height:auto;" />
 
 **Heart**
 
-<img src="docs/assets/fs2.jpeg" />
-
-## DEPENDENCIES
-Although installers are much easier to use, if you must build from 
-source, here are some tips: 
-
-MEC needs some relevant submodules to be compiled to run. So, 
-be sure you have the following submodules in order to run MEC successfully: 
-
-*  imgui (https://github.com/opencodewin/imgui.git)
-*  blueprintsdk (https://github.com/opencodewin/blueprintsdk.git)
-*  mediacore (https://github.com/opencodewin/MediaCore.git)
-
-## HOW TO BUILD
-MEC uses CMake as its building system but instructions are highly dependent on your operating system and target platform. **[Building from source🐙](docs/dev/How-to-Built.md)**.
-
-## HOW TO CONTRIBUTE
-MEC is created by users for users and **we welcome every contribution**. There are no highly paid developers or poorly paid support personnel on the phones ready to take your call. There are only users who have seen a problem and done their best to fix it. This means MEC will always need the contributions of users like you.
+<img src="docs/assets/fs2.jpeg" style="width:90%;height:auto;" />
 
 ## LICENSE
-MEC is **[LGPLv3 licensed](LICENSE)**. You may use, distribute and copy it under the license terms.
+Mec is **[LGPLv3 licensed](LICENSE)**. You may use, distribute and copy it under the license terms.
 
 <a href="https://github.com/opencodewin/MediaEditor/graphs/contributors"><img src="docs/assets/built-by-developers.svg" height="25"></a>
