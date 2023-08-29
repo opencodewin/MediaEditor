@@ -62,7 +62,7 @@
 
 |<div>AnalysisScope</div>|
 |---|
-|<img src="docs/assets/cie.gif" style="width:32%;height:auto;" /><img src="docs/assets/waveform.gif" style="width:32%;height:auto;" /><img src="docs/assets/spec.gif" style="width:32%;height:auto;" />|
+|<img src="docs/assets/cie.gif" /><img src="docs/assets/waveform.gif" /><img src="docs/assets/spec.gif" />|
 
 ## FEATURES
 * Support complete timeline editing functions, including move, crop, cut, thumbnail preview, scale and delete.
