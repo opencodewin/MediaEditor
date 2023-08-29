@@ -1,5 +1,6 @@
 # Build for MediaEditor Community
 
+<div>
 <style>
   hr {
     border-style: none !important;
@@ -7,6 +8,7 @@
     border-top-style: double !important;
   }
 </style>
+</div>
 
 ## Precondition
 ### Install Git and Vulkan
