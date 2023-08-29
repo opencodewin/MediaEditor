@@ -60,7 +60,7 @@
 |---|
 |<img src="docs/assets/blueprint.gif" />|
 
-<div>AnalysisScope</div>|
+|<div>AnalysisScope</div>|
 |---|
 |:<img src="docs/assets/cie.gif" style="width:32%;height:auto;" /> <img src="docs/assets/waveform.gif" style="width:32%;height:auto;" /> <img src="docs/assets/spec.gif" style="width:32%;height:auto;" />:|
 
