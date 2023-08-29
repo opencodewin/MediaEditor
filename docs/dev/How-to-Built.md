@@ -1,15 +1,4 @@
 # Build for MediaEditor Community
-
-<div>
-<style>
-  hr {
-    border-style: none !important;
-    border-top-width: 5px !important;
-    border-top-style: double !important;
-  }
-</style>
-</div>
-
 ## Precondition
 ### Install Git and Vulkan
 - [x] [Git](https://git-scm.com/downloads/)

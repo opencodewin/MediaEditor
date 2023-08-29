@@ -18,18 +18,6 @@
 
 </div>
 
-<style>
-  hr {
-    border-image: linear-gradient(to right, #F00, #0F0 20%, #00F 80%, #000) 1 !important;
-  }
-  table th:first-of-type {
-    width: 51%;
-  }
-  table th:nth-of-type(2) {
-      width: 49%;
-  }
-</style>
-
 ## NEWS
 #### ***Note:*** For ease of reading, we'll abbreviate <u>***MediaEditor Community***</u> to <u>***Mec***</u>.
 
@@ -68,9 +56,13 @@
 |---|---|
 |<img src="docs/assets/audio-filter_new.png" />|<img src="docs/assets/audio-mixing_new.png" />|
 
-|<div>BluePrint</div>|<div>Scope tools</div>|
-|---|---|
-|<img src="docs/assets/blueprint.gif" />|<img src="docs/assets/cie.gif" style="width:32%;height:auto;" /> <img src="docs/assets/waveform.gif" style="width:32%;height:auto;" /> <img src="docs/assets/spec.gif" style="width:32%;height:auto;" />|
+|<div>BluePrint</div>|
+|---|
+|<img src="docs/assets/blueprint.gif" />|
+
+<div>AnalysisScope</div>|
+|---|
+|:<img src="docs/assets/cie.gif" style="width:32%;height:auto;" /> <img src="docs/assets/waveform.gif" style="width:32%;height:auto;" /> <img src="docs/assets/spec.gif" style="width:32%;height:auto;" />:|
 
 ## FEATURES
 * Support complete timeline editing functions, including move, crop, cut, thumbnail preview, scale and delete.
@@ -144,24 +136,6 @@ In fact, we have some ideas in the works. If you are interested, please contact 
 
 ## PLUGINS
 Mec supports plug-in frameworks, which can expand Filters, Transitions, Effects and AI, according to your own needs. Currently, we offer the following built-in plugins:
-
-<style>
-  table th:first-of-type {
-    width: 20%;
-  }
-  table th:nth-of-type(2) {
-      width: 20%;
-  }
-  table th:nth-of-type(3) {
-      width: 20%;
-  }
-  table th:nth-of-type(4) {
-      width: 20%;
-  }
-  table th:nth-of-type(5) {
-      width: 20%;
-  }
-</style>
 
 ### FILTERS AND EFFECTS
 | | | | | |
