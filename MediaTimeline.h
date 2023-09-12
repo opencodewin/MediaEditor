@@ -41,6 +41,8 @@
 #define PLOT_IMPLOT   0
 #define PLOT_TEXTURE  1
 
+#define OLD_CLIP_EDIT
+
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANS    u8"\ue927"
@@ -1102,6 +1104,7 @@ struct TimeLine
     bool bSelectLinked = true;              // project saved
     bool bMovingAttract = true;             // project saved
 
+#ifdef OLD_CLIP_EDIT
     std::mutex mVidFilterClipLock;          // timeline clip mutex
     EditingVideoClip* mVidFilterClip    {nullptr};
     std::mutex mAudFilterClipLock;          // timeline clip mutex
@@ -1110,6 +1113,10 @@ struct TimeLine
     EditingVideoOverlap* mVidOverlap    {nullptr};
     std::mutex mAudTransitionLock;          // timeline overlap mutex
     EditingAudioOverlap* mAudOverlap    {nullptr};
+#else
+    std::vector<BaseEditingClip*> mEditingClip;
+    std::vector<BaseEditingOverlap*> mEditingOverlap; 
+#endif
 
     MediaCore::MultiTrackVideoReader::Holder mMtvReader;
     MediaCore::MultiTrackAudioReader::Holder mMtaReader;

@@ -219,20 +219,20 @@ static const char * font_italic_list[] = {
     //"Oblique" 
 };
 
-static const char* ConfigureTabNames[] = {
+static const std::vector<std::string> ConfigureTabNames = {
     "System",
     "Timeline",
     "Text"
 };
 
-static const char* ControlPanelTabNames[] = {
+static const std::vector<std::string> ControlPanelTabNames = {
     ICON_MEDIA_BANK " Media",
     ICON_MEDIA_FILTERS " Filters",
     ICON_MEDIA_TRANS " Transitions",
     ICON_MEDIA_OUTPUT " Output"
 };
 
-static const char* ControlPanelTabTooltips[] = 
+static const std::vector<std::string> ControlPanelTabTooltips = 
 {
     "Media Bank",
     "Filter Bank",
@@ -240,7 +240,7 @@ static const char* ControlPanelTabTooltips[] =
     "Media Output"
 };
 
-static const char* MainWindowTabNames[] = {
+static const std::vector<std::string> MainWindowTabNames = {
     ICON_MEDIA_PREVIEW " Preview",
     ICON_MEDIA_VIDEO " Video",
     ICON_MUSIC " Audio",
@@ -248,7 +248,7 @@ static const char* MainWindowTabNames[] = {
     ICON_AUDIO_MIXING " Mixing"
 };
 
-static const char* MainWindowTabTooltips[] = 
+static const std::vector<std::string> MainWindowTabTooltips = 
 {
     "Media Preview",
     "Video Editor",
@@ -294,29 +294,29 @@ static const char* ScopeWindowTabNames[] = {
     ICON_SPECTROGRAM " Audio Spectrogram"
 };
 
-static const char* VideoEditorTabNames[] = {
+static const std::vector<std::string> VideoEditorTabNames = {
     ICON_FILTER_EDITOR,
     ICON_TRANS,
     ICON_CROP,
 };
 
-static const char* VideoEditorTabTooltips[] = {
+static const std::vector<std::string> VideoEditorTabTooltips = {
     "Video Filter",
     "Video Transition",
     "Video Attribute",
 };
 
-static const char* AudioEditorTabNames[] = {
+static const std::vector<std::string> AudioEditorTabNames = {
     ICON_FILTER_EDITOR,
     ICON_TRANS,
 };
 
-static const char* AudioEditorTabTooltips[] = {
+static const std::vector<std::string> AudioEditorTabTooltips = {
     "Audio Filter",
     "Audio Transition",
 };
 
-static const char* TextEditorTabNames[] = {
+static const std::vector<std::string> TextEditorTabNames = {
     "Clip Style",
     "Track Style",
 };
@@ -671,6 +671,7 @@ static bool UIPageChanged()
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 0 && (
         MainWindowIndex != 1 || VideoEditorWindowIndex != 0))
     {
+#ifdef OLD_CLIP_EDIT
         // we leave video filter windows, stop filter play, check unsaved bp
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving video filter page!!!" << std::endl;
         if (timeline && timeline->mVidFilterClip)
@@ -682,10 +683,12 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingFilter = false;
         }
+#endif
     }
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 1 && (
         MainWindowIndex != 1 || VideoEditorWindowIndex != 1))
     {
+#ifdef OLD_CLIP_EDIT
         // we leave video transition windows, stop transition play, check unsaved bp
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving video transition page!!!" << std::endl;
         if (timeline && timeline->mVidOverlap)
@@ -697,10 +700,12 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingOverlap = false;
         }
+#endif
     }
     if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 2 && (
         MainWindowIndex != 1 || VideoEditorWindowIndex != 2))
     {
+#ifdef OLD_CLIP_EDIT
         // we leave video attribute windows
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving video attribute page!!!" << std::endl;
         if (timeline && timeline->mVidFilterClip)
@@ -712,10 +717,12 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingAttribute = false;
         }
+#endif
     }
     if (LastMainWindowIndex == 2 && LastAudioEditorWindowIndex == 0 && (
         MainWindowIndex != 2 || AudioEditorWindowIndex != 0))
     {
+#ifdef OLD_CLIP_EDIT
         // we leave audio filter windows, stop filter play, check unsaved bp
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio filter page!!!" << std::endl;
         if (timeline && timeline->mAudFilterClip)
@@ -726,31 +733,37 @@ static bool UIPageChanged()
             timeline->bEditingFilter = false;
         }
         updated = true;
+#endif
     }
     if (LastMainWindowIndex == 2 && LastAudioEditorWindowIndex == 1 && (
         MainWindowIndex != 2 || AudioEditorWindowIndex != 1))
     {
+#ifdef OLD_CLIP_EDIT
         // we leave audio transition windows, stop transition play, check unsaved bp
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio transition page!!!" << std::endl;
         if (timeline)
         {
             timeline->bEditingOverlap = false;
         }
+#endif
     }
 
     if (LastMainWindowIndex == 3 && MainWindowIndex != 3)
     {
+#ifdef OLD_CLIP_EDIT
         // we leave text editor windows
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving Text editor page!!!" << std::endl;
         if (timeline)
         {
             timeline->bEditingText = false;
         }
+#endif
     }
 
     if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0 && (
         LastMainWindowIndex != 1 || LastVideoEditorWindowIndex != 0))
     {
+#ifdef OLD_CLIP_EDIT
         // we enter video filter windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video filter page!!!" << std::endl;
         if (timeline)
@@ -759,11 +772,13 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingFilter = true;
         }
+#endif
     }
 
     if (MainWindowIndex == 1 && VideoEditorWindowIndex == 1 && (
         LastMainWindowIndex != 1 || LastVideoEditorWindowIndex != 1))
     {
+#ifdef OLD_CLIP_EDIT
         // we enter video transition windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video transition page!!!" << std::endl;
         if (timeline)
@@ -772,11 +787,13 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingOverlap = true;
         }
+#endif
     }
 
     if (MainWindowIndex == 1 && VideoEditorWindowIndex == 2 && (
         LastMainWindowIndex != 1 || LastVideoEditorWindowIndex != 2))
     {
+#ifdef OLD_CLIP_EDIT
         // we enter video attribute windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video attribute page!!!" << std::endl;
         if (timeline)
@@ -785,38 +802,45 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingAttribute = true;
         }
+#endif
     }
 
     if (MainWindowIndex == 2 && AudioEditorWindowIndex == 0 && (
         LastMainWindowIndex != 2 || LastAudioEditorWindowIndex != 0))
     {
+#ifdef OLD_CLIP_EDIT
         // we enter audio filter windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter audio filter page!!!" << std::endl;
         if (timeline)
         {
             timeline->bEditingFilter = true;
         }
+#endif
     }
 
     if (MainWindowIndex == 2 && AudioEditorWindowIndex == 1 && (
         LastMainWindowIndex != 2 || LastAudioEditorWindowIndex != 1))
     {
+#ifdef OLD_CLIP_EDIT
         // we enter audio transition windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter audio transition page!!!" << std::endl;
         if (timeline)
         {
             timeline->bEditingOverlap = true;
         }
+#endif
     }
 
     if (MainWindowIndex == 3 && LastMainWindowIndex != 3)
     {
+#ifdef OLD_CLIP_EDIT
         // we enter text editor windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter text editor page!!!" << std::endl;
         if (timeline)
         {
             timeline->bEditingText = true;
         }
+#endif
     }
     
     LastMainWindowIndex = MainWindowIndex;
@@ -1436,11 +1460,10 @@ static void ShowConfigure(MediaEditorSettings & config)
     static char buf_fmr_x[64] = {0}; snprintf(buf_fmr_x, 64, "%d", config.VideoFrameRate.num);
     static char buf_fmr_y[64] = {0}; snprintf(buf_fmr_y, 64, "%d", config.VideoFrameRate.den);
 
-    static const int numConfigureTabs = sizeof(ConfigureTabNames)/sizeof(ConfigureTabNames[0]);
     if (ImGui::BeginChild("##ConfigureView", ImVec2(800, 600), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 table_size;
-        ImGui::TabLabels(numConfigureTabs, ConfigureTabNames, ConfigureIndex, table_size, nullptr , false, false, nullptr, nullptr, false, false, nullptr, nullptr);
+        ImGui::TabLabels(ConfigureTabNames, ConfigureIndex, table_size, std::vector<std::string>() , false, false, nullptr, nullptr, false, false, nullptr, nullptr);
         switch (ConfigureIndex)
         {
             case 0:
@@ -1806,6 +1829,7 @@ static void SaveProject(const std::string& path)
     Logger::Log(Logger::DEBUG) << "[Project] Save project to file!!!" << std::endl;
 
     timeline->Play(false, true);
+#ifdef OLD_CLIP_EDIT
     // check current editing clip, if it has bp then save it to clip
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip)
@@ -1833,7 +1857,10 @@ static void SaveProject(const std::string& path)
             if (timeline->mAudOverlap) timeline->mAudOverlap->Save();
         }
     }
-
+#else
+    Clip * editing_clip = nullptr;
+    Overlap * editing_overlap = nullptr;
+#endif
     // first save media bank info
     imgui_json::value media_bank;
     for (auto media : timeline->media_items)
@@ -4046,21 +4073,25 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 3, PanelButtonY));
     if (ImGui::Button(ICON_TO_START "##preview_tostart", button_size))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidFilterClip)
         {
             timeline->Seek(start);
         }
+#endif
     }
     ImGui::ShowTooltipOnHover("To Start");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 2, PanelButtonY));
     if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", button_size))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidFilterClip)
         {
             if (timeline->mCurrentTime > start)
                 timeline->Step(false);
         }
+#endif
     }
     ImGui::ShowTooltipOnHover("Step Prev");
 
@@ -4070,11 +4101,13 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 1, PanelButtonY));
     if (ImGui::RotateCheckButton(ICON_PLAY_BACKWARD "##preview_reverse", &isBackwardPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 180, button_size))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidFilterClip)
         {
             if (timeline->mCurrentTime > start)
                 timeline->Play(true, false);
         }
+#endif
     }
     ImGui::ShowTooltipOnHover("Reverse");
 
@@ -4090,33 +4123,39 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2 + b_gap + button_gap * 0, PanelButtonY));
     if (ImGui::RotateCheckButton(ICON_PLAY_FORWARD "##preview_play", &isForwordPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 0, button_size))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidFilterClip)
         {
             if (timeline->mCurrentTime < end)
                 timeline->Play(true, true);
         }
+#endif
     }
     ImGui::ShowTooltipOnHover("Play");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2 + b_gap + button_gap * 1, PanelButtonY));
     if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", button_size))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidFilterClip)
         {
             if (timeline->mCurrentTime < end)
                 timeline->Step(true);
         }
+#endif
     }
     ImGui::ShowTooltipOnHover("Step Next");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2 + b_gap + button_gap * 2, PanelButtonY));
     if (ImGui::Button(ICON_TO_END "##preview_toend", button_size))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidFilterClip)
         {
             if (timeline->mCurrentTime < end)
                 timeline->Seek(end - 40);
         }
+#endif
     }
     ImGui::ShowTooltipOnHover("To End");
 
@@ -4177,6 +4216,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
     ImRect OutVideoRect(OutputVideoPos, OutputVideoPos + OutputVideoSize);
 
     ImVec2 VideoZoomPos = window_pos + ImVec2(window_size.x - 740.f, window_size.y - PanelBarSize.y + 4);
+#ifdef OLD_CLIP_EDIT
     if (timeline->mVidFilterClip)
     {
         ImVec2 scale_range = ImVec2(0.5 / timeline->mPreviewScale, 4.0 / timeline->mPreviewScale);
@@ -4342,7 +4382,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, int64_t start, int64_t
             }
         }
     }
-
+#endif
     ImGui::PopStyleColor(3);
 }
 /****************************************************************************************
@@ -4358,10 +4398,12 @@ static void ShowFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
     bool is_video_clip = IS_VIDEO(clip->mType);
     if (!timeline || (!is_audio_clip && !is_video_clip))
         return;
+#ifdef OLD_CLIP_EDIT
     if (is_audio_clip && (!timeline->mAudFilterClip || !timeline->mAudFilterClip->mFilter))
         return;
     if (!is_video_clip && (!timeline->mAudFilterClip || !timeline->mAudFilterClip->mFilter))
         return;
+
     BluePrint::BluePrintUI* pBp = nullptr;
     MEC::Event::Holder hTargetEvent;
 
@@ -4452,6 +4494,7 @@ static void ShowFilterBluePrintWindow(ImDrawList *draw_list, Clip * clip)
         ImGui::SetWindowFontScale(1);
         ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
     }
+#endif
 }
 
 static void DrawFilterBlueprintWindow(ImDrawList *draw_list, Clip * editing_clip)
@@ -4466,6 +4509,7 @@ static void DrawFilterBlueprintWindow(ImDrawList *draw_list, Clip * editing_clip
 static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
 {
     bool changed = false;
+#ifdef OLD_CLIP_EDIT
     if (!editing_clip || !editing_clip->mEventStack)
         return;
     bool is_audio_clip = IS_AUDIO(editing_clip->mType);
@@ -4858,6 +4902,7 @@ static void DrawFilterEventWindow(ImDrawList *draw_list, Clip * editing_clip)
         ImGui::Separator();
         ImGui::PopStyleColor();
     }
+#endif
     if (!g_project_loading) project_changed |= changed;
 }
 
@@ -4901,6 +4946,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
     
     MediaCore::VideoTransformFilter::Holder attribute;
     int64_t trackId = -1;
+#ifdef OLD_CLIP_EDIT
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip && !IS_VIDEO(editing_clip->mType))
     {
@@ -4920,7 +4966,9 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
         auto track = timeline->FindTrackByClipID(timeline->mVidFilterClip->mID);
         if (track) trackId = track->mID;
     }
-
+#else
+    Clip * editing_clip = nullptr;
+#endif
     float clip_timeline_height = 30 + 50 + 12;
 
     float clip_keypoint_height = window_size.y / 3 - clip_timeline_height;
@@ -4971,8 +5019,10 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         //draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         bool timeline_changed = false;
+#ifdef OLD_CLIP_EDIT
         mouse_hold |= DrawAttributeTimeLine(timeline, timeline->mVidFilterClip, timeline->mCurrentTime, 30, 50, clip_keypoint_height, attribute ? attribute->GetKeyPoint() : nullptr, timeline_changed);
         if (!g_project_loading) project_changed |= timeline_changed;
+#endif
     }
     ImGui::EndChild();
 
@@ -5126,6 +5176,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_pos = ImGui::GetWindowPos(); // we need draw background with scroll view
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_BLACK_DARK);
+#ifdef OLD_CLIP_EDIT
         if (timeline->mVidFilterClip && attribute)
         {
             ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0,1.0,1.0,1.0));
@@ -5392,6 +5443,7 @@ static void ShowVideoAttributeWindow(ImDrawList *draw_list, ImRect title_rect)
             ImGui::PopItemWidth();
             ImGui::PopStyleColor(4);
         }
+#endif
     }
     ImGui::EndChild();
 }
@@ -5416,9 +5468,13 @@ static bool DrawVideoFilterTimelineWindow(bool& show_BP)
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
     bool timeline_changed = false;
+#ifdef OLD_CLIP_EDIT
     auto mouse_hold = DrawClipTimeLine(timeline, timeline->mVidFilterClip, timeline->mCurrentTime, 30, 50, show_BP, timeline_changed);
     if (!g_project_loading) project_changed |= timeline_changed;
     return mouse_hold;
+#else
+    return false;
+#endif
 }
 
 static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
@@ -5495,6 +5551,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::KeyPointEditor* keypoint = nullptr;
 
     int64_t trackId = -1;
+#ifdef OLD_CLIP_EDIT
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip && !IS_VIDEO(editing_clip->mType))
     {
@@ -5516,7 +5573,9 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         auto track = timeline->FindTrackByClipID(editing_clip->mID);
         if (track) trackId = track->mID;
     }
-
+#else
+    Clip * editing_clip = nullptr;
+#endif
     // every type for area rect
     // preview_rect: could be (0, 0, 0, 0)
     // preview_control_rect: if preview_rect is exist, width shoule equ preview_rect.width, otherwise, alway on top and same width with window
@@ -5723,6 +5782,7 @@ static void ShowVideoFilterWindow(ImDrawList *draw_list, ImRect title_rect)
  ***************************************************************************************/
 static void ShowVideoTransitionBluePrintWindow(ImDrawList *draw_list, Overlap * overlap)
 {
+#ifdef OLD_CLIP_EDIT
     if (timeline && timeline->mVidOverlap && timeline->mVidOverlap->mTransition && timeline->mVidOverlap->mTransition->mBp)
     {
         if (overlap && !timeline->mVidOverlap->mTransition->mBp->m_Document->m_Blueprint.IsOpened())
@@ -5756,6 +5816,7 @@ static void ShowVideoTransitionBluePrintWindow(ImDrawList *draw_list, Overlap * 
         ImGui::EndChild();
         if (timeline->mIsBluePrintChanged) { project_changed = true; project_need_save = true; }
     }
+#endif
 }
 
 static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
@@ -5778,18 +5839,22 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 3, PanelButtonY));
     if (ImGui::Button(ICON_TO_START "##video_transition_tostart", ImVec2(32, 32)))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidOverlap)
             timeline->mVidOverlap->Seek(timeline->mVidOverlap->mStart, false);
+#endif
     } ImGui::ShowTooltipOnHover("To Start");
     
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 2, PanelButtonY));
     if (ImGui::Button(ICON_STEP_BACKWARD "##video_transition_step_backward", ImVec2(32, 32)))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidOverlap)
         {
             if (timeline->mCurrentTime > timeline->mVidOverlap->mStart)
                 timeline->Step(false);
         }
+#endif
     } ImGui::ShowTooltipOnHover("Step Prev");
     
     bool isForwordPlaying = timeline ? (timeline->mIsPreviewPlaying && timeline->mIsPreviewForward) : false;
@@ -5797,11 +5862,13 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16 - (32 + 8) * 1 + 6, PanelButtonY + 5));
     if (ImGui::RotateCheckButton(ICON_PLAY_BACKWARD "##video_transition_reverse", &isBackwardPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 180))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidOverlap)
         {
             if (timeline->mCurrentTime > timeline->mVidOverlap->mStart)
                 timeline->Play(true, false);
         }
+#endif
     } ImGui::ShowTooltipOnHover("Reverse");
     
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - 16, PanelButtonY));
@@ -5815,28 +5882,34 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + 6, PanelButtonY + 5));
     if (ImGui::CheckButton(ICON_PLAY_FORWARD "##video_transition_play", &isForwordPlaying, ImVec4(0.5, 0.5, 0.0, 1.0)))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidOverlap)
         {
             if (timeline->mCurrentTime < timeline->mVidOverlap->mEnd)
                 timeline->Play(true, true);
         }
+#endif
     } ImGui::ShowTooltipOnHover("Play");
     
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 1, PanelButtonY));
     if (ImGui::Button(ICON_STEP_FORWARD "##video_transition_step_forward", ImVec2(32, 32)))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidOverlap)
         {
             if (timeline->mCurrentTime < timeline->mVidOverlap->mEnd)
                 timeline->Step(true);
         }
+#endif
     } ImGui::ShowTooltipOnHover("Step Next");
     
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 2, PanelButtonY));
     if (ImGui::Button(ICON_TO_END "##video_transition_toend", ImVec2(32, 32)))
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline && timeline->mVidOverlap)
             timeline->mVidOverlap->Seek(timeline->mVidOverlap->mEnd - 40, false);
+#endif
     } ImGui::ShowTooltipOnHover("To End");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
@@ -5866,7 +5939,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
     ImRect InputFirstVideoRect(InputFirstVideoPos, InputFirstVideoPos + InputFirstVideoSize);
     ImRect InputSecondVideoRect(InputSecondVideoPos, InputSecondVideoPos + InputSecondVideoSize);
     ImRect OutVideoRect(OutputVideoPos, OutputVideoPos + OutputVideoSize);
-    
+#ifdef OLD_CLIP_EDIT
     if (timeline->mVidOverlap)
     {
         std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat> pair;
@@ -5916,7 +5989,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list)
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(192, 192, 192, 128), 0, 0, 2.0);
         
     }
-    
+#endif
     ImGui::PopStyleColor(3);
 }
 
@@ -5953,7 +6026,10 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     if (!timeline)
         return;
-    
+
+    BluePrint::BluePrintUI* blueprint = nullptr;
+    BluePrintVideoTransition * transition = nullptr;
+#ifdef OLD_CLIP_EDIT
     Overlap * editing_overlap = timeline->FindEditingOverlap();
 
     if (editing_overlap)
@@ -5966,9 +6042,6 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
             editing_overlap = nullptr;
         }
     }
-
-    BluePrint::BluePrintUI* blueprint = nullptr;
-    BluePrintVideoTransition * transition = nullptr;
 
     if (editing_overlap)
     {
@@ -5992,7 +6065,9 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
         }
         blueprint = transition ? transition->mBp : nullptr;
     }
-
+#else
+    Overlap * editing_overlap = nullptr;
+#endif
     float clip_header_height = 30;
     float clip_channel_height = 50;
     float clip_timeline_height = clip_header_height + clip_channel_height * 2;
@@ -6048,7 +6123,9 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 sub_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_TWO);
         // Draw Clip TimeLine
+#ifdef OLD_CLIP_EDIT
         DrawOverlapTimeLine(timeline->mVidOverlap, timeline->mCurrentTime - (timeline->mVidOverlap ? timeline->mVidOverlap->mStart : 0), clip_header_height, clip_channel_height);
+#endif
     }
     ImGui::EndChild();
 
@@ -6081,6 +6158,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
             ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 sub_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+#ifdef OLD_CLIP_EDIT
             if (timeline->mVidOverlap && transition)
             {
                 bool _changed = false;
@@ -6104,10 +6182,12 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
                 float cursorOffset = sub_window_pos.x + (timeline->mCurrentTime - timeline->mVidOverlap->mStart) * timeline->mVidOverlap->msPixelWidth - 0.5f;
                 draw_list->AddLine(ImVec2(cursorOffset, sub_window_pos.y), ImVec2(cursorOffset, sub_window_pos.y + sub_window_size.y), COL_CURSOR_LINE_R, cursorWidth);
             }
+#endif
         }
         ImGui::EndChild();
     }
 
+#ifdef OLD_CLIP_EDIT
     // draw overlap setting
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##video_transition_setting", clip_setting_size, false, setting_child_flags))
@@ -6357,6 +6437,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
             }
         }
     }
+#endif
     ImGui::EndChild();
 }
 
@@ -6365,8 +6446,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
     ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 clip_window_size = ImGui::GetWindowSize();
-    static const int numTabs = sizeof(VideoEditorTabNames)/sizeof(VideoEditorTabNames[0]);
-    if (ImGui::TabLabelsVertical(false, numTabs, VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr))
+    if (ImGui::TabLabelsVertical(VideoEditorTabNames, VideoEditorWindowIndex, VideoEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr,false,false))
     {
         UIPageChanged();
     }
@@ -6405,9 +6485,13 @@ static bool DrawAudioFilterTimelineWindow(bool& show_BP)
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
     bool timeline_changed = false;
+#ifdef OLD_CLIP_EDIT
     auto mouse_hild = DrawClipTimeLine(timeline, timeline->mAudFilterClip, timeline->mCurrentTime, 30, 50, show_BP, timeline_changed);
     if (!g_project_loading) project_changed |= timeline_changed;
     return mouse_hild;
+#else
+    return false;
+#endif
 }
 
 static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
@@ -6466,7 +6550,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
 
     BluePrint::BluePrintUI* blueprint = nullptr;
     ImGui::KeyPointEditor* keypoint = nullptr;
-
+#ifdef OLD_CLIP_EDIT
     Clip * editing_clip = timeline->FindEditingClip();
     if (editing_clip && editing_clip->mType != MEDIA_AUDIO)
     {
@@ -6486,7 +6570,9 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
         blueprint = timeline->mAudFilterClip->mFilterBp;
         keypoint = timeline->mAudFilterClip->mFilterKp;
     }
-
+#else
+    Clip * editing_clip = nullptr;
+#endif
     // every type for area rect
     // preview_rect: right top of event window
     // preview_control_rect: if preview_rect is exist, width shoule equ preview_rect.width, otherwise, alway on top and same width with window
@@ -6661,6 +6747,7 @@ static void ShowAudioFilterWindow(ImDrawList *draw_list, ImRect title_rect)
 
 static void ShowAudioTransitionBluePrintWindow(ImDrawList *draw_list, Overlap * overlap)
 {
+#ifdef OLD_CLIP_EDIT
     if (timeline && timeline->mAudOverlap && timeline->mAudOverlap->mTransition && timeline->mAudOverlap->mTransition->mBp)
     {
         if (overlap && !timeline->mAudOverlap->mTransition->mBp->m_Document->m_Blueprint.IsOpened())
@@ -6694,6 +6781,7 @@ static void ShowAudioTransitionBluePrintWindow(ImDrawList *draw_list, Overlap * 
         ImGui::EndChild();
         if (timeline->mIsBluePrintChanged) { project_changed = true; project_need_save = true; }
     }
+#endif
 }
 
 static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
@@ -6730,6 +6818,10 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
     if (!timeline)
         return;
 
+    BluePrint::BluePrintUI* blueprint = nullptr;
+    BluePrintAudioTransition * transition = nullptr;
+
+#ifdef OLD_CLIP_EDIT
     Overlap * editing_overlap = timeline->FindEditingOverlap();
 
     if (editing_overlap)
@@ -6742,9 +6834,6 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
             editing_overlap = nullptr;
         }
     }
-
-    BluePrint::BluePrintUI* blueprint = nullptr;
-    BluePrintAudioTransition * transition = nullptr;
 
     if (editing_overlap)
     {
@@ -6768,7 +6857,9 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
         }
         blueprint = transition ? transition->mBp : nullptr;
     }
-
+#else
+    Overlap * editing_overlap = nullptr;
+#endif
     float clip_header_height = 30;
     float clip_channel_height = 60;
     float clip_timeline_height = clip_header_height + clip_channel_height * 2;
@@ -6805,7 +6896,9 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
         ImVec2 clip_timeline_window_pos = ImGui::GetCursorScreenPos();
         ImVec2 clip_timeline_window_size = ImGui::GetWindowSize();
         draw_list->AddRectFilled(clip_timeline_window_pos, clip_timeline_window_pos + clip_timeline_window_size, COL_DARK_TWO);
+#ifdef OLD_CLIP_EDIT
         DrawOverlapTimeLine(timeline->mAudOverlap, timeline->mCurrentTime - (timeline->mAudOverlap ? timeline->mAudOverlap->mStart : 0), clip_header_height, clip_channel_height);
+#endif
     }
     ImGui::EndChild();
 
@@ -6838,6 +6931,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
             ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 sub_window_size = ImGui::GetWindowSize();
             draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DARK_ONE);
+#ifdef OLD_CLIP_EDIT
             if (timeline->mAudOverlap && transition)
             {
                 bool _changed = false;
@@ -6861,6 +6955,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
                 float cursorOffset = sub_window_pos.x + (timeline->mCurrentTime - timeline->mAudOverlap->mStart) * timeline->mAudOverlap->msPixelWidth - 0.5f;
                 draw_list->AddLine(ImVec2(cursorOffset, sub_window_pos.y), ImVec2(cursorOffset, sub_window_pos.y + sub_window_size.y), COL_CURSOR_LINE_R, cursorWidth);
             }
+#endif
         }
         ImGui::EndChild();
     }
@@ -6875,6 +6970,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
     }
     ImGui::EndChild();
 
+#ifdef OLD_CLIP_EDIT
     // Draw Audio transition setting
     ImGui::SetCursorScreenPos(clip_setting_pos);
     if (ImGui::BeginChild("##audio_transition_setting", clip_setting_size, false, setting_child_flags))
@@ -7124,6 +7220,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
             }
         }
     }
+#endif
     ImGui::EndChild();
 }
 
@@ -7672,8 +7769,7 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
     ImVec2 clip_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 clip_window_size = ImGui::GetWindowSize();
-    static const int numTabs = sizeof(AudioEditorTabNames)/sizeof(AudioEditorTabNames[0]);
-    if (ImGui::TabLabelsVertical(false, numTabs, AudioEditorTabNames, AudioEditorWindowIndex, AudioEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr))
+    if (ImGui::TabLabelsVertical(AudioEditorTabNames, AudioEditorWindowIndex, AudioEditorTabTooltips, true, nullptr, nullptr, false, false, nullptr, nullptr, false, false))
     {
         UIPageChanged();
     }
@@ -8679,13 +8775,13 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                 changed = true;
             }
             ImGui::Separator();
-            static const int numTabs = sizeof(TextEditorTabNames)/sizeof(TextEditorTabNames[0]);
+            //static const int numTabs = sizeof(TextEditorTabNames)/sizeof(TextEditorTabNames[0]);
             ImVec2 style_view_pos = ImGui::GetCursorPos();
             ImVec2 style_view_size(style_window_size.x, window_size.y - style_view_pos.y);
             if (ImGui::BeginChild("##text_sytle_window", style_view_size - ImVec2(8, 0), false, child_flags))
             {
                 ImVec2 table_size;
-                if (ImGui::TabLabels(numTabs, TextEditorTabNames, StyleWindowIndex, table_size, nullptr , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
+                if (ImGui::TabLabels(TextEditorTabNames, StyleWindowIndex, table_size, std::vector<std::string>() , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
                 {
                 }
 
@@ -10695,8 +10791,6 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
     const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite | ImGuiFileDialogFlags_Modal;
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    static const int numControlPanelTabs = sizeof(ControlPanelTabNames)/sizeof(ControlPanelTabNames[0]);
-    static const int numMainWindowTabs = sizeof(MainWindowTabNames)/sizeof(MainWindowTabNames[0]);
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
     const ImGuiViewportP* viewport = (ImGuiViewportP*) ImGui::GetMainViewport();
     main_mon = viewport->PlatformMonitor;
@@ -11055,7 +11149,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         {
             ImVec2 bank_window_size = ImGui::GetWindowSize();
             ImVec2 table_size;
-            if (ImGui::TabLabels(numControlPanelTabs, ControlPanelTabNames, ControlPanelIndex, table_size, ControlPanelTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
+            if (ImGui::TabLabels(ControlPanelTabNames, ControlPanelIndex, table_size, ControlPanelTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
             {
             }
 
@@ -11135,7 +11229,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             // full background
             ImDrawList *draw_list = ImGui::GetWindowDrawList();
             ImVec2 table_size;
-            if (ImGui::TabLabels(numMainWindowTabs, MainWindowTabNames, MainWindowIndex, table_size, MainWindowTabTooltips, false, true, nullptr, nullptr, false, false, nullptr, nullptr))
+            if (ImGui::TabLabels(MainWindowTabNames, MainWindowIndex, table_size, MainWindowTabTooltips, false, true, nullptr, nullptr, false, false, nullptr, nullptr))
             {
                 UIPageChanged();
             }

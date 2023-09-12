@@ -863,7 +863,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
             mEnd = newEnd;
         }
     }
-    
+#ifdef OLD_CLIP_EDIT
     if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
     {
         timeline->mVidFilterClip->mStart = Start();
@@ -892,6 +892,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
         mFilterKeyPoints.SetRangeX(0, Length(), true);
         mAttributeKeyPoints.SetRangeX(0, Length(), true);
     }
+#endif
     track->Update();
     timeline->UpdateRange();
     // update clip's event time range
@@ -934,6 +935,7 @@ void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_
             new_start, new_start_offset, org_end, org_end_offset,
             gid, newClipId, nullptr)) >= 0)
     {
+#ifdef OLD_CLIP_EDIT
         // update curve
         if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
         {
@@ -964,7 +966,7 @@ void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_
             mFilterKeyPoints.SetRangeX(0, mEnd - mStart, true);
             mAttributeKeyPoints.SetRangeX(0, mEnd - mStart, true);
         }
-
+#endif
         // need check overlap status and update overlap info on data layer(UI info will update on track update)
         for (auto overlap : timeline->m_Overlaps)
         {
@@ -1283,6 +1285,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     
     auto moving_clip_keypoint = [&](Clip * clip)
     {
+#ifdef OLD_CLIP_EDIT
         if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == clip->mID)
         {
             timeline->mVidFilterClip->mStart = clip->mStart;
@@ -1293,6 +1296,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
             timeline->mAudFilterClip->mStart = clip->mStart;
             timeline->mAudFilterClip->mEnd = clip->mEnd;
         }
+#endif
     };
 
     moving_clip_keypoint(this);
@@ -5006,6 +5010,7 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     if (!clip->IsInClipRange(timeline->mCurrentTime) || timeline->mCurrentTime < timeline->firstTime || timeline->mCurrentTime > timeline->lastTime)
         timeline->Seek(clip->Start());
 
+#ifdef OLD_CLIP_EDIT
     // find old editing clip and reset BP
     auto editing_clip = timeline->FindEditingClip();
     if (editing_clip && editing_clip->mID == clip->mID)
@@ -5075,6 +5080,7 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
         if (!timeline->mAudFilterClip)
             timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
     }
+#endif
 }
 
 void MediaTrack::SelectEditingOverlap(Overlap * overlap)
@@ -5082,7 +5088,7 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !overlap)
         return;
-    
+#ifdef OLD_CLIP_EDIT
     // find old editing overlap and reset BP
     Overlap * editing_overlap = timeline->FindEditingOverlap();
     timeline->Seek(overlap->mStart);
@@ -5149,6 +5155,7 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     {
         timeline->m_CallBacks.EditingOverlap(first->mType, overlap);
     }
+#endif
 }
 
 void MediaTrack::CalculateAudioScopeData(ImGui::ImMat& mat_in)
@@ -5672,6 +5679,7 @@ TimeLine::~TimeLine()
     if (mVideoTransitionInputSecondTexture) { ImGui::ImDestroyTexture(mVideoTransitionInputSecondTexture); mVideoTransitionInputSecondTexture = nullptr; }
     if (mVideoTransitionOutputTexture) { ImGui::ImDestroyTexture(mVideoTransitionOutputTexture); mVideoTransitionOutputTexture = nullptr;  }
 
+#ifdef OLD_CLIP_EDIT
     if (mVidFilterClip)
     {
         delete mVidFilterClip;
@@ -5692,7 +5700,7 @@ TimeLine::~TimeLine()
         delete mAudOverlap;
         mAudOverlap = nullptr;
     }
-
+#endif
     if (mAudioRender)
     {
         MediaCore::AudioRender::ReleaseInstance(&mAudioRender);
@@ -6353,6 +6361,7 @@ bool TimeLine::DeleteClip(int64_t id, std::list<imgui_json::value>* pActionList)
     {
         auto clip = *iter;
         m_Clips.erase(iter);
+#ifdef OLD_CLIP_EDIT
         if (mVidFilterClip && clip->mID == mVidFilterClip->mID)
         {
             mVidFilterClipLock.lock();
@@ -6367,6 +6376,7 @@ bool TimeLine::DeleteClip(int64_t id, std::list<imgui_json::value>* pActionList)
             mAudFilterClip = nullptr;
             mAudFilterClipLock.unlock();
         }
+#endif
         DeleteClipFromGroup(clip, clip->mGroupID, pActionList);
 
         if (pActionList)
@@ -6393,6 +6403,7 @@ void TimeLine::DeleteOverlap(int64_t id)
         {
             Overlap * overlap = *iter;
             iter = m_Overlaps.erase(iter);
+#ifdef OLD_CLIP_EDIT
             if (mVidOverlap && mVidOverlap->mOvlp == overlap)
             {
                 delete mVidOverlap;
@@ -6403,6 +6414,7 @@ void TimeLine::DeleteOverlap(int64_t id)
                 delete mAudOverlap;
                 mAudOverlap = nullptr;
             }
+#endif
             delete overlap;
         }
         else
@@ -11497,6 +11509,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
 
         // time metric
         bool movable = true;
+#ifdef OLD_CLIP_EDIT
         if ((timeline->mVidFilterClip && timeline->mVidFilterClip->bSeeking) ||
             (timeline->mAudFilterClip && timeline->mAudFilterClip->bSeeking) ||
             menuIsOpened || !editable ||
@@ -11504,6 +11517,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         {
             movable = false;
         }
+#endif
         ImGui::SetCursorScreenPos(timeMeterRect.Min);
         ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), timeMeterRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
 
