@@ -242,8 +242,10 @@ static const std::vector<std::string> ControlPanelTabTooltips =
 
 static const std::vector<std::string> MainWindowTabNames = {
     ICON_MEDIA_PREVIEW " Preview",
+#ifdef OLD_CLIP_EDIT
     ICON_MEDIA_VIDEO " Video",
     ICON_MUSIC " Audio",
+#endif
     ICON_MEDIA_TEXT " Text",
     ICON_AUDIO_MIXING " Mixing"
 };
@@ -251,10 +253,23 @@ static const std::vector<std::string> MainWindowTabNames = {
 static const std::vector<std::string> MainWindowTabTooltips = 
 {
     "Media Preview",
+#ifdef OLD_CLIP_EDIT
     "Video Editor",
     "Audio Editor",
+#endif
     "Text Editor",
     "Audio Mixing",
+};
+
+enum MainPage : int
+{
+    MAIN_PAGE_PREVIEW = 0,
+#ifdef OLD_CLIP_EDIT
+    MAIN_PAGE_VIDEO,
+    MAIN_PAGE_AUDIO,
+#endif
+    MAIN_PAGE_TEXT,
+    MAIN_PAGE_MIXING
 };
 
 #define SCOPE_VIDEO_HISTOGRAM   (1<<0)
@@ -294,6 +309,7 @@ static const char* ScopeWindowTabNames[] = {
     ICON_SPECTROGRAM " Audio Spectrogram"
 };
 
+#ifdef OLD_CLIP_EDIT
 static const std::vector<std::string> VideoEditorTabNames = {
     ICON_FILTER_EDITOR,
     ICON_TRANS,
@@ -311,10 +327,24 @@ static const std::vector<std::string> AudioEditorTabNames = {
     ICON_TRANS,
 };
 
+enum VideoPage : int
+{
+    VIDEO_PAGE_FILTER = 0,
+    VIDEO_PAGE_TRANSITION,
+    VIDEO_PAGE_ATTRIBUTE
+};
+
 static const std::vector<std::string> AudioEditorTabTooltips = {
     "Audio Filter",
     "Audio Transition",
 };
+
+enum AudioPage : int
+{
+    AUDIO_PAGE_FILTER = 0,
+    AUDIO_PAGE_TRANSITION,
+};
+#endif
 
 static const std::vector<std::string> TextEditorTabNames = {
     "Clip Style",
@@ -561,14 +591,15 @@ static bool set_context_in_splash = false;
 
 static int ConfigureIndex = 0;              // default timeline setting
 static int ControlPanelIndex = 0;           // default Media Bank window
-static int MainWindowIndex = 0;             // default Media Preview window
 static int BottomWindowIndex = 0;           // default Media Timeline window, no other view so far
-static int VideoEditorWindowIndex = 0;      // default Video Filter window
-static int AudioEditorWindowIndex = 0;      // default Audio Filter window
-static int LastMainWindowIndex = 0;
-static int LastVideoEditorWindowIndex = 0;
-static int LastAudioEditorWindowIndex = 0;
-
+static int MainWindowIndex = MAIN_PAGE_PREVIEW;             // default Media Preview window
+static int LastMainWindowIndex = MAIN_PAGE_PREVIEW;
+#ifdef OLD_CLIP_EDIT
+static int VideoEditorWindowIndex = VIDEO_PAGE_FILTER;      // default Video Filter window
+static int AudioEditorWindowIndex = AUDIO_PAGE_FILTER;      // default Audio Filter window
+static int LastVideoEditorWindowIndex = VIDEO_PAGE_FILTER;
+static int LastAudioEditorWindowIndex = AUDIO_PAGE_FILTER;
+#endif
 static int MonitorIndexPreviewVideo = -1;
 static int MonitorIndexVideoFilterOrg = -1;
 static int MonitorIndexVideoFiltered = -1;
@@ -657,7 +688,7 @@ static void UpdateBreathing()
 static bool UIPageChanged()
 {
     bool updated = false;
-    if (LastMainWindowIndex == 0 && MainWindowIndex != 0)
+    if (LastMainWindowIndex == MAIN_PAGE_PREVIEW && MainWindowIndex != MAIN_PAGE_PREVIEW)
     {
         // we leave video preview windows, stop preview play
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving video preview page!!!" << std::endl;
@@ -668,10 +699,11 @@ static bool UIPageChanged()
             timeline->Play(false);
         }
     }
-    if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 0 && (
-        MainWindowIndex != 1 || VideoEditorWindowIndex != 0))
-    {
 #ifdef OLD_CLIP_EDIT
+    if (LastMainWindowIndex == MAIN_PAGE_VIDEO && LastVideoEditorWindowIndex == VIDEO_PAGE_FILTER && (
+        MainWindowIndex != MAIN_PAGE_VIDEO || VideoEditorWindowIndex != VIDEO_PAGE_FILTER))
+    {
+
         // we leave video filter windows, stop filter play, check unsaved bp
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving video filter page!!!" << std::endl;
         if (timeline && timeline->mVidFilterClip)
@@ -683,12 +715,10 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingFilter = false;
         }
-#endif
     }
-    if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 1 && (
-        MainWindowIndex != 1 || VideoEditorWindowIndex != 1))
+    if (LastMainWindowIndex == MAIN_PAGE_VIDEO && LastVideoEditorWindowIndex == VIDEO_PAGE_TRANSITION && (
+        MainWindowIndex != MAIN_PAGE_VIDEO || VideoEditorWindowIndex != VIDEO_PAGE_TRANSITION))
     {
-#ifdef OLD_CLIP_EDIT
         // we leave video transition windows, stop transition play, check unsaved bp
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving video transition page!!!" << std::endl;
         if (timeline && timeline->mVidOverlap)
@@ -700,12 +730,10 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingOverlap = false;
         }
-#endif
     }
-    if (LastMainWindowIndex == 1 && LastVideoEditorWindowIndex == 2 && (
-        MainWindowIndex != 1 || VideoEditorWindowIndex != 2))
+    if (LastMainWindowIndex == MAIN_PAGE_VIDEO && LastVideoEditorWindowIndex == VIDEO_PAGE_ATTRIBUTE && (
+        MainWindowIndex != MAIN_PAGE_VIDEO || VideoEditorWindowIndex != VIDEO_PAGE_ATTRIBUTE))
     {
-#ifdef OLD_CLIP_EDIT
         // we leave video attribute windows
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving video attribute page!!!" << std::endl;
         if (timeline && timeline->mVidFilterClip)
@@ -717,12 +745,10 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingAttribute = false;
         }
-#endif
     }
-    if (LastMainWindowIndex == 2 && LastAudioEditorWindowIndex == 0 && (
-        MainWindowIndex != 2 || AudioEditorWindowIndex != 0))
+    if (LastMainWindowIndex == MAIN_PAGE_AUDIO && LastAudioEditorWindowIndex == AUDIO_PAGE_FILTER && (
+        MainWindowIndex != MAIN_PAGE_AUDIO || AudioEditorWindowIndex != AUDIO_PAGE_FILTER))
     {
-#ifdef OLD_CLIP_EDIT
         // we leave audio filter windows, stop filter play, check unsaved bp
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio filter page!!!" << std::endl;
         if (timeline && timeline->mAudFilterClip)
@@ -733,37 +759,39 @@ static bool UIPageChanged()
             timeline->bEditingFilter = false;
         }
         updated = true;
-#endif
     }
-    if (LastMainWindowIndex == 2 && LastAudioEditorWindowIndex == 1 && (
-        MainWindowIndex != 2 || AudioEditorWindowIndex != 1))
+    if (LastMainWindowIndex == MAIN_PAGE_AUDIO && LastAudioEditorWindowIndex == AUDIO_PAGE_TRANSITION && (
+        MainWindowIndex != MAIN_PAGE_AUDIO || AudioEditorWindowIndex != AUDIO_PAGE_TRANSITION))
     {
-#ifdef OLD_CLIP_EDIT
         // we leave audio transition windows, stop transition play, check unsaved bp
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio transition page!!!" << std::endl;
         if (timeline)
         {
             timeline->bEditingOverlap = false;
         }
-#endif
     }
+#endif
 
-    if (LastMainWindowIndex == 3 && MainWindowIndex != 3)
+    if (LastMainWindowIndex == MAIN_PAGE_TEXT && MainWindowIndex != MAIN_PAGE_TEXT)
     {
-#ifdef OLD_CLIP_EDIT
         // we leave text editor windows
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving Text editor page!!!" << std::endl;
         if (timeline)
         {
             timeline->bEditingText = false;
         }
-#endif
     }
 
-    if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0 && (
-        LastMainWindowIndex != 1 || LastVideoEditorWindowIndex != 0))
+    if (LastMainWindowIndex == MAIN_PAGE_MIXING && MainWindowIndex != MAIN_PAGE_MIXING)
     {
+        // we leave audio mixing editor windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] leaving audio mixing editor page!!!" << std::endl;
+    }
+
 #ifdef OLD_CLIP_EDIT
+    if (MainWindowIndex == MAIN_PAGE_VIDEO && VideoEditorWindowIndex == VIDEO_PAGE_FILTER && (
+        LastMainWindowIndex != MAIN_PAGE_VIDEO || LastVideoEditorWindowIndex != VIDEO_PAGE_FILTER))
+    {
         // we enter video filter windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video filter page!!!" << std::endl;
         if (timeline)
@@ -772,13 +800,11 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingFilter = true;
         }
-#endif
     }
 
-    if (MainWindowIndex == 1 && VideoEditorWindowIndex == 1 && (
-        LastMainWindowIndex != 1 || LastVideoEditorWindowIndex != 1))
+    if (MainWindowIndex == MAIN_PAGE_VIDEO && VideoEditorWindowIndex == VIDEO_PAGE_TRANSITION && (
+        LastMainWindowIndex != MAIN_PAGE_VIDEO || LastVideoEditorWindowIndex != VIDEO_PAGE_TRANSITION))
     {
-#ifdef OLD_CLIP_EDIT
         // we enter video transition windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video transition page!!!" << std::endl;
         if (timeline)
@@ -787,13 +813,11 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingOverlap = true;
         }
-#endif
     }
 
-    if (MainWindowIndex == 1 && VideoEditorWindowIndex == 2 && (
-        LastMainWindowIndex != 1 || LastVideoEditorWindowIndex != 2))
+    if (MainWindowIndex == MAIN_PAGE_VIDEO && VideoEditorWindowIndex == VIDEO_PAGE_ATTRIBUTE && (
+        LastMainWindowIndex != MAIN_PAGE_VIDEO || LastVideoEditorWindowIndex != VIDEO_PAGE_ATTRIBUTE))
     {
-#ifdef OLD_CLIP_EDIT
         // we enter video attribute windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter video attribute page!!!" << std::endl;
         if (timeline)
@@ -802,68 +826,73 @@ static bool UIPageChanged()
             need_update_scope = true;
             timeline->bEditingAttribute = true;
         }
-#endif
     }
 
-    if (MainWindowIndex == 2 && AudioEditorWindowIndex == 0 && (
-        LastMainWindowIndex != 2 || LastAudioEditorWindowIndex != 0))
+    if (MainWindowIndex == MAIN_PAGE_AUDIO && AudioEditorWindowIndex == AUDIO_PAGE_FILTER && (
+        LastMainWindowIndex != MAIN_PAGE_AUDIO || LastAudioEditorWindowIndex != AUDIO_PAGE_FILTER))
     {
-#ifdef OLD_CLIP_EDIT
         // we enter audio filter windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter audio filter page!!!" << std::endl;
         if (timeline)
         {
             timeline->bEditingFilter = true;
         }
-#endif
     }
 
-    if (MainWindowIndex == 2 && AudioEditorWindowIndex == 1 && (
-        LastMainWindowIndex != 2 || LastAudioEditorWindowIndex != 1))
+    if (MainWindowIndex == MAIN_PAGE_AUDIO && AudioEditorWindowIndex == AUDIO_PAGE_TRANSITION && (
+        LastMainWindowIndex != MAIN_PAGE_AUDIO || LastAudioEditorWindowIndex != AUDIO_PAGE_TRANSITION))
     {
-#ifdef OLD_CLIP_EDIT
         // we enter audio transition windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter audio transition page!!!" << std::endl;
         if (timeline)
         {
             timeline->bEditingOverlap = true;
         }
-#endif
     }
+#endif
 
-    if (MainWindowIndex == 3 && LastMainWindowIndex != 3)
+    if (MainWindowIndex == MAIN_PAGE_TEXT && LastMainWindowIndex != MAIN_PAGE_TEXT)
     {
-#ifdef OLD_CLIP_EDIT
         // we enter text editor windows
         Logger::Log(Logger::DEBUG) << "[Changed page] Enter text editor page!!!" << std::endl;
         if (timeline)
         {
             timeline->bEditingText = true;
         }
-#endif
+    }
+
+    if (MainWindowIndex == MAIN_PAGE_MIXING && LastMainWindowIndex != MAIN_PAGE_MIXING)
+    {
+        // we enter audio mixing editor windows
+        Logger::Log(Logger::DEBUG) << "[Changed page] Enter audio mixing editor page!!!" << std::endl;
     }
     
     LastMainWindowIndex = MainWindowIndex;
+#ifdef OLD_CLIP_EDIT
     LastVideoEditorWindowIndex = VideoEditorWindowIndex;
     LastAudioEditorWindowIndex = AudioEditorWindowIndex;
+#endif
     return updated;
 }
 
 static int EditingClipAttribute(int type, void* handle)
 {
+#ifdef OLD_CLIP_EDIT
     if (IS_VIDEO(type))
     {
-        MainWindowIndex = 1;
-        VideoEditorWindowIndex = 2;
+        MainWindowIndex = MAIN_PAGE_VIDEO;
+        VideoEditorWindowIndex = VIDEO_PAGE_ATTRIBUTE;
     }
     else if (IS_AUDIO(type))
     {
-        MainWindowIndex = 2;
-        AudioEditorWindowIndex = 0; // ？
+        MainWindowIndex = MAIN_PAGE_AUDIO;
+        AudioEditorWindowIndex = AUDIO_PAGE_FILTER; // ？
     }
-    else if (IS_TEXT(type))
+    else 
+#endif
+    if (IS_TEXT(type))
     {
-        MainWindowIndex = 3;
+        MainWindowIndex = MAIN_PAGE_TEXT;
     }
     auto updated = UIPageChanged();
     return updated ? 1 : 0;
@@ -871,21 +900,24 @@ static int EditingClipAttribute(int type, void* handle)
 
 static int EditingClipFilter(int type, void* handle)
 {
+#ifdef OLD_CLIP_EDIT
     if (IS_VIDEO(type))
     {
-        MainWindowIndex = 1;
-        VideoEditorWindowIndex = 0;
+        MainWindowIndex = MAIN_PAGE_VIDEO;
+        VideoEditorWindowIndex = VIDEO_PAGE_FILTER;
         ControlPanelIndex = 1;
     }
     else if (IS_AUDIO(type))
     {
-        MainWindowIndex = 2;
-        AudioEditorWindowIndex = 0;
+        MainWindowIndex = MAIN_PAGE_AUDIO;
+        AudioEditorWindowIndex = AUDIO_PAGE_FILTER;
         ControlPanelIndex = 1;
     }
-    else if (IS_TEXT(type))
+    else
+#endif
+    if (IS_TEXT(type))
     {
-        MainWindowIndex = 3;
+        MainWindowIndex = MAIN_PAGE_TEXT;
     }
     auto updated = UIPageChanged();
     return updated ? 1 : 0;
@@ -893,18 +925,20 @@ static int EditingClipFilter(int type, void* handle)
 
 static int EditingOverlap(int type, void* handle)
 {
+#ifdef OLD_CLIP_EDIT
     if (IS_VIDEO(type))
     {
-        MainWindowIndex = 1;
-        VideoEditorWindowIndex = 1;
+        MainWindowIndex = MAIN_PAGE_VIDEO;
+        VideoEditorWindowIndex = VIDEO_PAGE_TRANSITION;
         ControlPanelIndex = 2;
     }
     else if (IS_AUDIO(type))
     {
-        MainWindowIndex = 2;
-        AudioEditorWindowIndex = 1;
+        MainWindowIndex = MAIN_PAGE_AUDIO;
+        AudioEditorWindowIndex = AUDIO_PAGE_TRANSITION;
         ControlPanelIndex = 2;
     }
+#endif
     auto updated = UIPageChanged();
     return updated ? 1 : 0;
 }
@@ -6441,6 +6475,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
     ImGui::EndChild();
 }
 
+#ifdef OLD_CLIP_EDIT
 static void ShowVideoEditorWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
@@ -6466,6 +6501,7 @@ static void ShowVideoEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     }
     ImGui::EndChild();
 }
+#endif
 /****************************************************************************************
  * 
  * Audio Editor windows
@@ -7764,6 +7800,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     if (!g_project_loading) project_changed |= changed;
 }
 
+#ifdef OLD_CLIP_EDIT
 static void ShowAudioEditorWindow(ImDrawList *draw_list, ImRect title_rect)
 {
     float labelWidth = ImGui::CalcVerticalTabLabelsWidth() + 4;
@@ -7788,6 +7825,7 @@ static void ShowAudioEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     }
     ImGui::EndChild();
 }
+#endif
 
 static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_size)
 {
@@ -10156,15 +10194,6 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool spread
         last_spread = spread;
         need_update_scope = true;
     }
-    
-    //std::vector<int> disabled_monitor;
-    //if (MainWindowIndex == 0)
-    //    disabled_monitor.push_back(MonitorIndexPreviewVideo);
-    //else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0)
-    //{
-    //    disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
-    //    disabled_monitor.push_back(MonitorIndexVideoFiltered);
-    //}
 
     ImGui::SetCursorScreenPos(window_pos + ImVec2(window_size.x - 32, 0));
     if (ImGui::Button(ICON_EXPANMD "##scope_expand"))
@@ -10327,13 +10356,15 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     {
         auto pos = ImGui::GetCursorScreenPos();
         std::vector<int> disabled_monitor;
-        if (MainWindowIndex == 0)
+        if (MainWindowIndex == MAIN_PAGE_PREVIEW)
             disabled_monitor.push_back(MonitorIndexPreviewVideo);
-        else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0)
+#ifdef OLD_CLIP_EDIT
+        else if (MainWindowIndex == MAIN_PAGE_VIDEO && VideoEditorWindowIndex == VIDEO_PAGE_FILTER)
         {
             disabled_monitor.push_back(MonitorIndexVideoFilterOrg);
             disabled_monitor.push_back(MonitorIndexVideoFiltered);
         }
+#endif
         MonitorButton("##scope_monitor", pos, MonitorIndexScope, disabled_monitor);
     }
 
@@ -11245,11 +11276,13 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             {
                 switch (MainWindowIndex)
                 {
-                    case 0: ShowMediaPreviewWindow(draw_list, "Preview", 3.f, video_rect); break;
-                    case 1: ShowVideoEditorWindow(draw_list, title_rect); break;
-                    case 2: ShowAudioEditorWindow(draw_list, title_rect); break;
-                    case 3: ShowTextEditorWindow(draw_list, title_rect); break;
-                    case 4: ShowAudioMixingWindow(draw_list, title_rect); break;
+                    case MAIN_PAGE_PREVIEW: ShowMediaPreviewWindow(draw_list, "Preview", 3.f, video_rect); break;
+#ifdef OLD_CLIP_EDIT
+                    case MAIN_PAGE_VIDEO: ShowVideoEditorWindow(draw_list, title_rect); break;
+                    case MAIN_PAGE_AUDIO: ShowAudioEditorWindow(draw_list, title_rect); break;
+#endif
+                    case MAIN_PAGE_TEXT: ShowTextEditorWindow(draw_list, title_rect); break;
+                    case MAIN_PAGE_MIXING: ShowAudioMixingWindow(draw_list, title_rect); break;
                     default: break;
                 }
             }
@@ -11295,7 +11328,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImGui::PopStyleColor();
     ImGui::End();
 
-    if (MainWindowIndex == 0)
+    if (MainWindowIndex == MAIN_PAGE_PREVIEW)
     {
         // preview view
         if (MonitorIndexPreviewVideo != -1 && MonitorIndexPreviewVideo < platform_io.Monitors.Size)
@@ -11309,7 +11342,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::End();
         }
     }
-    else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 0)
+#ifdef OLD_CLIP_EDIT
+    else if (MainWindowIndex == MAIN_PAGE_VIDEO && VideoEditorWindowIndex == VIDEO_PAGE_FILTER)
     {
         // video filter
         if (MonitorIndexVideoFilterOrg != -1 && MonitorIndexVideoFilterOrg < platform_io.Monitors.Size)
@@ -11333,7 +11367,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::End();
         }
     }
-    else if (MainWindowIndex == 1 && VideoEditorWindowIndex == 2)
+    else if (MainWindowIndex == MAIN_PAGE_VIDEO && VideoEditorWindowIndex == VIDEO_PAGE_TRANSITION)
     {
         // video attribute
         if (MonitorIndexVideoFilterOrg != -1 && MonitorIndexVideoFilterOrg < platform_io.Monitors.Size)
@@ -11357,7 +11391,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::End();
         }
     }
-
+#endif
     if (multiviewport)
     {
         ImGui::PopStyleVar(2);
