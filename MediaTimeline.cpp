@@ -3947,10 +3947,16 @@ void Overlap::Save(imgui_json::value& value)
 
 namespace MediaTimeline
 {
-EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
-    : BaseEditingOverlap(ovlp)
+EditingVideoOverlap::EditingVideoOverlap(int64_t id, void* handle)
+    : BaseEditingOverlap(id, handle)
 {
-    TimeLine* timeline = (TimeLine*)(ovlp->mHandle);
+
+    TimeLine* timeline = (TimeLine*)(mHandle);
+    if (!timeline)
+        return;
+    auto ovlp = timeline->FindOverlapByID(mID);
+    if (!ovlp)
+        return;
     VideoClip* vidclip1 = (VideoClip*)timeline->FindClipByID(ovlp->m_Clip.first);
     VideoClip* vidclip2 = (VideoClip*)timeline->FindClipByID(ovlp->m_Clip.second);
     if (vidclip1 && vidclip2)
@@ -4019,13 +4025,13 @@ EditingVideoOverlap::EditingVideoOverlap(Overlap* ovlp)
         mEnd = ovlp->mEnd;
         mDuration = mEnd - mStart;
         
-        auto hOvlp = timeline->mMtvReader->GetOverlapById(mOvlp->mID);
+        auto hOvlp = timeline->mMtvReader->GetOverlapById(ovlp->mID);
         IM_ASSERT(hOvlp);
         mTransition = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
         if (!mTransition)
         {
             mTransition = new BluePrintVideoTransition(timeline);
-            mTransition->SetKeyPoint(mOvlp->mTransitionKeyPoints);
+            mTransition->SetKeyPoint(ovlp->mTransitionKeyPoints);
             MediaCore::VideoTransition::Holder hTrans(mTransition);
             hOvlp->SetTransition(hTrans);
         }
@@ -4047,12 +4053,18 @@ EditingVideoOverlap::~EditingVideoOverlap()
 
 void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
 {
+    TimeLine* timeline = (TimeLine*)(mHandle);
+    if (!timeline)
+        return;
+    auto ovlp = timeline->FindOverlapByID(mID);
+    if (!ovlp)
+        return;
     // update display params
-    bool ovlpRngChanged = mOvlp->mStart != mStart || mOvlp->mEnd != mEnd;
+    bool ovlpRngChanged = ovlp->mStart != mStart || ovlp->mEnd != mEnd;
     if (ovlpRngChanged)
     {
-        mStart = mOvlp->mStart;
-        mEnd = mOvlp->mEnd;
+        mStart = ovlp->mStart;
+        mEnd = ovlp->mEnd;
         mDuration = mEnd - mStart;
     }
     ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
@@ -4096,11 +4108,11 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     CalcDisplayParams();
 
     // get snapshot images
-    auto txmgr = ((TimeLine*)(mOvlp->mHandle))->mTxMgr;
+    auto txmgr = ((TimeLine*)(ovlp->mHandle))->mTxMgr;
     std::vector<MediaCore::Snapshot::Image> snapImages1;
     if (mViewer1)
     {
-        m_StartOffset.first = mClip1->StartOffset() + mOvlp->mStart - mClip1->Start();
+        m_StartOffset.first = mClip1->StartOffset() + ovlp->mStart - mClip1->Start();
         if (!mViewer1->GetSnapshots((double)m_StartOffset.first / 1000, snapImages1))
         {
             Logger::Log(Logger::Error) << mViewer1->GetError() << std::endl;
@@ -4111,7 +4123,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
     std::vector<MediaCore::Snapshot::Image> snapImages2;
     if (mViewer2)
     {
-        m_StartOffset.second = mClip2->StartOffset() + mOvlp->mStart - mClip2->Start();
+        m_StartOffset.second = mClip2->StartOffset() + ovlp->mStart - mClip2->Start();
         if (!mViewer2->GetSnapshots((double)m_StartOffset.second / 1000, snapImages2))
         {
             Logger::Log(Logger::Error) << mViewer2->GetError() << std::endl;
@@ -4252,7 +4264,7 @@ void EditingVideoOverlap::CalcDisplayParams()
 
 void EditingVideoOverlap::Seek(int64_t pos, bool enterSeekingState)
 {
-    TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
+    TimeLine* timeline = (TimeLine*)(mHandle);
     if (!timeline)
         return;
     timeline->Seek(pos, enterSeekingState);
@@ -4265,22 +4277,25 @@ void EditingVideoOverlap::Step(bool forward, int64_t step)
 bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame)
 {
     int ret = true;
-    TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
+    TimeLine* timeline = (TimeLine*)(mHandle);
     if (!timeline)
+        return false;
+    auto ovlp = timeline->FindOverlapByID(mID);
+    if (!ovlp)
         return false;
 
     auto frames = timeline->GetPreviewFrame();
     ImGui::ImMat frame_org_first;
-    auto iter_first = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
-        return cf.clipId == mOvlp->m_Clip.first && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
+    auto iter_first = std::find_if(frames.begin(), frames.end(), [ovlp] (auto& cf) {
+        return cf.clipId == ovlp->m_Clip.first && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
     });
     if (iter_first != frames.end())
         frame_org_first = iter_first->frame;
     else
         ret = false;
     ImGui::ImMat frame_org_second;
-    auto iter_second = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
-        return cf.clipId == mOvlp->m_Clip.second && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
+    auto iter_second = std::find_if(frames.begin(), frames.end(), [ovlp] (auto& cf) {
+        return cf.clipId == ovlp->m_Clip.second && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
     });
     if (iter_second != frames.end())
         frame_org_second = iter_second->frame;
@@ -4311,16 +4326,16 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
 
 void EditingVideoOverlap::Save()
 {
-    TimeLine * timeline = (TimeLine *)(mOvlp->mHandle);
+    TimeLine* timeline = (TimeLine*)(mHandle);
     if (!timeline)
         return;
-    auto overlap = timeline->FindOverlapByID(mOvlp->mID);
-    if (!overlap)
+    auto ovlp = timeline->FindOverlapByID(mID);
+    if (!ovlp)
         return;
     if (mTransition && mTransition->mBp && mTransition->mBp->Blueprint_IsValid())
     {
-        overlap->mTransitionBP = mTransition->mBp->m_Document->Serialize();
-        overlap->mTransitionKeyPoints = mTransition->mKeyPoints;
+        ovlp->mTransitionBP = mTransition->mBp->m_Document->Serialize();
+        ovlp->mTransitionKeyPoints = mTransition->mKeyPoints;
     }
     timeline->UpdatePreview();
 }
@@ -4328,10 +4343,15 @@ void EditingVideoOverlap::Save()
 
 namespace MediaTimeline
 {
-EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
-    : BaseEditingOverlap(ovlp)
+EditingAudioOverlap::EditingAudioOverlap(int64_t id, void* handle)
+    : BaseEditingOverlap(id, handle)
 {
-    TimeLine* timeline = (TimeLine*)(ovlp->mHandle);
+    TimeLine* timeline = (TimeLine*)(mHandle);
+    if (!timeline)
+        return;
+    auto ovlp = timeline->FindOverlapByID(mID);
+    if (!ovlp)
+        return;
     AudioClip* audclip1 = (AudioClip*)timeline->FindClipByID(ovlp->m_Clip.first);
     AudioClip* audclip2 = (AudioClip*)timeline->FindClipByID(ovlp->m_Clip.second);
     if (audclip1 && audclip2)
@@ -4342,13 +4362,13 @@ EditingAudioOverlap::EditingAudioOverlap(Overlap* ovlp)
         mStart = ovlp->mStart;
         mEnd = ovlp->mEnd;
         mDuration = mEnd - mStart;
-        auto hOvlp = timeline->mMtaReader->GetOverlapById(mOvlp->mID);
+        auto hOvlp = timeline->mMtaReader->GetOverlapById(ovlp->mID);
         IM_ASSERT(hOvlp);
         mTransition = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
         if (!mTransition)
         {
             mTransition = new BluePrintAudioTransition(timeline);
-            mTransition->SetKeyPoint(mOvlp->mTransitionKeyPoints);
+            mTransition->SetKeyPoint(ovlp->mTransitionKeyPoints);
             MediaCore::AudioTransition::Holder hTrans(mTransition);
             hOvlp->SetTransition(hTrans);
         }
@@ -4370,7 +4390,7 @@ EditingAudioOverlap::~EditingAudioOverlap()
 
 void EditingAudioOverlap::Seek(int64_t pos, bool enterSeekingState)
 {
-    TimeLine* timeline = (TimeLine*)(mOvlp->mHandle);
+    TimeLine* timeline = (TimeLine*)(mHandle);
     if (!timeline)
         return;
     timeline->Seek(pos, enterSeekingState);
@@ -4382,12 +4402,18 @@ void EditingAudioOverlap::Step(bool forward, int64_t step)
 
 void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
 {
+    TimeLine* timeline = (TimeLine*)(mHandle);
+    if (!timeline)
+        return;
+    auto ovlp = timeline->FindOverlapByID(mID);
+    if (!ovlp)
+        return;
     // update display params
-    bool ovlpRngChanged = mOvlp->mStart != mStart || mOvlp->mEnd != mEnd;
+    bool ovlpRngChanged = ovlp->mStart != mStart || ovlp->mEnd != mEnd;
     if (ovlpRngChanged)
     {
-        mStart = mOvlp->mStart;
-        mEnd = mOvlp->mEnd;
+        mStart = ovlp->mStart;
+        mEnd = ovlp->mEnd;
         mDuration = mEnd - mStart;
     }
     ImVec2 viewWndSize = { rightBottom.x - leftTop.x, rightBottom.y - leftTop.y };
@@ -4579,16 +4605,16 @@ void EditingAudioOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
 
 void EditingAudioOverlap::Save()
 {
-    TimeLine * timeline = (TimeLine *)(mOvlp->mHandle);
+    TimeLine* timeline = (TimeLine*)(mHandle);
     if (!timeline)
         return;
-    auto overlap = timeline->FindOverlapByID(mOvlp->mID);
-    if (!overlap)
+    auto ovlp = timeline->FindOverlapByID(mID);
+    if (!ovlp)
         return;
     if (mTransition && mTransition->mBp && mTransition->mBp->Blueprint_IsValid())
     {
-        overlap->mTransitionBP = mTransition->mBp->m_Document->Serialize();
-        overlap->mTransitionKeyPoints = mTransition->mKeyPoints;
+        ovlp->mTransitionBP = mTransition->mBp->m_Document->Serialize();
+        ovlp->mTransitionKeyPoints = mTransition->mKeyPoints;
     }
 }
 
@@ -5080,6 +5106,8 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
         if (!timeline->mAudFilterClip)
             timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
     }
+#else
+    // TODO::Dicky add new editing clip here
 #endif
 }
 
@@ -5143,18 +5171,20 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     if (IS_VIDEO(first->mType) && IS_VIDEO(second->mType))
     {
         if (!timeline->mVidOverlap)
-            timeline->mVidOverlap = new EditingVideoOverlap(overlap);
+            timeline->mVidOverlap = new EditingVideoOverlap(overlap->mID, timeline);
     }
 
     if (IS_AUDIO(first->mType) && IS_AUDIO(second->mType))
     {
         if (!timeline->mAudOverlap)
-            timeline->mAudOverlap = new EditingAudioOverlap(overlap);
+            timeline->mAudOverlap = new EditingAudioOverlap(overlap->mID, timeline);
     }
     if (timeline->m_CallBacks.EditingOverlap)
     {
         timeline->m_CallBacks.EditingOverlap(first->mType, overlap);
     }
+#else
+    // TODO::Dicky add new editing overlap here
 #endif
 }
 
@@ -6404,12 +6434,12 @@ void TimeLine::DeleteOverlap(int64_t id)
             Overlap * overlap = *iter;
             iter = m_Overlaps.erase(iter);
 #ifdef OLD_CLIP_EDIT
-            if (mVidOverlap && mVidOverlap->mOvlp == overlap)
+            if (mVidOverlap && mVidOverlap->mID == overlap->mID)
             {
                 delete mVidOverlap;
                 mVidOverlap = nullptr;
             }
-            if (mAudOverlap && mAudOverlap->mOvlp == overlap)
+            if (mAudOverlap && mAudOverlap->mID == overlap->mID)
             {
                 delete mAudOverlap;
                 mAudOverlap = nullptr;
@@ -10312,7 +10342,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         ImGui::SameLine();
         ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
 
-#if 0
+#if 0   // TODO::Dicky need add more editing function
         auto _clip = timeline->FindClipByID(clipMenuEntry);
         auto _track = _clip ? timeline->FindTrackByClipID(_clip->mID) : nullptr;
         bool _disable_editing = _clip ? IS_DUMMY(_clip->mType) : true;
@@ -13798,7 +13828,8 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     int cy = (int)(io.MousePos.y);
     static bool MovingCurrentTime = false;
     bool isFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
-    int64_t duration = ImMax(overlap->mOvlp->mEnd-overlap->mOvlp->mStart, (int64_t)1);
+
+    int64_t duration = ImMax(overlap->mEnd - overlap->mStart, (int64_t)1);
     int64_t start = 0;
     int64_t end = start + duration;
     if (lastDuration != -1 && lastDuration != duration) changed = true;

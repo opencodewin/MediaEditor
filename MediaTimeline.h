@@ -758,14 +758,15 @@ public:
 
 struct BaseEditingOverlap
 {
-    Overlap* mOvlp;
+    void* mHandle                   {nullptr};  // main timeline handle
+    int64_t mID                     {-1};       // overlap ID
     int64_t mStart;
     int64_t mEnd;
     int64_t mDuration;
     ImVec2 mViewWndSize     {0, 0};
     float msPixelWidth {0};
     bool bSeeking{false};
-    BaseEditingOverlap(Overlap* ovlp) : mOvlp(ovlp) {}
+    BaseEditingOverlap(int64_t id, void* handle) { mID = id; mHandle = handle; }
     std::pair<int64_t, int64_t> m_StartOffset;
 
     virtual void Seek(int64_t pos, bool enterSeekingState) = 0;
@@ -787,7 +788,7 @@ struct EditingVideoOverlap : BaseEditingOverlap
     BluePrintVideoTransition* mTransition{nullptr};
 
 public:
-    EditingVideoOverlap(Overlap* ovlp);
+    EditingVideoOverlap(int64_t id, void* handle);
     virtual ~EditingVideoOverlap();
 
     void Seek(int64_t pos, bool enterSeekingState) override;
@@ -808,7 +809,7 @@ struct EditingAudioOverlap : BaseEditingOverlap
     std::vector<ImTextureID> mClip2WaveformTextures;
 
 public:
-    EditingAudioOverlap(Overlap* ovlp);
+    EditingAudioOverlap(int64_t id, void* handle);
     virtual ~EditingAudioOverlap();
 
     void Seek(int64_t pos, bool enterSeekingState) override;
@@ -816,6 +817,28 @@ public:
     bool GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMat>, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override { return false; }
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
     void Save() override;
+};
+
+enum EditingType : int
+{
+    EDITING_UNKNOWN = -1,
+    EDITING_FILTER = 0,
+    EDITING_TRANSITION,
+};
+
+struct EditingItem
+{
+    uint32_t mMediaType                  {MEDIA_UNKNOWN};
+    int mEditorType                      {EDITING_UNKNOWN};
+    bool mIsSelected                     {false};
+    BaseEditingClip * mEditingClip       {nullptr};
+    BaseEditingOverlap * mEditingOverlap {nullptr};
+public:
+    EditingItem(uint32_t media_type, BaseEditingClip * clip) { mMediaType = media_type; mEditingClip = clip; mEditorType = EDITING_FILTER; }
+    EditingItem(uint32_t media_type, BaseEditingOverlap * overlap) { mMediaType = media_type; mEditingOverlap = overlap; mEditorType = EDITING_TRANSITION; }
+    virtual ~EditingItem() {};
+public:
+    //bool FindItem(int type, int64_t id);
 };
 
 struct audio_channel_data
@@ -1114,8 +1137,7 @@ struct TimeLine
     std::mutex mAudTransitionLock;          // timeline overlap mutex
     EditingAudioOverlap* mAudOverlap    {nullptr};
 #else
-    std::vector<BaseEditingClip*> mEditingClip;
-    std::vector<BaseEditingOverlap*> mEditingOverlap; 
+    std::vector<EditingItem> mEditingItems;
 #endif
 
     MediaCore::MultiTrackVideoReader::Holder mMtvReader;

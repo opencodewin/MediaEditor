@@ -269,7 +269,10 @@ enum MainPage : int
     MAIN_PAGE_AUDIO,
 #endif
     MAIN_PAGE_TEXT,
-    MAIN_PAGE_MIXING
+    MAIN_PAGE_MIXING,
+#ifndef OLD_CLIP_EDIT
+    MAIN_PAGE_CLIP_EDITOR,
+#endif
 };
 
 #define SCOPE_VIDEO_HISTOGRAM   (1<<0)
@@ -6081,7 +6084,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
     {
         if (!timeline->mVidOverlap)
         {
-            timeline->mVidOverlap = new EditingVideoOverlap(editing_overlap);
+            timeline->mVidOverlap = new EditingVideoOverlap(editing_overlap->mID, timeline);
             transition = timeline->mVidOverlap->mTransition;
         }
         else if (timeline->mVidOverlap->mStart != editing_overlap->mStart || timeline->mVidOverlap->mEnd != editing_overlap->mEnd)
@@ -6875,7 +6878,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect)
     {
         if (!timeline->mAudOverlap)
         {
-            timeline->mAudOverlap = new EditingAudioOverlap(editing_overlap);
+            timeline->mAudOverlap = new EditingAudioOverlap(editing_overlap->mID, timeline);
             transition = timeline->mAudOverlap->mTransition;
         }
         else if (timeline->mAudOverlap->mStart != editing_overlap->mStart || timeline->mAudOverlap->mEnd != editing_overlap->mEnd)
