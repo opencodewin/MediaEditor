@@ -368,6 +368,20 @@ static const char* VideoPreviewScale[] = {
     "1/8",
 };
 
+#ifdef MEDIA_MANAGEMENT
+typedef struct _sort_method
+{
+    std::string name;
+    std::string icon;
+} sort_method;
+
+static const sort_method SortMethodItems[] = {
+    {" Import Date", ICON_SORT_ID},
+    {" Media Type", ICON_SORT_TYPE},
+    {" Media Name", ICON_SORT_NAME}
+};
+#endif
+
 const std::string video_file_dis = "*.mp4 *.mov *.mkv *.mxf *.avi *.webm *.ts";
 const std::string video_file_suffix = ".mp4,.mov,.mkv,.mxf,.avi,.webm,.ts";
 const std::string audio_file_dis = "*.wav *.mp3 *.aac *.ogg *.ac3 *.dts";
@@ -2546,6 +2560,31 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
         ImGui::AddTextComplex(draw_list, window_pos + ImVec2(8, 0),
                                 "Media Bank", 2.5, COL_GRAY_TEXT,
                                 0.5f, IM_COL32(56, 56, 56, 192));
+#ifdef MEDIA_MANAGEMENT
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7, 0.7, 0.7, 1.0));
+        ImGui::SameLine(window_size.x - media_icon_size, media_icon_size / 2);
+        ImGui::SetNextItemWidth(media_icon_size / 2);
+        if (ImGui::BeginCombo("##sort_media_item", SortMethodItems[timeline->mSortMethod].icon.c_str()))
+        {
+            for (int n = 0; n < IM_ARRAYSIZE(SortMethodItems); n++)
+            {
+                const bool is_selected = (timeline->mSortMethod == n);
+                if (ImGui::Selectable(SortMethodItems[n].icon.c_str(), is_selected))
+                    timeline->mSortMethod = n;
+
+                // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+                ImGui::ShowTooltipOnHover("%s", std::string("Sorted by" + SortMethodItems[n].name).c_str());
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::ShowTooltipOnHover("%s", std::string("Sorted by" + SortMethodItems[timeline->mSortMethod].name).c_str());
+        timeline->mSortMethod ? (timeline->mSortMethod-1 ? timeline->SortMediaItemByName() : timeline->SortMediaItemByType()) : timeline->SortMediaItemByID();
+        ImGui::PopStyleColor(3);
+#endif
         if (timeline->media_items.empty())
         {
             ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);

@@ -43,6 +43,12 @@
 
 #define OLD_CLIP_EDIT
 
+#ifdef MEDIA_MANAGEMENT
+#define ICON_SORT_ID        u8"\uf887"
+#define ICON_SORT_TYPE      u8"\uf885"
+#define ICON_SORT_NAME      u8"\uf882"
+#endif
+
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANS    u8"\ue927"
@@ -1127,6 +1133,10 @@ struct TimeLine
     bool bSelectLinked = true;              // project saved
     bool bMovingAttract = true;             // project saved
 
+#ifdef MEDIA_MANAGEMENT
+    uint32_t mSortMethod {0};
+#endif
+
 #ifdef OLD_CLIP_EDIT
     std::mutex mVidFilterClipLock;          // timeline clip mutex
     EditingVideoClip* mVidFilterClip    {nullptr};
@@ -1267,6 +1277,11 @@ struct TimeLine
 
     MediaItem* FindMediaItemByName(std::string name);   // Find media from bank by name
     MediaItem* FindMediaItemByID(int64_t id);           // Find media from bank by ID
+#ifdef MEDIA_MANAGEMENT
+    void SortMediaItemByID();
+    void SortMediaItemByName();
+    void SortMediaItemByType();
+#endif
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
     MediaTrack * FindTrackByName(std::string name);     // Find track by clip ID

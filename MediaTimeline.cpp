@@ -6834,6 +6834,32 @@ MediaItem* TimeLine::FindMediaItemByID(int64_t id)
     return nullptr;
 }
 
+#ifdef MEDIA_MANAGEMENT
+void TimeLine::SortMediaItemByID()
+{
+    std::sort(media_items.begin(), media_items.end(), [](const MediaItem* lit, const MediaItem* rit)
+    {
+        return lit->mID < rit->mID;
+    });
+}
+
+void TimeLine::SortMediaItemByName()
+{
+    std::sort(media_items.begin(), media_items.end(), [](const MediaItem* lit, const MediaItem* rit)
+    {
+        return lit->mName < rit->mName;
+    });
+}
+
+void TimeLine::SortMediaItemByType()
+{
+    std::sort(media_items.begin(), media_items.end(), [](const MediaItem* lit, const MediaItem* rit)
+    {
+        return lit->mMediaType < rit->mMediaType;
+    });
+}
+#endif
+
 MediaTrack * TimeLine::FindTrackByID(int64_t id)
 {
     auto iter = std::find_if(m_Tracks.begin(), m_Tracks.end(), [id](const MediaTrack* track)
@@ -7638,6 +7664,14 @@ int TimeLine::Load(const imgui_json::value& value)
         if (val.is_boolean()) bExportAudio = val.get<imgui_json::boolean>();
     }
 
+#ifdef MEDIA_MANAGEMENT
+    if (value.contains("SortMethod"))
+    {
+        auto& val = value["SortMethod"];
+        if (val.is_boolean()) mSortMethod = val.get<imgui_json::number>();
+    }
+#endif
+
     mPreviewResumePos = mCurrentTime = AlignTime(mCurrentTime);
 
     auto pcmDataType = MatUtils::PcmFormat2ImDataType(mAudioRenderFormat);
@@ -8164,6 +8198,9 @@ void TimeLine::Save(imgui_json::value& value)
     value["OutputAudioCode"] = mAudioCodec;
     value["OutputVideo"] = imgui_json::boolean(bExportVideo);
     value["OutputAudio"] = imgui_json::boolean(bExportAudio);
+#ifdef MEDIA_MANAGEMENT
+    value["SortMethod"] = imgui_json::number(mSortMethod);
+#endif
 }
 
 void TimeLine::PrintActionList(const std::string& title, const std::list<imgui_json::value>& actionList)

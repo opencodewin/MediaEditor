@@ -325,7 +325,7 @@ struct AudioAechoNode final : Node
 
     void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
     {
-        Node::DrawNodeLogo(ctx, size, std::string(u8"\uf1de"));
+        Node::DrawNodeLogo(ctx, size, std::string(u8"\uf79f"));
     }
 
     span<Pin*> GetInputPins() override { return m_InputPins; }
