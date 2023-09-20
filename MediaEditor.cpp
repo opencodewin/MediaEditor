@@ -270,9 +270,7 @@ enum MainPage : int
 #endif
     MAIN_PAGE_TEXT,
     MAIN_PAGE_MIXING,
-#ifndef OLD_CLIP_EDIT
     MAIN_PAGE_CLIP_EDITOR,
-#endif
 };
 
 #define SCOPE_VIDEO_HISTOGRAM   (1<<0)
@@ -11313,6 +11311,9 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImRect video_rect;
             auto wmin = main_sub_pos + ImVec2(0, 32);
             auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 0);
+#ifndef OLD_CLIP_EDIT
+            if (timeline->mEditingItems.size() > 0) wmax -= ImVec2(0, 40); // image tab label has height 36
+#endif
             draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
             if (ImGui::BeginChild("##Main_Window_content", wmax - wmin, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
             {
@@ -11325,10 +11326,39 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 #endif
                     case MAIN_PAGE_TEXT: ShowTextEditorWindow(draw_list, title_rect); break;
                     case MAIN_PAGE_MIXING: ShowAudioMixingWindow(draw_list, title_rect); break;
+                    case MAIN_PAGE_CLIP_EDITOR : break;
                     default: break;
                 }
             }
             ImGui::EndChild();
+#ifndef OLD_CLIP_EDIT
+            if (timeline->mEditingItems.size() > 0)
+            {
+                static int selectedTab = 0;
+                static int optionalHoveredTab = 0;
+                ImVec2 clip_table_size;
+                // TODO::Dicky Add editing item tab
+                std::vector<std::string> tab_names;
+                std::vector<std::string> tab_tooltips;
+                std::vector<ImTextureID> tab_textures;
+                std::vector<int> tab_index;
+                int justClosedTabIndex = -1;
+                int justClosedTabIndexInsideTabItemOrdering = -1;
+                int oldSelectedTab = selectedTab;
+                for (auto item : timeline->mEditingItems)
+                {
+                    tab_names.push_back(item->mName);
+                    tab_tooltips.push_back(item->mTooltip);
+                    tab_textures.push_back(nullptr);
+                    tab_index.push_back(item->mIndex);
+                }
+                ImGui::TabImageLabels(tab_names, selectedTab, clip_table_size, tab_tooltips, tab_textures, ImVec2(64,36), false, false,&optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true);
+                if (justClosedTabIndex == 1)
+                {
+                    selectedTab = oldSelectedTab;
+                }
+            }
+#endif
         }
         ImGui::EndChild();
     }

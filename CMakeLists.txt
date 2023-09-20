@@ -47,6 +47,10 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s USE_SDL=2  -s USE_GLFW=3 -s USE_WEBGPU=1 
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-pthreads-mem-growth -pthread -s USE_PTHREADS=1 -s PTHREAD_POOL_SIZE=4")
 endif (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
+if(APPLE)
+add_link_options(-ld_classic)
+endif(APPLE)
+
 option(BUILD_TEST  "Build Test Application" ON)
 
 # Find the cmake modules
@@ -304,8 +308,8 @@ add_subdirectory(plugin/nodes/filters/AudioEqualizer)
 add_subdirectory(plugin/nodes/filters/AudioGain)
 add_subdirectory(plugin/nodes/filters/AudioAecho)
 add_subdirectory(plugin/nodes/transitions/AudioFade)
-add_subdirectory(plugin/nodes/media/MatResize)
 if(IMGUI_VULKAN_SHADER)
+add_subdirectory(plugin/nodes/media/MatResize)
 add_subdirectory(plugin/nodes/media/MatRender)
 add_subdirectory(plugin/nodes/media/MediaSource)
 add_subdirectory(plugin/nodes/media/ImageSource)

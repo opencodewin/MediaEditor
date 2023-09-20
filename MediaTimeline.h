@@ -683,6 +683,7 @@ struct BaseEditingClip
 {
     void* mHandle               {nullptr};              // main timeline handle
     int64_t mID                 {-1};                   // editing clip ID
+    int64_t mMediaID            {-1};                   // editing meida(item) ID
     uint32_t mType              {MEDIA_UNKNOWN};
     int64_t mStart              {0};
     int64_t mEnd                {0};
@@ -697,9 +698,10 @@ struct BaseEditingClip
     int64_t visibleTime = 0;
     float msPixelWidthTarget = -1.f;
 
-    BaseEditingClip(int64_t id, uint32_t type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset, void* handle)
-        : mID(id), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
+    BaseEditingClip(int64_t id, int64_t mid, uint32_t type, int64_t start, int64_t end, int64_t startOffset, int64_t endOffset, void* handle)
+        : mID(id), mMediaID(mid), mType(type), mStart(start), mEnd(end), mStartOffset(startOffset), mEndOffset(endOffset), mHandle(handle)
     {}
+    virtual ~BaseEditingClip() {};
 
     Clip * GetClip();
     void UpdateCurrent(bool forward, int64_t currentTime);
@@ -773,6 +775,7 @@ struct BaseEditingOverlap
     float msPixelWidth {0};
     bool bSeeking{false};
     BaseEditingOverlap(int64_t id, void* handle) { mID = id; mHandle = handle; }
+    virtual ~BaseEditingOverlap() {};
     std::pair<int64_t, int64_t> m_StartOffset;
 
     virtual void Seek(int64_t pos, bool enterSeekingState) = 0;
@@ -836,15 +839,17 @@ struct EditingItem
 {
     uint32_t mMediaType                  {MEDIA_UNKNOWN};
     int mEditorType                      {EDITING_UNKNOWN};
+    int mIndex                           {-1};
     bool mIsSelected                     {false};
     BaseEditingClip * mEditingClip       {nullptr};
     BaseEditingOverlap * mEditingOverlap {nullptr};
+    ImTextureID * mTexture               {nullptr};
+    std::string mName                    {""};
+    std::string mTooltip                 {""};
 public:
-    EditingItem(uint32_t media_type, BaseEditingClip * clip) { mMediaType = media_type; mEditingClip = clip; mEditorType = EDITING_FILTER; }
-    EditingItem(uint32_t media_type, BaseEditingOverlap * overlap) { mMediaType = media_type; mEditingOverlap = overlap; mEditorType = EDITING_TRANSITION; }
-    virtual ~EditingItem() {};
-public:
-    //bool FindItem(int type, int64_t id);
+    EditingItem(uint32_t media_type, BaseEditingClip * clip);
+    EditingItem(uint32_t media_type, BaseEditingOverlap * overlap);
+    virtual ~EditingItem();
 };
 
 struct audio_channel_data
@@ -1147,7 +1152,8 @@ struct TimeLine
     std::mutex mAudTransitionLock;          // timeline overlap mutex
     EditingAudioOverlap* mAudOverlap    {nullptr};
 #else
-    std::vector<EditingItem> mEditingItems;
+    std::vector<EditingItem*> mEditingItems;
+    int FindEditingItem(int type, int64_t id);
 #endif
 
     MediaCore::MultiTrackVideoReader::Holder mMtvReader;
@@ -1255,7 +1261,7 @@ struct TimeLine
     void CustomDraw(
             int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc,
             const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect,
-            bool is_moving, bool enable_select, bool is_updated, std::list<imgui_json::value>* pActionList);
+            int64_t mouse_time, bool is_moving, bool enable_select, bool is_updated, std::list<imgui_json::value>* pActionList);
     
     std::vector<MediaCore::CorrelativeFrame> GetPreviewFrame();
     float GetAudioLevel(int channel);

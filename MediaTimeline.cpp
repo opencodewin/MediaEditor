@@ -3237,7 +3237,7 @@ void BaseEditingClip::UpdateCurrent(bool forward, int64_t currentTime)
 namespace MediaTimeline
 {
 EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
-    : BaseEditingClip(vidclip->mID, vidclip->mType, vidclip->Start(), vidclip->End(), vidclip->StartOffset(), vidclip->EndOffset(), vidclip->mHandle)
+    : BaseEditingClip(vidclip->mID, vidclip->mMediaID, vidclip->mType, vidclip->Start(), vidclip->End(), vidclip->StartOffset(), vidclip->EndOffset(), vidclip->mHandle)
 {
     TimeLine * timeline = (TimeLine *)vidclip->mHandle;
     mDuration = mEnd-mStart;
@@ -3542,7 +3542,7 @@ void EditingVideoClip::CalcDisplayParams(int64_t viewWndDur)
 namespace MediaTimeline
 {
 EditingAudioClip::EditingAudioClip(AudioClip* audclip)
-    : BaseEditingClip(audclip->mID, audclip->mType, audclip->Start(), audclip->End(), audclip->StartOffset(), audclip->EndOffset(), audclip->mHandle)
+    : BaseEditingClip(audclip->mID, audclip->mMediaID, audclip->mType, audclip->Start(), audclip->End(), audclip->StartOffset(), audclip->EndOffset(), audclip->mHandle)
 {
     TimeLine * timeline = (TimeLine *)audclip->mHandle;
     mDuration = mEnd-mStart;
@@ -5036,6 +5036,8 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     if (!clip->IsInClipRange(timeline->mCurrentTime) || timeline->mCurrentTime < timeline->firstTime || timeline->mCurrentTime > timeline->lastTime)
         timeline->Seek(clip->Start());
 
+    clip->bEditing = true;
+
 #ifdef OLD_CLIP_EDIT
     // find old editing clip and reset BP
     auto editing_clip = timeline->FindEditingClip();
@@ -5094,8 +5096,6 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
         editing_clip->bEditing = false;
     }
 
-    clip->bEditing = true;
-
     if (IS_VIDEO(clip->mType))
     {
         if (!timeline->mVidFilterClip)
@@ -5107,8 +5107,37 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
             timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
     }
 #else
-    // TODO::Dicky add new editing clip here
+    auto found = timeline->FindEditingItem(EDITING_FILTER, clip->mID);
+    if (found == -1)
+    {
+        uint32_t type = MEDIA_UNKNOWN;
+        BaseEditingClip *eclip = nullptr;
+        if (IS_VIDEO(clip->mType))
+        {
+            type = MEDIA_VIDEO;
+            eclip = new EditingVideoClip((VideoClip*)clip);
+        }
+        else if (IS_AUDIO(clip->mType))
+        {
+            type = MEDIA_AUDIO;
+            eclip = new EditingAudioClip((AudioClip*)clip);
+        }
+        if (eclip)
+        {
+            EditingItem *item = new EditingItem(type, eclip);
+            item->mIndex = timeline->mEditingItems.size();
+            timeline->mEditingItems.push_back(item);
+        }
+    }
+    else
+    {
+        // TODO::Dicky new UI into editing clip page
+    }
 #endif
+    if (timeline->m_CallBacks.EditingClipFilter)
+    {
+        timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
+    }
 }
 
 void MediaTrack::SelectEditingOverlap(Overlap * overlap)
@@ -5116,11 +5145,21 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !overlap)
         return;
+
+    auto first = timeline->FindClipByID(overlap->m_Clip.first);
+    auto second = timeline->FindClipByID(overlap->m_Clip.second);
+    if (!first || !second)
+        return;
+    if (IS_DUMMY(first->mType) || IS_DUMMY(second->mType))
+        return;
+
+    timeline->Seek(overlap->mStart);
+    overlap->bEditing = true;
+
 #ifdef OLD_CLIP_EDIT
     // find old editing overlap and reset BP
     Overlap * editing_overlap = timeline->FindEditingOverlap();
-    timeline->Seek(overlap->mStart);
-
+    
     if (editing_overlap && editing_overlap->mID != overlap->mID)
     {
         auto clip_first = timeline->FindClipByID(editing_overlap->m_Clip.first);
@@ -5160,14 +5199,6 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
         }
     }
 
-    overlap->bEditing = true;
-    auto first = timeline->FindClipByID(overlap->m_Clip.first);
-    auto second = timeline->FindClipByID(overlap->m_Clip.second);
-    if (!first || !second)
-        return;
-    if (IS_DUMMY(first->mType) || IS_DUMMY(second->mType))
-        return;
-
     if (IS_VIDEO(first->mType) && IS_VIDEO(second->mType))
     {
         if (!timeline->mVidOverlap)
@@ -5179,13 +5210,40 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
         if (!timeline->mAudOverlap)
             timeline->mAudOverlap = new EditingAudioOverlap(overlap->mID, timeline);
     }
+    
+#else
+    auto found = timeline->FindEditingItem(EDITING_TRANSITION, overlap->mID);
+    if (found == -1)
+    {
+        uint32_t type = MEDIA_UNKNOWN;
+        BaseEditingOverlap *eoverlap = nullptr;
+        if (IS_VIDEO(first->mType) && IS_VIDEO(second->mType))
+        {
+            type = MEDIA_VIDEO;
+            eoverlap = new EditingVideoOverlap(overlap->mID, timeline);
+        }
+        else if (IS_AUDIO(first->mType) && IS_AUDIO(second->mType))
+        {
+            type = MEDIA_AUDIO;
+            eoverlap = new EditingAudioOverlap(overlap->mID, timeline);
+        }
+        if (eoverlap)
+        {
+            EditingItem * item = new EditingItem(type, eoverlap);
+            item->mIndex = timeline->mEditingItems.size();
+            timeline->mEditingItems.push_back(item);
+        }
+    }
+    else
+    {
+        // TODO::Dicky new UI into editing overlap page
+    }
+#endif
+
     if (timeline->m_CallBacks.EditingOverlap)
     {
         timeline->m_CallBacks.EditingOverlap(first->mType, overlap);
     }
-#else
-    // TODO::Dicky add new editing overlap here
-#endif
 }
 
 void MediaTrack::CalculateAudioScopeData(ImGui::ImMat& mat_in)
@@ -5573,6 +5631,75 @@ void ClipGroup::Save(imgui_json::value& value)
 namespace MediaTimeline
 {
 /***********************************************************************************************************
+ * EditingItem Struct Member Functions
+ ***********************************************************************************************************/
+EditingItem::EditingItem(uint32_t media_type, BaseEditingClip * clip)
+{
+    if (!clip)
+        return;
+    TimeLine * timeline = (TimeLine *)clip->mHandle;
+    if (!timeline)
+        return;
+    auto item = timeline->FindMediaItemByID(clip->mMediaID);
+    if (!item)
+        return;
+    mMediaType = media_type; 
+    mEditingClip = clip; 
+    mEditorType = EDITING_FILTER;
+    mName = item->mName;
+    mTooltip = "Clip Editing " + mName;
+    // TODO::Dicky add overview texture here
+}
+
+EditingItem::EditingItem(uint32_t media_type, BaseEditingOverlap * overlap)
+{
+    if (!overlap)
+        return;
+    TimeLine * timeline = (TimeLine *)overlap->mHandle;
+    if (!timeline)
+        return;
+    auto ovlp = timeline->FindOverlapByID(overlap->mID);
+    if (!ovlp)
+        return;
+    auto first_clip = timeline->FindClipByID(ovlp->m_Clip.first);
+    auto second_clip = timeline->FindClipByID(ovlp->m_Clip.second);
+    if (!first_clip || !second_clip)
+        return;
+    auto first_item = timeline->FindMediaItemByID(first_clip->mMediaID);
+    auto second_item = timeline->FindMediaItemByID(second_clip->mMediaID);
+    if (!first_item || !second_item)
+        return;
+    mMediaType = media_type; 
+    mEditingOverlap = overlap; 
+    mEditorType = EDITING_TRANSITION;
+    mName = first_item->mName + "->" + second_item->mName;
+    mTooltip = "Transition Editing " + mName;
+    // TODO::Dicky add overview texture here
+}
+
+EditingItem::~EditingItem()
+{
+    if (mTexture)
+    {
+        ImGui::ImDestroyTexture(mTexture);
+        mTexture = nullptr;
+    }
+    if (mEditingClip)
+    {
+        // TODO::Dicky Save editing clip
+        delete mEditingClip;
+    }
+    if (mEditingOverlap)
+    {
+        // TODO::Dicky Save editing overlap
+        delete mEditingOverlap;
+    }
+}
+} // namespace MediaTimeline
+
+namespace MediaTimeline
+{
+/***********************************************************************************************************
  * TimeLine Struct Member Functions
  ***********************************************************************************************************/
 int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
@@ -5730,6 +5857,12 @@ TimeLine::~TimeLine()
         delete mAudOverlap;
         mAudOverlap = nullptr;
     }
+#else
+    for (auto item : mEditingItems)
+    {
+        delete item;
+    }
+    mEditingItems.clear();
 #endif
     if (mAudioRender)
     {
@@ -7169,7 +7302,7 @@ ImU32 TimeLine::GetGroupColor(int64_t group_id)
 void TimeLine::CustomDraw(
         int index, ImDrawList *draw_list, const ImRect &view_rc, const ImRect &rc,
         const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRec,
-        bool is_moving, bool enable_select, bool is_updated, std::list<imgui_json::value>* pActionList)
+        int64_t mouse_time, bool is_moving, bool enable_select, bool is_updated, std::list<imgui_json::value>* pActionList)
 {
     // view_rc: track view rect
     // rc: full track length rect
@@ -7212,6 +7345,19 @@ void TimeLine::CustomDraw(
 
     auto is_control_hovered = track->DrawTrackControlBar(draw_list, legendRect, enable_select, pActionList);
     draw_list->PopClipRect();
+
+    bool bOverlapHovered = false;
+    if (clippingRect.Contains(io.MousePos))
+    {
+        for (auto overlap : track->m_Overlaps)
+        {
+            if (overlap->mStart <= mouse_time && overlap->mEnd >= mouse_time)
+            {
+                bOverlapHovered = true;
+                break;
+            }
+        }
+    }
 
     // draw clips
     for (auto clip : track->m_Clips)
@@ -7395,7 +7541,7 @@ void TimeLine::CustomDraw(
                     {
                         // [shortcut]: shift + double left click to attribute page
                         bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftShift) && (io.KeyMods == ImGuiModFlags_Shift);
-                        if (!IS_DUMMY(clip->mType))
+                        if (!IS_DUMMY(clip->mType) && !bOverlapHovered)
                             track->SelectEditingClip(clip, !b_attr_editing);
                     }
                     clip->DrawTooltips();
@@ -10110,6 +10256,20 @@ int64_t TimeLine::AddNewClip(
     }
     return newClip->mID;
 }
+
+#ifndef OLD_CLIP_EDIT
+int TimeLine::FindEditingItem(int type, int64_t id)
+{
+    auto iter = std::find_if(mEditingItems.begin(), mEditingItems.end(), [id, type] (auto& item) {
+            return item->mEditorType == type && 
+                    ((type == EDITING_FILTER && item->mEditingClip && item->mEditingClip->mID == id) ||
+                    (type == EDITING_TRANSITION && item->mEditingOverlap && item->mEditingOverlap->mID == id));
+    });
+    if (iter != mEditingItems.end())
+        return iter - mEditingItems.begin();
+    return -1;
+}
+#endif
 } // namespace MediaTimeline/TimeLine
 
 namespace MediaTimeline
@@ -11433,7 +11593,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             timeline->CustomDraw(
                     customDraw.index, draw_list, ImRect(childFramePos, childFramePos + childFrameSize), customDraw.customRect,
                     customDraw.titleRect, customDraw.clippingTitleRect, customDraw.legendRect, customDraw.clippingRect, customDraw.legendClippingRect,
-                    bClipMoving, !menuIsOpened && !timeline->mIsCutting && editable, changed | need_save, &actionList);
+                    mouseTime, bClipMoving, !menuIsOpened && !timeline->mIsCutting && editable, changed | need_save, &actionList);
         draw_list->PopClipRect();
 
         // show cutting line
