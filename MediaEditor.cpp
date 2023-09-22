@@ -11312,7 +11312,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             auto wmin = main_sub_pos + ImVec2(0, 32);
             auto wmax = wmin + ImGui::GetContentRegionAvail() - ImVec2(8, 0);
 #ifndef OLD_CLIP_EDIT
-            if (timeline->mEditingItems.size() > 0) wmax -= ImVec2(0, 40); // image tab label has height 36
+            if (timeline->mEditingItems.size() > 0) wmax -= ImVec2(0, 64); // image tab label has height 36
 #endif
             draw_list->AddRectFilled(wmin, wmax, IM_COL32_BLACK, 8.0, ImDrawFlags_RoundCornersAll);
             if (ImGui::BeginChild("##Main_Window_content", wmax - wmin, false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
@@ -11337,10 +11337,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 static int selectedTab = 0;
                 static int optionalHoveredTab = 0;
                 ImVec2 clip_table_size;
-                // TODO::Dicky Add editing item tab
                 std::vector<std::string> tab_names;
                 std::vector<std::string> tab_tooltips;
                 std::vector<ImTextureID> tab_textures;
+                std::vector<ImVec4> tab_textureROIs;
                 std::vector<int> tab_index;
                 int justClosedTabIndex = -1;
                 int justClosedTabIndexInsideTabItemOrdering = -1;
@@ -11349,10 +11349,12 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 {
                     tab_names.push_back(item->mName);
                     tab_tooltips.push_back(item->mTooltip);
-                    tab_textures.push_back(nullptr);
+                    tab_textures.push_back(item->mTexture);
+                    tab_textureROIs.push_back(item->mRoi);
                     tab_index.push_back(item->mIndex);
                 }
-                ImGui::TabImageLabels(tab_names, selectedTab, clip_table_size, tab_tooltips, tab_textures, ImVec2(64,36), false, false,&optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true);
+                ImGui::SetCursorScreenPos(ImGui::GetCursorScreenPos() - ImVec2(0, 4));
+                ImGui::TabImageLabels(tab_names, selectedTab, clip_table_size, tab_tooltips, tab_textures, tab_textureROIs, ImVec2(64,36), false, false, &optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true);
                 if (justClosedTabIndex == 1)
                 {
                     selectedTab = oldSelectedTab;

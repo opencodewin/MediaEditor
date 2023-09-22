@@ -843,7 +843,8 @@ struct EditingItem
     bool mIsSelected                     {false};
     BaseEditingClip * mEditingClip       {nullptr};
     BaseEditingOverlap * mEditingOverlap {nullptr};
-    ImTextureID * mTexture               {nullptr};
+    ImTextureID mTexture                 {nullptr};
+    ImVec4 mRoi                          {0, 0, 1, 1};
     std::string mName                    {""};
     std::string mTooltip                 {""};
 public:

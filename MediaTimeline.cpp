@@ -127,6 +127,23 @@ static bool waveFrameResample(float * wave, int samples, int size, int start_off
     return min_max;
 }
 
+static void waveformToMat(const MediaCore::Overview::Waveform::Holder wavefrom, ImGui::ImMat& mat, ImVec2 wave_size)
+{
+    int channels = wavefrom->pcm.size();
+    if (channels > 2) channels = 2;
+    int channel_height = wave_size.y / channels;
+    ImVec2 channel_size(wave_size.x, channel_height);
+    float wave_range = fmax(fabs(wavefrom->minSample), fabs(wavefrom->maxSample));
+    mat.create(wave_size.x, wave_size.y, 4, (size_t)1, 4);
+    ImGui::PushStyleColor(ImGuiCol_PlotLines, ImVec4(0.f, 1.f, 0.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.f, 1.f, 0.f, 0.75f));
+    for (int i = 0; i < channels; i++)
+    {
+        ImGui::PlotMat(mat, ImVec2(0, channel_height * i), &wavefrom->pcm[i][0], wavefrom->pcm[i].size(), 0, -wave_range / 2, wave_range / 2, channel_size, sizeof(float), true, true);
+    }
+    ImGui::PopStyleColor(2);
+}
+
 namespace MediaTimeline
 {
 /***********************************************************************************************************
@@ -5641,14 +5658,39 @@ EditingItem::EditingItem(uint32_t media_type, BaseEditingClip * clip)
     if (!timeline)
         return;
     auto item = timeline->FindMediaItemByID(clip->mMediaID);
-    if (!item)
+    if (!item || !item->mValid)
         return;
     mMediaType = media_type; 
     mEditingClip = clip; 
     mEditorType = EDITING_FILTER;
-    mName = item->mName;
+    mName = IS_VIDEO(media_type) ? std::string(ICON_MEDIA_VIDEO) : IS_AUDIO(media_type) ? std::string(ICON_MEDIA_AUDIO) : "?";
+    mName += " " + item->mName;
     mTooltip = "Clip Editing " + mName;
-    // TODO::Dicky add overview texture here
+    if (IS_VIDEO(media_type))
+    {
+        if (!item->mMediaThumbnail.empty() && item->mMediaThumbnail[0])
+        {
+            auto hTx = item->mMediaThumbnail[0];
+            auto roi = hTx->GetDisplayRoi();
+            mTexture = hTx->TextureID();
+            mRoi = ImVec4(roi.lt.x, roi.lt.y, roi.rb.x, roi.rb.y);
+        }
+    }
+    else if (IS_AUDIO(media_type))
+    {
+        auto wavefrom = item->mMediaOverview->GetWaveform();
+        if (wavefrom && wavefrom->pcm.size() > 0)
+        {
+            ImGui::ImMat plot_mat;
+            ImVec2 wave_size(128, 64);
+            waveformToMat(wavefrom, plot_mat, wave_size);
+            if (!plot_mat.empty())
+            {
+                plot_mat.draw_rectangle(ImPoint(0, 0), ImPoint(plot_mat.w - 1, plot_mat.h - 1), ImPixel(1, 1, 1, 1));
+                ImMatToTexture(plot_mat, mTexture);
+            }
+        }
+    }
 }
 
 EditingItem::EditingItem(uint32_t media_type, BaseEditingOverlap * overlap)
@@ -5672,9 +5714,80 @@ EditingItem::EditingItem(uint32_t media_type, BaseEditingOverlap * overlap)
     mMediaType = media_type; 
     mEditingOverlap = overlap; 
     mEditorType = EDITING_TRANSITION;
-    mName = first_item->mName + "->" + second_item->mName;
+    auto type_char = IS_VIDEO(media_type) ? std::string(ICON_MEDIA_VIDEO) : IS_AUDIO(media_type) ? std::string(ICON_MEDIA_AUDIO) : "?";
+    mName = type_char + " " + first_item->mName + "->" + type_char + " " + second_item->mName;
     mTooltip = "Transition Editing " + mName;
-    // TODO::Dicky add overview texture here
+    if (IS_VIDEO(media_type))
+    {
+        ImGui::ImMat first_mat, second_mat;
+        if (!first_item->mMediaThumbnail.empty() && first_item->mMediaThumbnail[0])
+        {
+            auto hTx = first_item->mMediaThumbnail[0];
+            auto roi = hTx->GetDisplayRoi();
+            auto texture = hTx->TextureID();
+            ImVec2 size(ImGui::ImGetTextureWidth(texture), ImGui::ImGetTextureHeight(texture));
+            ImVec2 offset = roi.lt * size;
+            ImVec2 texture_size = (roi.rb - roi.lt) * size;
+            ImGui::ImTextureToMat(texture, first_mat, offset, texture_size);
+            first_mat.draw_rectangle(ImPoint(0, 0), ImPoint(first_mat.w - 1, first_mat.h - 1), ImPixel(1, 1, 1, 1));
+        }
+        if (!second_item->mMediaThumbnail.empty() && second_item->mMediaThumbnail[0])
+        {
+            auto hTx = second_item->mMediaThumbnail[0];
+            auto roi = hTx->GetDisplayRoi();
+            auto texture = hTx->TextureID();
+            ImVec2 size(ImGui::ImGetTextureWidth(texture), ImGui::ImGetTextureHeight(texture));
+            ImVec2 offset = roi.lt * size;
+            ImVec2 texture_size = (roi.rb - roi.lt) * size;
+            ImGui::ImTextureToMat(texture, second_mat, offset, texture_size);
+            second_mat.draw_rectangle(ImPoint(0, 0), ImPoint(second_mat.w - 1, second_mat.h - 1), ImPixel(1, 1, 1, 1));
+        }
+        if (!first_mat.empty() && !second_mat.empty())
+        {
+            auto width = first_mat.w + first_mat.w / 3;
+            auto height = first_mat.h + first_mat.h / 3;
+            ImGui::ImMat overlap_mat(width, height, 4, (size_t)1, 4);
+            first_mat.copy_to(overlap_mat);
+            second_mat.copy_to(overlap_mat, ImPoint(first_mat.w / 3, first_mat.h / 3));
+            ImMatToTexture(overlap_mat, mTexture);
+        }
+        else
+        {
+            if (!first_mat.empty()) ImMatToTexture(first_mat, mTexture);
+            else if (!second_mat.empty()) ImMatToTexture(second_mat, mTexture);
+        }
+    }
+    else if (IS_AUDIO(media_type))
+    {
+        ImGui::ImMat first_mat, second_mat;
+        auto first_wavefrom = first_item->mMediaOverview->GetWaveform();
+        auto second_wavefrom = second_item->mMediaOverview->GetWaveform();
+        ImVec2 wave_size(96, 48);
+        if (first_wavefrom && first_wavefrom->pcm.size() > 0)
+        {
+            waveformToMat(first_wavefrom, first_mat, wave_size);
+            first_mat.draw_rectangle(ImPoint(0, 0), ImPoint(first_mat.w - 1, first_mat.h - 1), ImPixel(1, 1, 1, 1));
+        }
+        if (second_wavefrom && second_wavefrom->pcm.size() > 0)
+        {
+            waveformToMat(second_wavefrom, second_mat, wave_size);
+            second_mat.draw_rectangle(ImPoint(0, 0), ImPoint(second_mat.w - 1, second_mat.h - 1), ImPixel(1, 1, 1, 1));
+        }
+        if (!first_mat.empty() && !second_mat.empty())
+        {
+            auto width = first_mat.w + first_mat.w / 3;
+            auto height = first_mat.h + first_mat.h / 3;
+            ImGui::ImMat overlap_mat(width, height, 4, (size_t)1, 4);
+            first_mat.copy_to(overlap_mat);
+            second_mat.copy_to(overlap_mat, ImPoint(first_mat.w / 3, first_mat.h / 3));
+            ImMatToTexture(overlap_mat, mTexture);
+        }
+        else
+        {
+            if (!first_mat.empty()) ImMatToTexture(first_mat, mTexture);
+            else if (!second_mat.empty()) ImMatToTexture(second_mat, mTexture);
+        }
+    }
 }
 
 EditingItem::~EditingItem()
