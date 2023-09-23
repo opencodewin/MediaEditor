@@ -934,6 +934,12 @@ static int EditingClipFilter(int type, void* handle)
     {
         MainWindowIndex = MAIN_PAGE_TEXT;
     }
+#ifndef OLD_CLIP_EDIT
+    else
+    {
+        MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
+    }
+#endif
     auto updated = UIPageChanged();
     return updated ? 1 : 0;
 }
@@ -953,6 +959,8 @@ static int EditingOverlap(int type, void* handle)
         AudioEditorWindowIndex = AUDIO_PAGE_TRANSITION;
         ControlPanelIndex = 2;
     }
+#else
+    MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
 #endif
     auto updated = UIPageChanged();
     return updated ? 1 : 0;
@@ -10824,6 +10832,33 @@ static void MediaEditor_Finalize(void** handle)
     RenderUtils::TextureManager::ReleaseDefaultInstance();
 }
 
+#ifndef OLD_CLIP_EDIT
+/****************************************************************************************
+ * 
+ * Editing Item window
+ *
+ ***************************************************************************************/
+static void ShowEditingItemWindow(ImDrawList *draw_list, ImRect title_rect)
+{   
+    if (timeline->mSelectedItem == -1 || timeline->mEditingItems.empty() || timeline->mSelectedItem >= timeline->mEditingItems.size())
+        return;
+    auto item = timeline->mEditingItems[timeline->mSelectedItem];
+    if (!item)
+        return;
+    // draw page title
+    std::string title;
+    title = item->mEditorType == EDITING_FILTER ? "Clip:" : item->mEditorType == EDITING_TRANSITION ? "Transition:" : "Unknown:";
+    title += item->mName;
+    title += " " + std::to_string(timeline->mSelectedItem);
+    ImGui::SetWindowFontScale(1.8);
+    auto title_size = ImGui::CalcTextSize(title.c_str());
+    float str_offset = title_rect.Max.x - title_size.x - 16;
+    ImGui::SetWindowFontScale(1.0);
+    ImGui::AddTextComplex(draw_list, ImVec2(str_offset, title_rect.Min.y), title.c_str(), 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
+
+}
+#endif
+
 static void MediaEditor_DropFromSystem(std::vector<std::string>& drops)
 {
     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceExtern | ImGuiDragDropFlags_SourceNoPreviewTooltip | ImGuiDragDropFlags_AcceptPeekOnly))
@@ -11300,8 +11335,13 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             // full background
             ImDrawList *draw_list = ImGui::GetWindowDrawList();
             ImVec2 table_size;
-            if (ImGui::TabLabels(MainWindowTabNames, MainWindowIndex, table_size, MainWindowTabTooltips, false, true, nullptr, nullptr, false, false, nullptr, nullptr))
+            int window_index = MainWindowIndex;
+            if (ImGui::TabLabels(MainWindowTabNames, window_index, table_size, MainWindowTabTooltips, false, true, nullptr, nullptr, false, false, nullptr, nullptr))
             {
+#ifndef OLD_CLIP_EDIT
+                MainWindowIndex = window_index;
+                timeline->mSelectedItem = -1;
+#endif
                 UIPageChanged();
             }
             
@@ -11326,7 +11366,9 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 #endif
                     case MAIN_PAGE_TEXT: ShowTextEditorWindow(draw_list, title_rect); break;
                     case MAIN_PAGE_MIXING: ShowAudioMixingWindow(draw_list, title_rect); break;
-                    case MAIN_PAGE_CLIP_EDITOR : break;
+#ifndef OLD_CLIP_EDIT
+                    case MAIN_PAGE_CLIP_EDITOR : ShowEditingItemWindow(draw_list, title_rect); break;
+#endif
                     default: break;
                 }
             }
@@ -11355,7 +11397,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 ImGui::SetCursorScreenPos(ImGui::GetCursorScreenPos() - ImVec2(0, 4));
                 if (ImGui::TabImageLabels(tab_names, timeline->mSelectedItem, clip_table_size, tab_tooltips, tab_textures, tab_textureROIs, ImVec2(64,36), false, false, &optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true))
                 {
-                    // TODO::Dicky tab selected changed
+                    MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
+                    UIPageChanged();
                 }
                 
                 if (justClosedTabIndex != -1)

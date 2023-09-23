@@ -5144,11 +5144,12 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
             EditingItem *item = new EditingItem(type, eclip);
             item->mIndex = timeline->mEditingItems.size();
             timeline->mEditingItems.push_back(item);
+            timeline->mSelectedItem = item->mIndex;
         }
     }
     else
     {
-        // TODO::Dicky new UI into editing clip page
+        timeline->mSelectedItem = found;
     }
 #endif
     if (timeline->m_CallBacks.EditingClipFilter)
@@ -5249,11 +5250,12 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
             EditingItem * item = new EditingItem(type, eoverlap);
             item->mIndex = timeline->mEditingItems.size();
             timeline->mEditingItems.push_back(item);
+            timeline->mSelectedItem = item->mIndex;
         }
     }
     else
     {
-        // TODO::Dicky new UI into editing overlap page
+        timeline->mSelectedItem = found;
     }
 #endif
 
