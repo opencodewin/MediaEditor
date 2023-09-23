@@ -1154,6 +1154,7 @@ struct TimeLine
     EditingAudioOverlap* mAudOverlap    {nullptr};
 #else
     std::vector<EditingItem*> mEditingItems;
+    int mSelectedItem                   {-1};
     int FindEditingItem(int type, int64_t id);
 #endif
 

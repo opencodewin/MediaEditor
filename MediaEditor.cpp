@@ -11334,7 +11334,6 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 #ifndef OLD_CLIP_EDIT
             if (timeline->mEditingItems.size() > 0)
             {
-                static int selectedTab = 0;
                 static int optionalHoveredTab = 0;
                 ImVec2 clip_table_size;
                 std::vector<std::string> tab_names;
@@ -11344,7 +11343,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 std::vector<int> tab_index;
                 int justClosedTabIndex = -1;
                 int justClosedTabIndexInsideTabItemOrdering = -1;
-                int oldSelectedTab = selectedTab;
+                int oldSelectedTab = timeline->mSelectedItem;
                 for (auto item : timeline->mEditingItems)
                 {
                     tab_names.push_back(item->mName);
@@ -11354,10 +11353,29 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     tab_index.push_back(item->mIndex);
                 }
                 ImGui::SetCursorScreenPos(ImGui::GetCursorScreenPos() - ImVec2(0, 4));
-                ImGui::TabImageLabels(tab_names, selectedTab, clip_table_size, tab_tooltips, tab_textures, tab_textureROIs, ImVec2(64,36), false, false, &optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true);
-                if (justClosedTabIndex == 1)
+                if (ImGui::TabImageLabels(tab_names, timeline->mSelectedItem, clip_table_size, tab_tooltips, tab_textures, tab_textureROIs, ImVec2(64,36), false, false, &optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true))
                 {
-                    selectedTab = oldSelectedTab;
+                    // TODO::Dicky tab selected changed
+                }
+                
+                if (justClosedTabIndex != -1)
+                {
+                    fprintf(stderr, "just closed index:%d %d\n", justClosedTabIndex, justClosedTabIndexInsideTabItemOrdering);
+                    for (auto item : timeline->mEditingItems)
+                    {
+                        if (item->mIndex > justClosedTabIndexInsideTabItemOrdering) item->mIndex--;
+                    }
+                    auto iter = timeline->mEditingItems.begin() + justClosedTabIndex;
+                    // TODO::Dicky add delete item here
+                    timeline->mEditingItems.erase(iter);
+                    for (auto item : timeline->mEditingItems) fprintf(stderr, "%d\n", item->mIndex);
+                }
+                else
+                {
+                    for (int i = 0; i < timeline->mEditingItems.size(); i++)
+                    {
+                        timeline->mEditingItems[i]->mIndex = tab_index[i];
+                    }
                 }
             }
 #endif
