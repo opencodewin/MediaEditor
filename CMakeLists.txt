@@ -66,6 +66,12 @@ set_target_properties(
     LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
 )
+set_target_properties(
+    ImMaskCreator
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
 
 if(IMGUI_VULKAN_SHADER)
 set_target_properties(
@@ -75,6 +81,7 @@ set_target_properties(
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
 )
 endif()
+
 include_directories(
     ${IMGUI_INCLUDE_DIRS}
     ${CMAKE_CURRENT_BINARY_DIR}
