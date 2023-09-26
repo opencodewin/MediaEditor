@@ -785,6 +785,8 @@ static bool UIPageChanged()
             timeline->bEditingOverlap = false;
         }
     }
+#else
+
 #endif
 
     if (LastMainWindowIndex == MAIN_PAGE_TEXT && MainWindowIndex != MAIN_PAGE_TEXT)
@@ -11732,15 +11734,28 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 
                 if (justClosedTabIndex != -1)
                 {
-                    fprintf(stderr, "just closed index:%d %d\n", justClosedTabIndex, justClosedTabIndexInsideTabItemOrdering);
+                    //fprintf(stderr, "just closed index:%d %d\n", justClosedTabIndex, justClosedTabIndexInsideTabItemOrdering);
                     for (auto item : timeline->mEditingItems)
                     {
                         if (item->mIndex > justClosedTabIndexInsideTabItemOrdering) item->mIndex--;
                     }
                     auto iter = timeline->mEditingItems.begin() + justClosedTabIndex;
-                    // TODO::Dicky add delete item here
                     timeline->mEditingItems.erase(iter);
-                    for (auto item : timeline->mEditingItems) fprintf(stderr, "%d\n", item->mIndex);
+                    if (timeline->mEditingItems.empty())
+                    {
+                        MainWindowIndex = MAIN_PAGE_PREVIEW;
+                        UIPageChanged();
+                    }
+                    else
+                    {
+                        timeline->mSelectedItem = oldSelectedTab > justClosedTabIndexInsideTabItemOrdering ? oldSelectedTab - 1 : oldSelectedTab;
+                        if (timeline->mSelectedItem < 0)
+                        {
+                            MainWindowIndex = MAIN_PAGE_PREVIEW;
+                        }
+                        UIPageChanged();
+                    }
+                    //for (auto item : timeline->mEditingItems) fprintf(stderr, "%d\n", item->mIndex);
                 }
                 else
                 {

@@ -5801,12 +5801,12 @@ EditingItem::~EditingItem()
     }
     if (mEditingClip)
     {
-        // TODO::Dicky Save editing clip
+        mEditingClip->Save();
         delete mEditingClip;
     }
     if (mEditingOverlap)
     {
-        // TODO::Dicky Save editing overlap
+        mEditingOverlap->Save();
         delete mEditingOverlap;
     }
 }
@@ -8333,6 +8333,12 @@ int TimeLine::Load(const imgui_json::value& value)
 
 void TimeLine::Save(imgui_json::value& value)
 {
+    // save editing item
+    for (auto item : mEditingItems)
+    {
+        if (item->mEditingClip) item->mEditingClip->Save();
+        if (item->mEditingOverlap) item->mEditingOverlap->Save();
+    }
     // save media clip
     imgui_json::value media_clips;
     for (auto clip : m_Clips)
