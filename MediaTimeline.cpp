@@ -8333,12 +8333,14 @@ int TimeLine::Load(const imgui_json::value& value)
 
 void TimeLine::Save(imgui_json::value& value)
 {
+#ifndef OLD_CLIP_EDIT
     // save editing item
     for (auto item : mEditingItems)
     {
         if (item->mEditingClip) item->mEditingClip->Save();
         if (item->mEditingOverlap) item->mEditingOverlap->Save();
     }
+#endif
     // save media clip
     imgui_json::value media_clips;
     for (auto clip : m_Clips)
