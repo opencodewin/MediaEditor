@@ -690,6 +690,7 @@ struct BaseEditingClip
     int64_t mStartOffset        {0};                    // editing clip start time in media
     int64_t mEndOffset          {0};                    // editing clip end time in media
     int64_t mDuration           {0};
+    int64_t mCurrentTime        {-1};
     ImVec2 mViewWndSize         {0, 0};
     bool bSeeking               {false};
 
@@ -768,12 +769,13 @@ struct BaseEditingOverlap
 {
     void* mHandle                   {nullptr};  // main timeline handle
     int64_t mID                     {-1};       // overlap ID
-    int64_t mStart;
-    int64_t mEnd;
-    int64_t mDuration;
-    ImVec2 mViewWndSize     {0, 0};
-    float msPixelWidth {0};
-    bool bSeeking{false};
+    int64_t mStart                  {0};
+    int64_t mEnd                    {0};
+    int64_t mDuration               {0};
+    int64_t mCurrentTime            {-1};
+    ImVec2 mViewWndSize             {0, 0};
+    float msPixelWidth              {0};
+    bool bSeeking                   {false};
     BaseEditingOverlap(int64_t id, void* handle) { mID = id; mHandle = handle; }
     virtual ~BaseEditingOverlap() {};
     std::pair<int64_t, int64_t> m_StartOffset;
