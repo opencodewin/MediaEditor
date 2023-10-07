@@ -708,7 +708,7 @@ struct BaseEditingClip
     virtual void CalcDisplayParams(int64_t viewWndDur) = 0;
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Save() = 0;
-    virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) = 0;
+    virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) = 0;
 };
 
@@ -736,7 +736,7 @@ public:
     void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) override;
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
 };
 
@@ -759,7 +759,7 @@ public:
     void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) override;
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
 };
 
@@ -1133,7 +1133,6 @@ struct TimeLine
     bool bLoop = false;                     // project saved
     bool bCompare = false;                  // project saved
     bool bFilterOutputPreview = true;       // project saved
-    bool bAttributeOutputPreview = true;    // project saved
     bool bTransitionOutputPreview = true;   // project saved
     bool bSelectLinked = true;              // project saved
     bool bMovingAttract = true;             // project saved

@@ -3393,7 +3393,7 @@ void EditingVideoClip::Save()
     timeline->UpdatePreview();
 }
 
-bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame, bool attribute)
+bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame)
 {
     int ret = true;
     TimeLine * timeline = (TimeLine *)mHandle;
@@ -3418,7 +3418,7 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
     else
     {
         auto iter_out = std::find_if(frames.begin(), frames.end(), [&] (auto& cf) {
-            return cf.clipId == mID && cf.phase == (attribute ? MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM : MediaCore::CorrelativeFrame::PHASE_AFTER_FILTER);
+            return cf.clipId == mID && cf.phase == MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM;
         });
         if (iter_out != frames.end())
             in_out_frame.second = iter_out->frame;
@@ -3645,7 +3645,7 @@ void EditingAudioClip::Save()
     }
 }
 
-bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame, bool attribute)
+bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame)
 {
     return false;
 }
@@ -7708,11 +7708,6 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["TransitionOutPreview"];
         if (val.is_boolean()) bTransitionOutputPreview = val.get<imgui_json::boolean>();
     }
-    if (value.contains("AttributeOutPreview"))
-    {
-        auto& val = value["AttributeOutPreview"];
-        if (val.is_boolean()) bAttributeOutputPreview = val.get<imgui_json::boolean>();
-    }
     if (value.contains("SelectLinked"))
     {
         auto& val = value["SelectLinked"];
@@ -8297,7 +8292,6 @@ void TimeLine::Save(imgui_json::value& value)
     value["Compare"] = imgui_json::boolean(bCompare);
     value["FilterOutPreview"] = imgui_json::boolean(bFilterOutputPreview);
     value["TransitionOutPreview"] = imgui_json::boolean(bTransitionOutputPreview);
-    value["AttributeOutPreview"] = imgui_json::boolean(bAttributeOutputPreview);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
     value["MovingAttract"] = imgui_json::boolean(bMovingAttract);
     value["IDGenerateState"] = imgui_json::number(m_IDGenerator.State());
