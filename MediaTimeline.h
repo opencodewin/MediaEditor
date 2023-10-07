@@ -965,7 +965,7 @@ struct MediaTrack
     bool CanInsertClip(Clip * clip, int64_t pos);
     void InsertClip(Clip * clip, int64_t pos = 0, bool update = true, std::list<imgui_json::value>* pActionList = nullptr);
     void SelectClip(Clip * clip, bool appand);
-    void SelectEditingClip(Clip * clip, bool filter_editing = false);
+    void SelectEditingClip(Clip * clip);
     void SelectEditingOverlap(Overlap * overlap);
     void DeleteClip(int64_t id);
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
@@ -1019,8 +1019,7 @@ struct ClipGroup
 typedef int (*TimeLineCallback)(int type, void* handle);
 typedef struct TimeLineCallbackFunctions
 {
-    TimeLineCallback  EditingClipAttribute  {nullptr};
-    TimeLineCallback  EditingClipFilter     {nullptr};
+    TimeLineCallback  EditingClip           {nullptr};
     TimeLineCallback  EditingOverlap        {nullptr};
 } TimeLineCallbackFunctions;
 
@@ -1317,7 +1316,6 @@ struct TimeLine
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool editable = true);
-bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point, bool& changed);
 bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, bool& show_BP, bool& changed);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
 } // namespace MediaTimeline

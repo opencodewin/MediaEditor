@@ -718,17 +718,7 @@ static bool UIPageChanged()
     return updated;
 }
 
-static int EditingClipAttribute(int type, void* handle)
-{
-    if (IS_TEXT(type))
-    {
-        MainWindowIndex = MAIN_PAGE_TEXT;
-    }
-    auto updated = UIPageChanged();
-    return updated ? 1 : 0;
-}
-
-static int EditingClipFilter(int type, void* handle)
+static int EditingClip(int type, void* handle)
 {
     if (IS_TEXT(type))
     {
@@ -1538,8 +1528,7 @@ static void NewTimeline()
         timeline->mFontName = g_media_editor_settings.FontName;
 
         // init callbacks
-        timeline->m_CallBacks.EditingClipAttribute = EditingClipAttribute;
-        timeline->m_CallBacks.EditingClipFilter = EditingClipFilter;
+        timeline->m_CallBacks.EditingClip = EditingClip;
         timeline->m_CallBacks.EditingOverlap = EditingOverlap;
 
         // set global variables
@@ -1669,7 +1658,7 @@ static void SaveProject(const std::string& path)
     Logger::Log(Logger::DEBUG) << "[Project] Save project to file!!!" << std::endl;
 
     timeline->Play(false, true);
-    
+
     // first save media bank info
     imgui_json::value media_bank;
     for (auto media : timeline->media_items)
@@ -4275,7 +4264,7 @@ static void ShowFilterBluePrintWindow(ImDrawList *draw_list, BaseEditingClip * e
         {
             auto track = timeline->FindTrackByClipID(clip->mID);
             if (track)
-                track->SelectEditingClip(clip, true);
+                track->SelectEditingClip(clip);
             pBp->View_ZoomToContent();
         }
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
