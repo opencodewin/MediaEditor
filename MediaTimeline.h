@@ -41,8 +41,6 @@
 #define PLOT_IMPLOT   0
 #define PLOT_TEXTURE  1
 
-#define OLD_CLIP_EDIT
-
 #ifdef MEDIA_MANAGEMENT
 #define ICON_SORT_ID        u8"\uf887"
 #define ICON_SORT_TYPE      u8"\uf885"
@@ -1145,20 +1143,9 @@ struct TimeLine
     uint32_t mSortMethod {0};
 #endif
 
-#ifdef OLD_CLIP_EDIT
-    std::mutex mVidFilterClipLock;          // timeline clip mutex
-    EditingVideoClip* mVidFilterClip    {nullptr};
-    std::mutex mAudFilterClipLock;          // timeline clip mutex
-    EditingAudioClip* mAudFilterClip    {nullptr};
-    std::mutex mVidTransitionLock;          // timeline overlap mutex
-    EditingVideoOverlap* mVidOverlap    {nullptr};
-    std::mutex mAudTransitionLock;          // timeline overlap mutex
-    EditingAudioOverlap* mAudOverlap    {nullptr};
-#else
     std::vector<EditingItem*> mEditingItems;
     int mSelectedItem                   {-1};
     int FindEditingItem(int type, int64_t id);
-#endif
 
     MediaCore::MultiTrackVideoReader::Holder mMtvReader;
     MediaCore::MultiTrackAudioReader::Holder mMtaReader;

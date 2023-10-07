@@ -880,7 +880,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
             mEnd = newEnd;
         }
     }
-#ifdef OLD_CLIP_EDIT
+#if 0 // TODO::Dicky editing item support cropping
     if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
     {
         timeline->mVidFilterClip->mStart = Start();
@@ -952,7 +952,7 @@ void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_
             new_start, new_start_offset, org_end, org_end_offset,
             gid, newClipId, nullptr)) >= 0)
     {
-#ifdef OLD_CLIP_EDIT
+#if 0 // TODO::Dicky editing item support cutting
         // update curve
         if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
         {
@@ -1302,7 +1302,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     
     auto moving_clip_keypoint = [&](Clip * clip)
     {
-#ifdef OLD_CLIP_EDIT
+#if 0 // TODO::Dicky editint item support moving
         if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == clip->mID)
         {
             timeline->mVidFilterClip->mStart = clip->mStart;
@@ -5050,80 +5050,9 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
     {
         updated = timeline->m_CallBacks.EditingClipAttribute(clip->mType, clip);
     }
-    if (!clip->IsInClipRange(timeline->mCurrentTime) || timeline->mCurrentTime < timeline->firstTime || timeline->mCurrentTime > timeline->lastTime)
-        timeline->Seek(clip->Start());
 
     clip->bEditing = true;
 
-#ifdef OLD_CLIP_EDIT
-    // find old editing clip and reset BP
-    auto editing_clip = timeline->FindEditingClip();
-    if (editing_clip && editing_clip->mID == clip->mID)
-    {
-        if (filter_editing)
-        {
-            if (IS_VIDEO(editing_clip->mType) &&
-                timeline->mVidFilterClip &&
-                timeline->mVidFilterClip->mFilter &&
-                timeline->mVidFilterClip->mFilterBp &&
-                timeline->mVidFilterClip->mFilterBp->Blueprint_IsValid())
-                return;
-            if (IS_AUDIO(editing_clip->mType) &&
-                timeline->mAudFilterClip &&
-                timeline->mAudFilterClip->mFilter &&
-                timeline->mAudFilterClip->mFilterBp &&
-                timeline->mAudFilterClip->mFilterBp->Blueprint_IsValid())
-                return;
-        }
-    }
-    else if (editing_clip && editing_clip->mID != clip->mID)
-    {
-        if (IS_VIDEO(editing_clip->mType))
-        {
-            if (!updated && timeline->mVidFilterClip)
-            {
-                timeline->mVidFilterClip->Save();
-            }
-            // update timeline video filter clip
-            timeline->mVidFilterClipLock.lock();
-            if (timeline->mVidFilterClip)
-            {
-                delete timeline->mVidFilterClip;
-                timeline->mVidFilterClip = nullptr;
-                if (timeline->mVideoFilterInputTexture) {ImGui::ImDestroyTexture(timeline->mVideoFilterInputTexture); timeline->mVideoFilterInputTexture = nullptr;}
-                if (timeline->mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoFilterOutputTexture); timeline->mVideoFilterOutputTexture = nullptr;  }
-            }
-            timeline->mVidFilterClipLock.unlock();
-        }
-        else if (IS_AUDIO(editing_clip->mType))
-        {
-            if (!updated && timeline->mAudFilterClip)
-            {
-                timeline->mAudFilterClip->Save();
-            }
-            // update timeline Audio filter clip
-            timeline->mAudFilterClipLock.lock();
-            if (timeline->mAudFilterClip)
-            {
-                delete timeline->mAudFilterClip;
-                timeline->mAudFilterClip = nullptr;
-            }
-            timeline->mAudFilterClipLock.unlock();
-        }
-        editing_clip->bEditing = false;
-    }
-
-    if (IS_VIDEO(clip->mType))
-    {
-        if (!timeline->mVidFilterClip)
-            timeline->mVidFilterClip = new EditingVideoClip((VideoClip*)clip);
-    }
-    else if (IS_AUDIO(clip->mType))
-    {
-        if (!timeline->mAudFilterClip)
-            timeline->mAudFilterClip = new EditingAudioClip((AudioClip*)clip);
-    }
-#else
     auto found = timeline->FindEditingItem(EDITING_FILTER, clip->mID);
     if (found == -1)
     {
@@ -5145,13 +5074,26 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
             item->mIndex = timeline->mEditingItems.size();
             timeline->mEditingItems.push_back(item);
             timeline->mSelectedItem = item->mIndex;
+            timeline->Seek(clip->Start());
         }
     }
     else
     {
         timeline->mSelectedItem = found;
+        auto item = timeline->mEditingItems[found];
+        if (item)
+        {
+            if (item->mEditorType == EDITING_FILTER && item->mEditingClip && item->mEditingClip->mCurrentTime != -1)
+            {
+                timeline->Seek(clip->Start() + item->mEditingClip->mCurrentTime);
+            }
+            else
+            {
+                timeline->Seek(clip->Start());
+            }
+        }
     }
-#endif
+
     if (timeline->m_CallBacks.EditingClipFilter)
     {
         timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
@@ -5174,62 +5116,6 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     timeline->Seek(overlap->mStart);
     overlap->bEditing = true;
 
-#ifdef OLD_CLIP_EDIT
-    // find old editing overlap and reset BP
-    Overlap * editing_overlap = timeline->FindEditingOverlap();
-    
-    if (editing_overlap && editing_overlap->mID != overlap->mID)
-    {
-        auto clip_first = timeline->FindClipByID(editing_overlap->m_Clip.first);
-        auto clip_second = timeline->FindClipByID(editing_overlap->m_Clip.second);
-        if (clip_first && clip_second)
-        {
-            if (IS_VIDEO(clip_first->mType) && 
-                IS_VIDEO(clip_second->mType) &&
-                timeline->mVidOverlap &&
-                timeline->mVidOverlap->mTransition &&
-                timeline->mVidOverlap->mTransition->mBp &&
-                timeline->mVidOverlap->mTransition->mBp->Blueprint_IsValid())
-            {
-                editing_overlap->mTransitionBP = timeline->mVidOverlap->mTransition->mBp->m_Document->Serialize();
-            }
-            if (IS_AUDIO(clip_first->mType) && 
-                IS_AUDIO(clip_second->mType) &&
-                timeline->mAudOverlap &&
-                timeline->mAudOverlap->mTransition &&
-                timeline->mAudOverlap->mTransition->mBp &&
-                timeline->mAudOverlap->mTransition->mBp->Blueprint_IsValid())
-            {
-                editing_overlap->mTransitionBP = timeline->mAudOverlap->mTransition->mBp->m_Document->Serialize();
-            }
-        }
-        if (timeline->mVidOverlap)
-            timeline->mVidOverlap->Save();
-        editing_overlap->bEditing = false;
-
-        if (timeline->mVidOverlap)
-        {
-            delete timeline->mVidOverlap;
-            timeline->mVidOverlap = nullptr;
-            if (timeline->mVideoTransitionInputFirstTexture) { ImGui::ImDestroyTexture(timeline->mVideoTransitionInputFirstTexture); timeline->mVideoTransitionInputFirstTexture = nullptr; }
-            if (timeline->mVideoTransitionInputSecondTexture) { ImGui::ImDestroyTexture(timeline->mVideoTransitionInputSecondTexture); timeline->mVideoTransitionInputSecondTexture = nullptr; }
-            if (timeline->mVideoTransitionOutputTexture) { ImGui::ImDestroyTexture(timeline->mVideoTransitionOutputTexture); timeline->mVideoTransitionOutputTexture = nullptr;  }
-        }
-    }
-
-    if (IS_VIDEO(first->mType) && IS_VIDEO(second->mType))
-    {
-        if (!timeline->mVidOverlap)
-            timeline->mVidOverlap = new EditingVideoOverlap(overlap->mID, timeline);
-    }
-
-    if (IS_AUDIO(first->mType) && IS_AUDIO(second->mType))
-    {
-        if (!timeline->mAudOverlap)
-            timeline->mAudOverlap = new EditingAudioOverlap(overlap->mID, timeline);
-    }
-    
-#else
     auto found = timeline->FindEditingItem(EDITING_TRANSITION, overlap->mID);
     if (found == -1)
     {
@@ -5257,7 +5143,6 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     {
         timeline->mSelectedItem = found;
     }
-#endif
 
     if (timeline->m_CallBacks.EditingOverlap)
     {
@@ -5951,34 +5836,12 @@ TimeLine::~TimeLine()
     if (mVideoTransitionInputSecondTexture) { ImGui::ImDestroyTexture(mVideoTransitionInputSecondTexture); mVideoTransitionInputSecondTexture = nullptr; }
     if (mVideoTransitionOutputTexture) { ImGui::ImDestroyTexture(mVideoTransitionOutputTexture); mVideoTransitionOutputTexture = nullptr;  }
 
-#ifdef OLD_CLIP_EDIT
-    if (mVidFilterClip)
-    {
-        delete mVidFilterClip;
-        mVidFilterClip = nullptr;
-    }
-    if (mAudFilterClip)
-    {
-        delete mAudFilterClip;
-        mAudFilterClip = nullptr;
-    }
-    if (mVidOverlap)
-    {
-        delete mVidOverlap;
-        mVidOverlap = nullptr;
-    }
-    if (mAudOverlap)
-    {
-        delete mAudOverlap;
-        mAudOverlap = nullptr;
-    }
-#else
     for (auto item : mEditingItems)
     {
         delete item;
     }
     mEditingItems.clear();
-#endif
+
     if (mAudioRender)
     {
         MediaCore::AudioRender::ReleaseInstance(&mAudioRender);
@@ -6639,22 +6502,9 @@ bool TimeLine::DeleteClip(int64_t id, std::list<imgui_json::value>* pActionList)
     {
         auto clip = *iter;
         m_Clips.erase(iter);
-#ifdef OLD_CLIP_EDIT
-        if (mVidFilterClip && clip->mID == mVidFilterClip->mID)
-        {
-            mVidFilterClipLock.lock();
-            delete mVidFilterClip;
-            mVidFilterClip = nullptr;
-            mVidFilterClipLock.unlock();
-        }
-        else if (mAudFilterClip && clip->mID == mAudFilterClip->mID)
-        {
-            mAudFilterClipLock.lock();
-            delete mAudFilterClip;
-            mAudFilterClip = nullptr;
-            mAudFilterClipLock.unlock();
-        }
-#endif
+
+        // TODO::Dicky editing item delete editing item if clip is deleted
+
         DeleteClipFromGroup(clip, clip->mGroupID, pActionList);
 
         if (pActionList)
@@ -6681,18 +6531,7 @@ void TimeLine::DeleteOverlap(int64_t id)
         {
             Overlap * overlap = *iter;
             iter = m_Overlaps.erase(iter);
-#ifdef OLD_CLIP_EDIT
-            if (mVidOverlap && mVidOverlap->mID == overlap->mID)
-            {
-                delete mVidOverlap;
-                mVidOverlap = nullptr;
-            }
-            if (mAudOverlap && mAudOverlap->mID == overlap->mID)
-            {
-                delete mAudOverlap;
-                mAudOverlap = nullptr;
-            }
-#endif
+            // TODO::Dicky editing item need delete editing overlap when overlap deleted
             delete overlap;
         }
         else
@@ -8333,14 +8172,14 @@ int TimeLine::Load(const imgui_json::value& value)
 
 void TimeLine::Save(imgui_json::value& value)
 {
-#ifndef OLD_CLIP_EDIT
     // save editing item
     for (auto item : mEditingItems)
     {
         if (item->mEditingClip) item->mEditingClip->Save();
         if (item->mEditingOverlap) item->mEditingOverlap->Save();
     }
-#endif
+    // TODO::Dicky editing item save editing item into json
+
     // save media clip
     imgui_json::value media_clips;
     for (auto clip : m_Clips)
@@ -10380,7 +10219,6 @@ int64_t TimeLine::AddNewClip(
     return newClip->mID;
 }
 
-#ifndef OLD_CLIP_EDIT
 int TimeLine::FindEditingItem(int type, int64_t id)
 {
     auto iter = std::find_if(mEditingItems.begin(), mEditingItems.end(), [id, type] (auto& item) {
@@ -10392,7 +10230,6 @@ int TimeLine::FindEditingItem(int type, int64_t id)
         return iter - mEditingItems.begin();
     return -1;
 }
-#endif
 } // namespace MediaTimeline/TimeLine
 
 namespace MediaTimeline
@@ -11859,15 +11696,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
 
         // time metric
         bool movable = true;
-#ifdef OLD_CLIP_EDIT
-        if ((timeline->mVidFilterClip && timeline->mVidFilterClip->bSeeking) ||
-            (timeline->mAudFilterClip && timeline->mAudFilterClip->bSeeking) ||
-            menuIsOpened || !editable ||
+
+        if (menuIsOpened || !editable ||
             ImGui::IsDragDropActive())
         {
             movable = false;
         }
-#endif
+
         ImGui::SetCursorScreenPos(timeMeterRect.Min);
         ImGui::BeginChildFrame(ImGui::GetCurrentWindow()->GetID("#timeline metric"), timeMeterRect.GetSize(), ImGuiWindowFlags_NoScrollbar);
 
@@ -13158,7 +12993,23 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     const int toolbarHeight = 24;
     int64_t start = editingClip->mStart;
     int64_t end = editingClip->mEnd;
-    int64_t currentTime = CurrentTime - start;
+    //int64_t currentTime = CurrentTime - start;
+    if (editingClip->mCurrentTime == -1) 
+    {
+        editingClip->mCurrentTime = CurrentTime - start;
+        if (editingClip->mCurrentTime < 0) editingClip->mCurrentTime = 0;
+        if (editingClip->mCurrentTime > editingClip->mDuration) editingClip->mCurrentTime = editingClip->mDuration;
+    }
+    else
+    {
+        auto clip_time = CurrentTime - start;
+        if (clip_time >= 0 && clip_time <= editingClip->mDuration)
+        {
+            editingClip->mCurrentTime = clip_time;
+        }
+        else
+            editingClip->mCurrentTime = -1;
+    }
     int64_t duration = ImMax(end - start, (int64_t)1);
     static int MovingHorizonScrollBar = -1;
     static bool MovingVerticalScrollBar = false;
@@ -13351,7 +13202,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     {
         editingClip->msPixelWidthTarget = maxPixelWidthTarget;
         int64_t new_visible_time = (int64_t)floorf((timline_size.x) / editingClip->msPixelWidthTarget);
-        editingClip->firstTime = currentTime - new_visible_time / 2;
+        editingClip->firstTime = editingClip->mCurrentTime - new_visible_time / 2;
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - new_visible_time, (int64_t)0));
         need_update = true;
     }
@@ -13370,7 +13221,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImGui::SameLine();
     if (ImGui::Button(ICON_CURRENT_TIME "##clip_timeline_current_time"))
     {
-        editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
+        editingClip->firstTime = editingClip->mCurrentTime - editingClip->visibleTime / 2;
         editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
         need_update = true;
     }
@@ -13618,7 +13469,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             }
             if (ImGui::MenuItem(ICON_CURRENT_TIME " Current Time", nullptr, nullptr))
             {
-                editingClip->firstTime = currentTime - editingClip->visibleTime / 2;
+                editingClip->firstTime = editingClip->mCurrentTime - editingClip->visibleTime / 2;
                 editingClip->firstTime = ImClamp(editingClip->firstTime, (int64_t)0, ImMax(duration - editingClip->visibleTime, (int64_t)0));
                 need_update = true;
             }
@@ -13790,7 +13641,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         // handle playing cursor move
         if (main_timeline->mIsPreviewPlaying && !ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         {
-            editingClip->UpdateCurrent(main_timeline->mIsPreviewForward, currentTime);
+            editingClip->UpdateCurrent(main_timeline->mIsPreviewForward, editingClip->mCurrentTime);
             need_update = true;
         }
         
@@ -13800,24 +13651,24 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImGui::PopClipRect();
 
         // time cursor
-        if (!MovingCurrentTime && MovingHorizonScrollBar == -1 && currentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !popupDialog && !mouse_hold && isFocused)
+        if (!MovingCurrentTime && MovingHorizonScrollBar == -1 && editingClip->mCurrentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !popupDialog && !mouse_hold && isFocused)
         {
             MovingCurrentTime = true;
             editingClip->bSeeking = true;
         }
         if (MovingCurrentTime && duration)
         {
-            currentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
-            currentTime = main_timeline->AlignTime(currentTime, 1);
-            if (currentTime < 0)
-                currentTime = 0;
-            if (currentTime >= duration)
-                currentTime = duration;
-            if (currentTime < editingClip->firstTime)
-                editingClip->firstTime = currentTime;
-            if (currentTime > editingClip->lastTime)
-                editingClip->firstTime = currentTime - editingClip->visibleTime;
-            main_timeline->Seek(currentTime + start, true);
+            editingClip->mCurrentTime = (int64_t)((io.MousePos.x - topRect.Min.x) / editingClip->msPixelWidthTarget) + editingClip->firstTime;
+            editingClip->mCurrentTime = main_timeline->AlignTime(editingClip->mCurrentTime, 1);
+            if (editingClip->mCurrentTime < 0)
+                editingClip->mCurrentTime = 0;
+            if (editingClip->mCurrentTime >= duration)
+                editingClip->mCurrentTime = duration;
+            if (editingClip->mCurrentTime < editingClip->firstTime)
+                editingClip->firstTime = editingClip->mCurrentTime;
+            if (editingClip->mCurrentTime > editingClip->lastTime)
+                editingClip->firstTime = editingClip->mCurrentTime - editingClip->visibleTime;
+            main_timeline->Seek(editingClip->mCurrentTime + start, true);
         }
         if (editingClip->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
@@ -13829,22 +13680,22 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         static const float cursorWidth = 2.f;
         ImRect custom_view_rect(canvas_pos, canvas_pos + ImVec2(canvas_size.x, header_height + custom_height));
         draw_list->PushClipRect(custom_view_rect.Min - ImVec2(32, 0), custom_view_rect.Max + ImVec2(32, 0));
-        if (currentTime >= editingClip->firstTime && currentTime <= editingClip->lastTime)
+        if (editingClip->mCurrentTime >= editingClip->firstTime && editingClip->mCurrentTime <= editingClip->lastTime)
         {
             // cursor arrow
             const float arrowWidth = draw_list->_Data->FontSize;
-            float arrowOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - arrowWidth * 0.5f + 1;
+            float arrowOffset = contentMin.x + (editingClip->mCurrentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - arrowWidth * 0.5f + 1;
             ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), COL_CURSOR_ARROW_R, ImGuiDir_Down);
             ImGui::SetWindowFontScale(0.8);
-            auto time_str = ImGuiHelper::MillisecToString(currentTime, 2);
+            auto time_str = ImGuiHelper::MillisecToString(editingClip->mCurrentTime, 2);
             ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-            float strOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - str_size.x * 0.5f + 1;
+            float strOffset = contentMin.x + (editingClip->mCurrentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - str_size.x * 0.5f + 1;
             ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
             draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BR, 2.0, ImDrawFlags_RoundCornersAll);
             draw_list->AddText(str_pos, COL_CURSOR_TEXT_R, time_str.c_str());
             ImGui::SetWindowFontScale(1.0);
             // cursor line
-            float cursorOffset = contentMin.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - 0.5f;
+            float cursorOffset = contentMin.x + (editingClip->mCurrentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - 0.5f;
             draw_list->AddLine(ImVec2(cursorOffset, canvas_pos.y + header_height), ImVec2(cursorOffset, canvas_pos.y + header_height + custom_height), COL_CURSOR_LINE_R, cursorWidth);
         }
         draw_list->PopClipRect();
@@ -13988,10 +13839,10 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 current_index ++;
             }
 
-            if (currentTime >= editingClip->firstTime && currentTime <= editingClip->lastTime)
+            if (editingClip->mCurrentTime >= editingClip->firstTime && editingClip->mCurrentTime <= editingClip->lastTime)
             {
                 // draw cursor line
-                float cursorOffset = track_pos.x + (currentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - 0.5f;
+                float cursorOffset = track_pos.x + (editingClip->mCurrentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - 0.5f;
                 drawList->AddLine(ImVec2(cursorOffset, track_pos.y), ImVec2(cursorOffset, track_current.y), COL_CURSOR_LINE_R, cursorWidth);
             }
 
