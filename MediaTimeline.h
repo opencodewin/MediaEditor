@@ -709,7 +709,7 @@ struct BaseEditingClip
     virtual void CalcDisplayParams(int64_t viewWndDur) = 0;
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Save() = 0;
-    virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) = 0;
+    virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) = 0;
 };
 
@@ -741,7 +741,7 @@ public:
     void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) override;
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
 };
 
@@ -764,7 +764,7 @@ public:
     void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true, bool attribute = false) override;
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
 };
 
@@ -970,7 +970,7 @@ struct MediaTrack
     bool CanInsertClip(Clip * clip, int64_t pos);
     void InsertClip(Clip * clip, int64_t pos = 0, bool update = true, std::list<imgui_json::value>* pActionList = nullptr);
     void SelectClip(Clip * clip, bool appand);
-    void SelectEditingClip(Clip * clip, bool filter_editing = false);
+    void SelectEditingClip(Clip * clip);
     void SelectEditingOverlap(Overlap * overlap);
     void DeleteClip(int64_t id);
     Clip * FindPrevClip(int64_t id);                // find prev clip in track, if not found then return null
@@ -1024,8 +1024,7 @@ struct ClipGroup
 typedef int (*TimeLineCallback)(int type, void* handle);
 typedef struct TimeLineCallbackFunctions
 {
-    TimeLineCallback  EditingClipAttribute  {nullptr};
-    TimeLineCallback  EditingClipFilter     {nullptr};
+    TimeLineCallback  EditingClip           {nullptr};
     TimeLineCallback  EditingOverlap        {nullptr};
 } TimeLineCallbackFunctions;
 
@@ -1139,7 +1138,6 @@ struct TimeLine
     bool bLoop = false;                     // project saved
     bool bCompare = false;                  // project saved
     bool bFilterOutputPreview = true;       // project saved
-    bool bAttributeOutputPreview = true;    // project saved
     bool bTransitionOutputPreview = true;   // project saved
     bool bSelectLinked = true;              // project saved
     bool bMovingAttract = true;             // project saved
@@ -1322,7 +1320,6 @@ struct TimeLine
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool editable = true);
-bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, int curve_height, ImGui::KeyPointEditor* key_point, bool& changed);
 bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, bool& show_BP, bool& changed);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
 } // namespace MediaTimeline

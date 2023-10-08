@@ -1302,7 +1302,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     
     auto moving_clip_keypoint = [&](Clip * clip)
     {
-#if 0 // TODO::Dicky editint item support moving
+#if 0 // TODO::Dicky editing item support moving
         if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == clip->mID)
         {
             timeline->mVidFilterClip->mStart = clip->mStart;
@@ -3393,7 +3393,7 @@ void EditingVideoClip::Save()
     timeline->UpdatePreview();
 }
 
-bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame, bool attribute)
+bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame)
 {
     int ret = true;
     TimeLine * timeline = (TimeLine *)mHandle;
@@ -3418,7 +3418,7 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
     else
     {
         auto iter_out = std::find_if(frames.begin(), frames.end(), [&] (auto& cf) {
-            return cf.clipId == mID && cf.phase == (attribute ? MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM : MediaCore::CorrelativeFrame::PHASE_AFTER_FILTER);
+            return cf.clipId == mID && cf.phase == MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM;
         });
         if (iter_out != frames.end())
             in_out_frame.second = iter_out->frame;
@@ -3645,7 +3645,7 @@ void EditingAudioClip::Save()
     }
 }
 
-bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame, bool attribute)
+bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame)
 {
     return false;
 }
@@ -5033,7 +5033,7 @@ void MediaTrack::SelectClip(Clip * clip, bool appand)
     clip->bSelected = selected;
 }
 
-void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
+void MediaTrack::SelectEditingClip(Clip * clip)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !clip)
@@ -5042,15 +5042,6 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
         return;
     
     int updated = 0;
-    if (filter_editing && timeline->m_CallBacks.EditingClipFilter)
-    {
-        updated = timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
-    }
-    else if (timeline->m_CallBacks.EditingClipAttribute)
-    {
-        updated = timeline->m_CallBacks.EditingClipAttribute(clip->mType, clip);
-    }
-
     clip->bEditing = true;
 
     auto found = timeline->FindEditingItem(EDITING_FILTER, clip->mID);
@@ -5093,10 +5084,9 @@ void MediaTrack::SelectEditingClip(Clip * clip, bool filter_editing)
             }
         }
     }
-
-    if (timeline->m_CallBacks.EditingClipFilter)
+    if (timeline->m_CallBacks.EditingClip)
     {
-        timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
+        updated = timeline->m_CallBacks.EditingClip(clip->mType, clip);
     }
 }
 
@@ -5113,7 +5103,6 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
     if (IS_DUMMY(first->mType) || IS_DUMMY(second->mType))
         return;
 
-    timeline->Seek(overlap->mStart);
     overlap->bEditing = true;
 
     auto found = timeline->FindEditingItem(EDITING_TRANSITION, overlap->mID);
@@ -5137,11 +5126,24 @@ void MediaTrack::SelectEditingOverlap(Overlap * overlap)
             item->mIndex = timeline->mEditingItems.size();
             timeline->mEditingItems.push_back(item);
             timeline->mSelectedItem = item->mIndex;
+            timeline->Seek(overlap->mStart);
         }
     }
     else
     {
         timeline->mSelectedItem = found;
+        auto item = timeline->mEditingItems[found];
+        if (item)
+        {
+            if (item->mEditorType == EDITING_TRANSITION && item->mEditingOverlap && item->mEditingOverlap->mCurrentTime != -1)
+            {
+                timeline->Seek(overlap->mStart + item->mEditingOverlap->mCurrentTime);
+            }
+            else
+            {
+                timeline->Seek(overlap->mStart);
+            }
+        }
     }
 
     if (timeline->m_CallBacks.EditingOverlap)
@@ -7494,9 +7496,9 @@ void TimeLine::CustomDraw(
                     else if (track->mExpanded && clip_rect.Contains(io.MousePos) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                     {
                         // [shortcut]: shift + double left click to attribute page
-                        bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftShift) && (io.KeyMods == ImGuiModFlags_Shift);
+                        //bool b_attr_editing = ImGui::IsKeyDown(ImGuiKey_LeftShift) && (io.KeyMods == ImGuiModFlags_Shift);
                         if (!IS_DUMMY(clip->mType) && !bOverlapHovered)
-                            track->SelectEditingClip(clip, !b_attr_editing);
+                            track->SelectEditingClip(clip);
                     }
                     clip->DrawTooltips();
                 }
@@ -7705,11 +7707,6 @@ int TimeLine::Load(const imgui_json::value& value)
     {
         auto& val = value["TransitionOutPreview"];
         if (val.is_boolean()) bTransitionOutputPreview = val.get<imgui_json::boolean>();
-    }
-    if (value.contains("AttributeOutPreview"))
-    {
-        auto& val = value["AttributeOutPreview"];
-        if (val.is_boolean()) bAttributeOutputPreview = val.get<imgui_json::boolean>();
     }
     if (value.contains("SelectLinked"))
     {
@@ -8295,7 +8292,6 @@ void TimeLine::Save(imgui_json::value& value)
     value["Compare"] = imgui_json::boolean(bCompare);
     value["FilterOutPreview"] = imgui_json::boolean(bFilterOutputPreview);
     value["TransitionOutPreview"] = imgui_json::boolean(bTransitionOutputPreview);
-    value["AttributeOutPreview"] = imgui_json::boolean(bAttributeOutputPreview);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
     value["MovingAttract"] = imgui_json::boolean(bMovingAttract);
     value["IDGenerateState"] = imgui_json::number(m_IDGenerator.State());
@@ -11191,13 +11187,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 auto track = timeline->FindTrackByClipID(clip->mID);
                 bool disable_editing = IS_DUMMY(clip->mType);
                 ImGui::BeginDisabled(disable_editing);
-                if (ImGui::MenuItem(ICON_CROP " Edit Clip Attribute", nullptr, nullptr))
-                {
-                    track->SelectEditingClip(clip, false);
-                }
+                //if (ImGui::MenuItem(ICON_CROP " Edit Clip Attribute", nullptr, nullptr))
+                //{
+                //    track->SelectEditingClip(clip, false);
+                //}
                 if (ImGui::MenuItem(ICON_FILTER_EDITOR " Edit Clip Filter", nullptr, nullptr))
                 {
-                    track->SelectEditingClip(clip, true);
+                    track->SelectEditingClip(clip);
                 }
                 ImGui::EndDisabled();
                 if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
@@ -11266,10 +11262,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                             clip->SetClipDefault(track->mMttReader->DefaultStyle());
                             timeline->m_Clips.push_back(clip);
                             track->InsertClip(clip, clipRange.first);
-                            track->SelectEditingClip(clip, false);
-                            if (timeline->m_CallBacks.EditingClipFilter)
+                            track->SelectEditingClip(clip);
+                            if (timeline->m_CallBacks.EditingClip)
                             {
-                                timeline->m_CallBacks.EditingClipFilter(clip->mType, clip);
+                                timeline->m_CallBacks.EditingClip(clip->mType, clip);
                             }
                             changed = true;
                         }
@@ -12437,6 +12433,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     return changed;
 }
 
+#if 0
 /***********************************************************************************************************
  * Draw Clip Attribute Timeline
  ***********************************************************************************************************/
@@ -12950,6 +12947,7 @@ bool DrawAttributeTimeLine(TimeLine* main_timeline, BaseEditingClip * editingCli
     }
     return mouse_hold;
 }
+#endif
 
 bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, bool& show_BP, bool& changed)
 {
@@ -14003,6 +14001,16 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     int64_t duration = ImMax(overlap->mEnd - overlap->mStart, (int64_t)1);
     int64_t start = 0;
     int64_t end = start + duration;
+    if (overlap->mCurrentTime == -1)
+    {
+        overlap->mCurrentTime = CurrentTime;
+        if (overlap->mCurrentTime < 0) overlap->mCurrentTime = 0;
+        if (overlap->mCurrentTime > duration) overlap->mCurrentTime = duration;
+    }
+    else
+    {
+    }
+
     if (lastDuration != -1 && lastDuration != duration) changed = true;
     if (lastWindowWidth != -1 && lastWindowWidth != (int)window_size.x) changed = true;
     lastDuration = duration;
@@ -14028,14 +14036,17 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
     }
     if (MovingCurrentTime && duration)
     {
-        auto oldPos = CurrentTime;
+        auto oldPos = overlap->mCurrentTime;
         auto newPos = (int64_t)((io.MousePos.x - movRect.Min.x) / overlap->msPixelWidth) + start;
         if (newPos < start)
             newPos = start;
         if (newPos >= end)
             newPos = end;
         if (oldPos != newPos)
+        {
+            overlap->mCurrentTime = newPos;
             overlap->Seek(newPos + overlap->mStart, true); // call seek event
+        }
     }
     if (overlap->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
