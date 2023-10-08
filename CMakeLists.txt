@@ -203,6 +203,7 @@ target_link_libraries(
     LINK_PRIVATE
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
+    ImMaskCreator
     ${MEDIACORE_LIBRARYS}
     Threads::Threads
 )
@@ -238,6 +239,7 @@ target_link_libraries(
     ${MEDIACORE_LIBRARYS}
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
+    ImMaskCreator
     Threads::Threads
 )
 
@@ -265,6 +267,7 @@ target_link_libraries(
     MediaCore
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
+    ImMaskCreator
     Threads::Threads
 )
 endif(APPLE)

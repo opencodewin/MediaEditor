@@ -19,6 +19,7 @@
 #include <imgui.h>
 #include <imgui_json.h>
 #include <imgui_extra_widget.h>
+#include <ImMaskCreator.h>
 #include "Overview.h"
 #include "Snapshot.h"
 #include "MediaReader.h"
@@ -726,6 +727,10 @@ struct EditingVideoClip : BaseEditingClip
     MediaCore::VideoFilter* mFilter {nullptr};
     BluePrint::BluePrintUI* mFilterBp {nullptr};
     ImGui::KeyPointEditor* mFilterKp {nullptr};
+    bool mShowMask {false};
+    ImGui::MaskCreator::Holder mhMaskCreator;
+    int64_t mMaskEventId {-1}, mMaskNodeId {-1};
+    int64_t mMaskEventStart, mMaskEventEnd;
 
     MediaCore::VideoTransformFilter::Holder mAttribute {nullptr};
 

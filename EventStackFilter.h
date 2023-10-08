@@ -10,6 +10,10 @@ namespace MEC
     struct VideoEvent : virtual Event
     {
         virtual ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) = 0;
+
+        virtual imgui_json::array GetMasks(int64_t nodeId) const = 0;
+        virtual void RemoveMasks(int64_t nodeId) = 0;
+        virtual bool SaveMask(int64_t nodeId, const imgui_json::value& j, int index = -1) = 0;
     };
 
     struct AudioEvent : virtual Event
