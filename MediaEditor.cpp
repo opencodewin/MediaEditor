@@ -4133,7 +4133,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
             if (!out_of_border && timeline->mVideoFilterInputTexture)
             {
                 bool bInMaskEventRange = timeline->mCurrentTime >= start+editing_clip->mMaskEventStart && timeline->mCurrentTime < start+editing_clip->mMaskEventEnd;
-                if (editing_clip->mShowMask && bInMaskEventRange)
+                if (editing_clip->mhMaskCreator && bInMaskEventRange)
                 {
                     if (!editing_clip->mhMaskCreator->DrawContent({InputVideoPos.x, InputVideoPos.y}, {InputVideoSize.x, InputVideoSize.y}))
                         Logger::Log(Logger::WARN) << "MaskCreator::DrawContent() FAILED! Error is '" << editing_clip->mhMaskCreator->GetError() << "'." << std::endl;
@@ -4826,7 +4826,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         if (track) timeline->RefreshTrackView({track->mID});
         changed = true;
     };
-    imgui_json::array jnVidEventMaskArray;
     for (auto event : event_list)
     {
         bool is_selected = event->Status() & EVENT_SELECTED;
@@ -4849,7 +4848,42 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         ImGui::Circle(is_selected);
         bool event_tree_open = ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None));
         ImGui::PopStyleColor(3);
-        ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - 48, tree_pos.y));
+        int iReserveWidth = is_video_clip ? 96 : 48;
+        ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - iReserveWidth, tree_pos.y));
+        if (is_video_clip)
+        {
+            if (ImGui::Button(ICON_ADD "##add_event_mask"))
+            {
+                pEdtVidClip->SaveEditingMask();
+                auto pVidEvt = dynamic_cast<MEC::VideoEvent*>(event.get());
+                auto newMaskIdx = pVidEvt->GetMaskCount();
+                std::ostringstream oss; oss << "Mask " << newMaskIdx;
+                std::string maskName = oss.str();
+                auto hMaskCreator = ImGui::MaskCreator::CreateInstance(maskName);
+                imgui_json::value jnMask;
+                hMaskCreator->SaveAsJson(jnMask);
+                pVidEvt->SaveMask(jnMask, newMaskIdx);
+                if (is_selected)
+                {
+                    pEdtVidClip->mhMaskCreator = hMaskCreator;
+                    pEdtVidClip->mMaskEventId = event->Id();
+                    pEdtVidClip->mMaskNodeId = -1;
+                    pEdtVidClip->mMaskIndex = newMaskIdx;
+                    pEdtVidClip->mMaskEventStart = event->Start();
+                    pEdtVidClip->mMaskEventEnd = event->End();
+                }
+            }
+            ImGui::ShowTooltipOnHover("Add new mask");
+            ImGui::SameLine();
+            if (pEdtVidClip->mMaskEventId == event->Id() && !is_selected)
+            {
+                pEdtVidClip->SaveEditingMask();
+                pEdtVidClip->mhMaskCreator = nullptr;
+                pEdtVidClip->mMaskEventId = -1;
+                pEdtVidClip->mMaskNodeId = -1;
+                pEdtVidClip->mMaskIndex = -1;
+            }
+        }
         if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_event"))
         {
             ImGui::OpenPopup("Delete Event?");
@@ -4858,6 +4892,52 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         if (event_tree_open)
         {
             ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
+            // draw event mask list
+            if (is_video_clip)
+            {
+                ImGui::Indent(30);
+                MEC::VideoEvent* pVidEvt = dynamic_cast<MEC::VideoEvent*>(event.get());
+                const auto iMaskCount = pVidEvt->GetMaskCount();
+                int iToDelIdx = -1;
+                auto currPos = ImGui::GetCursorScreenPos();
+                auto rightIconPosX = sub_window_pos.x+sub_window_size.x-80;
+                const ImVec2 selectableItemSize = { rightIconPosX-currPos.x-20, 20 };
+                for (int idx = 0; idx < iMaskCount; idx++)
+                {
+                    imgui_json::value jnMask;
+                    if (!pVidEvt->GetMask(jnMask, idx))
+                    {
+                        Logger::Log(Logger::WARN) << pVidEvt->GetError() << std::endl;
+                        continue;
+                    }
+                    std::string maskName;
+                    if (jnMask.contains("name")) maskName = jnMask["name"].get<imgui_json::string>();
+                    std::ostringstream oss; oss << maskName << "##event" << event->Id() << "_mask@" << idx;
+                    std::string label = oss.str();
+                    bool bMaskSelected = pEdtVidClip->mMaskEventId == event->Id() && pEdtVidClip->mMaskNodeId == -1 && pEdtVidClip->mMaskIndex == idx;
+                    if (ImGui::Selectable(label.c_str(), bMaskSelected, 0, selectableItemSize) && !bMaskSelected)
+                    {
+                        if (!is_selected) editing_clip->SelectEvent(event);
+                        pEdtVidClip->SaveEditingMask();
+                        pEdtVidClip->mhMaskCreator = ImGui::MaskCreator::LoadFromJson(jnMask);
+                        pEdtVidClip->mMaskEventId = event->Id();
+                        pEdtVidClip->mMaskNodeId = -1;
+                        pEdtVidClip->mMaskIndex = idx;
+                        pEdtVidClip->mMaskEventStart = event->Start();
+                        pEdtVidClip->mMaskEventEnd = event->End();
+                    }
+                    ImGui::SameLine();
+                    currPos = ImGui::GetCursorScreenPos();
+                    ImGui::SetCursorScreenPos({rightIconPosX, currPos.y});
+                    oss.str(""); oss << ICON_DELETE << "##delete_mask@event" << event->Id() << "_index" << idx;
+                    label = oss.str();
+                    if (ImGui::Button(label.c_str()))
+                        iToDelIdx = idx;
+                }
+                if (iToDelIdx >= 0)
+                    pVidEvt->RemoveMask(iToDelIdx);
+                ImGui::Unindent(30);
+            }
             auto pBP = event->GetBp();
             auto pKP = event->GetKeyPoint();
             auto addCurve = [&](BluePrint::Node* node, std::string name, float _min, float _max, float _default, int64_t pin_id)
@@ -5105,66 +5185,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                         }
                         ImGui::EndDragDropTarget();
                     }
-                    if (pEdtVidClip && is_selected)
-                    {
-                        if (pEdtVidClip->mMaskEventId != event->Id() || pEdtVidClip->mMaskNodeId != node->m_ID)
-                        {
-                            MEC::VideoEvent* pVidEvt = dynamic_cast<MEC::VideoEvent*>(event.get());
-                            if (pEdtVidClip->mhMaskCreator && pEdtVidClip->mMaskEventId != -1)
-                            {
-                                imgui_json::value maskJn;
-                                if (pEdtVidClip->mhMaskCreator->SaveAsJson(maskJn))
-                                {
-                                    auto jnDump = maskJn.dump();
-                                    // Logger::Log(Logger::DEBUG) << "Save mask: " << jnDump << std::endl;
-                                    auto evtIter = std::find_if(event_list.begin(), event_list.end(), [pEdtVidClip] (auto& hEvt) {
-                                        return hEvt->Id() == pEdtVidClip->mMaskEventId;
-                                    });
-                                    if (evtIter != event_list.end())
-                                    {
-                                        MEC::VideoEvent* pSaveMaskEvt = dynamic_cast<MEC::VideoEvent*>(evtIter->get());
-                                        pSaveMaskEvt->SaveMask(pEdtVidClip->mMaskNodeId, maskJn, 0);
-                                    }
-                                    else
-                                        Logger::Log(Logger::WARN) << "FAILED to save mask json! Can not find the host event with id (" << pEdtVidClip->mMaskEventId << ")." << std::endl;
-                                }
-                                else
-                                    Logger::Log(Logger::WARN) << "FAILED to save mask json! Error is '" << pEdtVidClip->mhMaskCreator->GetError() << "'." << std::endl;
-                            }
-                            jnVidEventMaskArray = pVidEvt->GetMasks(node->m_ID);
-                            if (jnVidEventMaskArray.empty())
-                            {
-                                pEdtVidClip->mhMaskCreator = nullptr;
-                            }
-                            else
-                            {
-                                const auto& maskJn = jnVidEventMaskArray.front();
-                                auto jnDump = maskJn.dump();
-                                // Logger::Log(Logger::DEBUG) << "Load mask: " << jnDump << std::endl;
-                                pEdtVidClip->mhMaskCreator = ImGui::MaskCreator::LoadFromJson(maskJn);
-                            }
-                            pEdtVidClip->mMaskEventId = event->Id();
-                            pEdtVidClip->mMaskNodeId = node->m_ID;
-                            pEdtVidClip->mMaskEventStart = event->Start();
-                            pEdtVidClip->mMaskEventEnd = event->End();
-                        }
-                    }
-                    int iconReserveWidth = is_video_clip && is_selected ? 120 : 80;
-                    ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - iconReserveWidth, node_pos.y));
-                    if (is_video_clip && is_selected)
-                    {
-                        ImGui::RotateCheckButton(ICON_CROP "##preview_loop", &pEdtVidClip->mShowMask, ImVec4(0.3, 0.5, 0.9, 1.0));
-                        if (pEdtVidClip->mShowMask)
-                            ImGui::ShowTooltipOnHover("Hide Mask");
-                        else if (pEdtVidClip->mhMaskCreator)
-                            ImGui::ShowTooltipOnHover("Show Mask");
-                        else
-                            ImGui::ShowTooltipOnHover("Create Mask");
-
-                        if (pEdtVidClip->mShowMask && !pEdtVidClip->mhMaskCreator)
-                            pEdtVidClip->mhMaskCreator = ImGui::MaskCreator::CreateInstance();
-                        ImGui::SameLine();
-                    }
+                    ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - 80, node_pos.y));
                     if (ImGui::Button(node->m_Enabled ? ICON_VIEW : ICON_VIEW_DISABLE "##event_list_editor_disable_node"))
                     {
                         node->m_Enabled = !node->m_Enabled;

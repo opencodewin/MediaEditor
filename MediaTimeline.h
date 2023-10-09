@@ -727,9 +727,9 @@ struct EditingVideoClip : BaseEditingClip
     MediaCore::VideoFilter* mFilter {nullptr};
     BluePrint::BluePrintUI* mFilterBp {nullptr};
     ImGui::KeyPointEditor* mFilterKp {nullptr};
-    bool mShowMask {false};
     ImGui::MaskCreator::Holder mhMaskCreator;
     int64_t mMaskEventId {-1}, mMaskNodeId {-1};
+    int mMaskIndex {-1};
     int64_t mMaskEventStart, mMaskEventEnd;
 
     MediaCore::VideoTransformFilter::Holder mAttribute {nullptr};
@@ -743,6 +743,7 @@ public:
     void Save() override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
+    void SaveEditingMask();
 };
 
 struct EditingAudioClip : BaseEditingClip

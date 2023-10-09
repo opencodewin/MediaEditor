@@ -3554,6 +3554,33 @@ void EditingVideoClip::CalcDisplayParams(int64_t viewWndDur)
         mSsGen->ConfigSnapWindow(snapWndSize, snapCntInView);
     }
 }
+
+void EditingVideoClip::SaveEditingMask()
+{
+    TimeLine* pTL = (TimeLine*)mHandle;
+    if (!pTL)
+        return;
+    VideoClip* pVidClip = (VideoClip*)pTL->FindClipByID(mID);
+    if (!pVidClip->mEventStack)
+        return;
+    if (mhMaskCreator)
+    {
+        auto hMaskEvt = pVidClip->mEventStack->GetEvent(mMaskEventId);
+        auto pVidEvt = dynamic_cast<MEC::VideoEvent*>(hMaskEvt.get());
+        if (!pVidEvt)
+            return;
+        imgui_json::value jnMask;
+        if (!mhMaskCreator->SaveAsJson(jnMask))
+        {
+            Logger::Log(Logger::WARN) << "FAILED to save mask json! Error is '" << mhMaskCreator->GetError() << "'." << std::endl;
+            return;
+        }
+        if (mMaskNodeId == -1)
+            pVidEvt->SaveMask(jnMask, mMaskIndex);
+        else
+            pVidEvt->SaveMask(mMaskNodeId, jnMask, mMaskIndex);
+    }
+}
 } // namespace MediaTimeline
 
 namespace MediaTimeline
