@@ -6516,7 +6516,22 @@ bool TimeLine::DeleteClip(int64_t id, std::list<imgui_json::value>* pActionList)
         auto clip = *iter;
         m_Clips.erase(iter);
 
-        // TODO::Dicky editing item delete editing item if clip is deleted
+        auto found = FindEditingItem(EDITING_FILTER, clip->mID);
+        if (found != -1)
+        {
+            auto iter = mEditingItems.begin() + found;
+            auto item = *iter;
+            mEditingItems.erase(iter);
+            delete item;
+            if (mSelectedItem == found || mSelectedItem >= mEditingItems.size())
+            {
+                mSelectedItem = -1;
+            }
+            if (m_CallBacks.EditingClip)
+            {
+                m_CallBacks.EditingClip(clip->mType, clip);
+            }
+        }
 
         DeleteClipFromGroup(clip, clip->mGroupID, pActionList);
 
@@ -6544,7 +6559,22 @@ void TimeLine::DeleteOverlap(int64_t id)
         {
             Overlap * overlap = *iter;
             iter = m_Overlaps.erase(iter);
-            // TODO::Dicky editing item need delete editing overlap when overlap deleted
+            auto found = FindEditingItem(EDITING_TRANSITION, overlap->mID);
+            if (found != -1)
+            {
+                auto iter = mEditingItems.begin() + found;
+                auto item = *iter;
+                mEditingItems.erase(iter);
+                delete item;
+                if (mSelectedItem == found || mSelectedItem >= mEditingItems.size())
+                {
+                    mSelectedItem = -1;
+                }
+                if (m_CallBacks.EditingOverlap)
+                {
+                    m_CallBacks.EditingOverlap(overlap->mType, overlap);
+                }
+            }
             delete overlap;
         }
         else

@@ -720,6 +720,13 @@ static bool UIPageChanged()
             }
         }
     }
+    else if (MainWindowIndex == MAIN_PAGE_CLIP_EDITOR && timeline->mSelectedItem == -1)
+    {
+        MainWindowIndex = MAIN_PAGE_PREVIEW;
+        LastEditingWindowIndex = -1;
+        timeline->Seek(timeline->mCurrentTime);
+        timeline->UpdatePreview();
+    }
 
     if (MainWindowIndex == MAIN_PAGE_TEXT && LastMainWindowIndex != MAIN_PAGE_TEXT)
     {
@@ -747,9 +754,13 @@ static int EditingClip(int type, void* handle)
     {
         MainWindowIndex = MAIN_PAGE_TEXT;
     }
-    else
+    else if (timeline && timeline->mSelectedItem != -1)
     {
         MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
+    }
+    else
+    {
+        MainWindowIndex = MAIN_PAGE_PREVIEW;
     }
     auto updated = UIPageChanged();
     return updated ? 1 : 0;
@@ -757,7 +768,14 @@ static int EditingClip(int type, void* handle)
 
 static int EditingOverlap(int type, void* handle)
 {
-    MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
+    if (timeline && timeline->mSelectedItem != -1)
+    {
+        MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
+    }
+    else
+    {
+        MainWindowIndex = MAIN_PAGE_PREVIEW;
+    }
     auto updated = UIPageChanged();
     return updated ? 1 : 0;
 }
