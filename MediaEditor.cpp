@@ -4153,7 +4153,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
                 bool bInMaskEventRange = timeline->mCurrentTime >= start+editing_clip->mMaskEventStart && timeline->mCurrentTime < start+editing_clip->mMaskEventEnd;
                 if (editing_clip->mhMaskCreator && bInMaskEventRange)
                 {
-                    if (!editing_clip->mhMaskCreator->DrawContent({InputVideoPos.x, InputVideoPos.y}, {InputVideoSize.x, InputVideoSize.y}))
+                    if (!editing_clip->mhMaskCreator->DrawContent({offset_x, offset_y}, {tf_x-offset_x, tf_y-offset_y}))
                         Logger::Log(Logger::WARN) << "MaskCreator::DrawContent() FAILED! Error is '" << editing_clip->mhMaskCreator->GetError() << "'." << std::endl;
                         // Draw Mask Creator if there is one activated
                 }
@@ -4877,29 +4877,20 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 auto newMaskIdx = pVidEvt->GetMaskCount();
                 std::ostringstream oss; oss << "Mask " << newMaskIdx;
                 std::string maskName = oss.str();
-                auto hMaskCreator = ImGui::MaskCreator::CreateInstance(maskName);
+                const MatUtils::Size2i vidPreviewSize(timeline->mhPreviewSettings->VideoOutWidth(), timeline->mhPreviewSettings->VideoOutHeight());
+                auto hMaskCreator = ImGui::MaskCreator::CreateInstance(vidPreviewSize, maskName);
                 imgui_json::value jnMask;
                 hMaskCreator->SaveAsJson(jnMask);
                 pVidEvt->SaveMask(jnMask, newMaskIdx);
                 if (is_selected)
-                {
-                    pEdtVidClip->mhMaskCreator = hMaskCreator;
-                    pEdtVidClip->mMaskEventId = event->Id();
-                    pEdtVidClip->mMaskNodeId = -1;
-                    pEdtVidClip->mMaskIndex = newMaskIdx;
-                    pEdtVidClip->mMaskEventStart = event->Start();
-                    pEdtVidClip->mMaskEventEnd = event->End();
-                }
+                    pEdtVidClip->SelectEditingMask(event, -1, newMaskIdx, hMaskCreator);
             }
             ImGui::ShowTooltipOnHover("Add new mask");
             ImGui::SameLine();
             if (pEdtVidClip->mMaskEventId == event->Id() && !is_selected)
             {
                 pEdtVidClip->SaveEditingMask();
-                pEdtVidClip->mhMaskCreator = nullptr;
-                pEdtVidClip->mMaskEventId = -1;
-                pEdtVidClip->mMaskNodeId = -1;
-                pEdtVidClip->mMaskIndex = -1;
+                pEdtVidClip->UnselectEditingMask();
             }
         }
         if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_event"))
@@ -4937,12 +4928,8 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     {
                         if (!is_selected) editing_clip->SelectEvent(event);
                         pEdtVidClip->SaveEditingMask();
-                        pEdtVidClip->mhMaskCreator = ImGui::MaskCreator::LoadFromJson(jnMask);
-                        pEdtVidClip->mMaskEventId = event->Id();
-                        pEdtVidClip->mMaskNodeId = -1;
-                        pEdtVidClip->mMaskIndex = idx;
-                        pEdtVidClip->mMaskEventStart = event->Start();
-                        pEdtVidClip->mMaskEventEnd = event->End();
+                        auto hMaskCreator = ImGui::MaskCreator::LoadFromJson(jnMask);
+                        pEdtVidClip->SelectEditingMask(event, -1, idx, hMaskCreator);
                     }
                     ImGui::SameLine();
                     currPos = ImGui::GetCursorScreenPos();
@@ -4953,7 +4940,11 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                         iToDelIdx = idx;
                 }
                 if (iToDelIdx >= 0)
+                {
+                    if (pEdtVidClip->mMaskEventId == event->Id() && pEdtVidClip->mMaskNodeId == -1 && pEdtVidClip->mMaskIndex == iToDelIdx)
+                        pEdtVidClip->UnselectEditingMask();
                     pVidEvt->RemoveMask(iToDelIdx);
+                }
                 ImGui::Unindent(30);
             }
             auto pBP = event->GetBp();

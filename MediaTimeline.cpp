@@ -3587,6 +3587,24 @@ void EditingVideoClip::SaveEditingMask()
             pVidEvt->SaveMask(mMaskNodeId, jnMask, mMaskIndex);
     }
 }
+
+void EditingVideoClip::SelectEditingMask(MEC::Event::Holder hEvent, int64_t nodeId, int maskIndex, ImGui::MaskCreator::Holder hMaskCreator)
+{
+    mhMaskCreator = hMaskCreator;
+    mMaskEventId = hEvent->Id();
+    mMaskNodeId = nodeId;
+    mMaskIndex = maskIndex;
+    mMaskEventStart = hEvent->Start();
+    mMaskEventEnd = hEvent->End();
+}
+
+void EditingVideoClip::UnselectEditingMask()
+{
+    mhMaskCreator = nullptr;
+    mMaskEventId = mMaskNodeId = -1;
+    mMaskIndex = -1;
+    mMaskEventStart = mMaskEventEnd = 0;
+}
 } // namespace MediaTimeline
 
 namespace MediaTimeline

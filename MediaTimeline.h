@@ -442,7 +442,7 @@ struct Clip
     imgui_json::value           mFilterJson;        // clip filter blue print, project saved
     ImGui::KeyPointEditor       mFilterKeyPoints;   // clip key points, project saved
     ImGui::KeyPointEditor       mAttributeKeyPoints;// clip key points, project saved
-    bool                        bAttributeExpanded; // clip attribute curve expanded, project saved
+    bool                        bAttributeExpanded {false}; // clip attribute curve expanded, project saved
 
     MEC::EventStack*            mEventStack {nullptr};// clip event stack,
     std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
@@ -745,6 +745,8 @@ public:
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
     void SaveEditingMask();
+    void SelectEditingMask(MEC::Event::Holder hEvent, int64_t nodeId, int maskIndex, ImGui::MaskCreator::Holder hMaskCreator = nullptr);
+    void UnselectEditingMask();
 };
 
 struct EditingAudioClip : BaseEditingClip
