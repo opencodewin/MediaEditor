@@ -379,7 +379,7 @@ struct Overlap
     bool bPlay                      {false};    // overlap play status
     bool bForward                   {true};     // overlap play direction
     bool bSeeking                   {false};    // overlap is seeking
-    bool bEditing                   {false};    // overlap is editing, project saved
+    bool bEditing                   {false};    // overlap is editing
     std::pair<int64_t, int64_t>     m_Clip;     // overlaped clip's pair, project saved
     imgui_json::value mTransitionBP;            // overlap transion blueprint, project saved
     ImGui::KeyPointEditor mTransitionKeyPoints; // overlap key points, project saved
@@ -429,7 +429,7 @@ struct Clip
     std::string mName;                              // clip name, project saved
     std::string mPath;                              // clip media path, project saved
     bool bSelected              {false};            // clip is selected, project saved
-    bool bEditing               {false};            // clip is Editing by double click selected, project saved
+    bool bEditing               {false};            // clip is Editing by double click selected
     std::mutex mLock;                               // clip mutex, not using yet
     void * mHandle              {nullptr};          // clip belong to timeline 
     MediaCore::MediaParser::Holder mMediaParser;
@@ -440,9 +440,7 @@ struct Clip
     bool bHovered               {false};            // clip is under mouse
 
     imgui_json::value           mFilterJson;        // clip filter blue print, project saved
-    ImGui::KeyPointEditor       mFilterKeyPoints;   // clip key points, project saved
-    ImGui::KeyPointEditor       mAttributeKeyPoints;// clip key points, project saved
-    bool                        bAttributeExpanded; // clip attribute curve expanded, project saved
+    bool                        bAttributeExpanded {false}; // clip attribute curve expanded, project saved
 
     MEC::EventStack*            mEventStack {nullptr};// clip event stack,
     std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
@@ -606,6 +604,7 @@ struct TextClip : Clip
     
     std::string mText;
     std::string mFontName;
+    ImGui::KeyPointEditor  mAttributeKeyPoints;// text key points, project saved
     bool mTrackStyle {true};
     bool mScaleSettingLink {true};
     float mFontScaleX {1.0f};
@@ -1130,11 +1129,7 @@ struct TimeLine
 
     bool bSeeking = false;
     bool bPreviewZoom = false;
-    bool bEditingOverlap = false;           // indicate UI at Overlap editing page
-    bool bEditingFilter = false;            // indicate UI at Filter editing page
-    bool bEditingAttribute = false;         // indicate UI at Attribute editing page
     bool bEditingText = false;              // indicate UI at Text editing page
-    bool bEditingAudioMix = false;          // indicate UI at Audio mixing page
     bool bPreviewing = false;               // indicate UI at Preview page 
     bool bLoop = false;                     // project saved
     bool bCompare = false;                  // project saved

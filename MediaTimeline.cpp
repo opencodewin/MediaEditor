@@ -643,10 +643,6 @@ Clip::Clip(int64_t start, int64_t end, int64_t id, MediaCore::MediaParser::Holde
     mEnd = end;
     mHandle = handle;
     mMediaParser = mediaParser;
-    mFilterKeyPoints.SetMin({0.f, 0.f});
-    mFilterKeyPoints.SetMax(ImVec2(Length(), 1.f), true);
-    mAttributeKeyPoints.SetMin({0.f, 0.f});
-    mAttributeKeyPoints.SetMax(ImVec2(Length(), 1.f), true);
 }
 
 Clip::~Clip()
@@ -695,11 +691,6 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["Selected"];
         if (val.is_boolean()) clip->bSelected = val.get<imgui_json::boolean>();
     }
-    if (value.contains("Editing"))
-    {
-        auto& val = value["Editing"];
-        if (val.is_boolean()) clip->bEditing = val.get<imgui_json::boolean>();
-    }
     if (value.contains("Path"))
     {
         auto& val = value["Path"];
@@ -717,19 +708,6 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         if (val.is_object()) clip->mFilterJson = val;
     }
 
-    // load filter curve
-    if (value.contains("FilterKeyPoint"))
-    {
-        auto& keypoint = value["FilterKeyPoint"];
-        clip->mFilterKeyPoints.Load(keypoint);
-    }
-
-    // load attribute curve
-    if (value.contains("AttributeKeyPoint"))
-    {
-        auto& keypoint = value["AttributeKeyPoint"];
-        clip->mAttributeKeyPoints.Load(keypoint);
-    }
     if (value.contains("AttributeExpanded"))
     {
         auto& val = value["AttributeExpanded"];
@@ -765,7 +743,6 @@ void Clip::Save(imgui_json::value& value)
     value["StartOffset"] = imgui_json::number(mStartOffset);
     value["EndOffset"] = imgui_json::number(mEndOffset);
     value["Selected"] = imgui_json::boolean(bSelected);
-    value["Editing"] = imgui_json::boolean(bEditing);
 
     // save clip filter bp
     if (!mFilterJson.is_null())
@@ -773,15 +750,6 @@ void Clip::Save(imgui_json::value& value)
         value["FilterJson"] = mFilterJson;
     }
 
-    // save Filter curve setting
-    imgui_json::value filter_keypoint;
-    mFilterKeyPoints.Save(filter_keypoint);
-    value["FilterKeyPoint"] = filter_keypoint;
-
-    // save Attribute curve setting
-    imgui_json::value attribute_keypoint;
-    mAttributeKeyPoints.Save(attribute_keypoint);
-    value["AttributeKeyPoint"] = attribute_keypoint;
     value["AttributeExpanded"] = bAttributeExpanded;
 
     // save event track
@@ -812,6 +780,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
 
     int64_t length = Length();
     int64_t old_offset = mStartOffset;
+
     // cropping start
     if (type == 0)
     {
@@ -886,36 +855,25 @@ int64_t Clip::Cropping(int64_t diff, int type)
             mEnd = newEnd;
         }
     }
+
 #if 0 // TODO::Dicky editing item support cropping
-    if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
+    auto found = timeline->FindEditingItem(EDITING_FILTER, mID);
+    if (found != -1)
     {
-        timeline->mVidFilterClip->mStart = Start();
-        timeline->mVidFilterClip->mEnd = End();
-        if (timeline->mVidFilterClip->mFilter)
+        auto item = timeline->mEditingItems[found];
+        if (item && item->mEditingClip)
         {
-            mFilterKeyPoints.SetRangeX(0, Length(), true);
+            item->mEditingClip->mStart = Start();
+            item->mEditingClip->mEnd = End();
+            if (IS_VIDEO(item->mMediaType))
+            {
+                auto editing_clip = (EditingVideoClip *)item->mEditingClip;
+                editing_clip->mAttribute->GetKeyPoint()->SetRangeX(0, Length(), true);
+            }
         }
-        if (timeline->mVidFilterClip->mAttribute)
-        {
-            timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(0, Length(), true);
-            mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
-        }
-    }
-    else if (timeline->mAudFilterClip && timeline->mAudFilterClip->mID == mID)
-    {
-        timeline->mAudFilterClip->mStart = Start();
-        timeline->mAudFilterClip->mEnd = End();
-        if (timeline->mAudFilterClip->mFilter)
-        {
-            mFilterKeyPoints.SetRangeX(0, Length(), true);
-        }
-    }
-    else
-    {
-        mFilterKeyPoints.SetRangeX(0, Length(), true);
-        mAttributeKeyPoints.SetRangeX(0, Length(), true);
     }
 #endif
+
     track->Update();
     timeline->UpdateRange();
     // update clip's event time range
@@ -958,38 +916,6 @@ void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_
             new_start, new_start_offset, org_end, org_end_offset,
             gid, newClipId, nullptr)) >= 0)
     {
-#if 0 // TODO::Dicky editing item support cutting
-        // update curve
-        if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == mID)
-        {
-            timeline->mVidFilterClip->mStart = mStart;
-            timeline->mVidFilterClip->mEnd = mEnd;
-            if (timeline->mVidFilterClip->mFilter)
-            {
-                timeline->mVidFilterClip->mFilter->UpdateClipRange();
-                mFilterKeyPoints.SetRangeX(0, mEnd - mStart, true);
-            }
-            if (timeline->mVidFilterClip->mAttribute)
-            {
-                timeline->mVidFilterClip->mAttribute->GetKeyPoint()->SetRangeX(0, mEnd - mStart, true);
-                mAttributeKeyPoints = *timeline->mVidFilterClip->mAttribute->GetKeyPoint();
-            }
-        }
-        if (timeline->mAudFilterClip && timeline->mAudFilterClip->mID == mID)
-        {
-            timeline->mAudFilterClip->mStart = mStart;
-            timeline->mAudFilterClip->mEnd = mEnd;
-            if (timeline->mAudFilterClip->mFilter)
-            {
-                mFilterKeyPoints.SetRangeX(0, mEnd - mStart, true);
-            }
-        }
-        else
-        {
-            mFilterKeyPoints.SetRangeX(0, mEnd - mStart, true);
-            mAttributeKeyPoints.SetRangeX(0, mEnd - mStart, true);
-        }
-#endif
         // need check overlap status and update overlap info on data layer(UI info will update on track update)
         for (auto overlap : timeline->m_Overlaps)
         {
@@ -2349,7 +2275,6 @@ void VideoClip::SyncAttributesWithDataLayer(MediaCore::VideoClip::Holder hClip)
         attribute->SetCropMarginT(mCropMarginT);
         attribute->SetCropMarginR(mCropMarginR);
         attribute->SetCropMarginB(mCropMarginB);
-        attribute->SetKeyPoint(mAttributeKeyPoints);
     }
 }
 } // namespace MediaTimeline
@@ -2677,7 +2602,8 @@ TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, std
         mName = name;
         mText = text;
         mTrackStyle = true;
-        TimeLine * timeline = (TimeLine *)mHandle;
+        mAttributeKeyPoints.SetMin({0.f, 0.f});
+        mAttributeKeyPoints.SetMax(ImVec2(Length(), 1.f), true);
     }
 }
 
@@ -2686,6 +2612,8 @@ TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, voi
 {
     mType = MEDIA_DUMMY | MEDIA_TEXT;
     mName = name;
+    mAttributeKeyPoints.SetMin({0.f, 0.f});
+    mAttributeKeyPoints.SetMax(ImVec2(Length(), 1.f), true);
 }
 
 TextClip::~TextClip()
@@ -2996,7 +2924,12 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
         auto& val = value["BackColor"];
         if (val.is_vec4()) new_clip->mFontBackColor = val.get<imgui_json::vec4>();
     }
-
+    // load attribute curve
+    if (value.contains("AttributeKeyPoint"))
+    {
+        auto& keypoint = value["AttributeKeyPoint"];
+        new_clip->mAttributeKeyPoints.Load(keypoint);
+    }
     new_clip->mIsInited = true;
     return new_clip;
 }
@@ -3027,6 +2960,11 @@ void TextClip::Save(imgui_json::value& value)
     value["PrimaryColor"] = imgui_json::vec4(mFontPrimaryColor);
     value["OutlineColor"] = imgui_json::vec4(mFontOutlineColor);
     value["BackColor"] = imgui_json::vec4(mFontBackColor);
+    
+    // save Attribute curve setting
+    imgui_json::value attribute_keypoint;
+    mAttributeKeyPoints.Save(attribute_keypoint);
+    value["AttributeKeyPoint"] = attribute_keypoint;
 }
 } // namespace MediaTimeline
 
@@ -3372,6 +3310,7 @@ void EditingVideoClip::Save()
     clip->lastTime = lastTime;
     clip->visibleTime = visibleTime;
     clip->msPixelWidthTarget = msPixelWidthTarget;
+    clip->bEditing = false;
     if (mFilter)
     {
         auto filterName = mFilter->GetFilterName();
@@ -3383,7 +3322,6 @@ void EditingVideoClip::Save()
     }
     if (mAttribute)
     {
-        clip->mAttributeKeyPoints = *mAttribute->GetKeyPoint();
         clip->mScaleType = mAttribute->GetScaleType();
         clip->mScaleH = mAttribute->GetScaleH();
         clip->mScaleV = mAttribute->GetScaleV();
@@ -3667,6 +3605,7 @@ void EditingAudioClip::Save()
     clip->lastTime = lastTime;
     clip->visibleTime = visibleTime;
     clip->msPixelWidthTarget = msPixelWidthTarget;
+    clip->bEditing = false;
     if (mFilter)
     {
         auto filterName = mFilter->GetFilterName();
@@ -3950,11 +3889,6 @@ Overlap* Overlap::Load(const imgui_json::value& value, void * handle)
             auto& val = value["Current"];
             if (val.is_number()) new_overlap->mCurrent = val.get<imgui_json::number>();
         }
-        if (value.contains("Editing"))
-        {
-            auto& val = value["Editing"];
-            if (val.is_boolean()) new_overlap->bEditing = val.get<imgui_json::boolean>();
-        }
         // load transition bp
         if (value.contains("TransitionBP"))
         {
@@ -3980,7 +3914,6 @@ void Overlap::Save(imgui_json::value& value)
     value["Clip_First"] = imgui_json::number(m_Clip.first);
     value["Clip_Second"] = imgui_json::number(m_Clip.second);
     value["Current"] = imgui_json::number(mCurrent);
-    value["Editing"] = imgui_json::boolean(bEditing);
 
     // save overlap transition bp
     if (mTransitionBP.is_object())
@@ -4382,6 +4315,7 @@ void EditingVideoOverlap::Save()
     auto ovlp = timeline->FindOverlapByID(mID);
     if (!ovlp)
         return;
+    ovlp->bEditing = false;
     if (mTransition && mTransition->mBp && mTransition->mBp->Blueprint_IsValid())
     {
         ovlp->mTransitionBP = mTransition->mBp->m_Document->Serialize();
@@ -4661,6 +4595,7 @@ void EditingAudioOverlap::Save()
     auto ovlp = timeline->FindOverlapByID(mID);
     if (!ovlp)
         return;
+    ovlp->bEditing = false;
     if (mTransition && mTransition->mBp && mTransition->mBp->Blueprint_IsValid())
     {
         ovlp->mTransitionBP = mTransition->mBp->m_Document->Serialize();
@@ -4947,9 +4882,6 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update, std::list<img
     {
         clip->ConfigViewWindow(mViewWndDur, mPixPerMs);
         clip->SetTrackHeight(mTrackHeight);
-        // Set keypoint
-        clip->mFilterKeyPoints.SetRangeX(0, clip->Length(), true);
-        clip->mAttributeKeyPoints.SetRangeX(0, clip->Length(), true);
         m_Clips.push_back(clip);
         if (pActionList)
         {
@@ -5852,10 +5784,7 @@ TimeLine::TimeLine(std::string plugin_path)
 }
 
 TimeLine::~TimeLine()
-{
-    mMtvReader = nullptr;
-    mMtaReader = nullptr;
-    
+{    
     if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
     if (mEncodingPreviewTexture) { ImGui::ImDestroyTexture(mEncodingPreviewTexture); mEncodingPreviewTexture = nullptr; }
     mAudioAttribute.channel_data.clear();
@@ -5897,6 +5826,8 @@ TimeLine::~TimeLine()
     mTxMgr->ReleaseTexturePool(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME);
     mTxMgr->ReleaseTexturePool(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
     mTxMgr->ReleaseTexturePool(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
+    mMtvReader = nullptr;
+    mMtaReader = nullptr;
 }
 
 int64_t TimeLine::AlignTime(int64_t time, int mode)
@@ -7529,13 +7460,13 @@ void TimeLine::CustomDraw(
             if (clip->bSelected)
             {
                 if (clip->bEditing)
-                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,0,255,224), 4, flag, 2.0f);
+                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,224), 4, flag, 4.0f);
                 else
                     draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
             }
             else if (clip->bEditing)
             {
-                draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(0,0,255,224), 4, flag, 2.0f);
+                draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,224), 4, flag, 3.0f);
             }
 
             // Clip select
@@ -7544,7 +7475,7 @@ void TimeLine::CustomDraw(
                 //if (clip_rect.Contains(io.MousePos) )
                 if (clip->bHovered)
                 {
-                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,255), 4, flag, 2.0f);
+                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,0,0,255), 4, flag, 2.0f);
                     // [shortcut]: shift+a for appand select
                     //const bool is_shift_key_only = (io.KeyMods == ImGuiModFlags_Shift);
                     bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && ImGui::IsKeyDown(ImGuiKey_A);
@@ -7627,7 +7558,7 @@ void TimeLine::CustomDraw(
             draw_list->PushClipRect(clippingTitleRect.Min, clippingTitleRect.Max, true);
             if (overlap->bEditing)
             {
-                draw_list->AddRect(overlap_pos_min, overlap_pos_max, IM_COL32(255, 0, 255, 255), 4, ImDrawFlags_RoundCornersAll, 2.f);
+                draw_list->AddRect(overlap_pos_min, overlap_pos_max, IM_COL32(255, 255, 255, 224), 4, ImDrawFlags_RoundCornersAll, 3.f);
             }
             if (overlap_rect.Contains(io.MousePos) || overlap_clip_rect.Contains(io.MousePos))
             {
@@ -7644,7 +7575,7 @@ void TimeLine::CustomDraw(
             draw_list->PopClipRect();
             
             draw_list->AddRect(overlap_clip_rect.Min, overlap_clip_rect.Max, IM_COL32(255,255,32,255), 4, ImDrawFlags_RoundCornersAll);
-            std::string Overlap_icon = (overlap->bEditing && bEditingOverlap) ? std::string(ICON_BP_EDITING) : !isOverlapEmpty ? std::string(ICON_BP_VALID) : std::string();
+            std::string Overlap_icon = overlap->bEditing ? std::string(ICON_BP_EDITING) : !isOverlapEmpty ? std::string(ICON_BP_VALID) : std::string();
             if (!Overlap_icon.empty())
             {
                 float icon_scale = std::min(overlap_clip_rect.GetSize().x, overlap_clip_rect.GetSize().y) / ImGui::GetFontSize();
@@ -8243,7 +8174,7 @@ void TimeLine::Save(imgui_json::value& value)
         if (item->mEditingClip) item->mEditingClip->Save();
         if (item->mEditingOverlap) item->mEditingOverlap->Save();
     }
-    // TODO::Dicky editing item save editing item into json
+    // TODO::Dicky editing item save editing item into json?
 
     // save media clip
     imgui_json::value media_clips;
@@ -13294,10 +13225,31 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             ImRect attribute_title_area = ImRect(attribute_current, attribute_current + attribute_title_size);
             ImVec2 attribute_curve_size = ImVec2(event_track_size.x, clip->bAttributeExpanded ? curveHeight : 0);
             ImRect attribute_curve_area = attribute_area; attribute_curve_area.Min.y += trackHeight;
-            //bool is_attribute_hovered = attribute_area.Contains(io.MousePos);
             bool is_attribute_title_hovered = attribute_title_area.Contains(io.MousePos);
             drawList->AddRectFilled(attribute_title_area.Min, attribute_title_area.Max, IM_COL32(64, 128, 64, 128));
             drawList->AddText(attribute_title_area.Min + ImVec2(10, 4), IM_COL32(128, 128, 128, 128), "Attribute Curve");
+
+            if (video_attribute)
+            {
+                auto keypoint = video_attribute->GetKeyPoint();
+                if (keypoint)
+                {
+                    for (int i = 0; i < keypoint->GetCurveCount(); i++)
+                    {
+                        auto curve_color = keypoint->GetCurveColor(i);
+                        for (int p = 0; p < keypoint->GetCurvePointCount(i); p++)
+                        {
+                            auto point = keypoint->GetPoint(i, p);
+                            auto pos = point.point.x;
+                            if (pos >= editingClip->firstTime && pos <= editingClip->lastTime)
+                            {
+                                ImVec2 center = ImVec2(attribute_title_area.Min.x + (pos - editingClip->firstTime) * editingClip->msPixelWidthTarget, attribute_title_area.Min.y + (attribute_title_area.Max.y - attribute_title_area.Min.y) / 2);
+                                draw_list->AddCircle(center, 3, curve_color, 0, 2);
+                            }
+                        }
+                    }
+                }
+            }
             ImGui::SetCursorScreenPos(attribute_current);
             ImGui::InvisibleButton("##attribute_track", attribute_size);
             if (is_attribute_title_hovered && event_editable && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
