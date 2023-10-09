@@ -720,6 +720,13 @@ static bool UIPageChanged()
             }
         }
     }
+    else if (MainWindowIndex == MAIN_PAGE_CLIP_EDITOR && timeline->mSelectedItem == -1)
+    {
+        MainWindowIndex = MAIN_PAGE_PREVIEW;
+        LastEditingWindowIndex = -1;
+        timeline->Seek(timeline->mCurrentTime);
+        timeline->UpdatePreview();
+    }
 
     if (MainWindowIndex == MAIN_PAGE_TEXT && LastMainWindowIndex != MAIN_PAGE_TEXT)
     {
@@ -747,9 +754,13 @@ static int EditingClip(int type, void* handle)
     {
         MainWindowIndex = MAIN_PAGE_TEXT;
     }
-    else
+    else if (timeline && timeline->mSelectedItem != -1)
     {
         MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
+    }
+    else
+    {
+        MainWindowIndex = MAIN_PAGE_PREVIEW;
     }
     auto updated = UIPageChanged();
     return updated ? 1 : 0;
@@ -757,7 +768,14 @@ static int EditingClip(int type, void* handle)
 
 static int EditingOverlap(int type, void* handle)
 {
-    MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
+    if (timeline && timeline->mSelectedItem != -1)
+    {
+        MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
+    }
+    else
+    {
+        MainWindowIndex = MAIN_PAGE_PREVIEW;
+    }
     auto updated = UIPageChanged();
     return updated ? 1 : 0;
 }
@@ -3899,7 +3917,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
     ImGuiIO& io = ImGui::GetIO();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
-    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_BLACK_DARK);
     bool is_small_window = window_size.x < 600;
     int bar_height = is_small_window ? 32 : 48;
     int bar_y_offset = is_small_window ? 4 : 8;
@@ -5265,7 +5283,6 @@ static void DrawVideoClipPreviewWindow(ImDrawList *draw_list, EditingVideoClip *
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
     bool is_vertical = sub_window_size.y > sub_window_size.x;
     ShowVideoPreviewWindow(draw_list, editing_clip, is_vertical);
 }
@@ -5376,7 +5393,7 @@ static void ShowVideoClipWindow(ImDrawList *draw_list, ImRect title_rect, Editin
     if (MonitorIndexVideoFilterOrg == -1) preview_count ++;
     if (MonitorIndexVideoFiltered == -1)  preview_count ++;
 
-        if (!show_blueprint)
+    if (!show_blueprint)
     {
         if (preview_count == 0)
         {
@@ -5407,7 +5424,7 @@ static void ShowVideoClipWindow(ImDrawList *draw_list, ImRect title_rect, Editin
             }
             ImGui::EndChild();
         }
-        else if (preview_count < 2 || g_media_editor_settings.video_clip_timeline_height > 0.66)
+        else if (preview_count < 2 || g_media_editor_settings.video_clip_timeline_height > 0.5)
         {
             // 2 Splitters, vertically first, then horizontal(chart 4)
             float timeline_width = window_size.x * g_media_editor_settings.video_clip_timeline_width;
@@ -10960,7 +10977,6 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 std::vector<std::string> tab_names;
                 std::vector<std::string> tab_tooltips;
                 std::vector<ImTextureID> tab_textures;
-                std::vector<ImVec4> tab_textureROIs;
                 std::vector<int> tab_index;
                 int justClosedTabIndex = -1;
                 int justClosedTabIndexInsideTabItemOrdering = -1;
@@ -10970,11 +10986,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     tab_names.push_back(item->mName);
                     tab_tooltips.push_back(item->mTooltip);
                     tab_textures.push_back(item->mTexture);
-                    tab_textureROIs.push_back(item->mRoi);
                     tab_index.push_back(item->mIndex);
                 }
                 ImGui::SetCursorScreenPos(ImGui::GetCursorScreenPos() - ImVec2(0, 4));
-                if (ImGui::TabImageLabels(tab_names, timeline->mSelectedItem, clip_table_size, tab_tooltips, tab_textures, tab_textureROIs, ImVec2(64,36), false, false, &optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true))
+                if (ImGui::TabImageLabels(tab_names, timeline->mSelectedItem, clip_table_size, tab_tooltips, tab_textures, ImVec2(64,36), false, false, &optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true))
                 {
                     MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
                     UIPageChanged();
@@ -10988,7 +11003,9 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                         if (item->mIndex > justClosedTabIndexInsideTabItemOrdering) item->mIndex--;
                     }
                     auto iter = timeline->mEditingItems.begin() + justClosedTabIndex;
+                    auto item = *iter;
                     timeline->mEditingItems.erase(iter);
+                    delete item;
                     if (timeline->mEditingItems.empty())
                     {
                         MainWindowIndex = MAIN_PAGE_PREVIEW;
@@ -10999,6 +11016,11 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                         if (timeline->mSelectedItem < 0)
                         {
                             MainWindowIndex = MAIN_PAGE_PREVIEW;
+                        }
+                        else if (timeline->mSelectedItem >= timeline->mEditingItems.size())
+                        {
+                            MainWindowIndex = MAIN_PAGE_PREVIEW;
+                            timeline->mSelectedItem = -1;
                         }
                         UIPageChanged();
                     }
