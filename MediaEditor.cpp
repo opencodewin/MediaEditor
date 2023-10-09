@@ -10939,7 +10939,6 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 std::vector<std::string> tab_names;
                 std::vector<std::string> tab_tooltips;
                 std::vector<ImTextureID> tab_textures;
-                std::vector<ImVec4> tab_textureROIs;
                 std::vector<int> tab_index;
                 int justClosedTabIndex = -1;
                 int justClosedTabIndexInsideTabItemOrdering = -1;
@@ -10949,11 +10948,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     tab_names.push_back(item->mName);
                     tab_tooltips.push_back(item->mTooltip);
                     tab_textures.push_back(item->mTexture);
-                    tab_textureROIs.push_back(item->mRoi);
                     tab_index.push_back(item->mIndex);
                 }
                 ImGui::SetCursorScreenPos(ImGui::GetCursorScreenPos() - ImVec2(0, 4));
-                if (ImGui::TabImageLabels(tab_names, timeline->mSelectedItem, clip_table_size, tab_tooltips, tab_textures, tab_textureROIs, ImVec2(64,36), false, false, &optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true))
+                if (ImGui::TabImageLabels(tab_names, timeline->mSelectedItem, clip_table_size, tab_tooltips, tab_textures, ImVec2(64,36), false, false, &optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true))
                 {
                     MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
                     UIPageChanged();
@@ -10967,7 +10965,9 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                         if (item->mIndex > justClosedTabIndexInsideTabItemOrdering) item->mIndex--;
                     }
                     auto iter = timeline->mEditingItems.begin() + justClosedTabIndex;
+                    auto item = *iter;
                     timeline->mEditingItems.erase(iter);
+                    delete item;
                     if (timeline->mEditingItems.empty())
                     {
                         MainWindowIndex = MAIN_PAGE_PREVIEW;

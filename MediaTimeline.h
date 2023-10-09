@@ -442,6 +442,7 @@ struct Clip
     imgui_json::value           mFilterJson;        // clip filter blue print, project saved
     ImGui::KeyPointEditor       mFilterKeyPoints;   // clip key points, project saved
     ImGui::KeyPointEditor       mAttributeKeyPoints;// clip key points, project saved
+    bool                        bAttributeExpanded; // clip attribute curve expanded, project saved
 
     MEC::EventStack*            mEventStack {nullptr};// clip event stack,
     std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
@@ -849,7 +850,6 @@ struct EditingItem
     BaseEditingClip * mEditingClip       {nullptr};
     BaseEditingOverlap * mEditingOverlap {nullptr};
     ImTextureID mTexture                 {nullptr};
-    ImVec4 mRoi                          {0, 0, 1, 1};
     std::string mName                    {""};
     std::string mTooltip                 {""};
 public:
