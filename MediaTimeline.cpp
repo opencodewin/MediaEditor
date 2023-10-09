@@ -12538,8 +12538,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     ImVec2 canvas_pos = window_pos + ImVec2(0, toolbarHeight + 1); //ImGui::GetCursorScreenPos();
     ImVec2 canvas_size = ImGui::GetContentRegionAvail();
     canvas_size.y -= toolbarHeight + 1;
-    ImVec2 timline_size = canvas_size;
-    ImVec2 event_track_size = ImVec2(canvas_size.x, trackHeight);
+    ImVec2 timline_size = canvas_size - ImVec2(scrollSize / 2, 0);
+    ImVec2 event_track_size = ImVec2(timline_size.x, trackHeight);
     float minPixelWidthTarget = (float)(timline_size.x) / (float)duration;
     float maxPixelWidthTarget = 20.f;
     int view_frames = 16;
@@ -12570,16 +12570,20 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     static ImVec2 panningViewHorizonSource;
     static int64_t panningViewHorizonTime;
 
-    ImVec2 HorizonScrollBarSize(timline_size.x, scrollSize);
+    ImVec2 HorizonScrollBarSize(window_size.x, scrollSize);
     ImVec2 HorizonScrollPos = window_pos + ImVec2(0, window_size.y - scrollSize);
     ImGui::SetCursorScreenPos(HorizonScrollPos);
     ImGui::InvisibleButton("clip_HorizonScrollBar", HorizonScrollBarSize);
     ImVec2 HorizonScrollAreaMin = HorizonScrollPos;
     ImVec2 HorizonScrollAreaMax = HorizonScrollAreaMin + HorizonScrollBarSize;
-    ImVec2 HorizonScrollBarMin(HorizonScrollAreaMin.x, HorizonScrollAreaMin.y - 2);        // whole bar area
-    ImVec2 HorizonScrollBarMax(HorizonScrollAreaMin.x + timline_size.x, HorizonScrollAreaMax.y - 1);      // whole bar area
+    ImVec2 HorizonScrollBarMin(HorizonScrollAreaMin.x, HorizonScrollAreaMin.y - 2);                     // whole bar area
+    ImVec2 HorizonScrollBarMax(HorizonScrollAreaMin.x + timline_size.x, HorizonScrollAreaMax.y - 1);    // whole bar area
     HorizonScrollBarRect = ImRect(HorizonScrollBarMin, HorizonScrollBarMax);
 
+    ImVec2 VerticalScrollBarSize(scrollSize / 2, window_size.y - scrollSize - toolbar_size.y);
+    ImVec2 VerticalScrollBarPos = window_pos + ImVec2(timline_size.x, toolbar_size.y);
+    static ImVec2 panningViewVerticalSource;
+    static float panningViewVerticalPos;
 
     editingClip->msPixelWidthTarget = ImClamp(editingClip->msPixelWidthTarget, minPixelWidthTarget, maxPixelWidthTarget);
     //if (lastFirstTime != -1 && lastFirstTime != editingClip->firstTime) changed = true;
@@ -13202,8 +13206,14 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         bool event_editable = !MovingCurrentTime && !ImGui::IsDragDropActive() && !menuIsOpened && !popupDialog;
         auto prevEventMovingPart = eventMovingPart;
         ImGui::SetCursorScreenPos(trackAreaRect.Min);
-        if (ImGui::BeginChild("##clip_event_tracks", trackAreaRect.GetSize(), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollWithMouse))
+        if (ImGui::BeginChild("##clip_event_tracks", trackAreaRect.GetSize(), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
         {
+            auto VerticalScrollPos = ImGui::GetScrollY();
+            auto VerticalScrollMax = ImGui::GetScrollMaxY();
+            auto VerticalWindow = ImGui::GetCurrentWindow();
+            const float VerticalBarHeightRatio = ImMin(VerticalScrollBarSize.y / (VerticalScrollBarSize.y + VerticalScrollMax), 1.f);
+            const float VerticalBarHeightInPixels = std::max(VerticalBarHeightRatio * VerticalScrollBarSize.y, (float)scrollSize / 2);
+
             auto trackview_pos = ImGui::GetCursorPos();
             ImDrawList * drawList = ImGui::GetWindowDrawList();
             ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
@@ -13213,13 +13223,12 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 if (io.MouseWheel < -FLT_EPSILON || io.MouseWheel > FLT_EPSILON)
                 {
-                    auto scroll_y = ImGui::GetScrollY();
-                    float offset = -io.MouseWheel * 5 + scroll_y;
-                    offset = ImClamp(offset, 0.f, ImGui::GetScrollMaxY());
-                    ImGui::SetScrollY(ImGui::GetCurrentWindow(), offset);
+                    float offset = -io.MouseWheel * 5 + VerticalScrollPos;
+                    offset = ImClamp(offset, 0.f, VerticalScrollMax);
+                    ImGui::SetScrollY(VerticalWindow, offset);
                 }
             }
-            // TODO::Dicky draw clip attribute curves as single track
+
             ImGui::SetCursorPos({0, 0});
             auto   attribute_current = ImGui::GetCursorScreenPos();
             ImVec2 attribute_size = ImVec2(event_track_size.x, trackHeight + (clip->bAttributeExpanded ? curveHeight : 0));
@@ -13365,7 +13374,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 bNewDragOp = true;
 
             // draw empty track if has space
-            while (track_current.y + event_track_size.y < track_pos.y + trackAreaRect.GetSize().y)
+            while (track_current.y + event_track_size.y < track_pos.y + trackAreaRect.GetSize().y - attribute_area.GetSize().y)
             {
                 ImRect track_area = ImRect(track_current, track_current + event_track_size);
                 bool is_mouse_hovered = track_area.Contains(io.MousePos);
@@ -13382,7 +13391,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 // draw cursor line
                 float cursorOffset = track_pos.x + (editingClip->mCurrentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - 0.5f;
-                drawList->AddLine(ImVec2(cursorOffset, track_pos.y), ImVec2(cursorOffset, track_current.y), COL_CURSOR_LINE_R, cursorWidth);
+                drawList->AddLine(ImVec2(cursorOffset, attribute_current.y), ImVec2(cursorOffset, track_current.y), COL_CURSOR_LINE_R, cursorWidth);
             }
 
             // event cropping or moving
@@ -13482,6 +13491,46 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     }
                 }
                 ImGui::EndDragDropTarget();
+            }
+            // draw vertical scroll bar
+            ImGui::SetCursorScreenPos(VerticalScrollBarPos);
+            ImGui::InvisibleButton("VerticalScrollBar##event_track_view", VerticalScrollBarSize);
+            float VerticalStartOffset = VerticalScrollPos * VerticalBarHeightRatio;
+            ImVec2 VerticalScrollBarMin = ImGui::GetItemRectMin();
+            ImVec2 VerticalScrollBarMax = ImGui::GetItemRectMax();
+            auto VerticalScrollBarRect = ImRect(VerticalScrollBarMin, VerticalScrollBarMax);
+            bool inVerticalScrollBar = VerticalScrollBarRect.Contains(io.MousePos);
+            draw_list->AddRectFilled(VerticalScrollBarMin, VerticalScrollBarMax, COL_SLIDER_BG, 8);
+            ImVec2 VerticalScrollHandleBarMin(VerticalScrollBarMin.x, VerticalScrollBarMin.y + VerticalStartOffset);  // current bar area
+            ImVec2 VerticalScrollHandleBarMax(VerticalScrollBarMin.x + (float)scrollSize / 2, VerticalScrollBarMin.y + VerticalBarHeightInPixels + VerticalStartOffset);
+            auto VerticalScrollHandleBarRect = ImRect(VerticalScrollHandleBarMin, VerticalScrollHandleBarMax);
+            bool inVerticalScrollHandle = VerticalScrollHandleBarRect.Contains(io.MousePos);
+            draw_list->AddRectFilled(VerticalScrollHandleBarMin, VerticalScrollHandleBarMax, (inVerticalScrollBar || MovingVerticalScrollBar) ? COL_SLIDER_IN : COL_SLIDER_MOVING, 6);
+            if (MovingVerticalScrollBar)
+            {
+                if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                {
+                    MovingVerticalScrollBar = false;
+                }
+                else
+                {
+                    float offset = (io.MousePos.y - panningViewVerticalSource.y) / VerticalBarHeightRatio + panningViewVerticalPos;
+                    offset = ImClamp(offset, 0.f, VerticalScrollMax);
+                    ImGui::SetScrollY(VerticalWindow, offset);
+                }
+            }
+            else if (inVerticalScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !bEventMoving && !menuIsOpened && !mouse_hold)
+            {
+                ImGui::CaptureMouseFromApp();
+                MovingVerticalScrollBar = true;
+                panningViewVerticalSource = io.MousePos;
+                panningViewVerticalPos = VerticalScrollPos;
+            }
+            else if (inVerticalScrollBar && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !bEventMoving && !menuIsOpened && mouse_hold)
+            {
+                float offset = (io.MousePos.y - VerticalScrollBarPos.y) / VerticalBarHeightRatio;
+                offset = ImClamp(offset, 0.f, VerticalScrollMax);
+                ImGui::SetScrollY(VerticalWindow, offset);
             }
         }
         ImGui::EndChild();

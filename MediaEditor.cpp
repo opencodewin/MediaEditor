@@ -3899,7 +3899,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
     ImGuiIO& io = ImGui::GetIO();
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
-    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_BLACK_DARK);
     bool is_small_window = window_size.x < 600;
     int bar_height = is_small_window ? 32 : 48;
     int bar_y_offset = is_small_window ? 4 : 8;
@@ -5244,7 +5244,6 @@ static void DrawVideoClipPreviewWindow(ImDrawList *draw_list, EditingVideoClip *
 {
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    draw_list->AddRectFilled(sub_window_pos, sub_window_pos + sub_window_size, COL_DEEP_DARK);
     bool is_vertical = sub_window_size.y > sub_window_size.x;
     ShowVideoPreviewWindow(draw_list, editing_clip, is_vertical);
 }
@@ -5355,7 +5354,7 @@ static void ShowVideoClipWindow(ImDrawList *draw_list, ImRect title_rect, Editin
     if (MonitorIndexVideoFilterOrg == -1) preview_count ++;
     if (MonitorIndexVideoFiltered == -1)  preview_count ++;
 
-        if (!show_blueprint)
+    if (!show_blueprint)
     {
         if (preview_count == 0)
         {
@@ -5386,7 +5385,7 @@ static void ShowVideoClipWindow(ImDrawList *draw_list, ImRect title_rect, Editin
             }
             ImGui::EndChild();
         }
-        else if (preview_count < 2 || g_media_editor_settings.video_clip_timeline_height > 0.66)
+        else if (preview_count < 2 || g_media_editor_settings.video_clip_timeline_height > 0.5)
         {
             // 2 Splitters, vertically first, then horizontal(chart 4)
             float timeline_width = window_size.x * g_media_editor_settings.video_clip_timeline_width;
@@ -10978,6 +10977,11 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                         if (timeline->mSelectedItem < 0)
                         {
                             MainWindowIndex = MAIN_PAGE_PREVIEW;
+                        }
+                        else if (timeline->mSelectedItem >= timeline->mEditingItems.size())
+                        {
+                            MainWindowIndex = MAIN_PAGE_PREVIEW;
+                            timeline->mSelectedItem = -1;
                         }
                         UIPageChanged();
                     }
