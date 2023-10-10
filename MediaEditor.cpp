@@ -318,19 +318,31 @@ static const char* VideoPreviewScale[] = {
     "1/8",
 };
 
-#ifdef MEDIA_MANAGEMENT
-typedef struct _sort_method
+// Add by Jimmy, Start
+typedef struct _method_property
 {
     std::string name;
     std::string icon;
-} sort_method;
+    uint32_t meaning; 
+} method_property;
 
-static const sort_method SortMethodItems[] = {
-    {" Import Date", ICON_SORT_ID},
-    {" Media Type", ICON_SORT_TYPE},
-    {" Media Name", ICON_SORT_NAME}
+static const method_property SortMethodItems[] = {
+    {"Import Date", ICON_SORT_ID, 0},
+    {"Media Type", ICON_SORT_TYPE, 0},
+    {"Media Name", ICON_SORT_NAME, 0}
 };
-#endif
+
+static const method_property FilterMethodItems[] = {
+    {"All", ICON_FILTER_NONE, 0},
+    {"Video", ICON_MEDIA_VIDEO, MEDIA_VIDEO},
+    {"Audio", ICON_MEDIA_AUDIO, MEDIA_AUDIO},
+    {"Image", ICON_MEDIA_IMAGE, MEDIA_SUBTYPE_VIDEO_IMAGE},
+    {"Text", ICON_MEDIA_TEXT, MEDIA_TEXT}
+};
+
+static ImGuiTextFilter text_search_filter;
+static uint32_t curr_media_count = 0;
+// Add by Jimmy, End
 
 const std::string video_file_dis = "*.mp4 *.mov *.mkv *.mxf *.avi *.webm *.ts";
 const std::string video_file_suffix = ".mp4,.mov,.mkv,.mxf,.avi,.webm,.ts";
@@ -2005,7 +2017,10 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
     return ret;
 }
 
-static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem *>::iterator item, ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size, bool& changed)
+// Tips by Jimmy: add 'bool& filtered' param, 'bool& searched'
+// 'true' indicates that the media_items is filtered
+// 'true' indicates that the media_items is fsearched
+static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem *>::iterator item, ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size, bool& changed, bool& filtered, bool& searched)
 {
     ImGuiIO& io = ImGui::GetIO();
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
@@ -2314,8 +2329,42 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
     {
         // TODO::Dicky need delete it from timeline list ?
         MediaItem * it = *item;
+        // Modify by Jimmy, Begin
+        if (searched)
+        {
+            auto m_iter = std::find_if(timeline->media_items.begin(), timeline->media_items.end(), [it](const MediaItem* lit)
+            {
+                return it->mID == lit->mID;
+            });
+            if (m_iter != timeline->media_items.end())
+                timeline->media_items.erase(m_iter); // first, delete this media_item from timeline->media_items
+
+            auto f_iter = std::find_if(timeline->filter_media_items.begin(), timeline->filter_media_items.end(), [it](const MediaItem* lit)
+            {
+                return it->mID == lit->mID;
+            });
+            if (f_iter != timeline->filter_media_items.end())
+                timeline->filter_media_items.erase(f_iter); // then, delete this media_item from timeline->filter_media_items
+
+            item = timeline->search_media_items.erase(item); // final, delete this media_item from timeline->filter_media_items
+        }
+        else if (filtered)
+        {
+            auto iter = std::find_if(timeline->media_items.begin(), timeline->media_items.end(), [it](const MediaItem* lit)
+            {
+                return it->mID == lit->mID;
+            });
+            if (iter != timeline->media_items.end())
+                timeline->media_items.erase(iter); // first, delete this media_item from timeline->media_items
+
+            item = timeline->filter_media_items.erase(item); // then, delete this media_item from timeline->filter_media_items
+        }
+        else
+        {
+            item = timeline->media_items.erase(item);
+        }
         delete it;
-        item = timeline->media_items.erase(item);
+        // Modify by Jimmy, End
         changed = true;
     }
     else
@@ -2333,128 +2382,246 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     static std::vector<std::string> failed_items;
     bool changed = false;
+    bool filtered = false; // 'true' indicates that the media_items is filtered
+    bool searched = false; // 'true' indicates that the media_items is searched
     if (!timeline)
         return;
 
-    if (ImGui::BeginChild("##Media_bank_content", ImGui::GetWindowSize() - ImVec2(4, 4), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
+    ImVec2 full_window_size = ImGui::GetWindowSize() - ImVec2(4, 4);
+    ImGuiWindowFlags full_window_flags = ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar | 
+                                            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags child_window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+    if (ImGui::BeginChild("##Media_bank_content", full_window_size, false, full_window_flags))
     {
-        ImVec2 window_pos = ImGui::GetWindowPos();
-        ImVec2 window_size = ImGui::GetWindowSize();
-        ImDrawList * draw_list = ImGui::GetWindowDrawList();
-        
-        ImVec2 contant_size = ImGui::GetContentRegionAvail();
-        ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-        ImGui::Indent(20);
-        ImGui::AddTextComplex(draw_list, window_pos + ImVec2(8, 0),
-                                "Media Bank", 2.5, COL_GRAY_TEXT,
-                                0.5f, IM_COL32(56, 56, 56, 192));
-#ifdef MEDIA_MANAGEMENT
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7, 0.7, 0.7, 1.0));
-        ImGui::SameLine(window_size.x - media_icon_size, media_icon_size / 2);
-        ImGui::SetNextItemWidth(media_icon_size / 2);
-        if (ImGui::BeginCombo("##sort_media_item", SortMethodItems[timeline->mSortMethod].icon.c_str()))
+        ImVec2 menu_window_size = ImVec2(ImGui::GetWindowSize().x, 40);
+        ImGui::SetNextWindowPos(ImGui::GetWindowPos() + ImVec2(4, 4));
+        if (ImGui::BeginChild("##Media_bank_content_menu", menu_window_size, false, child_window_flags))
         {
-            for (int n = 0; n < IM_ARRAYSIZE(SortMethodItems); n++)
-            {
-                const bool is_selected = (timeline->mSortMethod == n);
-                if (ImGui::Selectable(SortMethodItems[n].icon.c_str(), is_selected))
-                    timeline->mSortMethod = n;
+            ImDrawList * draw_list = ImGui::GetWindowDrawList();
+            ImGui::AddTextComplex(draw_list, ImGui::GetWindowPos() + ImVec2(8, 0),
+                                    "Media Bank", 2.5, COL_GRAY_TEXT,
+                                    0.5f, IM_COL32(56, 56, 56, 192));
+            // Modify by Jimmy, Begin
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7, 0.7, 0.7, 1.0));
 
-                // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
-                if (is_selected)
-                    ImGui::SetItemDefaultFocus();
-                ImGui::ShowTooltipOnHover("%s", std::string("Sorted by" + SortMethodItems[n].name).c_str());
-            }
-            ImGui::EndCombo();
-        }
-        ImGui::ShowTooltipOnHover("%s", std::string("Sorted by" + SortMethodItems[timeline->mSortMethod].name).c_str());
-        timeline->mSortMethod ? (timeline->mSortMethod-1 ? timeline->SortMediaItemByName() : timeline->SortMediaItemByType()) : timeline->SortMediaItemByID();
-        ImGui::PopStyleColor(3);
-#endif
-        if (timeline->media_items.empty())
-        {
-            ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);
-            ImGui::AddTextComplex(draw_list, window_pos + ImVec2(128,  48), "Please Click", 2.0f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
-            ImGui::AddTextComplex(draw_list, window_pos + ImVec2(128,  80), "<-- Here", 2.0f, text_color, 0.5f, IM_COL32(56, 56, 56, 192));
-            ImGui::AddTextComplex(draw_list, window_pos + ImVec2(128, 112), "To Add Media", 2.0f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
-            ImGui::AddTextComplex(draw_list, window_pos + ImVec2( 10, 144), "Or Drag Files From Brower", 2.f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
-        }
-        // Show Media Icons
-        ImGui::SetCursorPos({20, 20});
-        int icon_number_pre_row = window_size.x / (media_icon_size + 24);
-        // insert empty icon for add media
-        auto icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
-        InsertMediaAddIcon(draw_list, icon_pos, media_icon_size);
-        bool media_add_icon = true;
-        for (auto item = timeline->media_items.begin(); item != timeline->media_items.end();)
-        {
-            if (!media_add_icon) icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
-            for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
+            // Sorted, timeline->media_items
+            ImGui::SameLine(ImGui::GetWindowSize().x - media_icon_size*1.5, media_icon_size / 2);
+            ImGui::SetNextItemWidth(media_icon_size / 2);
+            uint32_t curr_sort_method = timeline->mSortMethod;
+            if (ImGui::BeginCombo("##sort_media_item", SortMethodItems[timeline->mSortMethod].icon.c_str()))
             {
-                auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
-                item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size, changed);
-                if (item == timeline->media_items.end())
-                    break;
-            }
-            media_add_icon = false;
-            if (item == timeline->media_items.end())
-                break;
-            ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
-        }
-
-        ImGui::Dummy(ImVec2(0, 24));
-
-        // Handle drag drop from system
-        ImGui::SetCursorScreenPos(window_pos);
-        ImGui::InvisibleButton("media_bank_view", contant_size);
-        if (ImGui::BeginDragDropTarget())
-        {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FILES"))
-            {
-                if (timeline)
+                for (int n = 0; n < IM_ARRAYSIZE(SortMethodItems); n++)
                 {
-                    for (auto path : import_url)
+                    const bool is_selected = (timeline->mSortMethod == n);
+                    if (ImGui::Selectable(SortMethodItems[n].icon.c_str(), is_selected))
+                        timeline->mSortMethod = n;
+
+                    // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                    if (is_selected)
+                        ImGui::SetItemDefaultFocus();
+                    ImGui::ShowTooltipOnHover("%s", std::string("Sorted by " + SortMethodItems[n].name).c_str());
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::ShowTooltipOnHover("%s", std::string("Sorted by " + SortMethodItems[timeline->mSortMethod].name).c_str());
+            if (curr_sort_method != timeline->mSortMethod || curr_media_count != timeline->media_items.size()) // 1. mSortMethod changed; 2. media_items.size() changed
+                timeline->mSortMethod ? (timeline->mSortMethod-1 ? timeline->SortMediaItemByName() : timeline->SortMediaItemByType()) : timeline->SortMediaItemByID();
+
+            // filtered, timeline->fliter_media_items
+            ImGui::SameLine(ImGui::GetWindowSize().x - media_icon_size, media_icon_size / 2);
+            ImGui::SetNextItemWidth(media_icon_size / 2);
+            uint32_t curr_filter_method = timeline->mFilterMethod;
+            if (ImGui::BeginCombo("##filter_media_item", FilterMethodItems[timeline->mFilterMethod].icon.c_str()))
+            {
+                for (int n = 0; n < IM_ARRAYSIZE(FilterMethodItems); n++)
+                {
+                    const bool is_selected = (timeline->mFilterMethod == n);
+                    if (ImGui::Selectable(FilterMethodItems[n].icon.c_str(), is_selected))
+                        timeline->mFilterMethod = n;
+
+                    // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                    if (is_selected)
+                        ImGui::SetItemDefaultFocus();
+                    ImGui::ShowTooltipOnHover("%s", std::string("Filtered by " + FilterMethodItems[n].name).c_str());
+                }
+                ImGui::EndCombo();
+            }
+            ImGui::ShowTooltipOnHover("%s", std::string("Filtered by " + FilterMethodItems[timeline->mFilterMethod].name).c_str());
+            // 1. mFilterMethod changed 2. media_items.size() changed; 3. mSortMethod changed;
+            if (curr_filter_method != timeline->mFilterMethod || curr_media_count != timeline->media_items.size() || curr_sort_method != timeline->mSortMethod)
+            {
+                timeline->filter_media_items.clear();
+                timeline->FilterMediaItemByType(FilterMethodItems[timeline->mFilterMethod].meaning);
+            }
+
+            // Searched, timeline->fliter_media_items
+            ImGui::SameLine(ImGui::GetWindowPos().x + 40, media_icon_size / 2);
+            ImGui::SetNextItemWidth(ImGui::GetWindowSize().x - media_icon_size*2 - 40);
+            text_search_filter.Draw("##text_filter");
+
+            curr_media_count = timeline->media_items.size(); // Update timeline->media_items count
+            ImGui::PopStyleColor(3);
+            // Modify by Jimmy, End
+        }
+        ImGui::EndChild();
+        ImVec2 main_window_size = ImVec2(ImGui::GetWindowSize().x, ImGui::GetWindowSize().y - 40);
+        ImGui::SetNextWindowPos(ImGui::GetWindowPos() + ImVec2(4, 44));
+        if (ImGui::BeginChild("##Media_bank_content_main", main_window_size, false, child_window_flags))
+        {
+            ImDrawList * draw_list = ImGui::GetWindowDrawList();
+            ImVec2 window_pos = ImGui::GetWindowPos();
+            ImVec2 window_size = ImGui::GetWindowSize();
+            ImVec2 contant_size = ImGui::GetContentRegionAvail();
+            ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+            ImGui::Indent(20);
+            if (timeline->media_items.empty())
+            {
+                ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);
+                ImGui::AddTextComplex(draw_list, window_pos + ImVec2(128,  48), "Please Click", 2.0f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
+                ImGui::AddTextComplex(draw_list, window_pos + ImVec2(128,  80), "<-- Here", 2.0f, text_color, 0.5f, IM_COL32(56, 56, 56, 192));
+                ImGui::AddTextComplex(draw_list, window_pos + ImVec2(128, 112), "To Add Media", 2.0f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
+                ImGui::AddTextComplex(draw_list, window_pos + ImVec2( 10, 144), "Or Drag Files From Brower", 2.f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
+            }
+            // Show Media Icons
+            int icon_number_pre_row = window_size.x / (media_icon_size + 24);
+            // insert empty icon for add media
+            bool media_add_icon = true;
+            auto icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
+            InsertMediaAddIcon(draw_list, icon_pos, media_icon_size);
+            // Modify by Jimmy, Start
+            if (text_search_filter.IsActive())// op in timeline->filter_media_items
+            {
+                searched = true;
+                timeline->search_media_items.clear();
+                if (timeline->mFilterMethod == 0)
+                {
+                    for (auto media_item : timeline->media_items)
                     {
-                        auto ret = InsertMedia(path);
-                        if (!ret)
-                        {
-                            auto filename = ImGuiHelper::path_filename(path);
-                            failed_items.push_back(filename);
-                        }
-                        else
-                        {
-                            pfd::notify("Import File Succeed", path, pfd::icon::info);
-                            changed = true;
-                        }
-                    }
-                    import_url.clear();
-                    if (!failed_items.empty())
-                    {
-                        ImGui::OpenPopup("Failed loading media", ImGuiPopupFlags_AnyPopup);
+                        if (text_search_filter.PassFilter(media_item->mName.c_str()))
+                            timeline->search_media_items.push_back(media_item);
                     }
                 }
-            }
-            ImGui::EndDragDropTarget();
-        }
+                else
+                {
+                    for (auto media_item : timeline->filter_media_items)
+                    {
+                        if (text_search_filter.PassFilter(media_item->mName.c_str()))
+                            timeline->search_media_items.push_back(media_item);
+                    }
+                }
 
-        if (multiviewport)
-            ImGui::SetNextWindowViewport(viewport->ID);
-        if (ImGui::BeginPopupModal("Failed loading media", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
-        {
-            ImGui::TextUnformatted("Can't load following Media:");
-            for (auto name : failed_items)
-            {
-                ImGui::Text("%s", name.c_str());
+                for (auto item = timeline->search_media_items.begin(); item != timeline->search_media_items.end();)
+                {
+                    if (!media_add_icon) icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
+                    for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
+                    {
+                        auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
+                        item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size, changed, filtered, searched);
+
+                        if (item == timeline->search_media_items.end())
+                            break;
+                    }
+                    media_add_icon = false;
+                    if (item == timeline->search_media_items.end())
+                        break;
+                    ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
+                }
             }
-            if (ImGui::Button("OK", ImVec2(60, 0)))
+            else if (timeline->mFilterMethod != 0) // op in timeline->filter_media_items
             {
-                failed_items.clear();
-                ImGui::CloseCurrentPopup();
+                filtered = true;
+                for (auto item = timeline->filter_media_items.begin(); item != timeline->filter_media_items.end();)
+                {
+                    if (!media_add_icon) icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
+                    for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
+                    {
+                        auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
+                        item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size, changed, filtered, searched);
+
+                        if (item == timeline->filter_media_items.end())
+                            break;
+                    }
+                    media_add_icon = false;
+                    if (item == timeline->filter_media_items.end())
+                        break;
+                    ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
+                }
             }
-            ImGui::EndPopup();
+            else
+            {
+                for (auto item = timeline->media_items.begin(); item != timeline->media_items.end();)
+                {
+                    if (!media_add_icon) icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
+                    for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
+                    {
+                        auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
+                        item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size, changed, filtered, searched);
+
+                        if (item == timeline->media_items.end())
+                            break;
+                    }
+                    media_add_icon = false;
+                    if (item == timeline->media_items.end())
+                        break;
+                    ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
+                }
+            }
+            // Modify by Jimmy, End
+            ImGui::Dummy(ImVec2(0, 24));
+
+            // Handle drag drop from system
+            ImGui::SetCursorScreenPos(window_pos);
+            ImGui::InvisibleButton("media_bank_view", contant_size);
+            if (ImGui::BeginDragDropTarget())
+            {
+                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("FILES"))
+                {
+                    if (timeline)
+                    {
+                        for (auto path : import_url)
+                        {
+                            auto ret = InsertMedia(path);
+                            if (!ret)
+                            {
+                                auto filename = ImGuiHelper::path_filename(path);
+                                failed_items.push_back(filename);
+                            }
+                            else
+                            {
+                                pfd::notify("Import File Succeed", path, pfd::icon::info);
+                                changed = true;
+                            }
+                        }
+                        import_url.clear();
+                        if (!failed_items.empty())
+                        {
+                            ImGui::OpenPopup("Failed loading media", ImGuiPopupFlags_AnyPopup);
+                        }
+                    }
+                }
+                ImGui::EndDragDropTarget();
+            }
+
+            if (multiviewport)
+                ImGui::SetNextWindowViewport(viewport->ID);
+            if (ImGui::BeginPopupModal("Failed loading media", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+            {
+                ImGui::TextUnformatted("Can't load following Media:");
+                for (auto name : failed_items)
+                {
+                    ImGui::Text("%s", name.c_str());
+                }
+                if (ImGui::Button("OK", ImVec2(60, 0)))
+                {
+                    failed_items.clear();
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
         }
+        ImGui::EndChild();
     }
     ImGui::EndChild();
     if (!g_project_loading) project_changed |= changed;

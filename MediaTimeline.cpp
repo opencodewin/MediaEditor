@@ -6973,7 +6973,6 @@ MediaItem* TimeLine::FindMediaItemByID(int64_t id)
     return nullptr;
 }
 
-#ifdef MEDIA_MANAGEMENT
 void TimeLine::SortMediaItemByID()
 {
     std::sort(media_items.begin(), media_items.end(), [](const MediaItem* lit, const MediaItem* rit)
@@ -6997,7 +6996,15 @@ void TimeLine::SortMediaItemByType()
         return lit->mMediaType < rit->mMediaType;
     });
 }
-#endif
+
+void TimeLine::FilterMediaItemByType(uint32_t mediaType)
+{
+    for (auto media_item : media_items)
+    {
+        if (media_item->mMediaType == mediaType)
+            filter_media_items.push_back(media_item);
+    }
+}
 
 MediaTrack * TimeLine::FindTrackByID(int64_t id)
 {
@@ -7811,13 +7818,11 @@ int TimeLine::Load(const imgui_json::value& value)
         if (val.is_boolean()) bExportAudio = val.get<imgui_json::boolean>();
     }
 
-#ifdef MEDIA_MANAGEMENT
     if (value.contains("SortMethod"))
     {
         auto& val = value["SortMethod"];
         if (val.is_boolean()) mSortMethod = val.get<imgui_json::number>();
     }
-#endif
 
     mPreviewResumePos = mCurrentTime = AlignTime(mCurrentTime);
 
@@ -8378,9 +8383,7 @@ void TimeLine::Save(imgui_json::value& value)
     value["OutputAudioCode"] = mAudioCodec;
     value["OutputVideo"] = imgui_json::boolean(bExportVideo);
     value["OutputAudio"] = imgui_json::boolean(bExportAudio);
-#ifdef MEDIA_MANAGEMENT
     value["SortMethod"] = imgui_json::number(mSortMethod);
-#endif
 }
 
 void TimeLine::PrintActionList(const std::string& title, const std::list<imgui_json::value>& actionList)
