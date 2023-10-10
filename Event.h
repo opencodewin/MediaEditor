@@ -4,6 +4,7 @@
 #include <functional>
 #include <ostream>
 #include "UI.h"
+#include "immat.h"
 #include "imgui_curve.h"
 #include "imgui_json.h"
 
@@ -48,7 +49,7 @@ namespace MEC
         virtual bool GetMask(imgui_json::value& j, int64_t nodeId, int index) const = 0;
         virtual bool RemoveMask(int index) = 0;
         virtual bool RemoveMask(int64_t nodeId, int index) = 0;
-        virtual bool SaveMask(const imgui_json::value& j, int index = -1) = 0;
+        virtual bool SaveMask(const imgui_json::value& j, const ImGui::ImMat* pmMask, int index = -1) = 0;
         virtual bool SaveMask(int64_t nodeId, const imgui_json::value& j, int index = -1) = 0;
     };
 

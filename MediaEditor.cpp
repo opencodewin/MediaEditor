@@ -4881,7 +4881,8 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 auto hMaskCreator = ImGui::MaskCreator::CreateInstance(vidPreviewSize, maskName);
                 imgui_json::value jnMask;
                 hMaskCreator->SaveAsJson(jnMask);
-                pVidEvt->SaveMask(jnMask, newMaskIdx);
+                auto maskMat = hMaskCreator->GetMask(ImGui::MaskCreator::AA, true, IM_DT_FLOAT32, 1, 0);
+                pVidEvt->SaveMask(jnMask, maskMat, newMaskIdx);
                 if (is_selected)
                     pEdtVidClip->SelectEditingMask(event, -1, newMaskIdx, hMaskCreator);
             }

@@ -3519,8 +3519,9 @@ void EditingVideoClip::SaveEditingMask()
             Logger::Log(Logger::WARN) << "FAILED to save mask json! Error is '" << mhMaskCreator->GetError() << "'." << std::endl;
             return;
         }
+        auto maskMat = mhMaskCreator->GetMask(ImGui::MaskCreator::AA, true, IM_DT_FLOAT32, 1, 0);
         if (mMaskNodeId == -1)
-            pVidEvt->SaveMask(jnMask, mMaskIndex);
+            pVidEvt->SaveMask(jnMask, &maskMat, mMaskIndex);
         else
             pVidEvt->SaveMask(mMaskNodeId, jnMask, mMaskIndex);
     }
