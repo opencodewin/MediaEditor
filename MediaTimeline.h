@@ -42,12 +42,10 @@
 #define PLOT_IMPLOT   0
 #define PLOT_TEXTURE  1
 
-#ifdef MEDIA_MANAGEMENT
 #define ICON_SORT_ID        u8"\uf887"
 #define ICON_SORT_TYPE      u8"\uf885"
 #define ICON_SORT_NAME      u8"\uf882"
-#endif
-
+#define ICON_FILTER_NONE    u8"\uf031"
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANS    u8"\ue927"
@@ -440,6 +438,7 @@ struct Clip
     bool bHovered               {false};            // clip is under mouse
 
     imgui_json::value           mFilterJson;        // clip filter blue print, project saved
+    imgui_json::value           mAttributeJson;     // clip attribute, project saved
     bool                        bAttributeExpanded {false}; // clip attribute curve expanded, project saved
 
     MEC::EventStack*            mEventStack {nullptr};// clip event stack,
@@ -543,6 +542,7 @@ struct VideoClip : Clip
 
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
+    int64_t Cropping(int64_t diff, int type) override;
 
     void SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool createNewIfNotExist = false);
     void SyncAttributesWithDataLayer(MediaCore::VideoClip::Holder hClip);
@@ -604,7 +604,7 @@ struct TextClip : Clip
     
     std::string mText;
     std::string mFontName;
-    ImGui::KeyPointEditor  mAttributeKeyPoints;// text key points, project saved
+    ImGui::KeyPointEditor  mAttributeKeyPoints;
     bool mTrackStyle {true};
     bool mScaleSettingLink {true};
     float mFontScaleX {1.0f};
@@ -1140,9 +1140,10 @@ struct TimeLine
     bool bSelectLinked = true;              // project saved
     bool bMovingAttract = true;             // project saved
 
-#ifdef MEDIA_MANAGEMENT
     uint32_t mSortMethod {0};
-#endif
+    uint32_t mFilterMethod {0};
+    std::vector<MediaItem *> filter_media_items;
+    std::vector<MediaItem *> search_media_items;
 
     std::vector<EditingItem*> mEditingItems;
     int mSelectedItem                   {-1};
@@ -1275,11 +1276,12 @@ struct TimeLine
 
     MediaItem* FindMediaItemByName(std::string name);   // Find media from bank by name
     MediaItem* FindMediaItemByID(int64_t id);           // Find media from bank by ID
-#ifdef MEDIA_MANAGEMENT
+
     void SortMediaItemByID();
     void SortMediaItemByName();
     void SortMediaItemByType();
-#endif
+    void FilterMediaItemByType(uint32_t mediaType);
+
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID
     MediaTrack * FindTrackByName(std::string name);     // Find track by clip ID
