@@ -707,6 +707,12 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         auto& val = value["FilterJson"];
         if (val.is_object()) clip->mFilterJson = val;
     }
+    // load attribute
+    if (value.contains("AttributeJson"))
+    {
+        auto& val = value["AttributeJson"];
+        if (val.is_object()) clip->mAttributeJson = val;
+    }
 
     if (value.contains("AttributeExpanded"))
     {
@@ -762,6 +768,8 @@ void Clip::Save(imgui_json::value& value)
     }
     if (mEventTracks.size() > 0) value["EventTracks"] = event_tracks;
 
+    // save Attribute setting
+    value["AttributeJson"] = mAttributeJson;
 }
 
 int64_t Clip::Cropping(int64_t diff, int type)
@@ -2024,6 +2032,38 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
     }
 }
 
+int64_t VideoClip::Cropping(int64_t diff, int type)
+{
+    auto ret = Clip::Cropping(diff, type);
+    TimeLine * timeline = (TimeLine *)mHandle;
+    auto vclip = timeline ? timeline->mMtvReader->GetClipById(mID) : nullptr;
+    if (vclip && type == 0)
+    {
+        // only addjust start crop
+        auto attribute = vclip->GetTransformFilter();
+        if (attribute)
+        {
+            auto attribute_keypoint = attribute->GetKeyPoint();
+            if (attribute_keypoint)
+            {
+                attribute_keypoint->SetMin({0, 0});
+                attribute_keypoint->SetMax(ImVec2(Length(), 1.f), true);
+                for (int k = 0; k < attribute_keypoint->GetCurveKeyCount(); k++)
+                {
+                    auto pCount = attribute_keypoint->GetCurvePointCount(k);
+                    for (int p = 1; p < pCount - 1; p++)
+                    {
+                        auto point = attribute_keypoint->GetPoint(k, p);
+                        point.point.x -= ret;//StartOffset();
+                        attribute_keypoint->EditPoint(k, p, point.point, point.type);
+                    }
+                }
+            }
+        }
+    }
+    return ret;
+}
+
 void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated)
 {
     if (IS_DUMMY(mType))
@@ -2925,17 +2965,15 @@ Clip * TextClip::Load(const imgui_json::value& value, void * handle)
         if (val.is_vec4()) new_clip->mFontBackColor = val.get<imgui_json::vec4>();
     }
     // load attribute curve
-    if (value.contains("AttributeKeyPoint"))
-    {
-        auto& keypoint = value["AttributeKeyPoint"];
-        new_clip->mAttributeKeyPoints.Load(keypoint);
-    }
+    new_clip->mAttributeKeyPoints.Load(new_clip->mAttributeJson);
     new_clip->mIsInited = true;
     return new_clip;
 }
 
 void TextClip::Save(imgui_json::value& value)
 {
+    // save Attribute curve setting
+    mAttributeKeyPoints.Save(mAttributeJson);
     Clip::Save(value);
     // save Text clip info
     value["Text"] = mText;
@@ -2960,11 +2998,6 @@ void TextClip::Save(imgui_json::value& value)
     value["PrimaryColor"] = imgui_json::vec4(mFontPrimaryColor);
     value["OutlineColor"] = imgui_json::vec4(mFontOutlineColor);
     value["BackColor"] = imgui_json::vec4(mFontBackColor);
-    
-    // save Attribute curve setting
-    imgui_json::value attribute_keypoint;
-    mAttributeKeyPoints.Save(attribute_keypoint);
-    value["AttributeKeyPoint"] = attribute_keypoint;
 }
 } // namespace MediaTimeline
 
@@ -8104,6 +8137,15 @@ int TimeLine::Load(const imgui_json::value& value)
                 VideoClip* vclip = dynamic_cast<VideoClip*>(clip);
                 vclip->SyncFilterWithDataLayer(hVidClip);
                 vclip->SyncAttributesWithDataLayer(hVidClip);
+                auto attribute = hVidClip->GetTransformFilter();
+                if (attribute)
+                {
+                    auto attribute_keypoint = attribute->GetKeyPoint();
+                    if (attribute_keypoint)
+                    {
+                        attribute_keypoint->Load(clip->mAttributeJson);
+                    }
+                }
             }
         }
         else if (IS_AUDIO(track->mType))
@@ -8198,6 +8240,23 @@ void TimeLine::Save(imgui_json::value& value)
     imgui_json::value media_clips;
     for (auto clip : m_Clips)
     {
+        // store clip attribute
+        if (IS_VIDEO(clip->mType))
+        {
+            auto vclip = mMtvReader->GetClipById(clip->mID);
+            if (vclip)
+            {
+                auto attribute = vclip->GetTransformFilter();
+                if (attribute)
+                {
+                    auto attribute_keypoint = attribute->GetKeyPoint();
+                    if (attribute_keypoint)
+                    {
+                        attribute_keypoint->Save(clip->mAttributeJson);
+                    }
+                }
+            }
+        }
         imgui_json::value media_clip;
         clip->Save(media_clip);
         media_clips.push_back(media_clip);

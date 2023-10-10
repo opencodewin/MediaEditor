@@ -440,6 +440,7 @@ struct Clip
     bool bHovered               {false};            // clip is under mouse
 
     imgui_json::value           mFilterJson;        // clip filter blue print, project saved
+    imgui_json::value           mAttributeJson;     // clip attribute, project saved
     bool                        bAttributeExpanded {false}; // clip attribute curve expanded, project saved
 
     MEC::EventStack*            mEventStack {nullptr};// clip event stack,
@@ -543,6 +544,7 @@ struct VideoClip : Clip
 
     static Clip * Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value) override;
+    int64_t Cropping(int64_t diff, int type) override;
 
     void SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool createNewIfNotExist = false);
     void SyncAttributesWithDataLayer(MediaCore::VideoClip::Holder hClip);
@@ -604,7 +606,7 @@ struct TextClip : Clip
     
     std::string mText;
     std::string mFontName;
-    ImGui::KeyPointEditor  mAttributeKeyPoints;// text key points, project saved
+    ImGui::KeyPointEditor  mAttributeKeyPoints;
     bool mTrackStyle {true};
     bool mScaleSettingLink {true};
     float mFontScaleX {1.0f};
