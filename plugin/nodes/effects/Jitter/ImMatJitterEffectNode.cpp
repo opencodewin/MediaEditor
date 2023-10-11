@@ -92,10 +92,13 @@ struct JitterEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderInt("Count##Jitter", &_count, 1, 10, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_count##Jitter")) { _count = 1; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Max Scale##Jitter", &_max_scale, 1.f, 2.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_max_scale##Jitter")) { _max_scale = 1.1f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Offset##Jitter", &_offset, 0.f, 0.1f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_offset##Jitter")) { _offset = 0.02f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         if (ImGui::Checkbox("Shrink##Jitter", &m_shrink)) { changed = true; }
         ImGui::EndDisabled();
         ImGui::PopItemWidth();

@@ -91,6 +91,7 @@ struct StaticWipeTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Max Span##StaticWipe", &_span, 0.1, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_span##StaticWipe")) { _span = 0.5f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::Checkbox("Up to Down##StaticWipe",&_UpToDown);
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

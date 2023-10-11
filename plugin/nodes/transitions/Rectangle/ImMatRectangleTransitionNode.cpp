@@ -91,6 +91,7 @@ struct RectangleTransitionNode final : Node
             m_bgColor = _bgColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Back Color");
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_bgcolor##Rectangle")) { m_bgColor = {0.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor();
         return m_Enabled ? changed : false;
     }

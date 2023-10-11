@@ -91,6 +91,7 @@ struct CircleBlurTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##CircleBlur", &_smoothness, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_smoothness##CircleBlur")) { _smoothness = 0.3f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         if (ImGui::Checkbox("Open##CircleBlur", &_open))
         {
             m_open = _open ? 1 : 0;

@@ -91,6 +91,7 @@ struct CircleCropTransitionNode final : Node
             m_backColor = _backColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Back Color");
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_backcolor##CircleCrop")) { m_backColor = {0.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor();
         return m_Enabled ? changed : false;
     }

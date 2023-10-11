@@ -92,11 +92,13 @@ struct ColorPhaseTransitionNode final : Node
             m_fromColor = _fromColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Color From");
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_fromcolor##FromColorPhase")) { m_fromColor = {0.0f, 0.2f, 0.4f, 0.0f}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         if (ImGui::ColorEdit4("##ToColorPhase", (float*)&_toColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_toColor = _toColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Color To");
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_tocolor##FromColorPhase")) { m_toColor = {0.6f, 0.8f, 1.0f, 1.0f}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor();
         return m_Enabled ? changed : false;
     }

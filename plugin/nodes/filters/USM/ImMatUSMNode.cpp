@@ -98,6 +98,7 @@ struct USMNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_SigmaIn.IsLinked());
         ImGui::SliderFloat("Sigma##USM", &_sigma, 0, 10.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_sigma##USM")) { _sigma = 3; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_sigma##USM", key, m_SigmaIn.IsLinked(), "sigma##USM@" + std::to_string(m_ID), 0.f, 10.f, 3.f, m_SigmaIn.m_ID);
@@ -105,6 +106,7 @@ struct USMNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_AmountIn.IsLinked());
         ImGui::SliderFloat("Amount##USM", &_amount, 0, 3.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_amount##USM")) { _amount = 1.5f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_amount##USM", key, m_AmountIn.IsLinked(), "amount##USM@" + std::to_string(m_ID), 0.f, 3.f, 1.5f, m_AmountIn.m_ID);
@@ -112,6 +114,7 @@ struct USMNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_ThresholdIn.IsLinked());
         ImGui::SliderFloat("Threshold##USM", &_threshold, 0, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_threshold##USM")) { _threshold = 1.0f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_threshold##USM", key, m_ThresholdIn.IsLinked(), "threshold##USM@" + std::to_string(m_ID), 0.f, 1.f, 1.f, m_ThresholdIn.m_ID);

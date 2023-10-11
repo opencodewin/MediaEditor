@@ -92,8 +92,10 @@ struct MosaicTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderInt("Size X##Mosaic", &size_x, -5, 5, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size_x##Mosaic")) { size_x = 2; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderInt("Size Y##Mosaic", &size_y, -5, 5, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size_y##Mosaic")) { size_y = -1; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         ImGui::EndDisabled();

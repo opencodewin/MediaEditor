@@ -92,10 +92,13 @@ struct ButterflyWaveTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Amplitude##ButterflyWave", &_amplitude, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_amplitude##ButterflyWave")) { _amplitude = 1.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Waves##ButterflyWave", &_waves, 1.0, 18.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_waves##ButterflyWave")) { _waves = 10.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Separation##ButterflyWave", &_colorSeparation, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_colorSeparation##ButterflyWave")) { _colorSeparation = 0.3f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_amplitude != m_amplitude) { m_amplitude = _amplitude; changed = true; }

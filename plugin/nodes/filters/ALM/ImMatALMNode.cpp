@@ -99,6 +99,7 @@ struct AlmNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_StrengthIn.IsLinked());
         ImGui::SliderFloat("Strength##ALM", &_strength, 0, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_strength##ALM")) { _strength = 0.5; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_strength##ALM", key, m_StrengthIn.IsLinked(), "strength##ALM" + std::to_string(m_ID), 0.f, 1.f, 0.5f, m_StrengthIn.m_ID);
@@ -106,6 +107,7 @@ struct AlmNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_BiasIn.IsLinked());
         ImGui::SliderFloat("Bias##ALM", &_bias, 0, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_bias##ALM")) { _bias = 0.7; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_bias##ALM", key, m_BiasIn.IsLinked(), "bias##ALM" + std::to_string(m_ID), 0.f, 1.f, 0.7f, m_BiasIn.m_ID);
@@ -113,6 +115,7 @@ struct AlmNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_GammaIn.IsLinked());
         ImGui::SliderFloat("Gamma##ALM", &_gamma, 0, 4.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_gamma##ALM")) { _gamma = 2.2; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_gamma##ALM", key, m_GammaIn.IsLinked(), "gamma##ALM" + std::to_string(m_ID), 0.f, 4.f, 2.2f, m_GammaIn.m_ID);

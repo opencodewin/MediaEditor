@@ -91,6 +91,7 @@ struct SimpleZoomOutTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Quickness##SimpleZoomOut", &_quickness, 0.1, 3.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_quickness##SimpleZoomOut")) { _quickness = 0.8f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::Checkbox("Fade##SimpleZoomOut",&_fade);
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

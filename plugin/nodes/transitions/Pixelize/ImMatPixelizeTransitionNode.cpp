@@ -91,8 +91,10 @@ struct PixelizeTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Min Size##Pixelize", &_size, 0.0, 50.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size##Pixelize")) { _size = 20; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderInt("Steps##Pixelize", &_steps, 1, 100, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_steps##Pixelize")) { _steps = 50; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_size != m_size) { m_size = _size; changed = true; }

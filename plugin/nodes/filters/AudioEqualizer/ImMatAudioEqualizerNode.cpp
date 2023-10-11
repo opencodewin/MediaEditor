@@ -367,6 +367,7 @@ struct AudioEqualizerNode final : Node
                 }
             }
         }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         return m_Enabled ? changed : false;
     }

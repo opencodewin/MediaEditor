@@ -92,6 +92,7 @@ struct WipeTransitionNode final : Node
         ImGui::RadioButton("Down", &_type, 2); ImGui::SameLine();
         ImGui::RadioButton("Up", &_type, 3);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_type##Wipe")) { m_type = 0; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_type != m_type) { m_type = _type; changed = true; }

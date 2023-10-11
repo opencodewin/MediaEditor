@@ -92,10 +92,13 @@ struct DoorwayTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Reflection##Doorway", &_reflection, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_reflection##Doorway")) { _reflection = 0.4f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Perspective##Doorway", &_perspective, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_perspective##Doorway")) { _perspective = 0.2f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Depth##Doorway", &_depth, 1.0, 10.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_depth##Doorway")) { _depth = 3.0f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_reflection != m_reflection) { m_reflection = _reflection; changed = true; }

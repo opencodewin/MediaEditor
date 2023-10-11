@@ -97,6 +97,7 @@ struct WaterRippleEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_FreqIn.IsLinked());
         ImGui::SliderFloat("Freq##WaterRipple", &_freq, 0.0, 100.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_freq##WaterRipple")) { _freq = 24.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_freq##WaterRipple", key, m_FreqIn.IsLinked(), "freq##WaterRipple@" + std::to_string(m_ID), 0.0f, 100.f, 24.f, m_FreqIn.m_ID);
@@ -104,6 +105,7 @@ struct WaterRippleEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat("Amount##WaterRipple", &_amount, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_amount##WaterRipple")) { _amount = 0.03f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

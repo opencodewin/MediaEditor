@@ -90,6 +90,7 @@ struct SwirlTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Radius##Swirl", &_radius, 0.1, 2.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_radius##Swirl")) { _radius = 1.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_radius != m_radius) { m_radius = _radius; changed = true; }

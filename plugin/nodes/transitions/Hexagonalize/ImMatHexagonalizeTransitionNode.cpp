@@ -91,8 +91,10 @@ struct HexagonalizeTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("X Hexagons##Hexagonalize", &_horizontalHexagons, 0.0, 50.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_horizontalHexagons##Hexagonalize")) { _horizontalHexagons = 20.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderInt("Steps##Hexagonalize", &_steps, 1, 100, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_steps##Hexagonalize")) { _steps = 50; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_horizontalHexagons != m_horizontalHexagons) { m_horizontalHexagons = _horizontalHexagons; changed = true; }

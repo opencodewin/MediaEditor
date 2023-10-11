@@ -92,10 +92,13 @@ struct FlyeyeTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Size##Flyeye", &_size, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size##Flyeye")) { _size = 0.04f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Zoom##Flyeye", &_zoom, 0.0, 100.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_zoom##Flyeye")) { _zoom = 50.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Separation##Flyeye", &_colorSeparation, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_colorSeparation##Flyeye")) { _colorSeparation = 0.3f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_size != m_size) { m_size = _size; changed = true; }

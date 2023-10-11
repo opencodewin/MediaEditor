@@ -91,8 +91,10 @@ struct SquaresWireTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##SquaresWire", &_smoothness, 0.0, 4.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_smoothness##SquaresWire")) { _smoothness = 1.6f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderInt("Size##SquaresWire", &_size, 1, 50, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size##SquaresWire")) { _size = 10; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_smoothness != m_smoothness) { m_smoothness = _smoothness; changed = true; }

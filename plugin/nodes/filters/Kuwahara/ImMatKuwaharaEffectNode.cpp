@@ -96,6 +96,7 @@ struct KuwaharaEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
         ImGui::SliderFloat("Scale##Kuwahara", &_scale, 2.f, 10.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##Kuwahara")) { _scale = 2.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##Kuwahara", key, m_ScaleIn.IsLinked(), "scale##Kuwahara@" + std::to_string(m_ID), 2.f, 10.f, 2.f, m_ScaleIn.m_ID);

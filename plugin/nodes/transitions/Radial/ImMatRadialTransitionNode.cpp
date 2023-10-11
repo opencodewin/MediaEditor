@@ -90,6 +90,7 @@ struct RadialTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##Radial", &_smoothness, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_smoothness##Radial")) { _smoothness = 1.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_smoothness != m_smoothness) { m_smoothness = _smoothness; changed = true; }

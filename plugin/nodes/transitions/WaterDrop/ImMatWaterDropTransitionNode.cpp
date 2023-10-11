@@ -91,8 +91,10 @@ struct WaterDropTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Speed##WaterDrop", &_speed, 1.f, 100.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_speed##WaterDrop")) { _speed = 30.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Amplitude##WaterDrop", &_amplitude, 1.f, 100.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_amplitude##WaterDrop")) { _amplitude = 30.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_speed != m_speed) { m_speed = _speed; changed = true; }

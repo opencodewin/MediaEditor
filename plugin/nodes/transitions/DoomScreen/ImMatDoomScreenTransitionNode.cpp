@@ -94,14 +94,19 @@ struct DoomScreenTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Amplitude##DoomScreen", &_amplitude, 0.1, 10.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_amplitude##DoomScreen")) { _amplitude = 2.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Noise##DoomScreen", &_noise, 0.1, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_noise##DoomScreen")) { _noise = 0.1f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Frequency##DoomScreen", &_frequency, 0.1, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_frequency##DoomScreen")) { _frequency = 0.5f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("DripScale##DoomScreen", &_dripScale, 0.1, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_dripScale##DoomScreen")) { _dripScale = 0.5f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderInt("Bars##DoomScreen", &_bars, 1, 100, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_bars##DoomScreen")) { _bars = 30; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_amplitude != m_amplitude) { m_amplitude = _amplitude; changed = true; }

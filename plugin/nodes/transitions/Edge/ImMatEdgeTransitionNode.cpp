@@ -92,8 +92,10 @@ struct EdgeTransitionNode final : Node
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat("Thickness##Edge", &_thickness, 0.001, 0.01f, "%.3f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_thickness##Edge")) { _thickness = 0.001f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Brightness##Edge", &_brightness, 1.0, 16.0f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_brightness##Edge")) { _brightness = 8.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

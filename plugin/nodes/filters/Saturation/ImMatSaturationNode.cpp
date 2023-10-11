@@ -99,6 +99,7 @@ struct SaturationNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_SaturationIn.IsLinked());
         ImGui::SaturationSelector("##slider_saturation##Saturation", ImVec2(200, 40), &val, 0.0f, -1.f, 1.f, zoom, 32, 1.0f, true);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_saturation##Saturation")) { val = 0.0; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_saturation##Saturation", key, m_SaturationIn.IsLinked(), "saturation##Saturation@" + std::to_string(m_ID), -1.f, 1.f, 0.f, m_SaturationIn.m_ID);

@@ -94,21 +94,26 @@ struct DissolveTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Line Width##Dissolve", &_lineWidth, 0.0, 0.2f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_lineWidth##Dissolve")) { _lineWidth = 0.05f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Pow##Dissolve", &_pow, 0.0, 10.0f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pow##Dissolve")) { _pow = 5.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Intensity##Dissolve", &_intensity, 0.0, 2.0f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_intensity##Dissolve")) { _intensity = 1.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         if (ImGui::ColorEdit4("Spread Color##Dissolve", (float*)&_spreadColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_spreadColor = _spreadColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Spread Color");
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_spreadColor##Dissolve")) { m_spreadColor = {1.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         if (ImGui::ColorEdit4("Hot Color##Dissolve", (float*)&_hotColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_hotColor = _hotColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Hot Color");
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_hotColor##Dissolve")) { m_hotColor = {0.9f, 0.9f, 0.2f, 1.0f}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor();
         if (_lineWidth != m_lineWidth) { m_lineWidth = _lineWidth; changed = true; }
         if (_pow != m_pow) { m_pow = _pow; changed = true; }

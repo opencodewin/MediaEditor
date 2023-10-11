@@ -91,8 +91,10 @@ struct DreamyZoomTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Rotation##DreamyZoom", &_rotation, 0.f, 10.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_rotation##DreamyZoom")) { _rotation = 6.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Scale##DreamyZoom", &_scale, 1.f, 10.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##DreamyZoom")) { _scale = 1.2f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_rotation != m_rotation) { m_rotation = _rotation; changed = true; }

@@ -91,8 +91,10 @@ struct CrosshatchTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Threshold##Crosshatch", &_threshold, 0.0, 5.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_threshold##Crosshatch")) { _threshold = 3.0f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("FadeEdge##Crosshatch", &_fadeEdge, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_fadeEdge##Crosshatch")) { _fadeEdge = 3.0f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_threshold != m_threshold) { m_threshold = _threshold; changed = true; }

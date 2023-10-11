@@ -111,6 +111,7 @@ struct SwayEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_SpeedIn.IsLinked());
         ImGui::SliderFloat("Speed##Sway", &_speed, 0.f, 100.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_speed##Sway")) { _speed = 20.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_speed##Sway", key, m_SpeedIn.IsLinked(), "speed##Sway@" + std::to_string(m_ID), 0.0f, 100.f, 20.f, m_SpeedIn.m_ID);
@@ -118,6 +119,7 @@ struct SwayEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_StrengthIn.IsLinked());
         ImGui::SliderFloat("Strength##Sway", &_strength, 0.f, 100.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_strength##Sway")) { _strength = 20.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_strength##Sway", key, m_StrengthIn.IsLinked(), "strength##Sway@" + std::to_string(m_ID), 0.0f, 100.f, 20.f, m_StrengthIn.m_ID);
@@ -125,6 +127,7 @@ struct SwayEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_DensityIn.IsLinked());
         ImGui::SliderFloat("Density##Sway", &_density, 0.f, 100.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_density##Sway")) { _density = 20.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_density##Sway", key, m_DensityIn.IsLinked(), "density##Sway@" + std::to_string(m_ID), 0.0f, 100.f, 20.f, m_DensityIn.m_ID);

@@ -96,6 +96,7 @@ struct GlassEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
         ImGui::SliderFloat("Scale##Glass", &_scale, 0.0, 30.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##Glass")) { _scale = 20.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##Glass", key, m_ScaleIn.IsLinked(), "scale##Glass@" + std::to_string(m_ID), 0.0f, 30.f, 20.f, m_ScaleIn.m_ID);

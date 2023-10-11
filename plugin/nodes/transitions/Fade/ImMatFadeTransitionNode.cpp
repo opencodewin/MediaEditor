@@ -93,12 +93,14 @@ struct FadeTransitionNode final : Node
         ImGui::RadioButton("Colorful", &_type, 1); ImGui::SameLine();
         ImGui::RadioButton("Gray", &_type, 2);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_type##Fade")) { m_type = 1; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImPixel _color = m_color;
         if (ImGui::ColorEdit4("##Fade", (float*)&_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_color = _color; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Fade Color");
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_color##Fade")) { m_color = {0.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         if ((m_type != _type)) { m_type = _type; changed = true; };
         ImGui::EndDisabled();
         ImGui::PopItemWidth();

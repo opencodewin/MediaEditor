@@ -99,6 +99,7 @@ struct ExposureNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_ExposureIn.IsLinked());
         ImGui::LumianceSelector("##slider_exposure##Exposure", ImVec2(200, 20), &val, 0.0f, -2.f, 2.f, zoom);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_exposure##Exposure")) { val = 0.0; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_exposure##Exposure", key, m_ExposureIn.IsLinked(), "exposure##Exposure@" + std::to_string(m_ID), -2.f, 2.f, 0.f, m_ExposureIn.m_ID);

@@ -91,8 +91,10 @@ struct RippleTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Speed##Ripple", &_speed, 1.f, 200.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_speed##Ripple")) { _speed = 100.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Amplitude##Ripple", &_amplitude, 1.f, 100.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_amplitude##Ripple")) { _amplitude = 50.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_speed != m_speed) { m_speed = _speed; changed = true; }

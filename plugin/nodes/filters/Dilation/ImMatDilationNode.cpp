@@ -88,6 +88,7 @@ struct DilationNode final : Node
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderInt("Kernel Size##Dilation", &_ksz, 1, 30, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size##Dilation")) { _ksz = 3; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_ksz != m_ksz) { m_ksz = _ksz; changed = true; }

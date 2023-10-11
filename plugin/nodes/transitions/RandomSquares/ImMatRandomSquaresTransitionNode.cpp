@@ -91,8 +91,10 @@ struct RandomSquaresTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##RandomSquares", &_smoothness, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_smoothness##RandomSquares")) { _smoothness = 0.5f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderInt("Size##RandomSquares", &_size, 1, 50, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size##RandomSquares")) { _size = 10; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_smoothness != m_smoothness) { m_smoothness = _smoothness; changed = true; }

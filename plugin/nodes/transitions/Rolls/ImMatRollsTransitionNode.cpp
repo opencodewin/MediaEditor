@@ -93,9 +93,11 @@ struct RollsTransitionNode final : Node
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderInt("Type", &_type, 0, 4, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_type##Rolls")) { _type = 0; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::RadioButton("Roll Up", &_down, 0); ImGui::SameLine();
         ImGui::RadioButton("Roll Down", &_down, 1);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_updown##Rolls")) { _down = 0; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         if (_type != m_roll_type) { m_roll_type = _type; changed = true; }
         if ((m_RotDown && _down != 1) || (!m_RotDown && _down != 0)) { m_RotDown = _down == 1; changed = true; };
         ImGui::EndDisabled();

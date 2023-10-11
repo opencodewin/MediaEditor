@@ -92,14 +92,17 @@ struct BounceTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("ShadowHeight##Bounce", &_shadow_height, 0.0, 0.3f, "%.3f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_shadow_height##Bounce")) { _shadow_height = 0.075f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Bounces##Bounce", &_bounces, 1.0, 10.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_bounces##Bounce")) { _bounces = 3.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         if (ImGui::ColorEdit4("ShadowColor##Bounce", (float*)&_shadowColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_shadowColor = _shadowColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Shadow Color");
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_shadowColor##Bounce")) { m_shadowColor = {0.0f, 0.0f, 0.0f, 0.6f}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor();
         if (_shadow_height != m_shadow_height) { m_shadow_height = _shadow_height; changed = true; }
         if (_bounces != m_bounces) { m_bounces = _bounces; changed = true; }

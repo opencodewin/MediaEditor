@@ -99,6 +99,7 @@ struct ContrastNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_ContrastIn.IsLinked());
         ImGui::ContrastSelector("##slider_contrast##Contrast", ImVec2(200, 20), &val, 1.0, zoom);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_contrast##Contrast")) { val = 1.0; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_contrast##Contrast", key, m_ContrastIn.IsLinked(), "contrast##Contrast@" + std::to_string(m_ID), 0.f, 4.f, 1.f, m_ContrastIn.m_ID);

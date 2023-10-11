@@ -90,6 +90,7 @@ struct ColourDistanceTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Power##Radial", &_power, 1.0, 10.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_power##ColourDistance")) { _power = 5.0f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_power != m_power) { m_power = _power; changed = true; }

@@ -2457,9 +2457,9 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
             }
 
             // Searched, timeline->fliter_media_items
-            ImGui::SameLine(ImGui::GetWindowPos().x + 40, media_icon_size / 2);
-            ImGui::SetNextItemWidth(ImGui::GetWindowSize().x - media_icon_size*2 - 40);
-            text_search_filter.Draw("##text_filter");
+            ImGui::SameLine(ImGui::GetWindowPos().x + media_icon_size, media_icon_size / 2);
+            ImGui::SetNextItemWidth(ImGui::GetWindowSize().x - media_icon_size*3 - 15);
+            text_search_filter.Draw(ICON_ZOOM "##text_filter");
 
             curr_media_count = timeline->media_items.size(); // Update timeline->media_items count
             ImGui::PopStyleColor(3);
@@ -4726,9 +4726,9 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         if (attribute && ImGui::TreeNodeEx("Video Attribute", ImGuiTreeNodeFlags_DefaultOpen))
         {
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0, 1.0, 1.0, 1.0));
-            ImGui::PushItemWidth(240);
+            ImGui::PushItemWidth(200);
+            float setting_offset = sub_window_size.x - 80;
+            static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
             auto attribute_keypoint = attribute->GetKeyPoint();
             // Attribute Crop setting
             if (ImGui::TreeNodeEx("Crop Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
@@ -4739,14 +4739,15 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_margin_l = attribute_keypoint ? curve_margin_l_index != -1 : false;
                 float margin_l = has_curve_margin_l ? attribute_keypoint->GetValue(curve_margin_l_index, editing->mCurrentTime) : attribute->GetCropMarginLScale();
                 ImGui::BeginDisabled(has_curve_margin_l);
-                if (ImGui::SliderFloat("Crop Left", &margin_l, 0.f, 1.f))
+                if (ImGui::SliderFloat("Crop Left", &margin_l, 0.f, 1.f, "%.3f", flags))
                 {
                     attribute->SetCropMarginL(margin_l);
                     Reflush();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_l_default")) { attribute->SetCropMarginL(0.f); Reflush(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_l_default")) { attribute->SetCropMarginL(0.f); Reflush(); }
+                ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_l##video_attribute", &margin_key, has_curve_margin_l, "margin_l##video_attribute", 0.f, 1.f, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_l##video_attribute", &margin_key, has_curve_margin_l, "margin_l##video_attribute", 0.f, 1.f, 0.f))
                 {
                     if (has_curve_margin_l) addCurve("CropMarginL", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("CropMarginL");
@@ -4764,9 +4765,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     attribute->SetCropMarginT(margin_t);
                     Reflush();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_t_default")) { attribute->SetCropMarginT(0.f); Reflush(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_t_default")) { attribute->SetCropMarginT(0.f); Reflush(); }
+                ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_t##video_attribute", &margin_key, has_curve_margin_t, "margin_t##video_attribute", 0.f, 1.f, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_t##video_attribute", &margin_key, has_curve_margin_t, "margin_t##video_attribute", 0.f, 1.f, 0.f))
                 {
                     if (has_curve_margin_t) addCurve("CropMarginT", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("CropMarginT");
@@ -4784,9 +4786,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     attribute->SetCropMarginR(margin_r);
                     Reflush();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_r_default")) { attribute->SetCropMarginR(0.f); Reflush(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_r_default")) { attribute->SetCropMarginR(0.f); Reflush(); }
+                ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_r##video_attribute", &margin_key, has_curve_margin_r, "margin_r##video_attribute", 0.f, 1.f, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_r##video_attribute", &margin_key, has_curve_margin_r, "margin_r##video_attribute", 0.f, 1.f, 0.f))
                 {
                     if (has_curve_margin_r) addCurve("CropMarginR", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("CropMarginR");
@@ -4804,9 +4807,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     attribute->SetCropMarginB(margin_b);
                     Reflush();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_b_default")) { attribute->SetCropMarginB(0.f); Reflush(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_b_default")) { attribute->SetCropMarginB(0.f); Reflush(); }
+                ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_b##video_attribute", &margin_key, has_curve_margin_b, "margin_b##video_attribute", 0.f, 1.f, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_margin_b##video_attribute", &margin_key, has_curve_margin_b, "margin_b##video_attribute", 0.f, 1.f, 0.f))
                 {
                     if (has_curve_margin_b) addCurve("CropMarginB", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("CropMarginB");
@@ -4830,9 +4834,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     attribute->SetPositionOffsetH(position_h);
                     Reflush();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_h_default")) { attribute->SetPositionOffsetH(0.f); Reflush(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_h_default")) { attribute->SetPositionOffsetH(0.f); Reflush(); }
+                ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_position_h##video_attribute", &margin_key, has_curve_position_h, "position_h##video_attribute", -1.f, 1.f, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_position_h##video_attribute", &margin_key, has_curve_position_h, "position_h##video_attribute", -1.f, 1.f, 0.f))
                 {
                     if (has_curve_position_h) addCurve("PositionOffsetH", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("PositionOffsetH");
@@ -4850,9 +4855,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     attribute->SetPositionOffsetV(position_v);
                     Reflush();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_v_default")) { attribute->SetPositionOffsetV(0.f); Reflush(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_v_default")) { attribute->SetPositionOffsetV(0.f); Reflush(); }
+                ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_position_v##video_attribute", &margin_key, has_curve_position_v, "position_v##video_attribute", -1.f, 1.f, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_position_v##video_attribute", &margin_key, has_curve_position_v, "position_v##video_attribute", -1.f, 1.f, 0.f))
                 {
                     if (has_curve_position_v) addCurve("PositionOffsetV", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("PositionOffsetV");
@@ -4903,9 +4909,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                         attribute->SetScaleV(scale);
                         Reflush();
                     }
-                    ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_default")) { attribute->SetScaleH(1.0); attribute->SetScaleV(1.0); Reflush(); }
+                    ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_default")) { attribute->SetScaleH(1.0); attribute->SetScaleV(1.0); Reflush(); }
+                    ImGui::ShowTooltipOnHover("Reset");
                     ImGui::EndDisabled();
-                    if (ImGui::ImCurveCheckEditKey("##add_curve_scale##video_attribute", &margin_key, has_curve_scale, "scale##video_attribute", 0, 8.f, 1.f, 360))
+                    if (ImGui::ImCurveCheckEditKey("##add_curve_scale##video_attribute", &margin_key, has_curve_scale, "scale##video_attribute", 0, 8.f, 1.f))
                     {
                         if (has_curve_scale) addCurve("Scale", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                         else if (attribute_keypoint) attribute_keypoint->DeleteCurve("Scale");
@@ -4925,9 +4932,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                         attribute->SetScaleH(scale_h);
                         Reflush();
                     }
-                    ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_h_default")) { attribute->SetScaleH(1.0); Reflush(); }
+                    ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_h_default")) { attribute->SetScaleH(1.0); Reflush(); }
+                    ImGui::ShowTooltipOnHover("Reset");
                     ImGui::EndDisabled();
-                    if (ImGui::ImCurveCheckEditKey("##add_curve_scale_h##video_attribute", &margin_key, has_curve_scale_h, "scale_h##video_attribute", 0, 8.f, 1.f, 360))
+                    if (ImGui::ImCurveCheckEditKey("##add_curve_scale_h##video_attribute", &margin_key, has_curve_scale_h, "scale_h##video_attribute", 0, 8.f, 1.f))
                     {
                         if (has_curve_scale_h) addCurve("ScaleH", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                         else if (attribute_keypoint) attribute_keypoint->DeleteCurve("ScaleH");
@@ -4945,9 +4953,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                         attribute->SetScaleV(scale_v);
                         Reflush();
                     }
-                    ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_v_default")) { attribute->SetScaleV(1.0); Reflush(); }
+                    ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_v_default")) { attribute->SetScaleV(1.0); Reflush(); }
+                    ImGui::ShowTooltipOnHover("Reset");
                     ImGui::EndDisabled();
-                    if (ImGui::ImCurveCheckEditKey("##add_curve_scale_v##video_attribute", &margin_key, has_curve_scale_v, "scale_v##video_attribute", 0, 8.f, 1.f, 360))
+                    if (ImGui::ImCurveCheckEditKey("##add_curve_scale_v##video_attribute", &margin_key, has_curve_scale_v, "scale_v##video_attribute", 0, 8.f, 1.f))
                     {
                         if (has_curve_scale_v) addCurve("ScaleV", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                         else if (attribute_keypoint) attribute_keypoint->DeleteCurve("ScaleV");
@@ -4973,9 +4982,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     attribute->SetRotationAngle(angle);
                     Reflush();
                 }
-                ImGui::SameLine(sub_window_size.x - 66); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) { attribute->SetRotationAngle(0.0); Reflush(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) { attribute->SetRotationAngle(0.0); Reflush(); }
+                ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKey("##add_curve_angle##video_attribute", &margin_key, has_curve_angle, "angle##video_attribute", -360.f, 360.f, 0.f, 360))
+                if (ImGui::ImCurveCheckEditKey("##add_curve_angle##video_attribute", &margin_key, has_curve_angle, "angle##video_attribute", -360.f, 360.f, 0.f))
                 {
                     if (has_curve_angle) addCurve("RotateAngle", margin_key.m_min, margin_key.m_max, margin_key.m_default);
                     else if (attribute_keypoint) attribute_keypoint->DeleteCurve("RotateAngle");
@@ -4986,7 +4996,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             }
 
             ImGui::PopItemWidth();
-            ImGui::PopStyleColor(3);
+            ImGui::PopStyleColor();
             ImGui::TreePop();
         }
     }
@@ -5115,6 +5125,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     label = oss.str();
                     if (ImGui::Button(label.c_str()))
                         iToDelIdx = idx;
+                    ImGui::ShowTooltipOnHover("Delete Mask");
                 }
                 if (iToDelIdx >= 0)
                 {
@@ -7777,7 +7788,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     };
     ImGuiIO &io = ImGui::GetIO();
     auto& style = track->mMttReader->DefaultStyle();
-    ImGui::PushItemWidth(240);
+    ImGui::PushItemWidth(200);
     const float reset_button_offset = size.x - 64;
     const float curve_button_offset = size.x - 36;
     auto item_width = ImGui::CalcItemWidth();
@@ -7798,7 +7809,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         }
         ImGui::EndCombo();
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); clip->mClipHolder->SetFont(clip->mFontName); update_preview = true; }
-    
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::ImCurveEdit::keys text_key; text_key.m_id = clip->mID;
     float pos_x = clip->mFontPosX;
     int curve_pos_x_index = key_point->GetCurveIndex("OffsetH");
@@ -7812,6 +7823,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mFontPosX = pos_x;
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontOffsetH = 0; clip->mClipHolder->SetOffsetH(0.f); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_x##text_clip_ediror", &text_key, has_curve_pos_x, "text_pos_x##text_clip_ediror",  - (float)default_size.x , 1.f, pos_x, curve_button_offset))
     {
@@ -7833,6 +7845,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mFontPosY = pos_y;
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontOffsetV = 0; clip->mClipHolder->SetOffsetV(0.f); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_y##text_clip_ediror", &text_key, has_curve_pos_y, "text_pos_y##text_clip_ediror",  - (float)default_size.y , 1.f, pos_y, curve_button_offset))
     {
@@ -7854,6 +7867,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mClipHolder->SetScaleX(clip->mFontScaleX);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) { clip->mFontScaleX = style.ScaleX(); clip->mClipHolder->SetScaleX(style.ScaleX()); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_scale_x##text_clip_ediror", &text_key, has_curve_scale_x, "text_pscale_x##text_clip_ediror",  0.2f , 10.f, style.ScaleX(), curve_button_offset))
     {
@@ -7891,6 +7905,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mClipHolder->SetScaleY(clip->mFontScaleY);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) { clip->mFontScaleY = style.ScaleY(); clip->mClipHolder->SetScaleY(style.ScaleY()); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_scale_y##text_clip_ediror", &text_key, has_curve_scale_y, "text_scale_y##text_clip_ediror",  0.2f , 10.f, style.ScaleY(), curve_button_offset))
     {
@@ -7910,6 +7925,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mClipHolder->SetSpacing(clip->mFontSpacing);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) { clip->mFontSpacing = style.Spacing(); clip->mClipHolder->SetSpacing(style.Spacing()); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_spacing##text_clip_ediror", &text_key, has_curve_spacing, "text_spacing##text_clip_ediror",  0.5f , 5.f, style.Spacing(), curve_button_offset))
     {
@@ -7929,6 +7945,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mClipHolder->SetRotationX(clip->mFontAngleX);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglex_default")) { clip->mFontAngleX = style.Angle(); clip->mClipHolder->SetRotationX( style.Angle()); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_anglex##text_clip_ediror", &text_key, has_curve_anglex, "text_anglex##text_clip_ediror",  0.f , 360.f, style.Angle(), curve_button_offset))
     {
@@ -7948,6 +7965,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mClipHolder->SetRotationY(clip->mFontAngleY);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##angley_default")) { clip->mFontAngleY = style.Angle(); clip->mClipHolder->SetRotationY( style.Angle()); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_angley##text_clip_ediror", &text_key, has_curve_angley, "text_angley##text_clip_ediror",  0.f , 360.f, style.Angle(), curve_button_offset))
     {
@@ -7967,6 +7985,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mClipHolder->SetRotationZ(clip->mFontAngleZ);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglez_default")) { clip->mFontAngleZ = style.Angle(); clip->mClipHolder->SetRotationZ( style.Angle()); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_anglez##text_clip_ediror", &text_key, has_curve_anglez, "text_anglez##text_clip_ediror",  0.f , 360.f, style.Angle(), curve_button_offset))
     {
@@ -7986,6 +8005,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mClipHolder->SetBorderWidth(clip->mFontOutlineWidth);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) { clip->mFontOutlineWidth = style.OutlineWidth(); clip->mClipHolder->SetBorderWidth(style.OutlineWidth()); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_outline_width##text_clip_ediror", &text_key, has_curve_outline_width, "text_outline_width##text_clip_ediror",  0.f , 5.f, style.OutlineWidth(), curve_button_offset))
     {
@@ -8005,6 +8025,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mClipHolder->SetShadowDepth(clip->mFontShadowDepth);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##shadow_default")) { clip->mFontShadowDepth = fabs(style.ShadowDepth()); clip->mClipHolder->SetShadowDepth(clip->mFontShadowDepth); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_shadow_depth##text_clip_ediror", &text_key, has_curve_shadow_depth, "text_shadow_depth##text_clip_ediror",  0.f , 20.f, style.ShadowDepth(), curve_button_offset))
     {
@@ -8050,6 +8071,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mClipHolder->SetStrikeOut(clip->mFontStrikeOut);
         update_preview = true;
     }
+    ImGui::ShowTooltipOnHover("Reset");
 
     int alignment = clip->mFontAlignment;
     ImGui::RadioButton(ICON_FA_ALIGN_LEFT "##font_alignment", (int *)&alignment, 1); ImGui::SameLine();
@@ -8063,7 +8085,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         update_preview = true;
     }
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) { clip->mFontAlignment = style.Alignment(); clip->mClipHolder->SetAlignment(style.Alignment()); update_preview = true; }
-
+    ImGui::ShowTooltipOnHover("Reset");
     if (ImGui::ColorEdit4("FontColor##Primary", (float*)&clip->mFontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
         clip->mClipHolder->SetPrimaryColor(clip->mFontPrimaryColor);
@@ -8071,6 +8093,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) { clip->mFontPrimaryColor = style.PrimaryColor().ToImVec4(); clip->mClipHolder->SetPrimaryColor(style.PrimaryColor()); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     if (ImGui::ColorEdit4("FontColor##Outline", (float*)&clip->mFontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
         clip->mClipHolder->SetOutlineColor(clip->mFontOutlineColor);
@@ -8078,6 +8101,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) { clip->mFontOutlineColor = style.OutlineColor().ToImVec4(); clip->mClipHolder->SetOutlineColor(style.OutlineColor()); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     if (ImGui::ColorEdit4("FontColor##Back", (float*)&clip->mFontBackColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
         clip->mClipHolder->SetBackColor(clip->mFontBackColor);
@@ -8085,7 +8109,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font shadow color");
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##back_color_default")) { clip->mFontBackColor = style.BackColor().ToImVec4(); clip->mClipHolder->SetBackColor(style.BackColor()); update_preview = true; }
-
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::PopItemWidth();
 
     if (update_preview && clip->mClipHolder) clip->mClipHolder->SetKeyPoints(clip->mAttributeKeyPoints); 
@@ -8226,7 +8250,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         }
     };
     ImGuiIO &io = ImGui::GetIO();
-    ImGui::PushItemWidth(240);
+    ImGui::PushItemWidth(200);
     const float reset_button_offset = size.x - 64;
     const float curve_button_offset = size.x - 36;
     auto item_width = ImGui::CalcItemWidth();
@@ -8249,7 +8273,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         }
         ImGui::EndCombo();
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_family_default")) { track->mMttReader->SetFont(g_media_editor_settings.FontName); update_preview = true; }
-    
+    ImGui::ShowTooltipOnHover("Reset");
     float offset_x = style.OffsetHScale();
     int curve_pos_x_index = keyPointsPtr->GetCurveIndex("OffsetH");
     bool has_curve_pos_x = curve_pos_x_index != -1;
@@ -8259,6 +8283,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetOffsetH(offset_x);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsetx_default")) { track->mMttReader->SetOffsetH(g_media_editor_settings.FontPosOffsetX); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_x##text_track_ediror", &text_key, has_curve_pos_x, "text_pos_x##text_track_ediror",  -1.f , 1.f, g_media_editor_settings.FontPosOffsetX, curve_button_offset))
     {
@@ -8277,6 +8302,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetOffsetV(offset_y);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_offsety_default")) { track->mMttReader->SetOffsetV(g_media_editor_settings.FontPosOffsetY); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_pos_y##text_track_ediror", &text_key, has_curve_pos_y, "text_pos_y##text_track_ediror",  -1.f , 1.f, g_media_editor_settings.FontPosOffsetY, curve_button_offset))
     {
@@ -8292,14 +8318,14 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetBold(bold);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_bold_default")) { track->mMttReader->SetBold(g_media_editor_settings.FontBold); update_preview = true; }
-    
+    ImGui::ShowTooltipOnHover("Reset");
     int italic = style.Italic();
     if (ImGui::Combo("Font Italic", &italic, font_italic_list, IM_ARRAYSIZE(font_italic_list)))
     {
         track->mMttReader->SetItalic(italic);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_font_italic_default")) { track->mMttReader->SetItalic(g_media_editor_settings.FontItalic); update_preview = true; }
-    
+    ImGui::ShowTooltipOnHover("Reset");
     float scale_x = style.ScaleX();
     int curve_scale_x_index = keyPointsPtr->GetCurveIndex("ScaleX");
     bool has_curve_scale_x = curve_scale_x_index != -1;
@@ -8311,6 +8337,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetScaleX(scale_x);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scalex_default")) { track->mMttReader->SetScaleX(g_media_editor_settings.FontScaleX); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_scale_x##text_track_ediror", &text_key, has_curve_scale_x, "text_scale_x##text_track_ediror",  0.2f, 10.f, g_media_editor_settings.FontScaleX, curve_button_offset))
     {
@@ -8345,6 +8372,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetScaleY(scale_y);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_scaley_default")) { track->mMttReader->SetScaleY(g_media_editor_settings.FontScaleY); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_scale_y##text_track_ediror", &text_key, has_curve_scale_y, "text_scale_y##text_track_ediror",  0.2f, 10.f, g_media_editor_settings.FontScaleY, curve_button_offset))
     {
@@ -8363,6 +8391,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetSpacing(spacing);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_spacing_default")) { track->mMttReader->SetSpacing(g_media_editor_settings.FontSpacing); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_spacing##text_track_ediror", &text_key, has_curve_spacing, "text_spacing##text_track_ediror",  0.5f, 5.f, g_media_editor_settings.FontSpacing, curve_button_offset))
     {
@@ -8381,6 +8410,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetAngle(angle);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_angle_default")) { track->mMttReader->SetAngle(g_media_editor_settings.FontAngle);update_preview = true;  }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_angle##text_track_ediror", &text_key, has_curve_angle, "text_angle##text_track_ediror",  0.f, 360.f, g_media_editor_settings.FontAngle, curve_button_offset))
     {
@@ -8399,6 +8429,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetOutlineWidth(outline_width);
         update_preview = true;
     } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_default")) { track->mMttReader->SetOutlineWidth(g_media_editor_settings.FontOutlineWidth); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_outline_width##text_track_ediror", &text_key, has_curve_outline_width, "text_outline_width##text_track_ediror",  0.f, 5.f, g_media_editor_settings.FontOutlineWidth, curve_button_offset))
     {
@@ -8428,7 +8459,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         track->mMttReader->SetStrikeOut(g_media_editor_settings.FontStrikeOut);
         update_preview = true;
     }
-
+    ImGui::ShowTooltipOnHover("Reset");
     int aligment = style.Alignment();
     ImGui::RadioButton(ICON_FA_ALIGN_LEFT "##font_alignment", &aligment, 1); ImGui::SameLine();
     ImGui::RadioButton(ICON_FA_ALIGN_CENTER "##font_alignment", &aligment, 2); ImGui::SameLine();
@@ -8440,7 +8471,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         update_preview = true;
     }
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_alignment_default")) { track->mMttReader->SetAlignment(g_media_editor_settings.FontAlignment); update_preview = true; }
-
+    ImGui::ShowTooltipOnHover("Reset");
     int border_type = style.BorderStyle();
     ImGui::RadioButton("Drop##font_border_type", &border_type, 1); ImGui::SameLine();
     ImGui::RadioButton("Box##font_border_type", &border_type, 3);
@@ -8451,7 +8482,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         update_preview = true;
     }
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_bordertype_default")) { track->mMttReader->SetBorderStyle(g_media_editor_settings.FontBorderType); update_preview = true; }
-
+    ImGui::ShowTooltipOnHover("Reset");
     float shadow_depth = style.ShadowDepth();
     int curve_outline_shadow_depth = keyPointsPtr->GetCurveIndex("ShadowDepth");
     bool has_curve_shadow_depth = curve_outline_shadow_depth != -1;
@@ -8463,6 +8494,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
         update_preview = true;
     }
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_shadowdepth_default")) { track->mMttReader->SetShadowDepth(g_media_editor_settings.FontShadowDepth); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKey("##add_curve_text_shadow_depth##text_track_ediror", &text_key, has_curve_shadow_depth, "text_shadow_depth##text_track_ediror",  -20.f, 20.f, g_media_editor_settings.FontShadowDepth, curve_button_offset))
     {
@@ -8480,6 +8512,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_primary_color_default")) { track->mMttReader->SetPrimaryColor(g_media_editor_settings.FontPrimaryColor); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     auto outline_color = style.OutlineColor().ToImVec4();
     if (ImGui::ColorEdit4("FontColor##Outline", (float*)&outline_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
@@ -8488,6 +8521,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_outline_color_default")) { track->mMttReader->SetOutlineColor(g_media_editor_settings.FontOutlineColor); update_preview = true; }
+    ImGui::ShowTooltipOnHover("Reset");
     auto back_color = style.BackColor().ToImVec4();
     if (ImGui::ColorEdit4("FontColor##Back", (float*)&back_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
@@ -8496,7 +8530,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font shadow color");
     ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##track_back_color_default")) { track->mMttReader->SetBackColor(g_media_editor_settings.FontBackColor); update_preview = true; }
-
+    ImGui::ShowTooltipOnHover("Reset");
     ImGui::PopItemWidth();
 
     if (update_preview)
@@ -8535,7 +8569,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float preview_view_width = window_size.x * 2 / 3;
+    float preview_view_width = window_size.x * 15 / 24;
     float style_editor_width = window_size.x - preview_view_width;
     float text_keypoint_height = g_media_editor_settings.TextCurveExpanded ? 100 + 30 : 0;
     float preview_view_height = window_size.y - text_keypoint_height;

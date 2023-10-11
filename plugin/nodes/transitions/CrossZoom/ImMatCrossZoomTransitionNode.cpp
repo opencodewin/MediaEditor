@@ -90,6 +90,7 @@ struct CrossZoomTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Strength##CrossZoom", &_strength, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_strength##CrossZoom")) { _strength = 0.4f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_strength != m_strength) { m_strength = _strength; changed = true; }

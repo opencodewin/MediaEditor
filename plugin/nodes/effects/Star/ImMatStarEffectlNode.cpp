@@ -101,18 +101,21 @@ struct StarEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_SpeedIn.IsLinked());
         ImGui::SliderFloat("Speed##Star", &_speed, 0.0, 100.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_speed##Star")) { _speed = 10.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_speed##Star", key, m_SpeedIn.IsLinked(), "speed##Star@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_SpeedIn.m_ID);
         ImGui::EndDisabled();
         ImGui::SliderInt("Layers##Star", &_layers, 2, 20, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_layers##Star")) { _layers = 2; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         if (ImGui::ColorEdit4("Color##Star", (float*)&_color, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_color = _color; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Shadow Color");
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_color##DStar")) { m_color = {1.0f, 0.1f, 0.9f, 1.0f}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor();
         if (_speed != m_speed) { m_speed = _speed; changed = true; }
         if (_layers != m_layers) { m_layers = _layers; changed = true; }

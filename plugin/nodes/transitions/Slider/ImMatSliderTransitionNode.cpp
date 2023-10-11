@@ -93,9 +93,11 @@ struct SliderTransitionNode final : Node
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderInt("Type", &_type, 0, 8, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_type##Slider")) { _type = 0; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::RadioButton("Slider In", &_in, 0); ImGui::SameLine();
         ImGui::RadioButton("Slider Out", &_in, 1);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_inout##Slider")) { _in = 0; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         if (_type != m_slider_type) { m_slider_type = _type; changed = true; }
         if ((m_out && _in != 0) || (!m_out && _in != 1)) { m_out = _in == 0; changed = true; };
         ImGui::EndDisabled();

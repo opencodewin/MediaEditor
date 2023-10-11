@@ -90,6 +90,7 @@ struct PolkaDotsTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Dots##PolkaDots", &_dots, 1.0, 100.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_dots##PolkaDots")) { _dots = 20.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_dots != m_dots) { m_dots = _dots; changed = true; }

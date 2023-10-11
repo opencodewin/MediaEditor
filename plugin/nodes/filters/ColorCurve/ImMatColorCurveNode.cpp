@@ -367,6 +367,7 @@ struct ColorCurveNode final : Node
             ResetCurve(0);
             curve_changed = true;
         }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor(2);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0, 0, 0.75));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.75, 0.0, 0.0, 0.75));
@@ -382,6 +383,7 @@ struct ColorCurveNode final : Node
             ResetCurve(1);
             curve_changed = true;
         }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor(2);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0.5, 0, 0.75));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0, 0.75, 0.0, 0.75));
@@ -397,6 +399,7 @@ struct ColorCurveNode final : Node
             ResetCurve(2);
             curve_changed = true;
         }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor(2);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0.5, 0.75));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0, 0.0, 0.75, 0.75));
@@ -412,6 +415,7 @@ struct ColorCurveNode final : Node
             ResetCurve(3);
             curve_changed = true;
         }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor(2);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 0.5));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.75, 0.75, 0.75, 0.75));
@@ -422,6 +426,7 @@ struct ColorCurveNode final : Node
             mTension = 0;
             curve_changed = true;
         }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor(2);
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();

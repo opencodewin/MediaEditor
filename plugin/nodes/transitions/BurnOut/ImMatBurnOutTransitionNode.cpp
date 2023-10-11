@@ -91,12 +91,14 @@ struct BurnOutTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##BurnOut", &_smoothness, 0.0, 1.0f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_smoothness##BurnOut")) { _smoothness = 0.03f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         if (ImGui::ColorEdit4("ShadowColor##BurnOut", (float*)&_shadowColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar))
         {
             m_shadowColor = _shadowColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Shadow Color");
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_shadowColor##BurnOut")) { m_shadowColor = {0.0f, 0.0f, 0.0f, 1.0f}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor();
         if (_smoothness != m_smoothness) { m_smoothness = _smoothness; changed = true; }
         return m_Enabled ? changed : false;

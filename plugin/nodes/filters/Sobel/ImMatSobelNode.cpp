@@ -97,6 +97,7 @@ struct SobelNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_StrengthIn.IsLinked());
         ImGui::SliderFloat("Strength##Sobel", &_strength, 0.1, 8.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_stength##Sobel")) { _strength = 1.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_stength##Sobel", key, m_StrengthIn.IsLinked(), "stength##Sobel@" + std::to_string(m_ID), 0.1f, 8.f, 1.f, m_StrengthIn.m_ID);

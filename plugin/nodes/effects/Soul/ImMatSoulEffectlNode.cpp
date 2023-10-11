@@ -92,10 +92,13 @@ struct SoulEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderInt("Count##Soul", &_count, 1, 10, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_count##Soul")) { _count = 1; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Max Scale##Soul", &_max_scale, 1.f, 2.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_max_scale##Soul")) { _max_scale = 1.8f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Max Alpha##Soul", &_max_alpha, 0.f, 1.0f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_max_alpha##Soul")) { _max_alpha = 0.4f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         if (ImGui::Checkbox("Shrink##Soul", &m_shrink)) { changed = true; }
         ImGui::EndDisabled();
         ImGui::PopItemWidth();

@@ -88,6 +88,7 @@ struct AudioGainNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_GainIn.IsLinked());
         ImGui::SliderFloat("##slider_gain##Gain", &val, 0.0, 2.f, "%.2f", flags);
         ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RESET "##reset_gain##Gain")) { val = 1.0; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_gain##Gain", key, m_GainIn.IsLinked(), "gain##Gain@" + std::to_string(m_ID), 0.f, 2.f, 1.f, m_GainIn.m_ID);

@@ -92,10 +92,13 @@ struct KaleidoScopeTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Speed##KaleidoScope", &_speed, 0.1, 10.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_speed##KaleidoScope")) { _speed = 1.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Angle##KaleidoScope", &_angle, 0.0, 10.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_angle##KaleidoScope")) { _angle = 1.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Power##KaleidoScope", &_power, 0.0, 10.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_power##KaleidoScope")) { _power = 1.5f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_speed != m_speed) { m_speed = _speed; changed = true; }

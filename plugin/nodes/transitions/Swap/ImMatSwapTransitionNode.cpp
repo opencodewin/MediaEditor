@@ -92,10 +92,13 @@ struct SwapTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Reflection##Swap", &_reflection, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_reflection##Swap")) { _reflection = 0.4f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Perspective##Swap", &_perspective, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_perspective##Swap")) { _perspective = 0.2f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Depth##Swap", &_depth, 1.0, 10.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_depth##Sqap")) { _depth = 3.0f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_reflection != m_reflection) { m_reflection = _reflection; changed = true; }

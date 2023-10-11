@@ -92,8 +92,10 @@ struct BlurTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Intensity##LinearBlur", &_intensity, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_intensity##LinearBlur")) { _intensity = 0.1f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderInt("Passes##LinearBlur", &_passes, 1, 10, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_passes##LinearBlur")) { _passes = 6; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_intensity != m_intensity) { m_intensity = _intensity; changed = true; }

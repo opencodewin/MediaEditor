@@ -91,6 +91,7 @@ struct BurnTransitionNode final : Node
             m_backColor = _backColor; changed = true;
         } ImGui::SameLine(); ImGui::TextUnformatted("Burn Color");
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_fromcolor##CrazyParametric")) { m_backColor = {0.9f, 0.4f, 0.2f, 1.0f}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopStyleColor();
         return m_Enabled ? changed : false;
     }

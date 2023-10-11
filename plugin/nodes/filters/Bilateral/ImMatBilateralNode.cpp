@@ -100,6 +100,7 @@ struct BilateralNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_SizeIn.IsLinked());
         ImGui::SliderInt("Kernel Size##Bilateral", &_ksize, 2, 20, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size##Bilateral")) { _ksize = 5; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_size##Bilateral", key, m_SizeIn.IsLinked(), "size##Bilateral@" + std::to_string(m_ID), 2.f, 20.f, 5.f, m_SizeIn.m_ID);
@@ -107,6 +108,7 @@ struct BilateralNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_SigmaSpatialIn.IsLinked());
         ImGui::SliderFloat("Sigma Spatial##Bilateral", &_sigma_spatial, 0.f, 100.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_sigma_spatial##Bilateral")) { _sigma_spatial = 10.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_sigma_spatial##Bilateral", key, m_SigmaSpatialIn.IsLinked(), "sigma spatial##Bilateral@" + std::to_string(m_ID), 0.f, 100.f, 10.f, m_SigmaSpatialIn.m_ID);
@@ -114,6 +116,7 @@ struct BilateralNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_SigmaColorIn.IsLinked());
         ImGui::SliderFloat("Sigma Color##Bilateral", &_sigma_color, 0.f, 100.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_sigma_color##Bilateral")) { _sigma_color = 10.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_sigma_color##Bilateral", key, m_SigmaColorIn.IsLinked(), "sigma color##Bilateral@" + std::to_string(m_ID), 0.f, 100.f, 10.f, m_SigmaColorIn.m_ID);

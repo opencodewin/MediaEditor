@@ -93,12 +93,16 @@ struct CrazyParametricTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Amplitude##CrazyParametric", &_amplitude, 1.0, 200.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_amplitude##CrazyParametric")) { _amplitude = 120.0f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Smoothness##CrazyParametric", &_smoothness, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_smoothness##CrazyParametric")) { _smoothness = 0.1f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("PA##CrazyParametric", &_pa, 1.0, 10.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pa##CrazyParametric")) { _pa = 4.0f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("PB##CrazyParametric", &_pb, 1.0, 10.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pb##CrazyParametric")) { _pb = 1.0f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_amplitude != m_amplitude) { m_amplitude = _amplitude; changed = true; }

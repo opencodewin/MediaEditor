@@ -99,6 +99,7 @@ struct VibranceNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_VibranceIn.IsLinked());
         ImGui::SaturationSelector("##slider_vibrance##Vibrance", ImVec2(200, 40), &val, 0.0f, -4.f, 4.f, zoom, 32, 1.0f, true);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_vibrance##Vibrance")) { val = 0.0; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_vibrance##Vibrance", key, m_VibranceIn.IsLinked(), "vibrance##Vibrance@" + std::to_string(m_ID), -4.f, 4.f, 0.f, m_VibranceIn.m_ID);

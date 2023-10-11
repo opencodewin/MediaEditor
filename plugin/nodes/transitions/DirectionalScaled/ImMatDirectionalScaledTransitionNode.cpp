@@ -91,8 +91,10 @@ struct DirectionalScaledTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Scale##DirectionalScaled", &_scale, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##DirectionalScaled")) { _scale = 0.7f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat2("Direction##DirectionalScaled", (float *)&_direction, -1.0, 1.0, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_direction##DirectionalScaled")) { _direction = {0, 1}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_scale != m_scale) { m_scale = _scale; changed = true; }

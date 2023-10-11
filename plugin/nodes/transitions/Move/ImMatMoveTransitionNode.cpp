@@ -93,6 +93,7 @@ struct MoveTransitionNode final : Node
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat2("Direction##Move", (float *)&_direction, -1.0, 1.0, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_direction##Move")) { _direction = {1, 0}; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         if (_direction.x != m_direction.x || _direction.y != m_direction.y) { m_direction = _direction; changed = true; }
         ImGui::EndDisabled();
         ImGui::PopItemWidth();

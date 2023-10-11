@@ -90,6 +90,7 @@ struct PolarTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderInt("Segments##Polar", &_segments, 3, 20, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_segments##Polar")) { _segments = 5; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_segments != m_segments) { m_segments = _segments; changed = true; }

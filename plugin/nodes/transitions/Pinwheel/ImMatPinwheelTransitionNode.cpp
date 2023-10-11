@@ -90,6 +90,7 @@ struct PinwheelTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Speed##Pinwheel", &_speed, 1.f, 10.f, "%.0f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_speed##Pinwheel")) { _speed = 2.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_speed != m_speed) { m_speed = _speed; changed = true; }

@@ -91,8 +91,10 @@ struct StereoViewerTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Zoom##StereoView", &_zoom, 0.5, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_zoom##StereoView")) { _zoom = 0.88f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("Corner Radius##StereoView", &_corner_radius, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_corner_radius##StereoView")) { _corner_radius = 0.22f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_zoom != m_zoom) { m_zoom = _zoom; changed = true; }

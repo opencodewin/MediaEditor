@@ -90,6 +90,7 @@ struct SqueezeTransitionNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Separation##Squeeze", &_separation, 0.0, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_separation##Squeeze")) { _separation = 0.04f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_separation != m_separation) { m_separation = _separation; changed = true; }

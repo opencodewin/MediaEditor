@@ -97,6 +97,7 @@ struct BinaryNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_MinIn.IsLinked());
         ImGui::SliderFloat("Threshold min##Binary", &_min, 0.f, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_min##Binary")) { _min = 0.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_min##Binary", key, m_MinIn.IsLinked(), "threshold min##Binary@" + std::to_string(m_ID), 0.f, 1.f, 0.f, m_MinIn.m_ID);
@@ -104,6 +105,7 @@ struct BinaryNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_MaxIn.IsLinked());
         ImGui::SliderFloat("Threshold max##Binary", &_max, 0.f, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_max##Binary")) { _max = 1.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_max##Binary", key, m_MaxIn.IsLinked(), "threshold min##Binary@" + std::to_string(m_ID), 0.f, 1.f, 1.f, m_MaxIn.m_ID);

@@ -97,6 +97,7 @@ struct GuidedNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_EPSIn.IsLinked());
         ImGui::SliderFloat("EPS##GuidedFilter", &_eps, 0.000001, 0.001f, "%.6f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_eps##GuidedFilter")) { _eps = 0.0001; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_eps##GuidedFilter", key, m_EPSIn.IsLinked(), "eps##GuidedFilter@" + std::to_string(m_ID), 0.000001f, 0.001f, 0.0001f, m_EPSIn.m_ID);
@@ -104,6 +105,7 @@ struct GuidedNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_RangeIn.IsLinked());
         ImGui::SliderInt("Range##GuidedFilter", &_range, 0, 30, "%.d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_range##GuidedFilter")) { _range = 4; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_range##GuidedFilter", key, m_RangeIn.IsLinked(), "range##GuidedFilter@" + std::to_string(m_ID), 0.f, 30.f, 4.f, m_RangeIn.m_ID);

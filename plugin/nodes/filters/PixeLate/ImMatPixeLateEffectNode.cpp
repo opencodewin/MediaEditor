@@ -96,6 +96,7 @@ struct PixeLateEffectNode final : Node
         ImGui::BeginDisabled(!m_Enabled || m_RadiusIn.IsLinked());
         ImGui::SliderFloat("Radius##PixeLate", &_radius, 0.01f, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_radius##PixeLate")) { _radius = 0.4f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##PixeLate", key, m_RadiusIn.IsLinked(), "radius##PixeLate@" + std::to_string(m_ID), 0.01f, 1.f, 0.4f, m_RadiusIn.m_ID);
