@@ -46,6 +46,7 @@
 #define ICON_SORT_TYPE      u8"\uf885"
 #define ICON_SORT_NAME      u8"\uf882"
 #define ICON_FILTER_NONE    u8"\uf031"
+#define ICON_MEDIA_FINDER   u8"\uf07b"
 #define ICON_MEDIA_TIMELINE u8"\uf538"
 #define ICON_MEDIA_BANK     u8"\ue907"
 #define ICON_MEDIA_TRANS    u8"\ue927"

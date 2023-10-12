@@ -228,6 +228,7 @@ static const std::vector<std::string> ConfigureTabNames = {
 
 static const std::vector<std::string> ControlPanelTabNames = {
     ICON_MEDIA_BANK " Media",
+    ICON_MEDIA_FINDER " Finder",
     ICON_MEDIA_FILTERS " Filters",
     ICON_MEDIA_TRANS " Transitions",
     ICON_MEDIA_OUTPUT " Output"
@@ -236,6 +237,7 @@ static const std::vector<std::string> ControlPanelTabNames = {
 static const std::vector<std::string> ControlPanelTabTooltips = 
 {
     "Media Bank",
+    "Media Finder",
     "Filter Bank",
     "Transition Bank",
     "Media Output"
@@ -363,6 +365,7 @@ const std::string ffilters = "All Support Files (" + video_file_dis + " " + audi
                                                     image_filter + "," +
                                                     text_filter + "," +
                                                     ".*";
+const std::string abbr_ffilters = "All Support Files{" + video_file_suffix + "," + audio_file_suffix + "," + image_file_suffix + "," + text_file_suffix + "}";
 const std::string pfilters = "Project files (*.mep){.mep},.*";
                                                     
 struct MediaEditorSettings
@@ -2394,11 +2397,11 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
     if (ImGui::BeginChild("##Media_bank_content", full_window_size, false, full_window_flags))
     {
         ImVec2 menu_window_size = ImVec2(ImGui::GetWindowSize().x, 40);
-        ImGui::SetNextWindowPos(ImGui::GetWindowPos() + ImVec2(4, 4));
+        ImGui::SetNextWindowPos(ImGui::GetWindowPos() + ImVec2(4, 0));
         if (ImGui::BeginChild("##Media_bank_content_menu", menu_window_size, false, child_window_flags))
         {
             ImDrawList * draw_list = ImGui::GetWindowDrawList();
-            ImGui::AddTextComplex(draw_list, ImGui::GetWindowPos() + ImVec2(8, 0),
+            ImGui::AddTextComplex(draw_list, ImGui::GetWindowPos() + ImVec2(4, 0),
                                     "Media Bank", 2.5, COL_GRAY_TEXT,
                                     0.5f, IM_COL32(56, 56, 56, 192));
             // Modify by Jimmy, Begin
@@ -2407,7 +2410,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7, 0.7, 0.7, 1.0));
 
             // Sorted, timeline->media_items
-            ImGui::SameLine(ImGui::GetWindowSize().x - media_icon_size*1.5, media_icon_size / 2);
+            ImGui::SetCursorPos(ImVec2(ImGui::GetWindowSize().x - media_icon_size, 10));
             ImGui::SetNextItemWidth(media_icon_size / 2);
             uint32_t curr_sort_method = timeline->mSortMethod;
             if (ImGui::BeginCombo("##sort_media_item", SortMethodItems[timeline->mSortMethod].icon.c_str()))
@@ -2430,7 +2433,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                 timeline->mSortMethod ? (timeline->mSortMethod-1 ? timeline->SortMediaItemByName() : timeline->SortMediaItemByType()) : timeline->SortMediaItemByID();
 
             // filtered, timeline->fliter_media_items
-            ImGui::SameLine(ImGui::GetWindowSize().x - media_icon_size, media_icon_size / 2);
+            ImGui::SetCursorPos(ImVec2(ImGui::GetWindowSize().x - media_icon_size / 2, 10));
             ImGui::SetNextItemWidth(media_icon_size / 2);
             uint32_t curr_filter_method = timeline->mFilterMethod;
             if (ImGui::BeginCombo("##filter_media_item", FilterMethodItems[timeline->mFilterMethod].icon.c_str()))
@@ -2457,8 +2460,8 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
             }
 
             // Searched, timeline->fliter_media_items
-            ImGui::SameLine(ImGui::GetWindowPos().x + media_icon_size, media_icon_size / 2);
-            ImGui::SetNextItemWidth(ImGui::GetWindowSize().x - media_icon_size*3 - 15);
+            ImGui::SetCursorPos(ImVec2(ImGui::GetWindowPos().x + media_icon_size + 50, 10));
+            ImGui::SetNextItemWidth(ImGui::GetWindowSize().x - media_icon_size*3 - 20);
             text_search_filter.Draw(ICON_ZOOM "##text_filter");
 
             curr_media_count = timeline->media_items.size(); // Update timeline->media_items count
@@ -2625,6 +2628,71 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
     }
     ImGui::EndChild();
     if (!g_project_loading) project_changed |= changed;
+}
+
+static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+    if (!timeline)
+        return;
+
+    ImVec2 full_window_size = ImGui::GetWindowSize() - ImVec2(4, 4);
+    ImGuiWindowFlags full_window_flags = ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar | 
+                                            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags child_window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
+    if (ImGui::BeginChild("##Media_finder_content", full_window_size, false, full_window_flags))
+    {
+        ImVec2 dialog_window_size = ImVec2(full_window_size.x, full_window_size.y / 2);
+        ImGui::SetNextWindowPos(ImGui::GetWindowPos() + ImVec2(4, 0));
+        if (ImGui::BeginChild("##Media_finder_content_dialog", dialog_window_size, false, child_window_flags))
+        {
+            ImDrawList * draw_list = ImGui::GetWindowDrawList();
+            ImGui::AddTextComplex(draw_list, ImGui::GetWindowPos() + ImVec2(4, 0),
+                                    "Media Finder", 2.5, COL_GRAY_TEXT,
+                                    0.5f, IM_COL32(56, 56, 56, 192));
+            ImGui::SetCursorPos(ImVec2(0, 50));
+            ImGui::PushStyleColor(ImGuiCol_Separator, COL_MARK);
+            ImGui::Separator();
+            ImGuiFileDialog::Instance()->OpenDialog("##MediaEmbeddedFileDlgKey", "Select File",
+                                            abbr_ffilters.c_str(),
+                                            "",
+                                            -1,
+                                            nullptr, 
+                                            ImGuiFileDialogFlags_NoDialog |
+                                            ImGuiFileDialogFlags_NoButton |
+                                            ImGuiFileDialogFlags_PathDecompositionShort |
+                                            ImGuiFileDialogFlags_DisableBookmarkMode | 
+                                            ImGuiFileDialogFlags_ReadOnlyFileNameField |
+                                            ImGuiFileDialogFlags_CaseInsensitiveExtention);
+        }
+
+        if (ImGuiFileDialog::Instance()->Display("##MediaEmbeddedFileDlgKey", ImGuiWindowFlags_NoCollapse, ImVec2(0,0), dialog_window_size - ImVec2(0, 60)))
+		{
+            if (ImGuiFileDialog::Instance()->IsOk())
+			{
+            }
+            ImGuiFileDialog::Instance()->Close();
+        }
+        ImGui::Separator();
+        ImGui::PopStyleColor();
+        ImGui::EndChild();
+
+        ImVec2 main_window_size = ImVec2(full_window_size.x, full_window_size.y / 2);
+        ImGui::SetNextWindowPos(ImGui::GetWindowPos() + ImVec2(4, full_window_size.y / 2));
+        if (ImGui::BeginChild("##Media_finder_content_player", main_window_size, false, child_window_flags))
+        {
+            ImDrawList * draw_list = ImGui::GetWindowDrawList();
+            ImVec2 window_pos = ImGui::GetWindowPos();
+            ImVec2 window_size = ImGui::GetWindowSize();
+            ImVec2 contant_size = ImGui::GetContentRegionAvail();
+            ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+        }
+        ImGui::EndChild();
+    }
+    ImGui::EndChild();
 }
 
 /****************************************************************************************
@@ -10921,7 +10989,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         ImGui::PushID("##Control_Panel_Main");
         float control_pane_width = g_media_editor_settings.ControlPanelWidth * main_window_size.x;
         float main_width = g_media_editor_settings.MainViewWidth * main_window_size.x;
-        is_splitter_hold |= ImGui::Splitter(true, 4.0f, &control_pane_width, &main_width, media_icon_size + 256, main_window_size.x * 0.65);
+        is_splitter_hold |= ImGui::Splitter(true, 4.0f, &control_pane_width, &main_width, media_icon_size*2 + 256, main_window_size.x * 0.65);
         g_media_editor_settings.ControlPanelWidth = control_pane_width / main_window_size.x;
         g_media_editor_settings.MainViewWidth = main_width / main_window_size.x;
         ImGui::PopID();
@@ -11077,7 +11145,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 switch (ControlPanelIndex)
                 {
                     case 0: ShowMediaBankWindow(draw_list, media_icon_size); break;
-                    case 1: 
+                    case 1: ShowMediaFinderWindow(draw_list, media_icon_size); break;
+                    case 2: 
                         switch (g_media_editor_settings.BankViewStyle)
                         {
                             case 0: ShowFilterBankIconWindow(draw_list); break;
@@ -11085,7 +11154,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                             default: break;
                         }
                     break;
-                    case 2: 
+                    case 3: 
                         switch (g_media_editor_settings.BankViewStyle)
                         {
                             case 0: ShowTransitionBankIconWindow(draw_list);; break;
@@ -11093,7 +11162,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                             default: break;
                         }
                     break;
-                    case 3: ShowMediaOutputWindow(draw_list); break;
+                    case 4: ShowMediaOutputWindow(draw_list); break;
                     default: break;
                 }
             }
