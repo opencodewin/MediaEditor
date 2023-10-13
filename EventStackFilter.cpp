@@ -536,15 +536,17 @@ public:
                     }
                     else
                     {
-                        mCombinedMask.create_type(vmat.w, vmat.h, IM_DT_FLOAT32);
-                        memset(mCombinedMask.data, 0, mCombinedMask.total()*mCombinedMask.elemsize);  // TODO: this line will result error after ImMat has line paddings.
                         auto maskIter = m_amEventMasks.begin();
                         do {
                             const auto& mMask = *maskIter++;
-                            MatUtils::Max(mCombinedMask, mMask);
+                            if (mCombinedMask.empty())
+                                mCombinedMask = mMask;
+                            else if (!mMask.empty())
+                                MatUtils::Max(mCombinedMask, mMask);
                         } while (maskIter != m_amEventMasks.end());
                     }
-                    outMat = m_hBlender->Blend(outMat, inMat, mCombinedMask);
+                    if (!mCombinedMask.empty())
+                        outMat = m_hBlender->Blend(outMat, inMat, mCombinedMask);
                 }
             }
             return outMat;
