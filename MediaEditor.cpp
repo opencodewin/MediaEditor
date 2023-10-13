@@ -4385,14 +4385,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
             if (!out_of_border && timeline->mVideoFilterInputTexture)
             {
-                bool bInMaskEventRange = timeline->mCurrentTime >= start+editing_clip->mMaskEventStart && timeline->mCurrentTime < start+editing_clip->mMaskEventEnd;
-                if (editing_clip->mhMaskCreator && bInMaskEventRange)
-                {
-                    if (!editing_clip->mhMaskCreator->DrawContent({offset_x, offset_y}, {tf_x-offset_x, tf_y-offset_y}))
-                        Logger::Log(Logger::WARN) << "MaskCreator::DrawContent() FAILED! Error is '" << editing_clip->mhMaskCreator->GetError() << "'." << std::endl;
-                        // Draw Mask Creator if there is one activated
-                }
-                else if (ImGui::IsItemHovered() && io.MouseType == 1)
+                if (ImGui::IsItemHovered() && io.MouseType == 1)
                 {
                     float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
                     float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
@@ -4428,15 +4421,28 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
             // filter output texture area
             ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, is_preview_image ? "Preview Output" : "Filter Output", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
-            if (!out_of_border && ImGui::IsItemHovered() && timeline->mVideoFilterOutputTexture)
+            if (!out_of_border && timeline->mVideoFilterOutputTexture)
             {
-                float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
-                float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
-                float scale_w = image_width / (tf_x - offset_x);
-                float scale_h = image_height / (tf_y - offset_y);
-                pos_x = (io.MousePos.x - offset_x) * scale_w;
-                pos_y = (io.MousePos.y - offset_y) * scale_h;
-                draw_compare = true;
+                bool bInMaskEventRange = timeline->mCurrentTime >= start+editing_clip->mMaskEventStart && timeline->mCurrentTime < start+editing_clip->mMaskEventEnd;
+                if (editing_clip->mhMaskCreator && bInMaskEventRange)
+                {
+                    if (editing_clip->mhMaskCreator->DrawContent({offset_x, offset_y}, {tf_x-offset_x, tf_y-offset_y}))
+                    {
+                        editing_clip->SaveEditingMask();
+                        auto pTrack = timeline->FindTrackByClipID(editing_clip->mID);
+                        timeline->RefreshTrackView({ pTrack->mID });
+                    }
+                }
+                else if (ImGui::IsItemHovered())
+                {
+                    float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
+                    float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
+                    float scale_w = image_width / (tf_x - offset_x);
+                    float scale_h = image_height / (tf_y - offset_y);
+                    pos_x = (io.MousePos.x - offset_x) * scale_w;
+                    pos_y = (io.MousePos.y - offset_y) * scale_h;
+                    draw_compare = true;
+                }
             }
         }
         if (timeline->bCompare && draw_compare)
