@@ -44,6 +44,9 @@
 #include <sstream>
 #include <iomanip>
 #include <getopt.h>
+#include <chrono>
+
+using Clock = std::chrono::steady_clock;
 
 //#define DEBUG_IMGUI
 #define DEFAULT_MAIN_VIEW_WIDTH     1680
@@ -344,6 +347,24 @@ static const method_property FilterMethodItems[] = {
 
 static ImGuiTextFilter text_search_filter;
 static uint32_t curr_media_count = 0;
+static RenderUtils::TextureManager::Holder g_txmgr;
+static RenderUtils::ManagedTexture::Holder g_tx;
+static bool g_isOpening = false;
+static MediaCore::MediaParser::Holder g_mediaParser;
+static bool g_useHwAccel = true;
+static int32_t g_audioStreamCount = 0;
+static int32_t g_chooseAudioIndex = -1;
+static MediaCore::MediaReader::Holder g_vidrdr; // video
+static double g_playStartPos = 0.f;
+static Clock::time_point g_playStartTp;
+static bool g_isPlay = false;
+static RenderUtils::Vec2<int32_t> g_imageDisplaySize = { 640, 360 };
+static MediaCore::MediaReader::Holder g_audrdr; // audio
+static MediaCore::AudioRender* g_audrnd = nullptr;
+const MediaCore::AudioRender::PcmFormat c_audioRenderFormat = MediaCore::AudioRender::PcmFormat::FLOAT32;
+static double g_audPos = 0;
+const int c_audioRenderChannels = 2;
+const int c_audioRenderSampleRate = 44100;
 // Add by Jimmy, End
 
 const std::string video_file_dis = "*.mp4 *.mov *.mkv *.mxf *.avi *.webm *.ts";
@@ -2630,6 +2651,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
     if (!g_project_loading) project_changed |= changed;
 }
 
+// Add by Jimmy: Start
 static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -2673,6 +2695,17 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
 		{
             if (ImGuiFileDialog::Instance()->IsOk())
 			{
+                if (g_vidrdr) g_vidrdr->Close();
+                g_audrdr->Close();
+                g_audrnd->Flush();
+                g_audPos = 0;
+                g_playStartPos = 0;
+                g_audioStreamCount = 0;
+                if (g_tx) g_tx = nullptr;
+                std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+                g_mediaParser = MediaCore::MediaParser::CreateInstance();
+                g_mediaParser->Open(filePathName);
+                g_isOpening = true;
             }
             ImGuiFileDialog::Instance()->Close();
         }
@@ -2680,20 +2713,202 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
         ImGui::PopStyleColor();
         ImGui::EndChild();
 
+        bool isFileOpened = (g_vidrdr && g_vidrdr->IsOpened()) || g_audrdr->IsOpened();
+        bool isForward;
+        float playPos;
+        float mediaDur = 0;
+        if (g_vidrdr && g_vidrdr->IsOpened())
+        {
+            isForward = g_vidrdr->IsDirectionForward();
+            const MediaCore::VideoStream* vstminfo = g_vidrdr->GetVideoStream();
+            float vidDur = vstminfo ? (float)vstminfo->duration : 0;
+            mediaDur = vidDur;
+        }
+        if (g_audrdr->IsOpened())
+        {
+            if (!g_vidrdr || !g_vidrdr->IsOpened())
+            {
+                isForward = g_audrdr->IsDirectionForward();
+                const MediaCore::AudioStream* astminfo = g_audrdr->GetAudioStream();
+                float audDur = astminfo ? (float)astminfo->duration : 0;
+                mediaDur = audDur;
+            }
+            playPos = g_isPlay ? g_audPos : g_playStartPos;
+        }
+        else
+        {
+            double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((Clock::now()-g_playStartTp)).count();
+            playPos = g_isPlay ? (isForward ? g_playStartPos+elapsedTime : g_playStartPos-elapsedTime) : g_playStartPos;
+        }
+        if (playPos < 0) playPos = 0;
+        if (playPos > mediaDur) playPos = mediaDur;
+
         ImVec2 main_window_size = ImVec2(full_window_size.x, full_window_size.y / 2);
         ImGui::SetNextWindowPos(ImGui::GetWindowPos() + ImVec2(4, full_window_size.y / 2));
         if (ImGui::BeginChild("##Media_finder_content_player", main_window_size, false, child_window_flags))
         {
-            ImDrawList * draw_list = ImGui::GetWindowDrawList();
-            ImVec2 window_pos = ImGui::GetWindowPos();
-            ImVec2 window_size = ImGui::GetWindowSize();
-            ImVec2 contant_size = ImGui::GetContentRegionAvail();
-            ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+            // ImDrawList * draw_list = ImGui::GetWindowDrawList();
+            // ImVec2 window_pos = ImGui::GetWindowPos();
+            // ImVec2 window_size = ImGui::GetWindowSize();
+            // ImVec2 contant_size = ImGui::GetContentRegionAvail();
+            // ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+
+            ImGui::BeginDisabled(!isFileOpened);
+            string playBtnLabel = g_isPlay ? "Pause" : "Play ";
+            if (ImGui::Button(playBtnLabel.c_str()))
+            {
+                g_isPlay = !g_isPlay;
+                if (g_isPlay)
+                {
+                    if (g_vidrdr && g_vidrdr->IsSuspended())
+                        g_vidrdr->Wakeup();
+                    g_playStartTp = Clock::now();
+                    if (g_audrdr->IsOpened())
+                        g_audrnd->Resume();
+                }
+                else
+                {
+                    g_playStartPos = playPos;
+                    if (g_audrdr->IsOpened())
+                        g_audrnd->Pause();
+                }
+            }
+
+            ImGui::SameLine();
+            string dirBtnLabel = isForward ? "Backword" : "Forward";
+            if (ImGui::Button(dirBtnLabel.c_str()))
+            {
+                bool notForward = !isForward;
+                if (g_vidrdr && g_vidrdr->IsOpened())
+                {
+                    g_vidrdr->SetDirection(notForward);
+                    g_playStartPos = playPos;
+                    g_playStartTp = Clock::now();
+                    g_vidrdr->SeekTo(playPos*1000);
+                }
+                if (g_audrdr->IsOpened())
+                {
+                    g_audrdr->SetDirection(notForward);
+                }
+            }
+
+            ImGui::SameLine();
+            ImGui::Checkbox("Use HW Accelaration", &g_useHwAccel);
+
+            ImGui::Spacing();
+            if (ImGui::SliderFloat("Position", &playPos, 0, mediaDur, "%.3f"))
+            {
+                int64_t seekPos = playPos*1000;
+                if (g_vidrdr && g_vidrdr->IsOpened())
+                    g_vidrdr->SeekTo(seekPos);
+                if (g_audrdr && g_audrdr->IsOpened())
+                    g_audrdr->SeekTo(seekPos);
+                g_playStartPos = playPos;
+                g_playStartTp = Clock::now();
+            }
+            ImGui::EndDisabled();
+
+            ImGui::Spacing();
+            string imgTag;
+            if (g_vidrdr && g_vidrdr->IsOpened() && !g_vidrdr->IsSuspended())
+            {
+                bool eof;
+                ImGui::ImMat vmat;
+                int64_t readPos = (int64_t)(playPos*1000);
+                auto hVf = g_vidrdr->ReadVideoFrame(readPos, eof, false);
+                if (hVf)
+                {
+                    Logger::Log(Logger::VERBOSE) << "Succeeded to read video frame @pos=" << playPos << "." << std::endl;
+                    hVf->GetMat(vmat);
+                    imgTag = TimestampToString(vmat.time_stamp);
+                    bool imgValid = true;
+                    if (vmat.empty())
+                    {
+                        imgValid = false;
+                        imgTag += "(loading)";
+                    }
+                    if (imgValid &&
+                        ((vmat.color_format != IM_CF_RGBA && vmat.color_format != IM_CF_ABGR) ||
+                        vmat.type != IM_DT_INT8 ||
+                        (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
+                    {
+                        Logger::Log(Logger::Error) << "WRONG snapshot format!" << std::endl;
+                        imgValid = false;
+                        imgTag += "(bad format)";
+                    }
+                    if (imgValid)
+                    {
+                        if (!g_tx)
+                        {
+                            RenderUtils::Vec2<int32_t> txSize(vmat.w, vmat.h);
+                            // Vec2<int32_t> txSize(g_imageDisplaySize);
+                            g_tx = g_txmgr->CreateManagedTextureFromMat(vmat, txSize);
+                            if (!g_tx)
+                                Logger::Log(Logger::Error) << "FAILED to create ManagedTexture from ImMat! Error is '" << g_txmgr->GetError() << "'." << std::endl;
+                        }
+                        else
+                        {
+                            g_tx->RenderMatToTexture(vmat);
+                        }
+                    }
+                }
+                else
+                {
+                    Logger::Log(Logger::Error) << "FAILED to read video frame @pos=" << playPos << ": " << g_vidrdr->GetError() << std::endl;
+                }
+            }
+            ImTextureID tid = g_tx ? g_tx->TextureID() : nullptr;
+            if (tid)
+                ImGui::Image(tid, g_imageDisplaySize);
+            else
+                ImGui::Dummy(g_imageDisplaySize);
+
+            ImGui::Spacing();
+
+            if (g_isOpening)
+            {
+                if (g_mediaParser->CheckInfoReady(MediaCore::MediaParser::MEDIA_INFO))
+                {
+                    if (g_mediaParser->HasVideo())
+                    {
+                        g_vidrdr = MediaCore::MediaReader::CreateVideoInstance();
+                        g_vidrdr->SetLogLevel(Logger::DEBUG);
+                        g_vidrdr->EnableHwAccel(g_useHwAccel);
+                        g_vidrdr->Open(g_mediaParser);
+                        g_vidrdr->ConfigVideoReader((uint32_t)g_imageDisplaySize.x, (uint32_t)g_imageDisplaySize.y,
+                                IM_CF_RGBA, IM_DT_INT8, IM_INTERPOLATE_AREA, MediaCore::HwaccelManager::GetDefaultInstance());
+                        // g_vidrdr->ConfigVideoReader(1.0f, 1.0f);
+                        if (playPos > 0)
+                            g_vidrdr->SeekTo(playPos*1000);
+                        g_vidrdr->Start();
+                    }
+                    if (g_mediaParser->HasAudio())
+                    {
+                        g_audrdr->Open(g_mediaParser);
+                        auto mediaInfo = g_mediaParser->GetMediaInfo();
+                        for (auto stream : mediaInfo->streams)
+                        {
+                            if (stream->type == MediaCore::MediaType::AUDIO)
+                                g_audioStreamCount++;
+                        }
+                        g_chooseAudioIndex = 0;
+                        g_audrdr->ConfigAudioReader(c_audioRenderChannels, c_audioRenderSampleRate, "flt", g_chooseAudioIndex);
+                        if (playPos > 0)
+                            g_audrdr->SeekTo(playPos*1000);
+                        g_audrdr->Start();
+                    }
+                    if ((!g_vidrdr || !g_vidrdr->IsOpened()) && !g_audrdr->IsOpened())
+                        Logger::Log(Logger::Error) << "Neither VIDEO nor AUDIO stream is ready for playback!" << std::endl;
+                    g_playStartTp = Clock::now();
+                    g_isOpening = false;
+                }
+            }
         }
         ImGui::EndChild();
     }
     ImGui::EndChild();
 }
+// Add by Jimmy: End
 
 /****************************************************************************************
  * 
@@ -10628,6 +10843,38 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
 #endif
 }
 
+// Add by Jimmy: Start
+class SimplePcmStream : public MediaCore::AudioRender::ByteStream
+{
+public:
+    SimplePcmStream(MediaCore::MediaReader::Holder audrdr) : m_audrdr(audrdr) {}
+
+    uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override
+    {
+        if (!m_audrdr)
+            return 0;
+        uint32_t readSize = buffSize;
+        int64_t pos;
+        bool eof;
+        if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, eof, blocking))
+            return 0;
+        g_audPos = (double)pos/1000;
+        return readSize;
+    }
+
+    void Flush() override {}
+
+    bool GetTimestampMs(int64_t& ts) override
+    {
+        return false;
+    }
+
+private:
+    MediaCore::MediaReader::Holder m_audrdr;
+};
+static SimplePcmStream* g_pcmStream = nullptr;
+// Add by Jimmy: End
+
 static void MediaEditor_Initialize(void** handle)
 {
     ImPlot::CreateContext();
@@ -10672,6 +10919,17 @@ static void MediaEditor_Initialize(void** handle)
         for (auto& item : fonts)
             fontFamilies.push_back(item);
     }
+    // Add by Jimmy: Start
+    g_txmgr = RenderUtils::TextureManager::CreateInstance();
+    g_txmgr->SetLogLevel(Logger::INFO);
+    g_audrdr = MediaCore::MediaReader::CreateInstance();
+    g_audrdr->SetLogLevel(Logger::INFO);
+
+    g_pcmStream = new SimplePcmStream(g_audrdr);
+    g_audrnd = MediaCore::AudioRender::CreateInstance();
+    g_audrnd->OpenDevice(c_audioRenderSampleRate, c_audioRenderChannels, c_audioRenderFormat, g_pcmStream);
+    MediaCore::HwaccelManager::GetDefaultInstance()->Init();
+    // Add by Jimmy: End
 #if IMGUI_VULKAN_SHADER
     int gpu = ImGui::get_default_gpu_index();
     m_histogram = new ImGui::Histogram_vulkan(gpu);
@@ -10700,6 +10958,22 @@ static void MediaEditor_Finalize(void** handle)
     if (db_texture) { ImGui::ImDestroyTexture(db_texture); db_texture = nullptr; }
     if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
     if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
+
+    if (g_audrnd)
+    {
+        g_audrnd->CloseDevice();
+        MediaCore::AudioRender::ReleaseInstance(&g_audrnd);
+    }
+    if (g_pcmStream)
+    {
+        delete g_pcmStream;
+        g_pcmStream = nullptr;
+    }
+    g_vidrdr = nullptr;
+    g_audrdr = nullptr;
+
+    g_tx = nullptr;
+    g_txmgr = nullptr;
 
     ImPlot::DestroyContext();
     MediaCore::ReleaseSubtitleLibrary();
