@@ -5339,6 +5339,9 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         }
         auto tree_pos = ImGui::GetCursorScreenPos();
         ImGui::Circle(is_selected);
+        ImGui::Dummy(ImVec2(0, 30));
+        ImGui::SameLine(15);
+        bool event_tree_open = ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None));
         int iReserveWidth = is_video_clip ? 96 : 48;
         ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - iReserveWidth, tree_pos.y));
         if (is_video_clip)
@@ -5372,9 +5375,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             ImGui::OpenPopup("Delete Event?");
         }
         ImGui::ShowTooltipOnHover("Delete Event");
-        ImGui::SetCursorScreenPos(tree_pos);
-        ImGui::SameLine(15);
-        bool event_tree_open = ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None));
         ImGui::PopStyleColor(3);
         if (event_tree_open)
         {
