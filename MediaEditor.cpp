@@ -358,7 +358,6 @@ static MediaCore::MediaReader::Holder g_vidrdr; // video
 static double g_playStartPos = 0.f;
 static Clock::time_point g_playStartTp;
 static bool g_isPlay = false;
-static RenderUtils::Vec2<int32_t> g_imageDisplaySize = { 640, 360 };
 static MediaCore::MediaReader::Holder g_audrdr; // audio
 static MediaCore::AudioRender* g_audrnd = nullptr;
 const MediaCore::AudioRender::PcmFormat c_audioRenderFormat = MediaCore::AudioRender::PcmFormat::FLOAT32;
@@ -386,7 +385,7 @@ const std::string ffilters = "All Support Files (" + video_file_dis + " " + audi
                                                     image_filter + "," +
                                                     text_filter + "," +
                                                     ".*";
-const std::string abbr_ffilters = "All Support Files{" + video_file_suffix + "," + audio_file_suffix + "," + image_file_suffix + "," + text_file_suffix + "}";
+const std::string abbr_ffilters = "All Support Files{" + video_file_suffix + "," + audio_file_suffix + "," + image_file_suffix + "}";
 const std::string pfilters = "Project files (*.mep){.mep},.*";
                                                     
 struct MediaEditorSettings
@@ -2685,12 +2684,14 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
                                             nullptr, 
                                             ImGuiFileDialogFlags_NoDialog |
                                             ImGuiFileDialogFlags_NoButton |
+                                            ImGuiFileDialogFlags_DontShowHiddenFiles |
                                             ImGuiFileDialogFlags_PathDecompositionShort |
                                             ImGuiFileDialogFlags_DisableBookmarkMode | 
                                             ImGuiFileDialogFlags_ReadOnlyFileNameField |
                                             ImGuiFileDialogFlags_CaseInsensitiveExtention);
         }
 
+        ImGui::BeginDisabled(g_isPlay);
         if (ImGuiFileDialog::Instance()->Display("##MediaEmbeddedFileDlgKey", ImGuiWindowFlags_NoCollapse, ImVec2(0,0), dialog_window_size - ImVec2(0, 60)))
 		{
             if (ImGuiFileDialog::Instance()->IsOk())
@@ -2706,9 +2707,11 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
                 g_mediaParser = MediaCore::MediaParser::CreateInstance();
                 g_mediaParser->Open(filePathName);
                 g_isOpening = true;
+                g_isPlay = true;
             }
             ImGuiFileDialog::Instance()->Close();
         }
+        ImGui::EndDisabled();
         ImGui::Separator();
         ImGui::PopStyleColor();
         ImGui::EndChild();
@@ -2743,72 +2746,15 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
         if (playPos < 0) playPos = 0;
         if (playPos > mediaDur) playPos = mediaDur;
 
-        ImVec2 main_window_size = ImVec2(full_window_size.x, full_window_size.y / 2);
+        ImVec2 main_window_size = ImVec2(full_window_size.x, full_window_size.y / 2 - 60);
         ImGui::SetNextWindowPos(ImGui::GetWindowPos() + ImVec2(4, full_window_size.y / 2));
         if (ImGui::BeginChild("##Media_finder_content_player", main_window_size, false, child_window_flags))
         {
-            // ImDrawList * draw_list = ImGui::GetWindowDrawList();
-            // ImVec2 window_pos = ImGui::GetWindowPos();
-            // ImVec2 window_size = ImGui::GetWindowSize();
-            // ImVec2 contant_size = ImGui::GetContentRegionAvail();
-            // ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
-
-            ImGui::BeginDisabled(!isFileOpened);
-            string playBtnLabel = g_isPlay ? "Pause" : "Play ";
-            if (ImGui::Button(playBtnLabel.c_str()))
-            {
-                g_isPlay = !g_isPlay;
-                if (g_isPlay)
-                {
-                    if (g_vidrdr && g_vidrdr->IsSuspended())
-                        g_vidrdr->Wakeup();
-                    g_playStartTp = Clock::now();
-                    if (g_audrdr->IsOpened())
-                        g_audrnd->Resume();
-                }
-                else
-                {
-                    g_playStartPos = playPos;
-                    if (g_audrdr->IsOpened())
-                        g_audrnd->Pause();
-                }
-            }
-
-            ImGui::SameLine();
-            string dirBtnLabel = isForward ? "Backword" : "Forward";
-            if (ImGui::Button(dirBtnLabel.c_str()))
-            {
-                bool notForward = !isForward;
-                if (g_vidrdr && g_vidrdr->IsOpened())
-                {
-                    g_vidrdr->SetDirection(notForward);
-                    g_playStartPos = playPos;
-                    g_playStartTp = Clock::now();
-                    g_vidrdr->SeekTo(playPos*1000);
-                }
-                if (g_audrdr->IsOpened())
-                {
-                    g_audrdr->SetDirection(notForward);
-                }
-            }
-
-            ImGui::SameLine();
-            ImGui::Checkbox("Use HW Accelaration", &g_useHwAccel);
-
-            ImGui::Spacing();
-            if (ImGui::SliderFloat("Position", &playPos, 0, mediaDur, "%.3f"))
-            {
-                int64_t seekPos = playPos*1000;
-                if (g_vidrdr && g_vidrdr->IsOpened())
-                    g_vidrdr->SeekTo(seekPos);
-                if (g_audrdr && g_audrdr->IsOpened())
-                    g_audrdr->SeekTo(seekPos);
-                g_playStartPos = playPos;
-                g_playStartTp = Clock::now();
-            }
-            ImGui::EndDisabled();
-
-            ImGui::Spacing();
+            ImDrawList * draw_list = ImGui::GetWindowDrawList();
+            ImVec2 window_pos = ImGui::GetWindowPos();
+            ImVec2 window_size = ImGui::GetWindowSize();
+            draw_list->AddQuadFilled(window_pos, ImVec2(window_pos.x + window_size.x - 4, window_pos.y), 
+                                window_pos+window_size-ImVec2(4,0), ImVec2(window_pos.x, window_pos.y + window_size.y), IM_COL32(0, 0, 0, 255));
             string imgTag;
             if (g_vidrdr && g_vidrdr->IsOpened() && !g_vidrdr->IsSuspended())
             {
@@ -2859,11 +2805,9 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
             }
             ImTextureID tid = g_tx ? g_tx->TextureID() : nullptr;
             if (tid)
-                ImGui::Image(tid, g_imageDisplaySize);
+                ImGui::Image(tid, window_size);
             else
-                ImGui::Dummy(g_imageDisplaySize);
-
-            ImGui::Spacing();
+                ImGui::Dummy(window_size);
 
             if (g_isOpening)
             {
@@ -2875,7 +2819,7 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
                         g_vidrdr->SetLogLevel(Logger::DEBUG);
                         g_vidrdr->EnableHwAccel(g_useHwAccel);
                         g_vidrdr->Open(g_mediaParser);
-                        g_vidrdr->ConfigVideoReader((uint32_t)g_imageDisplaySize.x, (uint32_t)g_imageDisplaySize.y,
+                        g_vidrdr->ConfigVideoReader((uint32_t)window_size.x, (uint32_t)window_size.y,
                                 IM_CF_RGBA, IM_DT_INT8, IM_INTERPOLATE_AREA, MediaCore::HwaccelManager::GetDefaultInstance());
                         // g_vidrdr->ConfigVideoReader(1.0f, 1.0f);
                         if (playPos > 0)
@@ -2903,6 +2847,47 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
                     g_isOpening = false;
                 }
             }
+        }
+        ImGui::EndChild();
+
+        ImVec2 cont_window_size = ImVec2(full_window_size.x, 60);
+        if (ImGui::BeginChild("##Media_finder_content_player_control", cont_window_size, false, child_window_flags))
+        {
+            ImVec2 window_size = ImGui::GetWindowSize();
+            ImGui::BeginDisabled(!isFileOpened);
+            std::string playBtnLabel = g_isPlay ? ICON_STOP : ICON_PLAY_FORWARD;
+            ImGui::SetCursorPosX(window_size.x/2 - 15);
+            if (ImGui::Button(playBtnLabel.c_str()))
+                g_isPlay = !g_isPlay;
+
+            if (g_isPlay)
+            {
+                if (g_vidrdr && g_vidrdr->IsSuspended())
+                        g_vidrdr->Wakeup();
+                    g_playStartTp = Clock::now();
+                    if (g_audrdr->IsOpened())
+                        g_audrnd->Resume();
+            }
+            else
+            {
+                g_playStartPos = playPos;
+                if (g_audrdr->IsOpened())
+                    g_audrnd->Pause();
+            }
+
+            ImGui::Spacing();
+            ImGui::SetNextItemWidth(window_size.x);
+            if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, "%.3f"))
+            {
+                int64_t seekPos = playPos*1000;
+                if (g_vidrdr && g_vidrdr->IsOpened())
+                    g_vidrdr->SeekTo(seekPos);
+                if (g_audrdr && g_audrdr->IsOpened())
+                    g_audrdr->SeekTo(seekPos);
+                g_playStartPos = playPos;
+                g_playStartTp = Clock::now();
+            }
+            ImGui::EndDisabled();
         }
         ImGui::EndChild();
     }
@@ -11449,6 +11434,14 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 }
             }
             ImGui::EndChild();
+            // Add by Jimmy: Start
+            if(ControlPanelIndex != 1) // switch ControlPanel page to stop play media file
+            {
+                g_isPlay = false;
+                if (g_audrdr && g_audrdr->IsOpened())
+                    g_audrnd->Pause();
+            } 
+            // Add by Jimmy: End
             ImGui::PopStyleColor();
         }
         ImGui::EndChild();
