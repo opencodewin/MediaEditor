@@ -154,6 +154,7 @@ set(MEDIA_EDITOR_SRCS
     MediaTimeline.cpp
     Event.cpp
     EventStackFilter.cpp
+    MediaPlayer.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 

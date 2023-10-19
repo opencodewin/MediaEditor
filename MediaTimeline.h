@@ -32,14 +32,13 @@
 #include "UI.h"
 #include "Event.h"
 #include "EventStackFilter.h"
+#include "MediaPlayer.h"
 #include <thread>
 #include <string>
 #include <vector>
 #include <list>
 #include <unordered_set>
 #include <chrono>
-
-using Clock = std::chrono::steady_clock;
 
 #define PLOT_IMPLOT   0
 #define PLOT_TEXTURE  1
@@ -1033,63 +1032,6 @@ typedef struct TimeLineCallbackFunctions
     TimeLineCallback  EditingOverlap        {nullptr};
 } TimeLineCallbackFunctions;
 
-// Add by Jimmy: Start
-struct MediaPlayer
-{
-    MediaPlayer();
-    ~MediaPlayer();
-    RenderUtils::TextureManager::Holder g_txmgr;
-    RenderUtils::ManagedTexture::Holder g_tx;
-    bool g_isOpening {false};
-    MediaCore::MediaParser::Holder g_mediaParser;
-    bool g_useHwAccel {true};
-    int32_t g_audioStreamCount {0};
-    int32_t g_chooseAudioIndex {-1};
-    MediaCore::MediaReader::Holder g_vidrdr; // video
-    double g_playStartPos = 0.f;
-    Clock::time_point g_playStartTp;
-    bool g_isPlay {false};
-    MediaCore::MediaReader::Holder g_audrdr; // audio
-    MediaCore::AudioRender* g_audrnd {nullptr};
-    MediaCore::AudioRender::PcmFormat c_audioRenderFormat {MediaCore::AudioRender::PcmFormat::FLOAT32};
-    int c_audioRenderChannels {2};
-    int c_audioRenderSampleRate {44100};
-
-    class SimplePcmStream : public MediaCore::AudioRender::ByteStream
-    {
-    public:
-        SimplePcmStream(MediaCore::MediaReader::Holder audrdr) : m_audrdr(audrdr) {}
-
-        uint32_t Read(uint8_t* buff, uint32_t buffSize, bool blocking) override
-        {
-            if (!m_audrdr)
-                return 0;
-            uint32_t readSize = buffSize;
-            int64_t pos;
-            bool eof;
-            if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, eof, blocking))
-                return 0;
-            g_audPos = (double)pos/1000;
-            return readSize;
-        }
-
-        void Flush() override {}
-
-        bool GetTimestampMs(int64_t& ts) override
-        {
-            return false;
-        }
-
-    public:
-        double g_audPos {0};
-
-    private:
-        MediaCore::MediaReader::Holder m_audrdr;
-    };
-    SimplePcmStream* g_pcmStream {nullptr};
-};
-// Add by Jimmy: End
-
 struct TimeLine
 {
 #define MAX_VIDEO_CACHE_FRAMES  3
@@ -1347,7 +1289,7 @@ struct TimeLine
     void SortMediaItemByType();
     void FilterMediaItemByType(uint32_t mediaType);     // Media Bank, filter
     ImGuiFileDialog embedded_filedialog;                // Media Finder, embedded filedialog
-    MediaPlayer * mMediaPlayer;                         // Media Player
+    MEC::MediaPlayer * mMediaPlayer;                    // Media Player
     // Add By Jimmy: End
 
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID

@@ -2668,7 +2668,7 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
                                             ImGuiFileDialogFlags_CaseInsensitiveExtention);
         }
 
-        ImGui::BeginDisabled(timeline->mMediaPlayer->g_isPlay);
+        // ImGui::BeginDisabled(timeline->mMediaPlayer->g_isPlay);
         if (timeline->embedded_filedialog.Display("##MediaEmbeddedFileDlgKey", ImGuiWindowFlags_NoCollapse, ImVec2(0,0), dialog_window_size - ImVec2(0, 60)))
         {
             if (timeline->embedded_filedialog.IsOk())
@@ -2688,7 +2688,7 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
             }
             timeline->embedded_filedialog.Close();
         }
-        ImGui::EndDisabled();
+        // ImGui::EndDisabled();
         ImGui::Separator();
         ImGui::PopStyleColor();
         ImGui::EndChild();
