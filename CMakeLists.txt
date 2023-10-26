@@ -293,6 +293,16 @@ target_include_directories(
     ${IMGUI_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
+# Potrace Test
+add_executable(
+    PotraceTest
+    test/PotraceTest.cpp
+    ${IMGUI_APP_ENTRY_SRC}
+)
+target_link_libraries(
+    PotraceTest
+    ${IMGUI_LIBRARYS}
+)
 
 #if(IMGUI_VULKAN_SHADER)
 #add_executable(
