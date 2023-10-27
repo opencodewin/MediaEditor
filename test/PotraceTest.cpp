@@ -17,42 +17,100 @@
 std::string image_file_dis = "*.png *.gif *.jpg *.jpeg *.tiff *.webp";
 std::string image_file_suffix = ".png,.gif,.jpg,.jpeg,.tiff,.webp";
 std::string image_filter = "Image files (" + image_file_dis + "){" + image_file_suffix + "}" + "," + ".*";
+const char * turnpolicys[] = { "black", "white", "left", "right", "minority", "majority", "random" };
 
-static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 &pos, ImVec2 &size, float &offset_x, float &offset_y, float &tf_x, float &tf_y, float aspectRatio = 0.f, ImVec2 start = ImVec2(0.f, 0.f), ImVec2 end = ImVec2(1.f, 1.f), bool bLandscape = true)
+static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true, bool out_border = false, const ImVec2& uvMin = ImVec2(0, 0), const ImVec2& uvMax = ImVec2(1, 1))
 {
     if (texture)
-    {
-        if (aspectRatio < FLT_EPSILON)
+    {        
+        ImGuiIO& io = ImGui::GetIO();
+        float texture_width = ImGui::ImGetTextureWidth(texture);
+        float texture_height = ImGui::ImGetTextureHeight(texture);
+        float aspectRatioTexture = texture_width / texture_height;
+        float aspectRatioView = size.x / size.y;
+        bool bTextureisLandscape = aspectRatioTexture > 1.f ? true : false;
+        bool bViewisLandscape = aspectRatioView > 1.f ? true : false;
+        float adj_w = 0, adj_h = 0;
+        if ((bViewisLandscape && bTextureisLandscape) || (!bViewisLandscape && !bTextureisLandscape))
         {
-            aspectRatio = (float)ImGui::ImGetTextureWidth(texture) / (float)ImGui::ImGetTextureHeight(texture);
+            if (aspectRatioTexture >= aspectRatioView)
+            {
+                adj_w = size.x;
+                adj_h = adj_w / aspectRatioTexture;
+            }
+            else
+            {
+                adj_h = size.y;
+                adj_w = adj_h * aspectRatioTexture;
+            }
         }
-        ImGui::SetCursorScreenPos(pos);
-        ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
-        bool bViewisLandscape = size.x >= size.y ? true : false;
-        bViewisLandscape |= bLandscape;
-        bool bRenderisLandscape = aspectRatio > 1.f ? true : false;
-        bool bNeedChangeScreenInfo = bViewisLandscape ^ bRenderisLandscape;
-        float adj_w = bNeedChangeScreenInfo ? size.y : size.x;
-        float adj_h = bNeedChangeScreenInfo ? size.x : size.y;
-        float adj_x = adj_h * aspectRatio;
-        float adj_y = adj_h;
-        if (adj_x > adj_w)
+        else if (bViewisLandscape && !bTextureisLandscape)
         {
-            adj_y *= adj_w / adj_x;
-            adj_x = adj_w;
+            adj_h = size.y;
+            adj_w = adj_h * aspectRatioTexture;
         }
-        tf_x = (size.x - adj_x) / 2.0;
-        tf_y = (size.y - adj_y) / 2.0;
+        else if (!bViewisLandscape && bTextureisLandscape)
+        {
+            adj_w = size.x;
+            adj_h = adj_w / aspectRatioTexture;
+        }
+        tf_x = (size.x - adj_w) / 2.0;
+        tf_y = (size.y - adj_h) / 2.0;
         offset_x = pos.x + tf_x;
         offset_y = pos.y + tf_y;
+        draw_list->AddRectFilled(ImVec2(offset_x, offset_y), ImVec2(offset_x + adj_w, offset_y + adj_h), IM_COL32_BLACK);
+        
         draw_list->AddImage(
             texture,
             ImVec2(offset_x, offset_y),
-            ImVec2(offset_x + adj_x, offset_y + adj_y),
-            start,
-            end);
-        tf_x = offset_x + adj_x;
-        tf_y = offset_y + adj_y;
+            ImVec2(offset_x + adj_w, offset_y + adj_h),
+            uvMin,
+            uvMax
+        );
+        
+        tf_x = offset_x + adj_w;
+        tf_y = offset_y + adj_h;
+
+        ImVec2 scale_range = ImVec2(2.0 , 8.0);
+        static float texture_zoom = scale_range.x;
+        ImGui::SetCursorScreenPos(pos);
+        ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
+        bool zoom = ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift);
+        if (zoom && ImGui::IsItemHovered())
+        {
+            ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
+            ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
+            float region_sz = 320.0f / texture_zoom;
+            float scale_w = texture_width / (tf_x - offset_x);
+            float scale_h = texture_height / (tf_y - offset_y);
+            float pos_x = (io.MousePos.x - offset_x) * scale_w;
+            float pos_y = (io.MousePos.y - offset_y) * scale_h;
+            float region_x = pos_x - region_sz * 0.5f;
+            float region_y = pos_y - region_sz * 0.5f;
+            if (region_x < 0.0f) { region_x = 0.0f; }
+            else if (region_x > texture_width - region_sz) { region_x = texture_width - region_sz; }
+            if (region_y < 0.0f) { region_y = 0.0f; }
+            else if (region_y > texture_height - region_sz) { region_y = texture_height - region_sz; }
+            ImGui::SetNextWindowBgAlpha(1.0);
+            if (ImGui::BeginTooltip())
+            {
+                ImGui::Text("(%.2fx)", texture_zoom);
+                ImVec2 uv0 = ImVec2((region_x) / texture_width, (region_y) / texture_height);
+                ImVec2 uv1 = ImVec2((region_x + region_sz) / texture_width, (region_y + region_sz) / texture_height);
+                ImGui::Image(texture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                ImGui::EndTooltip();
+            }
+            if (io.MouseWheel < -FLT_EPSILON)
+            {
+                texture_zoom *= 0.9;
+                if (texture_zoom < scale_range.x) texture_zoom = scale_range.x;
+            }
+            else if (io.MouseWheel > FLT_EPSILON)
+            {
+                texture_zoom *= 1.1;
+                if (texture_zoom > scale_range.y) texture_zoom = scale_range.y;
+            }
+        }
     }
 }
 
@@ -89,6 +147,13 @@ static void Potrace_Finalize(void **handle)
 {
 }
 
+inline void SVGPane(const char* vFilter, IGFDUserDatas vUserDatas, bool* vCantContinue)
+{
+    ImGui::RadioButton("Flat as Single", &info.grouping, 0);
+    ImGui::RadioButton("Auto Group", &info.grouping, 1);
+    ImGui::RadioButton("Group Related",&info.grouping, 2);
+}
+
 static bool Potrace_Frame(void *handle, bool app_will_quit)
 {
     bool app_done = false;
@@ -107,31 +172,34 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
     ImGuiIO &io = ImGui::GetIO();
     (void)io;
     ImGuiWindowFlags flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
+                            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+                            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_None);
     ImGui::Begin("Potrace Test", nullptr, flags);
 
-    auto process_image = [&]()
+    auto process_image = [&](std::string output_path = std::string())
     {
-#if 1
         potrace_bitmap_t *bitmap = nullptr;
         potrace_state_t *st = nullptr;
         if (m_mat.empty() || m_gray.empty())
             return;
-        bitmap = bm_new(m_gray.w, m_gray.h);
+        auto gray_dup = m_gray.lowpass(info.lambda_low);
+        if (info.lambda_high > 0)
+            gray_dup = gray_dup.highpass(info.lambda_high);
+
+        bitmap = bm_new(gray_dup.w, gray_dup.h);
         if (!bitmap)
             return;
-        for (int y = 0; y < m_gray.h; y++)
+        for (int y = 0; y < gray_dup.h; y++)
         {
-            for (int x = 0; x < m_gray.w; x++)
+            for (int x = 0; x < gray_dup.w; x++)
             {
-                BM_UPUT(bitmap, x, m_gray.h - y, m_gray.at<uint8_t>(x, y) > info.blacklevel * 255 ? 0 : 1);
+                BM_UPUT(bitmap, x, gray_dup.h - y, gray_dup.at<uint8_t>(x, y) > info.blacklevel * 255 ? 0 : 1);
             }
         }
         imginfo_t imginfo;
-        if (m_bm_texture)
+        if (m_bm_texture && output_path.empty())
         {
             ImGui::ImDestroyTexture(m_bm_texture);
             m_bm_texture = 0;
@@ -143,28 +211,45 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         st = potrace_trace(info.param, bitmap);
         if (!st || st->status != POTRACE_STATUS_OK)
         {
+            bm_free(bitmap);
             return;
         }
-        backend_lookup("mem", &info.backend);
+
+        if (output_path.empty())
+            backend_lookup("mem", &info.backend);
+        else
+            backend_lookup("svg", &info.backend);
+
         imginfo.pixwidth = bitmap->w;
         imginfo.pixheight = bitmap->h;
         imginfo.channels = 4;
         int out_width = 0;
         int out_height = 0;
         calc_dimensions(&imginfo, st->plist, &out_width, &out_height);
-        ImGui::ImMat mat(out_width, out_height, 4, 1u, 4);
-        if (page_mem(mat.data, st->plist, &imginfo))
+
+        if (output_path.empty())
         {
-            return;
+            ImGui::ImMat mat(out_width, out_height, 4, 1u, 4);
+            if (page_mem(mat.data, st->plist, &imginfo))
+            {
+                potrace_state_free(st);
+                bm_free(bitmap);
+                return;
+            }
+            if (!mat.empty())
+                ImGui::ImMatToTexture(mat, m_bm_texture);
+        }
+        else if (info.backend)
+        {
+            FILE * fout = fopen(output_path.c_str(), "wb");
+            if (fout)
+            {
+                info.backend->page_f(fout, st->plist, &imginfo);
+                fclose(fout);
+            }
         }
         potrace_state_free(st);
-        if (!mat.empty())
-            ImGui::ImMatToTexture(mat, m_bm_texture);
         bm_free(bitmap);
-#else
-        if (!m_gray.empty())
-            ImGui::ImMatToTexture(m_gray, m_bm_texture);
-#endif
     };
     // control panel
     ImGui::BeginChild("##Potrace_Config", ImVec2(400, ImGui::GetWindowHeight() - 60), true);
@@ -172,23 +257,53 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         auto draw_list = ImGui::GetWindowDrawList();
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
         ImVec2 window_size = ImGui::GetWindowSize();
-        ImGui::PushItemWidth(200);
-        if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Open File...", ImVec2(280, 32)))
+        if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Open File...", ImVec2(160, 32)))
         {
             ImGuiFileDialog::Instance()->OpenDialog("##PotraceFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose File",
                                                     image_filter.c_str(),
                                                     m_file_path.empty() ? "." : m_file_path,
                                                     1,
-                                                    nullptr,
+                                                    IGFDUserDatas("OpenImage"),
                                                     ImGuiFileDialogFlags_ShowBookmark |
-                                                        ImGuiFileDialogFlags_CaseInsensitiveExtention |
-                                                        ImGuiFileDialogFlags_DisableCreateDirectoryButton |
-                                                        ImGuiFileDialogFlags_Modal);
+                                                    ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                                                    ImGuiFileDialogFlags_DisableCreateDirectoryButton |
+                                                    ImGuiFileDialogFlags_Modal);
         }
         ImGui::ShowTooltipOnHover("File Path:%s", m_file_path.c_str());
+        ImGui::SameLine();
+
+        ImGui::BeginDisabled(m_mat.empty());
+        
+        if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Save File...", ImVec2(160, 32)))
+        {
+            ImGuiFileDialog::Instance()->OpenDialogWithPane("##PotraceFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save File",
+                                                            ".svg", ".", "", 
+                                                            std::bind(&SVGPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)
+                                                            , 200, 1, IGFDUserDatas("SVGPane"),
+                                                            ImGuiFileDialogFlags_ShowBookmark |
+                                                            ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                                                            ImGuiFileDialogFlags_Modal |
+                                                            ImGuiFileDialogFlags_ConfirmOverwrite);
+        }
+        ImGui::EndDisabled();
+
+        ImGui::PushItemWidth(200);
         ImGui::Separator();
 
         ImGui::TextUnformatted("Algorithm options:");
+        int turnpolicy = info.param->turnpolicy;
+        if (ImGui::Button(ICON_RESET "##reset_turnpolicy"))
+        {
+            turnpolicy = POTRACE_TURNPOLICY_MINORITY;
+        }
+        ImGui::SameLine();
+        ImGui::Combo("Ambiguities policy", &turnpolicy, turnpolicys, IM_ARRAYSIZE(turnpolicys));
+        if (turnpolicy != info.param->turnpolicy)
+        {
+            info.param->turnpolicy = turnpolicy;
+            process_image();
+        }
+
         int turdsize = info.param->turdsize;
         if (ImGui::Button(ICON_RESET "##reset_turdsize"))
         {
@@ -249,6 +364,92 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         }
 
         ImGui::TextUnformatted("Scaling and placement options:");
+
+        // Left margin
+        float l_margin = info.lmar_d.x == UNDEF ? 0 : info.lmar_d.x;
+        if (!m_mat.empty())
+            l_margin = l_margin / (float)m_mat.w;
+        else if (l_margin > 1.0)
+            l_margin = 1.0;
+        else if (l_margin < -1.0)
+            l_margin = -1.0;
+        float old_l = l_margin;
+        if (ImGui::Button(ICON_RESET "##reset_l_margin"))
+        {
+            l_margin = 0.f;
+        }
+        ImGui::SameLine();
+        ImGui::SliderFloat("Left margin", &l_margin, -1.f, 1.f, "%.2f");
+        if (l_margin != old_l)
+        {
+            info.lmar_d.x = l_margin == 0 ? UNDEF : l_margin * (m_mat.empty() ? 1 : m_mat.w);
+            process_image();
+        }
+
+        // Right margin
+        float r_margin = info.rmar_d.x == UNDEF ? 0 : info.rmar_d.x;
+        if (!m_mat.empty())
+            r_margin = r_margin / (float)m_mat.w;
+        else if (r_margin > 1.0)
+            r_margin = 1.0;
+        else if (r_margin < -1.0)
+            r_margin = -1.0;
+        float old_r = r_margin;
+        if (ImGui::Button(ICON_RESET "##reset_r_margin"))
+        {
+            r_margin = 0.f;
+        }
+        ImGui::SameLine();
+        ImGui::SliderFloat("Right margin", &r_margin, -1.f, 1.f, "%.2f");
+        if (r_margin != old_r)
+        {
+            info.rmar_d.x = r_margin == 0 ? UNDEF : r_margin * (m_mat.empty() ? 1 : m_mat.w);
+            process_image();
+        }
+
+        // Top margin
+        float t_margin = info.tmar_d.x == UNDEF ? 0 : info.tmar_d.x;
+        if (!m_mat.empty())
+            t_margin = t_margin / (float)m_mat.h;
+        else if (t_margin > 1.0)
+            t_margin = 1.0;
+        else if (t_margin < -1.0)
+            t_margin = -1.0;
+        float old_t = t_margin;
+        if (ImGui::Button(ICON_RESET "##reset_t_margin"))
+        {
+            t_margin = 0.f;
+        }
+        ImGui::SameLine();
+        ImGui::SliderFloat("Top margin", &t_margin, -1.f, 1.f, "%.2f");
+        if (t_margin != old_t)
+        {
+            info.tmar_d.x = t_margin == 0 ? UNDEF : t_margin * (m_mat.empty() ? 1 : m_mat.h);
+            process_image();
+        }
+
+        // Bottom margin
+        float b_margin = info.bmar_d.x == UNDEF ? 0 : info.bmar_d.x;
+        if (!m_mat.empty())
+            b_margin = b_margin / (float)m_mat.h;
+        else if (b_margin > 1.0)
+            b_margin = 1.0;
+        else if (b_margin < -1.0)
+            b_margin = -1.0;
+        float old_b = b_margin;
+        if (ImGui::Button(ICON_RESET "##reset_b_margin"))
+        {
+            b_margin = 0.f;
+        }
+        ImGui::SameLine();
+        ImGui::SliderFloat("Bottom margin", &b_margin, -1.f, 1.f, "%.2f");
+        if (b_margin != old_b)
+        {
+            info.bmar_d.x = b_margin == 0 ? UNDEF : b_margin * (m_mat.empty() ? 1 : m_mat.h);
+            process_image();
+        }
+
+        // Angle
         float angle = info.angle;
         if (ImGui::Button(ICON_RESET "##reset_angle"))
         {
@@ -262,6 +463,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
             process_image();
         }
 
+        // Tighten
         bool tight = info.tight == 1;
         if (ImGui::Checkbox("Tighten the bounding", &tight))
         {
@@ -290,18 +492,45 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
             process_image();
         }
 
+        float lambda_low = info.lambda_low;
+        if (ImGui::Button(ICON_RESET "##reset_lowpass_lambda"))
+        {
+            lambda_low = 0.f;
+        }
+        ImGui::SameLine();
+        ImGui::SliderFloat("Lowpass lambda", &lambda_low, 0.f, 10.f, "%.1f");
+        if (lambda_low != info.lambda_low)
+        {
+            info.lambda_low = lambda_low;
+            process_image();
+        }
+
+        float lambda_high = info.lambda_high;
+        if (ImGui::Button(ICON_RESET "##reset_highpass_lambda"))
+        {
+            lambda_high = 0.f;
+        }
+        ImGui::SameLine();
+        ImGui::SliderFloat("Highpass lambda", &lambda_high, 0.f, 10.f, "%.1f");
+        if (lambda_high != info.lambda_high)
+        {
+            info.lambda_high = lambda_high;
+            process_image();
+        }
+
+        bool draw_dot = info.draw_dot == 1;
+        if (ImGui::Checkbox("Draw dot", &draw_dot))
+        {
+            info.draw_dot = draw_dot ? 1 : 0;
+            process_image();
+        }
+
         ImGui::PopItemWidth();
         ImGui::Separator();
 
         if (m_texture)
         {
-            auto display_pos = ImGui::GetCursorScreenPos() + ImVec2(10, 0);
-            auto width = (float)ImGui::ImGetTextureWidth(m_texture);
-            auto height = (float)ImGui::ImGetTextureHeight(m_texture);
-            float adj_width = window_size.x - 20;
-            float adj_height = adj_width * (height / width);
-            auto display_size = ImVec2(adj_width, adj_height);
-            ShowVideoWindow(draw_list, m_texture, display_pos, display_size, offset_x, offset_y, tf_x, tf_y);
+            ShowVideoWindow(draw_list, m_texture, ImGui::GetCursorScreenPos(), ImVec2(window_size.x, window_size.x / 2), offset_x, offset_y, tf_x, tf_y);
         }
     }
     ImGui::EndChild();
@@ -312,16 +541,10 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
     {
         auto draw_list = ImGui::GetWindowDrawList();
         ImVec2 window_pos = ImGui::GetCursorScreenPos();
-        ImVec2 window_size = ImGui::GetWindowSize();
+        ImVec2 window_size = ImGui::GetContentRegionAvail();
         if (m_bm_texture)
         {
-            auto width = (float)ImGui::ImGetTextureWidth(m_bm_texture);
-            auto height = (float)ImGui::ImGetTextureHeight(m_bm_texture);
-            float adj_height = window_size.y - 40;
-            float adj_width = adj_height * (width / height);
-            auto display_size = ImVec2(adj_width, adj_height);
-            auto display_pos = window_pos + ImVec2(window_size.x / 8, 0);
-            ShowVideoWindow(draw_list, m_bm_texture, display_pos, display_size, offset_x, offset_y, tf_x, tf_y);
+            ShowVideoWindow(draw_list, m_bm_texture, window_pos, window_size, offset_x, offset_y, tf_x, tf_y);
         }
     }
     ImGui::EndChild();
@@ -331,29 +554,41 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
     ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
     if (ImGuiFileDialog::Instance()->Display("##PotraceFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
     {
-        m_file_path = ImGuiFileDialog::Instance()->GetFilePathName();
-        ImGui::ImLoadImageToMat(m_file_path.c_str(), m_mat);
-        if (!m_mat.empty())
+        if (ImGuiFileDialog::Instance()->IsOk())
         {
-            if (m_texture)
+            auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
+            auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
+            if (userDatas.compare("OpenImage") == 0)
             {
-                ImGui::ImDestroyTexture(m_texture);
-                m_texture = 0;
-            }
-            ImGui::ImMatToTexture(m_mat, m_texture);
-            m_gray.create_type(m_mat.w, m_mat.h, IM_DT_INT8);
-            for (int y = 0; y < m_mat.h; y++)
-            {
-                for (int x = 0; x < m_mat.w; x++)
+                m_file_path = file_path;
+                ImGui::ImLoadImageToMat(m_file_path.c_str(), m_mat);
+                if (!m_mat.empty())
                 {
-                    float R = m_mat.at<uint8_t>(x, y, 0);
-                    float G = m_mat.at<uint8_t>(x, y, 1);
-                    float B = m_mat.at<uint8_t>(x, y, 2);
-                    float gray = R * 0.299 + G * 0.587 + B * 0.114;
-                    m_gray.at<uint8_t>(x, y) = (uint8_t)gray;
+                    if (m_texture)
+                    {
+                        ImGui::ImDestroyTexture(m_texture);
+                        m_texture = 0;
+                    }
+                    ImGui::ImMatToTexture(m_mat, m_texture);
+                    m_gray.create_type(m_mat.w, m_mat.h, IM_DT_INT8);
+                    for (int y = 0; y < m_mat.h; y++)
+                    {
+                        for (int x = 0; x < m_mat.w; x++)
+                        {
+                            float R = m_mat.at<uint8_t>(x, y, 0);
+                            float G = m_mat.at<uint8_t>(x, y, 1);
+                            float B = m_mat.at<uint8_t>(x, y, 2);
+                            float gray = R * 0.299 + G * 0.587 + B * 0.114;
+                            m_gray.at<uint8_t>(x, y) = (uint8_t)gray;
+                        }
+                    }
+                    process_image();
                 }
             }
-            process_image();
+            if (userDatas.compare("SVGPane") == 0)
+            {
+                process_image(file_path);
+            }
         }
         ImGuiFileDialog::Instance()->Close();
     }
