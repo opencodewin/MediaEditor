@@ -286,10 +286,9 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
                                                             ImGuiFileDialogFlags_ConfirmOverwrite);
         }
         ImGui::EndDisabled();
-
-        ImGui::PushItemWidth(200);
         ImGui::Separator();
 
+        ImGui::PushItemWidth(200);
         ImGui::TextUnformatted("Algorithm options:");
         int turnpolicy = info.param->turnpolicy;
         if (ImGui::Button(ICON_RESET "##reset_turnpolicy"))

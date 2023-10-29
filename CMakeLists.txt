@@ -304,6 +304,18 @@ target_link_libraries(
     ${IMGUI_LIBRARYS}
 )
 
+# Potrace Test
+add_executable(
+    DitherTest
+    test/DitherTest.cpp
+    ${IMGUI_APP_ENTRY_SRC}
+)
+
+target_link_libraries(
+    DitherTest
+    ${IMGUI_LIBRARYS}
+)
+
 #if(IMGUI_VULKAN_SHADER)
 #add_executable(
 #    transition_make
