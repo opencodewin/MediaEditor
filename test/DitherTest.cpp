@@ -578,50 +578,59 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
             case 0 : 
             {
                 Grid_Ditherer(dither_image, m_grid_width, m_grid_height, m_grid_min_pixels, m_grid_alt_algorithm, m_result);
-                if (!m_result.empty()) ImGui::ImMatToTexture(m_result, m_bm_texture);
             }
             break;
             case 1 : 
                 Dot_Diffusion(dither_image, m_dot_diffusion_type, m_result);
-                if (!m_result.empty()) ImGui::ImMatToTexture(m_result, m_bm_texture);
             break;
             case 2 : 
                 Error_Diffusion(dither_image, m_err_diffusion_type, m_err_diffusion_sigma, m_err_diffusion_serpentine, m_result);
-                if (!m_result.empty()) ImGui::ImMatToTexture(m_result, m_bm_texture);
             break;
             case 3 : 
                 Ordered_Diffusion(dither_image, m_ord_dithering_type, m_ord_diffusion_sigma, m_ord_diffusion_step, m_ord_diffusion_a, m_ord_diffusion_b, m_ord_diffusion_c, m_result);
-                if (!m_result.empty()) ImGui::ImMatToTexture(m_result, m_bm_texture);
             break;
             case 4 : 
                 Variable_Error_Diffusion(dither_image, m_verr_diffusion_type, m_verr_diffusion_serpentine, m_result);
-                if (!m_result.empty()) ImGui::ImMatToTexture(m_result, m_bm_texture);
             break;
             case 5 : 
                 Thresholding(dither_image, m_threshold_auto, m_threshold_thres, m_threshold_noise, m_result);
-                if (!m_result.empty()) ImGui::ImMatToTexture(m_result, m_bm_texture);
             break;
             case 6 : 
                 Direct_Binary_Search(dither_image, m_dbs_formula, m_result);
-                if (!m_result.empty()) ImGui::ImMatToTexture(m_result, m_bm_texture);
             break;
             case 7 : 
                 Kacker_Allebach(dither_image, m_kacker_allebach_random, m_result);
-                if (!m_result.empty()) ImGui::ImMatToTexture(m_result, m_bm_texture);
             break;
             case 8 : 
                 Riemersma_Dithering(dither_image, m_riemersma_type, m_riemersma_modified, m_result);
-                if (!m_result.empty()) ImGui::ImMatToTexture(m_result, m_bm_texture);
             break;
             case 9 : 
                 Pattern_Dithering(dither_image, m_pattern_type, m_result);
-                if (!m_result.empty()) ImGui::ImMatToTexture(m_result, m_bm_texture);
             break;
             case 10 : 
                 Dot_Lippens(dither_image, m_dot_lippens_type, m_result);
-                if (!m_result.empty()) ImGui::ImMatToTexture(m_result, m_bm_texture);
             break;
             default : break;
+        }
+        if (!m_result.empty())
+        {
+#ifdef __APPLE__
+            ImGui::ImMat mat_RGB(m_result.w, m_result.h, 4, 1u, 4);
+            for (int y = 0; y < m_result.h; y++)
+            {
+                for (int x = 0; x < m_result.w; x++)
+                {
+                    unsigned char val = m_result.at<unsigned char>(x, y);
+                    mat_RGB.at<unsigned char>(x, y, 0) =
+                    mat_RGB.at<unsigned char>(x, y, 1) =
+                    mat_RGB.at<unsigned char>(x, y, 2) = val;
+                    mat_RGB.at<unsigned char>(x, y, 3) = 0xFF;
+                }
+            }
+            ImGui::ImMatToTexture(mat_RGB, m_bm_texture);
+#else
+            ImGui::ImMatToTexture(m_result, m_bm_texture);
+#endif
         }
     };
 
@@ -766,12 +775,13 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
                         m_texture = 0;
                     }
                     ImGui::ImMatToTexture(m_mat, m_texture);
-                    m_gray.create_type(m_mat.w, m_mat.h, IM_DT_INT8);
+                    int width = m_mat.w & 0xFFFFFFFC;
+                    m_gray.create_type(width, m_mat.h, IM_DT_INT8);
                     if (dither_image) { DitherImage_free(dither_image); dither_image = nullptr; }
-                    dither_image = DitherImage_new(m_mat.w, m_mat.h);
-                    for (int y = 0; y < m_mat.h; y++)
+                    dither_image = DitherImage_new(width, m_mat.h);
+                    for (int y = 0; y < m_mat.h ; y++)
                     {
-                        for (int x = 0; x < m_mat.w; x++)
+                        for (int x = 0; x < width; x++)
                         {
                             float R = m_mat.at<uint8_t>(x, y, 0);
                             float G = m_mat.at<uint8_t>(x, y, 1);
