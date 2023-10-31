@@ -275,7 +275,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
                     error_diffusion_dither(gray_dup, (ED_TYPE)m_err_diffusion_type, m_err_diffusion_serpentine, m_err_diffusion_sigma, result);
                 break;
                 case 3 : 
-                    ordered_dither(gray_dup, (OD_TYPE)m_ord_dithering_type, m_ord_diffusion_sigma, result, m_ord_diffusion_step, ImVec4(m_ord_diffusion_a, m_ord_diffusion_b, m_ord_diffusion_c, 0));
+                    ordered_dither(gray_dup, (OD_TYPE)m_ord_dithering_type, m_ord_diffusion_sigma, result, ImGui::ImMat(), m_ord_diffusion_step, ImVec4(m_ord_diffusion_a, m_ord_diffusion_b, m_ord_diffusion_c, 0));
                 break;
                 case 4 : 
                     variable_error_diffusion_dither(gray_dup, (VD_TYPE)m_verr_diffusion_type, m_verr_diffusion_serpentine, result);

@@ -239,7 +239,7 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
                 error_diffusion_dither(m_gray, (ED_TYPE)m_err_diffusion_type, m_err_diffusion_serpentine, m_err_diffusion_sigma, m_result);
             break;
             case 3 : 
-                ordered_dither(m_gray, (OD_TYPE)m_ord_dithering_type, m_ord_diffusion_sigma, m_result, m_ord_diffusion_step, ImVec4(m_ord_diffusion_a, m_ord_diffusion_b, m_ord_diffusion_c, 0));
+                ordered_dither(m_gray, (OD_TYPE)m_ord_dithering_type, m_ord_diffusion_sigma, m_result, ImGui::ImMat(), m_ord_diffusion_step, ImVec4(m_ord_diffusion_a, m_ord_diffusion_b, m_ord_diffusion_c, 0));
             break;
             case 4 : 
                 variable_error_diffusion_dither(m_gray, (VD_TYPE)m_verr_diffusion_type, m_verr_diffusion_serpentine, m_result);
