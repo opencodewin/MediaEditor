@@ -178,252 +178,6 @@ static void Dither_Finalize(void **handle)
 {
 }
 
-static void Grid_Ditherer(DitherImage* input, int width, int height, int min_pixel, bool alt, ImGui::ImMat& output)
-{
-    if (!input) return;
-    output.create_type(input->width, input->height, 1, IM_DT_INT8);
-    grid_dither(input, width, height, min_pixel, alt, (uint8_t *)output.data);
-}
-
-static void Dot_Diffusion(DitherImage* input, int type, ImGui::ImMat& output)
-{
-    DotClassMatrix* dcm = nullptr;
-    DotDiffusionMatrix* ddm = nullptr;
-    output.create_type(input->width, input->height, 1, IM_DT_INT8);
-    switch(type)
-    {
-        case 0 :
-            ddm = get_default_diffusion_matrix();
-            dcm = get_knuth_class_matrix();
-            break;
-        case 1 :
-            ddm = get_default_diffusion_matrix();
-            dcm = get_mini_knuth_class_matrix();
-            break;
-        case 2 : 
-            ddm = get_default_diffusion_matrix();
-            dcm = get_optimized_knuth_class_matrix();
-            break;
-        case 3 : 
-            ddm = get_default_diffusion_matrix();
-            dcm = get_mese_8x8_class_matrix();
-            break;
-        case 4 : 
-            ddm = get_default_diffusion_matrix();
-            dcm = get_mese_16x16_class_matrix();
-            break;
-        case 5 : 
-            ddm = get_guoliu8_diffusion_matrix();
-            dcm = get_guoliu_8x8_class_matrix();
-            break;
-        case 6 : 
-            ddm = get_guoliu16_diffusion_matrix();
-            dcm = get_guoliu_16x16_class_matrix();
-            break;
-        case 7:
-            ddm = get_guoliu8_diffusion_matrix();
-            dcm = get_spiral_class_matrix();
-            break;
-        case 8:
-            ddm = get_guoliu8_diffusion_matrix();
-            dcm = get_spiral_inverted_class_matrix();
-            break;
-        default: break;
-    }
-    dot_diffusion_dither(input, ddm, dcm, (uint8_t *)output.data);
-    DotClassMatrix_free(dcm);
-    DotDiffusionMatrix_free(ddm);
-}
-
-static void Error_Diffusion(DitherImage* input, int type, float sigma, bool serpentine, ImGui::ImMat& output)
-{
-    ErrorDiffusionMatrix* em = nullptr;
-    output.create_type(input->width, input->height, 1, IM_DT_INT8);
-    switch (type)
-    {
-        case 0 : em = get_xot_matrix(); break;
-        case 1 : em = get_diagonal_matrix(); break;
-        case 2 : em = get_floyd_steinberg_matrix(); break;
-        case 3 : em = get_shiaufan3_matrix(); break;
-        case 4 : em = get_shiaufan2_matrix(); break;
-        case 5 : em = get_shiaufan1_matrix(); break;
-        case 6 : em = get_stucki_matrix(); break;
-        case 7 : em = get_diffusion_1d_matrix(); break;
-        case 8 : em = get_diffusion_2d_matrix(); break;
-        case 9 : em = get_fake_floyd_steinberg_matrix(); break;
-        case 10 : em = get_jarvis_judice_ninke_matrix(); break;
-        case 11 : em = get_atkinson_matrix(); break;
-        case 12 : em = get_burkes_matrix(); break;
-        case 13 : em = get_sierra_3_matrix(); break;
-        case 14 : em = get_sierra_2row_matrix(); break;
-        case 15 : em = get_sierra_lite_matrix(); break;
-        case 16 : em = get_steve_pigeon_matrix(); break;
-        case 17 : em = get_robert_kist_matrix(); break;
-        case 18 : em = get_stevenson_arce_matrix(); break;
-        default: break;
-    }
-    error_diffusion_dither(input, em, serpentine, sigma, (uint8_t *)output.data);
-    ErrorDiffusionMatrix_free(em);
-}
-
-static void Ordered_Diffusion(DitherImage* input, int type, float sigma, int step, float a, float b, float c, ImGui::ImMat& output)
-{
-    OrderedDitherMatrix* om = nullptr;
-    output.create_type(input->width, input->height, 1, IM_DT_INT8);
-    switch (type)
-    {
-        case 0 : om = get_blue_noise_128x128(); break;
-        case 1 : om = get_bayer2x2_matrix(); break;
-        case 2 : om = get_bayer3x3_matrix(); break;
-        case 3 : om = get_bayer4x4_matrix(); break;
-        case 4 : om = get_bayer8x8_matrix(); break;
-        case 5 : om = get_bayer16x16_matrix(); break;
-        case 6 : om = get_bayer32x32_matrix(); break;
-        case 7 : om = get_dispersed_dots_1_matrix(); break;
-        case 8 : om = get_dispersed_dots_2_matrix(); break;
-        case 9 : om = get_ulichney_void_dispersed_dots_matrix(); break;
-        case 10 : om = get_non_rectangular_1_matrix(); break;
-        case 11 : om = get_non_rectangular_2_matrix(); break;
-        case 12 : om = get_non_rectangular_3_matrix(); break;
-        case 13 : om = get_non_rectangular_4_matrix(); break;
-        case 14 : om = get_ulichney_bayer_5_matrix(); break;
-        case 15 : om = get_ulichney_matrix(); break;
-        case 16 : om = get_bayer_clustered_dot_1_matrix(); break;
-        case 17 : om = get_bayer_clustered_dot_2_matrix(); break;
-        case 18 : om = get_bayer_clustered_dot_3_matrix(); break;
-        case 19 : om = get_bayer_clustered_dot_4_matrix(); break;
-        case 20 : om = get_bayer_clustered_dot_5_matrix(); break;
-        case 21 : om = get_bayer_clustered_dot_6_matrix(); break;
-        case 22 : om = get_bayer_clustered_dot_7_matrix(); break;
-        case 23 : om = get_bayer_clustered_dot_8_matrix(); break;
-        case 24 : om = get_bayer_clustered_dot_9_matrix(); break;
-        case 25 : om = get_bayer_clustered_dot_10_matrix(); break;
-        case 26 : om = get_bayer_clustered_dot_11_matrix(); break;
-        case 27 : om = get_central_white_point_matrix(); break;
-        case 28 : om = get_balanced_centered_point_matrix(); break;
-        case 29 : om = get_diagonal_ordered_matrix_matrix(); break;
-        case 30 : om = get_ulichney_clustered_dot_matrix(); break;
-        case 31 : om = get_magic5x5_circle_matrix(); break;
-        case 32 : om = get_magic6x6_circle_matrix(); break;
-        case 33 : om = get_magic7x7_circle_matrix(); break;
-        case 34 : om = get_magic4x4_45_matrix(); break;
-        case 35 : om = get_magic6x6_45_matrix(); break;
-        case 36 : om = get_magic8x8_45_matrix(); break;
-        case 37 : om = get_magic4x4_matrix(); break;
-        case 38 : om = get_magic6x6_matrix(); break;
-        case 39 : om = get_magic8x8_matrix(); break;
-        case 40 : om = get_variable_2x2_matrix(step); break;
-        case 41 : om = get_variable_4x4_matrix(step); break;
-        case 42 : om = get_interleaved_gradient_noise(step, a, b, c); break;
-        //case 43 : om = get_matrix_from_image(); break; // TODO::Dicky
-        default: break;
-    }
-    ordered_dither(input, om, sigma, (uint8_t *)output.data);
-    OrderedDitherMatrix_free(om);
-}
-
-static void Variable_Error_Diffusion(DitherImage* input, int type, bool serpentine, ImGui::ImMat& output)
-{
-    output.create_type(input->width, input->height, 1, IM_DT_INT8);
-    if (type == 0)
-        variable_error_diffusion_dither(input, Ostromoukhov, serpentine, (uint8_t *)output.data);
-    else
-        variable_error_diffusion_dither(input, Zhoufang, serpentine, (uint8_t *)output.data);
-}
-
-static void Thresholding(DitherImage* input, bool auto_thres, float threshold, float noise, ImGui::ImMat& output)
-{
-    output.create_type(input->width, input->height, 1, IM_DT_INT8);
-    if (auto_thres)
-        threshold = auto_threshold(input);
-    threshold_dither(input, threshold, noise, (uint8_t *)output.data);
-}
-
-static void Direct_Binary_Search(DitherImage* input, int v, ImGui::ImMat& output)
-{
-    output.create_type(input->width, input->height, 1, IM_DT_INT8);
-    dbs_dither(input, v, (uint8_t *)output.data);
-}
-
-static void Kacker_Allebach(DitherImage* input, bool random, ImGui::ImMat& output)
-{
-    output.create_type(input->width, input->height, 1, IM_DT_INT8);
-    kallebach_dither(input, random, (uint8_t *)output.data);
-}
-
-static void Riemersma_Dithering(DitherImage* input, int type, bool modified, ImGui::ImMat& output)
-{
-    RiemersmaCurve* rc = nullptr;
-    output.create_type(input->width, input->height, 1, IM_DT_INT8);
-    switch (type)
-    {
-        case 0: rc = get_hilbert_curve(); break;
-        case 1: rc = get_hilbert_mod_curve(); break;
-        case 2: rc = get_peano_curve(); break;
-        case 3: rc = get_fass0_curve(); break;
-        case 4: rc = get_fass1_curve(); break;
-        case 5: rc = get_fass2_curve(); break;
-        case 6: rc = get_gosper_curve(); break;
-        case 7: rc = get_fass_spiral_curve(); break;
-        default: break;
-    }
-    riemersma_dither(input, rc, modified, (uint8_t *)output.data);
-}
-
-static void Pattern_Dithering(DitherImage* input, int type, ImGui::ImMat& output)
-{
-    TilePattern* tp;
-    output.create_type(input->width, input->height, 1, IM_DT_INT8);
-    switch (type)
-    {
-        case 0: tp = get_2x2_pattern(); break;
-        case 1: tp = get_3x3_v1_pattern(); break;
-        case 2: tp = get_3x3_v2_pattern(); break;
-        case 3: tp = get_3x3_v3_pattern(); break;
-        case 4: tp = get_4x4_pattern(); break;
-        case 5: tp = get_5x2_pattern(); break;
-    }
-    pattern_dither(input, tp, (uint8_t *)output.data);
-}
-
-static void Dot_Lippens(DitherImage* input, int type, ImGui::ImMat& output)
-{
-    DotClassMatrix* cm;
-    DotLippensCoefficients* coe;
-    output.create_type(input->width, input->height, 1, IM_DT_INT8);
-    switch (type)
-    {
-        case 0:
-            cm = get_dotlippens_class_matrix();
-            coe = get_dotlippens_coefficients1();
-            break;
-        case 1:
-            cm = get_dotlippens_class_matrix();
-            coe = get_dotlippens_coefficients2();
-            break;
-        case 2:
-            cm = get_dotlippens_class_matrix();
-            coe = get_dotlippens_coefficients3();
-            break;
-        case 3:
-            cm = get_guoliu_16x16_class_matrix();
-            coe = get_dotlippens_coefficients1();
-            break;
-        case 4:
-            cm = get_mese_16x16_class_matrix();
-            coe = get_dotlippens_coefficients1();
-            break;
-        case 5:
-            cm = get_knuth_class_matrix();
-            coe = get_dotlippens_coefficients1();
-            break;
-        default: break;
-    }
-    dotlippens_dither(input, cm, coe, (uint8_t *)output.data);
-    DotLippensCoefficients_free(coe);
-    DotClassMatrix_free(cm);
-}
-
 static bool Dither_Frame(void *handle, bool app_will_quit)
 {
     bool app_done = false;
@@ -457,7 +211,7 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
     static bool m_threshold_auto = true;
     static float m_threshold_noise = 0.55f;
 
-    static int m_dbs_formula = 0;
+    static int m_dbs_formula = 1;
 
     static bool m_kacker_allebach_random = true;
 
@@ -466,49 +220,47 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
     static ImGui::ImMat m_mat;
     static ImGui::ImMat m_gray;
     static ImGui::ImMat m_result;
-    static DitherImage* dither_image = nullptr;
     static ImTextureID m_texture = 0;
     static ImTextureID m_bm_texture = 0;
 
     auto process_image = [&](std::string output_path = std::string())
     {
         if (m_bm_texture) { ImGui::ImDestroyTexture(m_bm_texture); m_bm_texture = 0; }
+        m_result.create_type(m_gray.w, m_gray.h, 1, IM_DT_INT8);
         switch (m_dither_type)
         {
             case 0 : 
-            {
-                Grid_Ditherer(dither_image, m_grid_width, m_grid_height, m_grid_min_pixels, m_grid_alt_algorithm, m_result);
-            }
+                grid_dither(m_gray, m_grid_width, m_grid_height, m_grid_min_pixels, m_grid_alt_algorithm, m_result);
             break;
             case 1 : 
-                Dot_Diffusion(dither_image, m_dot_diffusion_type, m_result);
+                dot_diffusion_dither(m_gray, (DD_TYPE)m_dot_diffusion_type, m_result);
             break;
             case 2 : 
-                Error_Diffusion(dither_image, m_err_diffusion_type, m_err_diffusion_sigma, m_err_diffusion_serpentine, m_result);
+                error_diffusion_dither(m_gray, (ED_TYPE)m_err_diffusion_type, m_err_diffusion_serpentine, m_err_diffusion_sigma, m_result);
             break;
             case 3 : 
-                Ordered_Diffusion(dither_image, m_ord_dithering_type, m_ord_diffusion_sigma, m_ord_diffusion_step, m_ord_diffusion_a, m_ord_diffusion_b, m_ord_diffusion_c, m_result);
+                ordered_dither(m_gray, (OD_TYPE)m_ord_dithering_type, m_ord_diffusion_sigma, m_result, m_ord_diffusion_step, ImVec4(m_ord_diffusion_a, m_ord_diffusion_b, m_ord_diffusion_c, 0));
             break;
             case 4 : 
-                Variable_Error_Diffusion(dither_image, m_verr_diffusion_type, m_verr_diffusion_serpentine, m_result);
+                variable_error_diffusion_dither(m_gray, (VD_TYPE)m_verr_diffusion_type, m_verr_diffusion_serpentine, m_result);
             break;
             case 5 : 
-                Thresholding(dither_image, m_threshold_auto, m_threshold_thres, m_threshold_noise, m_result);
+                threshold_dither(m_gray, m_threshold_auto ? auto_threshold(m_gray) : m_threshold_thres, m_threshold_noise, m_result);
             break;
             case 6 : 
-                Direct_Binary_Search(dither_image, m_dbs_formula, m_result);
+                dbs_dither(m_gray, m_dbs_formula, m_result);
             break;
             case 7 : 
-                Kacker_Allebach(dither_image, m_kacker_allebach_random, m_result);
+                kallebach_dither(m_gray, m_kacker_allebach_random, m_result);
             break;
             case 8 : 
-                Riemersma_Dithering(dither_image, m_riemersma_type, m_riemersma_modified, m_result);
+                riemersma_dither(m_gray, (RD_TYPE)m_riemersma_type, m_riemersma_modified, m_result);
             break;
             case 9 : 
-                Pattern_Dithering(dither_image, m_pattern_type, m_result);
+                pattern_dither(m_gray, (PD_TYPE)m_pattern_type, m_result);
             break;
             case 10 : 
-                Dot_Lippens(dither_image, m_dot_lippens_type, m_result);
+                dotlippens_dither(m_gray, (LP_TYPE)m_dot_lippens_type, m_result);
             break;
             default : break;
         }
@@ -705,8 +457,6 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
                     ImGui::ImMatToTexture(m_mat, m_texture);
                     int width = m_mat.w & 0xFFFFFFFC;
                     m_gray.create_type(width, m_mat.h, IM_DT_INT8);
-                    if (dither_image) { DitherImage_free(dither_image); dither_image = nullptr; }
-                    dither_image = DitherImage_new(width, m_mat.h);
                     for (int y = 0; y < m_mat.h ; y++)
                     {
                         for (int x = 0; x < width; x++)
@@ -715,7 +465,6 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
                             float G = m_mat.at<uint8_t>(x, y, 1);
                             float B = m_mat.at<uint8_t>(x, y, 2);
                             float gray = R * 0.299 + G * 0.587 + B * 0.114;
-                            if (dither_image) DitherImage_set_pixel(dither_image, x, y, R, G, B, true);
                             m_gray.at<uint8_t>(x, y) = (uint8_t)gray;
                         }
                     }
