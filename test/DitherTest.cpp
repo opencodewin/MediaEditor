@@ -145,101 +145,6 @@ const char* Dither_items[] = {
     "Dot Lippens"
 };
 
-static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true, bool out_border = false, const ImVec2& uvMin = ImVec2(0, 0), const ImVec2& uvMax = ImVec2(1, 1))
-{
-    if (texture)
-    {        
-        ImGuiIO& io = ImGui::GetIO();
-        float texture_width = ImGui::ImGetTextureWidth(texture);
-        float texture_height = ImGui::ImGetTextureHeight(texture);
-        float aspectRatioTexture = texture_width / texture_height;
-        float aspectRatioView = size.x / size.y;
-        bool bTextureisLandscape = aspectRatioTexture > 1.f ? true : false;
-        bool bViewisLandscape = aspectRatioView > 1.f ? true : false;
-        float adj_w = 0, adj_h = 0;
-        if ((bViewisLandscape && bTextureisLandscape) || (!bViewisLandscape && !bTextureisLandscape))
-        {
-            if (aspectRatioTexture >= aspectRatioView)
-            {
-                adj_w = size.x;
-                adj_h = adj_w / aspectRatioTexture;
-            }
-            else
-            {
-                adj_h = size.y;
-                adj_w = adj_h * aspectRatioTexture;
-            }
-        }
-        else if (bViewisLandscape && !bTextureisLandscape)
-        {
-            adj_h = size.y;
-            adj_w = adj_h * aspectRatioTexture;
-        }
-        else if (!bViewisLandscape && bTextureisLandscape)
-        {
-            adj_w = size.x;
-            adj_h = adj_w / aspectRatioTexture;
-        }
-        tf_x = (size.x - adj_w) / 2.0;
-        tf_y = (size.y - adj_h) / 2.0;
-        offset_x = pos.x + tf_x;
-        offset_y = pos.y + tf_y;
-        draw_list->AddRectFilled(ImVec2(offset_x, offset_y), ImVec2(offset_x + adj_w, offset_y + adj_h), IM_COL32_BLACK);
-        
-        draw_list->AddImage(
-            texture,
-            ImVec2(offset_x, offset_y),
-            ImVec2(offset_x + adj_w, offset_y + adj_h),
-            uvMin,
-            uvMax
-        );
-        
-        tf_x = offset_x + adj_w;
-        tf_y = offset_y + adj_h;
-
-        ImVec2 scale_range = ImVec2(2.0 , 8.0);
-        static float texture_zoom = scale_range.x;
-        ImGui::SetCursorScreenPos(pos);
-        ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
-        bool zoom = ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift);
-        if (zoom && ImGui::IsItemHovered())
-        {
-            ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
-            ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
-            float region_sz = 320.0f / texture_zoom;
-            float scale_w = texture_width / (tf_x - offset_x);
-            float scale_h = texture_height / (tf_y - offset_y);
-            float pos_x = (io.MousePos.x - offset_x) * scale_w;
-            float pos_y = (io.MousePos.y - offset_y) * scale_h;
-            float region_x = pos_x - region_sz * 0.5f;
-            float region_y = pos_y - region_sz * 0.5f;
-            if (region_x < 0.0f) { region_x = 0.0f; }
-            else if (region_x > texture_width - region_sz) { region_x = texture_width - region_sz; }
-            if (region_y < 0.0f) { region_y = 0.0f; }
-            else if (region_y > texture_height - region_sz) { region_y = texture_height - region_sz; }
-            ImGui::SetNextWindowBgAlpha(1.0);
-            if (ImGui::BeginTooltip())
-            {
-                ImGui::Text("(%.2fx)", texture_zoom);
-                ImVec2 uv0 = ImVec2((region_x) / texture_width, (region_y) / texture_height);
-                ImVec2 uv1 = ImVec2((region_x + region_sz) / texture_width, (region_y + region_sz) / texture_height);
-                ImGui::Image(texture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
-                ImGui::EndTooltip();
-            }
-            if (io.MouseWheel < -FLT_EPSILON)
-            {
-                texture_zoom *= 0.9;
-                if (texture_zoom < scale_range.x) texture_zoom = scale_range.x;
-            }
-            else if (io.MouseWheel > FLT_EPSILON)
-            {
-                texture_zoom *= 1.1;
-                if (texture_zoom > scale_range.y) texture_zoom = scale_range.y;
-            }
-        }
-    }
-}
-
 // Application Framework Functions
 static void Dither_SetupContext(ImGuiContext *ctx, bool in_splash)
 {
@@ -565,11 +470,6 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
     static ImTextureID m_texture = 0;
     static ImTextureID m_bm_texture = 0;
 
-    ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
-    ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
-    float offset_x = 0, offset_y = 0;
-    float tf_x = 0, tf_y = 0;
-
     auto process_image = [&](std::string output_path = std::string())
     {
         if (m_bm_texture) { ImGui::ImDestroyTexture(m_bm_texture); m_bm_texture = 0; }
@@ -663,7 +563,7 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
         ImGui::ShowTooltipOnHover("File Path:%s", m_file_path.c_str());
         ImGui::Separator();
 
-        if (m_texture) ShowVideoWindow(draw_list, m_texture, ImGui::GetCursorScreenPos(), ImVec2(window_size.x, window_size.x / 2), offset_x, offset_y, tf_x, tf_y);
+        if (m_texture) ImGui::ImShowVideoWindow(draw_list, m_texture, ImGui::GetCursorScreenPos(), ImVec2(window_size.x, window_size.x / 2));
         else ImGui::InvisibleButton("##dummy image", ImVec2(window_size.x, window_size.x / 2));
 
         ImGui::Separator();
@@ -749,7 +649,35 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
         ImVec2 window_size = ImGui::GetContentRegionAvail();
         if (m_bm_texture)
         {
-            ShowVideoWindow(draw_list, m_bm_texture, window_pos, window_size, offset_x, offset_y, tf_x, tf_y);
+            ImGui::ImShowVideoWindow(draw_list, m_bm_texture, window_pos, window_size);
+            std::string dialog_id = "##TextureFileDlgKey" + std::to_string((long long)m_bm_texture);
+            if (ImGui::BeginPopupContextItem())
+            {
+                if (ImGui::MenuItem((std::string(ICON_FA_IMAGE) + " Save Texture to File").c_str()))
+                {
+                    ImGuiFileDialog::Instance()->OpenDialog(dialog_id.c_str(), ICON_IGFD_FOLDER_OPEN " Choose File", 
+                                                            image_filter.c_str(),
+                                                            ".",
+                                                            1, 
+                                                            nullptr, 
+                                                            ImGuiFileDialogFlags_ShowBookmark |
+                                                            ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                                                            ImGuiFileDialogFlags_ConfirmOverwrite |
+                                                            ImGuiFileDialogFlags_Modal);
+                }
+                ImGui::EndPopup();
+            }
+            ImVec2 minSize = ImVec2(600, 300);
+            ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
+            if (ImGuiFileDialog::Instance()->Display(dialog_id.c_str(), ImGuiWindowFlags_NoCollapse, minSize, maxSize))
+            {
+                if (ImGuiFileDialog::Instance()->IsOk() == true)
+                {
+                    std::string file_path = ImGuiFileDialog::Instance()->GetFilePathName();
+                    ImGui::ImTextureToFile(m_bm_texture, file_path);
+                }
+                ImGuiFileDialog::Instance()->Close();
+            }
         }
     }
     ImGui::EndChild();
