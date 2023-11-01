@@ -782,6 +782,11 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
                         ImGui::ImDestroyTexture(m_texture);
                         m_texture = 0;
                     }
+                    if (m_bm_texture)
+                    {
+                        ImGui::ImDestroyTexture(m_bm_texture);
+                        m_bm_texture = 0;
+                    }
                     ImGui::ImMatToTexture(m_mat, m_texture);
                     int width = m_mat.w & 0xFFFFFFFC;
                     m_gray.create_type(width, m_mat.h, IM_DT_INT8);
