@@ -11886,7 +11886,8 @@ void Application_Setup(ApplicationWindowProperty& property)
     property.internationalize = true;
     property.navigator = false;
     //property.using_setting_path = false;
-    //property.power_save = false;
+    //property.power_save = true;
+    //property.low_reflash = false;
     property.font_scale = 2.0f;
 #if 1
     //property.resizable = false;
