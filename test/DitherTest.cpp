@@ -174,6 +174,13 @@ static void Dither_SetupContext(ImGuiContext *ctx, bool in_splash)
 #endif
 }
 
+static void Dither_Initialize(void **handle)
+{
+    auto dither_version = libdither_version();
+    auto dither_mat = dither_test_image();
+    fprintf(stderr, "Dither version:%s\n", dither_version);
+}
+
 static void Dither_Finalize(void **handle)
 {
 }
@@ -401,7 +408,7 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
         ImVec2 window_size = ImGui::GetContentRegionAvail();
         if (m_bm_texture)
         {
-            ImGui::ImShowVideoWindow(draw_list, m_bm_texture, window_pos, window_size);
+            ImGui::ImShowVideoWindow(draw_list, m_bm_texture, window_pos, window_size / 4);
             std::string dialog_id = "##TextureFileDlgKey" + std::to_string((long long)m_bm_texture);
             if (ImGui::BeginPopupContextItem())
             {
@@ -503,6 +510,7 @@ void Application_Setup(ApplicationWindowProperty &property)
     property.width = 1680;
     property.height = 900;
     property.application.Application_SetupContext = Dither_SetupContext;
+    property.application.Application_Initialize = Dither_Initialize;
     property.application.Application_Finalize = Dither_Finalize;
     property.application.Application_Frame = Dither_Frame;
 }
