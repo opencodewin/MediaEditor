@@ -1079,7 +1079,7 @@ static void ShowAbout(int32_t about_start_time)
     ImGui::ShowImGuiInfo();
     ImGui::Separator();
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", ImGui::GetIO().DeltaTime * 1000.f, ImGui::GetIO().Framerate);
-    ImGui::Text("Frames since last input: %d", ImGui::GetIO().FrameCountSinceLastInput);
+    ImGui::Text("Frames since last input: %d", ImGui::GetIO().FrameCountSinceLastUpdate);
 #if IMGUI_VULKAN_SHADER
     ImGui::Separator();
     int device_count = ImGui::get_gpu_count();
@@ -11071,6 +11071,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 12.0f);
     UpdateBreathing();
+    if (timeline && timeline->mIsPreviewPlaying)
+    {
+        ImGui::UpdateData();
+    }
     ImGui::Begin("Main Editor", nullptr, flags);
 #ifdef DEBUG_IMGUI
     if (show_debug) ImGui::ShowMetricsWindow(&show_debug);
@@ -11436,6 +11440,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                             case 1: ShowTransitionBankTreeWindow(draw_list); break;
                             default: break;
                         }
+                        ImGui::UpdateData(); // for animation icon effect
                     break;
                     case 4: ShowMediaOutputWindow(draw_list); break;
                     default: break;
@@ -11898,7 +11903,7 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
     ImGui::SetCursorPos(ImVec2(4, io.DisplaySize.y - 32));
     ImGui::ProgressBar("##splash_progress", percentage, 0.f, 1.f, "", ImVec2(io.DisplaySize.x - 16, 8), 
                         ImVec4(0.3f, 0.3f, 0.8f, 1.f), ImVec4(0.1f, 0.1f, 0.2f, 1.f), ImVec4(0.f, 0.f, 0.8f, 1.f));
-
+    ImGui::UpdateData();
     ImGui::End();
     return title_finished && !g_project_loading && !g_plugin_loading;
 }
@@ -11968,8 +11973,12 @@ void Application_Setup(ApplicationWindowProperty& property)
     property.internationalize = true;
     property.navigator = false;
     //property.using_setting_path = false;
-    //property.power_save = true;
+#if 0
+    property.power_save = true;
     //property.low_reflash = false;
+#else
+    property.low_reflash = true;
+#endif
     property.font_scale = 2.0f;
 #if 1
     //property.resizable = false;
