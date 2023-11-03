@@ -78,7 +78,7 @@ struct KuwaharaEffectNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -99,7 +99,7 @@ struct KuwaharaEffectNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_scale##Kuwahara", key, m_ScaleIn.IsLinked(), "scale##Kuwahara@" + std::to_string(m_ID), 2.f, 10.f, 2.f, m_ScaleIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_scale##Kuwahara", key, ImGui::ImCurveEdit::DIM_X, m_ScaleIn.IsLinked(), "scale##Kuwahara@" + std::to_string(m_ID), 2.f, 10.f, 2.f, m_ScaleIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

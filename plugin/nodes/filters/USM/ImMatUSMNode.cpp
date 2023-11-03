@@ -78,7 +78,7 @@ struct USMNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -101,7 +101,7 @@ struct USMNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_sigma##USM", key, m_SigmaIn.IsLinked(), "sigma##USM@" + std::to_string(m_ID), 0.f, 10.f, 3.f, m_SigmaIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_sigma##USM", key, ImGui::ImCurveEdit::DIM_X, m_SigmaIn.IsLinked(), "sigma##USM@" + std::to_string(m_ID), 0.f, 10.f, 3.f, m_SigmaIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_AmountIn.IsLinked());
         ImGui::SliderFloat("Amount##USM", &_amount, 0, 3.f, "%.1f", flags);
@@ -109,7 +109,7 @@ struct USMNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_amount##USM", key, m_AmountIn.IsLinked(), "amount##USM@" + std::to_string(m_ID), 0.f, 3.f, 1.5f, m_AmountIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_amount##USM", key, ImGui::ImCurveEdit::DIM_X, m_AmountIn.IsLinked(), "amount##USM@" + std::to_string(m_ID), 0.f, 3.f, 1.5f, m_AmountIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_ThresholdIn.IsLinked());
         ImGui::SliderFloat("Threshold##USM", &_threshold, 0, 1.f, "%.2f", flags);
@@ -117,7 +117,7 @@ struct USMNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_threshold##USM", key, m_ThresholdIn.IsLinked(), "threshold##USM@" + std::to_string(m_ID), 0.f, 1.f, 1.f, m_ThresholdIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_threshold##USM", key, ImGui::ImCurveEdit::DIM_X, m_ThresholdIn.IsLinked(), "threshold##USM@" + std::to_string(m_ID), 0.f, 1.f, 1.f, m_ThresholdIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

@@ -78,7 +78,7 @@ struct RadicalBlurEffectNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -102,7 +102,7 @@ struct RadicalBlurEffectNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##RadicalBlur", key, m_RadiusIn.IsLinked(), "radius##RadicalBlur@" + std::to_string(m_ID), 0.0f, 1.f, 0.38f, m_RadiusIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_radius##RadicalBlur", key, ImGui::ImCurveEdit::DIM_X, m_RadiusIn.IsLinked(), "radius##RadicalBlur@" + std::to_string(m_ID), 0.0f, 1.f, 0.38f, m_RadiusIn.m_ID);
         ImGui::EndDisabled();
         ImGui::SliderFloat("Dist##RadicalBlur", &_dist, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_dist##RadicalBlur")) { _dist = 0.25f; changed = true; }

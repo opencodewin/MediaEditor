@@ -70,7 +70,7 @@ struct AudioGainNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve* pCurve, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -91,7 +91,7 @@ struct AudioGainNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_gain##Gain", key, m_GainIn.IsLinked(), "gain##Gain@" + std::to_string(m_ID), 0.f, 2.f, 1.f, m_GainIn.m_ID);
+        if (pCurve) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_gain##Gain", pCurve, ImGui::ImCurveEdit::DIM_X, m_GainIn.IsLinked(), "gain##Gain@" + std::to_string(m_ID), 0.f, 2.f, 1.f, m_GainIn.m_ID);
         ImGui::EndDisabled();
         if (val != m_gain) { m_gain = val; changed = true; }
         ImGui::PopItemWidth();

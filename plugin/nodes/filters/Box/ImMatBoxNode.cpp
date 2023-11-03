@@ -85,7 +85,7 @@ struct BoxBlurNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origi, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origi, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -107,7 +107,7 @@ struct BoxBlurNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_size##Box", key, m_SizeIn.IsLinked(), "size##Box@" + std::to_string(m_ID), 1.f, 20.f, 3.f, m_SizeIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_size##Box", key, ImGui::ImCurveEdit::DIM_X, m_SizeIn.IsLinked(), "size##Box@" + std::to_string(m_ID), 1.f, 20.f, 3.f, m_SizeIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_IterationIn.IsLinked());
         ImGui::SliderInt("Iteration##Box", &_iteration, 1, 20, "%d", flags);
@@ -115,7 +115,7 @@ struct BoxBlurNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_iteration##Box", key, m_IterationIn.IsLinked(), "iteration##Box@" + std::to_string(m_ID), 1.f, 20.f, 1.f, m_IterationIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_iteration##Box", key, ImGui::ImCurveEdit::DIM_X, m_IterationIn.IsLinked(), "iteration##Box@" + std::to_string(m_ID), 1.f, 20.f, 1.f, m_IterationIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

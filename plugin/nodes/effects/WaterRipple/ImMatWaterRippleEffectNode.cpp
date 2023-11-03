@@ -78,7 +78,7 @@ struct WaterRippleEffectNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -100,7 +100,7 @@ struct WaterRippleEffectNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_freq##WaterRipple", key, m_FreqIn.IsLinked(), "freq##WaterRipple@" + std::to_string(m_ID), 0.0f, 100.f, 24.f, m_FreqIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_freq##WaterRipple", key, ImGui::ImCurveEdit::DIM_X, m_FreqIn.IsLinked(), "freq##WaterRipple@" + std::to_string(m_ID), 0.0f, 100.f, 24.f, m_FreqIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat("Amount##WaterRipple", &_amount, 0.0, 1.f, "%.2f", flags);

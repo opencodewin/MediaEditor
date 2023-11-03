@@ -84,7 +84,7 @@ struct HQDN3DNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -109,7 +109,7 @@ struct HQDN3DNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_luma_spatial##HQDN3D", key,  m_LumSpatialIn.IsLinked(), "luma spatial##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 6.f, m_LumSpatialIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_luma_spatial##HQDN3D", key, ImGui::ImCurveEdit::DIM_X,  m_LumSpatialIn.IsLinked(), "luma spatial##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 6.f, m_LumSpatialIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_ChromaSpatialIn.IsLinked());
         ImGui::SliderFloat("Chroma Spatial##HQDN3D", &_chrom_spac, 0, 50.f, "%.1f", flags);
@@ -117,7 +117,7 @@ struct HQDN3DNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_chroma_spatial##HQDN3D", key, m_ChromaSpatialIn.IsLinked(), "chroma spatial##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 4.f, m_ChromaSpatialIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_chroma_spatial##HQDN3D", key, ImGui::ImCurveEdit::DIM_X, m_ChromaSpatialIn.IsLinked(), "chroma spatial##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 4.f, m_ChromaSpatialIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_LumTemporalIn.IsLinked());
         ImGui::SliderFloat("Luma Temporal##HQDN3D", &_lum_tmp, 0, 50.f, "%.1f", flags);
@@ -125,7 +125,7 @@ struct HQDN3DNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_luma_temporal##HQDN3D", key, m_LumTemporalIn.IsLinked(), "luma temporal##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 4.5f, m_LumTemporalIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_luma_temporal##HQDN3D", key, ImGui::ImCurveEdit::DIM_X, m_LumTemporalIn.IsLinked(), "luma temporal##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 4.5f, m_LumTemporalIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_ChromaTemporalIn.IsLinked());
         ImGui::SliderFloat("Chroma Temporal##HQDN3D", &_chrom_tmp, 0, 50.f, "%.1f", flags);
@@ -133,7 +133,7 @@ struct HQDN3DNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_chroma_temporal##HQDN3D", key, m_ChromaTemporalIn.IsLinked(), "chroma temporal##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 3.375f, m_ChromaTemporalIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_chroma_temporal##HQDN3D", key, ImGui::ImCurveEdit::DIM_X, m_ChromaTemporalIn.IsLinked(), "chroma temporal##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 3.375f, m_ChromaTemporalIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

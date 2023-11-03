@@ -89,7 +89,7 @@ struct SmartDenoiseNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -112,7 +112,7 @@ struct SmartDenoiseNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_sigma##SmartDenoise", key, m_SigmaIn.IsLinked(), "sigma##SmartDenoise@" + std::to_string(m_ID), 0.02f, 8.f, 1.2f, m_SigmaIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_sigma##SmartDenoise", key, ImGui::ImCurveEdit::DIM_X, m_SigmaIn.IsLinked(), "sigma##SmartDenoise@" + std::to_string(m_ID), 0.02f, 8.f, 1.2f, m_SigmaIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_KSigmaIn.IsLinked());
         ImGui::SliderFloat("KSigma##SmartDenoise", &_ksigma, 0.f, 3.f, "%.2f", flags);
@@ -120,7 +120,7 @@ struct SmartDenoiseNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_ksigma##SmartDenoise", key, m_KSigmaIn.IsLinked(), "ksigma##SmartDenoise@" + std::to_string(m_ID), 0.f, 3.f, 2.f, m_KSigmaIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_ksigma##SmartDenoise", key, ImGui::ImCurveEdit::DIM_X, m_KSigmaIn.IsLinked(), "ksigma##SmartDenoise@" + std::to_string(m_ID), 0.f, 3.f, 2.f, m_KSigmaIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_ThresholdIn.IsLinked());
         ImGui::SliderFloat("Threshold##SmartDenoise", &_threshold, 0.01f, 2.f, "%.2f", flags);
@@ -128,7 +128,7 @@ struct SmartDenoiseNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_threshold##SmartDenoise", key, m_ThresholdIn.IsLinked(), "threshold##SmartDenoise@" + std::to_string(m_ID), 0.01f, 2.f, 0.2f, m_ThresholdIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_threshold##SmartDenoise", key, ImGui::ImCurveEdit::DIM_X, m_ThresholdIn.IsLinked(), "threshold##SmartDenoise@" + std::to_string(m_ID), 0.01f, 2.f, 0.2f, m_ThresholdIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

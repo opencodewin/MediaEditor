@@ -81,7 +81,7 @@ struct StarEffectNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -104,7 +104,7 @@ struct StarEffectNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_speed##Star", key, m_SpeedIn.IsLinked(), "speed##Star@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_SpeedIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_speed##Star", key, ImGui::ImCurveEdit::DIM_X, m_SpeedIn.IsLinked(), "speed##Star@" + std::to_string(m_ID), 0.0f, 100.f, 1.f, m_SpeedIn.m_ID);
         ImGui::EndDisabled();
         ImGui::SliderInt("Layers##Star", &_layers, 2, 20, "%d", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_layers##Star")) { _layers = 2; changed = true; }

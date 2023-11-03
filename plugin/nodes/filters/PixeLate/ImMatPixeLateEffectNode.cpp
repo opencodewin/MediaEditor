@@ -78,7 +78,7 @@ struct PixeLateEffectNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -99,7 +99,7 @@ struct PixeLateEffectNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##PixeLate", key, m_RadiusIn.IsLinked(), "radius##PixeLate@" + std::to_string(m_ID), 0.01f, 1.f, 0.4f, m_RadiusIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_radius##PixeLate", key, ImGui::ImCurveEdit::DIM_X, m_RadiusIn.IsLinked(), "radius##PixeLate@" + std::to_string(m_ID), 0.01f, 1.f, 0.4f, m_RadiusIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

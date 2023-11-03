@@ -78,7 +78,7 @@ struct CannyNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -102,7 +102,7 @@ struct CannyNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_radius##Canny", key, m_RadiusIn.IsLinked(), "radius##Canny@" + std::to_string(m_ID), 0.f, 10.f, 3.f, m_RadiusIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_radius##Canny", key, ImGui::ImCurveEdit::DIM_X, m_RadiusIn.IsLinked(), "radius##Canny@" + std::to_string(m_ID), 0.f, 10.f, 3.f, m_RadiusIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_MinIn.IsLinked());
         ImGui::SliderFloat("Min Threshold##Canny", &_minThreshold, 0, 1.f, "%.2f", flags);
@@ -110,7 +110,7 @@ struct CannyNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_min##Canny", key, m_MinIn.IsLinked(), "min##Canny@" + std::to_string(m_ID), 0.f, 1.f, 0.1f, m_MinIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_min##Canny", key, ImGui::ImCurveEdit::DIM_X, m_MinIn.IsLinked(), "min##Canny@" + std::to_string(m_ID), 0.f, 1.f, 0.1f, m_MinIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_MaxIn.IsLinked());
         ImGui::SliderFloat("Max Threshold##Canny", &_maxThreshold, _minThreshold, 1.f, "%.2f", flags);
@@ -118,7 +118,7 @@ struct CannyNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_max##Canny", key, m_MaxIn.IsLinked(), "max##Canny@" + std::to_string(m_ID), 0.f, 1.f, 0.45f, m_MaxIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_max##Canny", key, ImGui::ImCurveEdit::DIM_X, m_MaxIn.IsLinked(), "max##Canny@" + std::to_string(m_ID), 0.f, 1.f, 0.45f, m_MaxIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

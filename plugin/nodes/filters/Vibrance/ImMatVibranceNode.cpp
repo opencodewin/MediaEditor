@@ -82,7 +82,7 @@ struct VibranceNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -102,7 +102,7 @@ struct VibranceNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_vibrance##Vibrance", key, m_VibranceIn.IsLinked(), "vibrance##Vibrance@" + std::to_string(m_ID), -4.f, 4.f, 0.f, m_VibranceIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_vibrance##Vibrance", key, ImGui::ImCurveEdit::DIM_X, m_VibranceIn.IsLinked(), "vibrance##Vibrance@" + std::to_string(m_ID), -4.f, 4.f, 0.f, m_VibranceIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

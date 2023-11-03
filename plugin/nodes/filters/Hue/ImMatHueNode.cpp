@@ -79,7 +79,7 @@ struct HueNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -102,7 +102,7 @@ struct HueNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_hue##Hue", key, m_HueIn.IsLinked(), "hue##Hue@" + std::to_string(m_ID), 0.f, 360.f, 0.f, m_HueIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_hue##Hue", key, ImGui::ImCurveEdit::DIM_X, m_HueIn.IsLinked(), "hue##Hue@" + std::to_string(m_ID), 0.f, 360.f, 0.f, m_HueIn.m_ID);
         ImGui::EndDisabled();
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();

@@ -485,8 +485,8 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                 {
                     float current_time = timeline->mCurrentTime - clip->Start();
                     const auto frameRate = timeline->mhMediaSettings->VideoOutFrameRate();
-                    ImVec2 alignX = { (float)frameRate.num, (float)frameRate.den*1000 };
-                    pKP->SetCurveAlignX(alignX);
+                    ImVec2 alignT = { (float)frameRate.num, (float)frameRate.den*1000 };
+                    pKP->SetCurveAlign(alignT, ImGui::ImCurveEdit::DIM_T);
                     mouse_hold |= ImGui::ImCurveEdit::Edit( nullptr,
                                                         pKP,
                                                         sub_window_size, 
@@ -2046,16 +2046,16 @@ int64_t VideoClip::Cropping(int64_t diff, int type)
             auto attribute_keypoint = attribute->GetKeyPoint();
             if (attribute_keypoint)
             {
-                attribute_keypoint->SetMin({0, 0});
-                attribute_keypoint->SetMax(ImVec2(Length(), 1.f), true);
+                attribute_keypoint->SetMin({0, 0, 0, 0});
+                attribute_keypoint->SetMax(ImVec4(1, 1, 1, Length()), true);
                 for (int k = 0; k < attribute_keypoint->GetCurveKeyCount(); k++)
                 {
                     auto pCount = attribute_keypoint->GetCurvePointCount(k);
                     for (int p = 1; p < pCount - 1; p++)
                     {
                         auto point = attribute_keypoint->GetPoint(k, p);
-                        point.point.x -= ret;//StartOffset();
-                        attribute_keypoint->EditPoint(k, p, point.point, point.type);
+                        point.t -= ret;//StartOffset();
+                        attribute_keypoint->EditPoint(k, p, point.val, point.type);
                     }
                 }
             }
@@ -2642,8 +2642,8 @@ TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, std
         mName = name;
         mText = text;
         mTrackStyle = true;
-        mAttributeKeyPoints.SetMin({0.f, 0.f});
-        mAttributeKeyPoints.SetMax(ImVec2(Length(), 1.f), true);
+        mAttributeKeyPoints.SetMin({0, 0, 0, 0});
+        mAttributeKeyPoints.SetMax(ImVec4(1, 1, 1, Length()), true);
     }
 }
 
@@ -2652,8 +2652,8 @@ TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, voi
 {
     mType = MEDIA_DUMMY | MEDIA_TEXT;
     mName = name;
-    mAttributeKeyPoints.SetMin({0.f, 0.f});
-    mAttributeKeyPoints.SetMax(ImVec2(Length(), 1.f), true);
+    mAttributeKeyPoints.SetMin({0, 0, 0, 0});
+    mAttributeKeyPoints.SetMax(ImVec4(1, 1, 1, Length()), true);
 }
 
 TextClip::~TextClip()
@@ -3792,8 +3792,8 @@ Overlap::Overlap(int64_t start, int64_t end, int64_t clip_first, int64_t clip_se
     m_Clip.first = clip_first;
     m_Clip.second = clip_second;
     mHandle = handle;
-    mTransitionKeyPoints.SetMin({0.f, 0.f});
-    mTransitionKeyPoints.SetMax(ImVec2(end - start, 1.f), true);
+    mTransitionKeyPoints.SetMin({0, 0, 0, 0});
+    mTransitionKeyPoints.SetMax(ImVec4(1, 1, 1, end-start), true);
 }
 
 Overlap::~Overlap()
@@ -3874,7 +3874,7 @@ void Overlap::Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t 
         {
             auto transition = dynamic_cast<BluePrintVideoTransition *>(hOvlp->GetTransition().get());
             if (transition)
-                transition->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+                transition->mKeyPoints.SetMax(ImVec4(1, 1, 1, mEnd-mStart), true);
         }
     }
     else if (IS_AUDIO(mType))
@@ -3884,10 +3884,10 @@ void Overlap::Update(int64_t start, int64_t start_clip_id, int64_t end, int64_t 
         {
             auto transition = dynamic_cast<BluePrintAudioTransition *>(hOvlp->GetTransition().get());
             if (transition)
-                transition->mKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+                transition->mKeyPoints.SetMax(ImVec4(1, 1, 1, mEnd-mStart), true);
         }
     }
-    mTransitionKeyPoints.SetMax(ImVec2(mEnd - mStart, 1.f), true);
+    mTransitionKeyPoints.SetMax(ImVec4(1, 1, 1, mEnd-mStart), true);
 }
 
 void Overlap::Seek()
@@ -4837,7 +4837,7 @@ void MediaTrack::Update()
     }
     // update curve range
     if (mMttReader)
-        mMttReader->GetKeyPoints()->SetRangeX(0, timeline->mEnd - timeline->mStart, true);
+        mMttReader->GetKeyPoints()->SetTimeRange(0, timeline->mEnd - timeline->mStart, true);
 }
 
 void MediaTrack::CreateOverlap(int64_t start, int64_t start_clip_id, int64_t end, int64_t end_clip_id, uint32_t type)
@@ -13324,7 +13324,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                         for (int p = 0; p < keypoint->GetCurvePointCount(i); p++)
                         {
                             auto point = keypoint->GetPoint(i, p);
-                            auto pos = point.point.x;
+                            auto pos = point.t;
                             if (pos >= editingClip->firstTime && pos <= editingClip->lastTime)
                             {
                                 ImVec2 center = ImVec2(attribute_title_area.Min.x + (pos - editingClip->firstTime) * editingClip->msPixelWidthTarget, attribute_title_area.Min.y + (attribute_title_area.Max.y - attribute_title_area.Min.y) / 2);
@@ -13349,8 +13349,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 float current_time = editingClip->mCurrentTime;
                 const auto frameRate = main_timeline->mhMediaSettings->VideoOutFrameRate();
                 ImGui::KeyPointEditor* keyPointsPtr = video_attribute ? video_attribute->GetKeyPoint() : nullptr;
-                ImVec2 alignX = { (float)frameRate.num, (float)frameRate.den*1000 };
-                if (keyPointsPtr) keyPointsPtr->SetCurveAlignX(alignX);
+                ImVec2 alignT = { (float)frameRate.num, (float)frameRate.den*1000 };
+                if (keyPointsPtr) keyPointsPtr->SetCurveAlign(alignT, ImGui::ImCurveEdit::DIM_T);
                 mouse_hold |= ImGui::ImCurveEdit::Edit( drawList,
                                                         keyPointsPtr,
                                                         attribute_curve_size, 

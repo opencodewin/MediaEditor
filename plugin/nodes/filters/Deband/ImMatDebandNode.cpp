@@ -82,7 +82,7 @@ struct DeBandNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -106,7 +106,7 @@ struct DeBandNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_threshold##DeBand", key, m_ThresholdIn.IsLinked(), "threshold##DeBand@" + std::to_string(m_ID), 0.f, 0.05f, 0.01f, m_ThresholdIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_threshold##DeBand", key, ImGui::ImCurveEdit::DIM_X, m_ThresholdIn.IsLinked(), "threshold##DeBand@" + std::to_string(m_ID), 0.f, 0.05f, 0.01f, m_ThresholdIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_RangeIn.IsLinked());
         ImGui::SliderInt("Range##DeBand", &_range, 0, 64, "%.d", flags);
@@ -114,7 +114,7 @@ struct DeBandNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_range##DeBand", key, m_RangeIn.IsLinked(), "range##DeBand@" + std::to_string(m_ID), 0.f, 64.f, 16.f, m_RangeIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_range##DeBand", key, ImGui::ImCurveEdit::DIM_X, m_RangeIn.IsLinked(), "range##DeBand@" + std::to_string(m_ID), 0.f, 64.f, 16.f, m_RangeIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_DirectionIn.IsLinked());
         ImGui::SliderFloat("Direction##DeBand", &_direction, 0.f, 4.f, "%.2f", flags);
@@ -122,7 +122,7 @@ struct DeBandNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_direction##DeBand", key, m_DirectionIn.IsLinked(), "direction##DeBand@" + std::to_string(m_ID), 0.f, 4.f, 2.f, m_DirectionIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_direction##DeBand", key, ImGui::ImCurveEdit::DIM_X, m_DirectionIn.IsLinked(), "direction##DeBand@" + std::to_string(m_ID), 0.f, 4.f, 2.f, m_DirectionIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::TextUnformatted("Blur:");ImGui::SameLine();

@@ -52,7 +52,7 @@ public:
     void SetStart(int64_t start) { m_start = start; }
     void SetEnd(int64_t end) { m_end = end; }
     void SetZ(int32_t z) { m_z = z; }
-    void UpdateKeyPointRange() { m_pKp->SetRangeX(0, m_end-m_start, true); }
+    void UpdateKeyPointRange() { m_pKp->SetTimeRange(0, m_end-m_start, true); }
 
     void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
     {
@@ -343,7 +343,7 @@ Event_Base::Event_Base(EventStack_Base* owner, int64_t id, int64_t start, int64_
     : m_owner(owner), m_id(id), m_start(start), m_end(end), m_z(z)
 {
     m_pKp = new ImGui::KeyPointEditor();
-    m_pKp->SetRangeX(0, end-start, true);
+    m_pKp->SetTimeRange(0, end-start, true);
 
     m_pBp = new BluePrint::BluePrintUI();
     m_pBp->Initialize();
@@ -517,10 +517,11 @@ public:
             if (m_pBp->Blueprint_IsExecutable())
             {
                 // setup bp input curve
-                for (int i = 0; i < m_pKp->GetCurveCount(); i++)
+                const int iCurveCnt = m_pKp->GetCurveCount();
+                for (int i = 0; i < iCurveCnt; i++)
                 {
                     auto name = m_pKp->GetCurveName(i);
-                    auto value = m_pKp->GetValue(i, pos);
+                    auto value = m_pKp->GetValueByDim(i, pos, ImGui::ImCurveEdit::DIM_X);
                     m_pBp->Blueprint_SetFilter(name, value);
                 }
                 ImGui::ImMat inMat(vmat);
@@ -814,7 +815,7 @@ VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(
     {
         auto pKp = pEvtImpl->m_pKp = new ImGui::KeyPointEditor();
         pKp->Load(eventJson[itemName]);
-        pKp->SetRangeX(0, pEvtImpl->Length(), true);
+        pKp->SetTimeRange(0, pEvtImpl->Length(), true);
     }
     else
     {
@@ -1017,7 +1018,7 @@ public:
                 for (int i = 0; i < m_pKp->GetCurveCount(); i++)
                 {
                     auto name = m_pKp->GetCurveName(i);
-                    auto value = m_pKp->GetValue(i, pos);
+                    auto value = m_pKp->GetValueByDim(i, pos, ImGui::ImCurveEdit::DIM_X);
                     m_pBp->Blueprint_SetFilter(name, value);
                 }
                 ImGui::ImMat inMat(amat);
@@ -1115,7 +1116,7 @@ AudioEventStackFilter_Impl::AudioEvent_Impl::LoadFromJson(
     {
         auto pKp = pEvtImpl->m_pKp = new ImGui::KeyPointEditor();
         pKp->Load(eventJson[itemName]);
-        pKp->SetRangeX(0, pEvtImpl->Length(), true);
+        pKp->SetTimeRange(0, pEvtImpl->Length(), true);
     }
     else
     {

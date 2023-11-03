@@ -91,7 +91,7 @@ struct SwayEffectNode final : Node
     bool CustomLayout() const override { return true; }
     bool Skippable() const override { return true; }
 
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::keys * key, bool embedded) override
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
         ImGui::SetCurrentContext(ctx);
         float setting_offset = 320;
@@ -114,7 +114,7 @@ struct SwayEffectNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_speed##Sway", key, m_SpeedIn.IsLinked(), "speed##Sway@" + std::to_string(m_ID), 0.0f, 100.f, 20.f, m_SpeedIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_speed##Sway", key, ImGui::ImCurveEdit::DIM_X, m_SpeedIn.IsLinked(), "speed##Sway@" + std::to_string(m_ID), 0.0f, 100.f, 20.f, m_SpeedIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_StrengthIn.IsLinked());
         ImGui::SliderFloat("Strength##Sway", &_strength, 0.f, 100.f, "%.1f", flags);
@@ -122,7 +122,7 @@ struct SwayEffectNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_strength##Sway", key, m_StrengthIn.IsLinked(), "strength##Sway@" + std::to_string(m_ID), 0.0f, 100.f, 20.f, m_StrengthIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_strength##Sway", key, ImGui::ImCurveEdit::DIM_X, m_StrengthIn.IsLinked(), "strength##Sway@" + std::to_string(m_ID), 0.0f, 100.f, 20.f, m_StrengthIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled || m_DensityIn.IsLinked());
         ImGui::SliderFloat("Density##Sway", &_density, 0.f, 100.f, "%.0f", flags);
@@ -130,7 +130,7 @@ struct SwayEffectNode final : Node
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
-        if (key) ImGui::ImCurveCheckEditKeyWithID("##add_curve_density##Sway", key, m_DensityIn.IsLinked(), "density##Sway@" + std::to_string(m_ID), 0.0f, 100.f, 20.f, m_DensityIn.m_ID);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_density##Sway", key, ImGui::ImCurveEdit::DIM_X, m_DensityIn.IsLinked(), "density##Sway@" + std::to_string(m_ID), 0.0f, 100.f, 20.f, m_DensityIn.m_ID);
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (ImGui::Checkbox("Horizontal##Sway", &m_horizontal)) { changed = true; }
