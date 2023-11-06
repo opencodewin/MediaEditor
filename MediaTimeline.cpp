@@ -2477,6 +2477,7 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
                 }
                 ImGui::PopStyleColor(2);
                 ImMatToTexture(plot_mat, mWaveformTexture);
+                ImGui::UpdateData();
             }
             if (mWaveformTexture) drawList->AddImage(mWaveformTexture, customViewStart, customViewStart + window_size, ImVec2(0, 0), ImVec2(1, 1));
 #else
