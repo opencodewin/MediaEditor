@@ -1350,7 +1350,7 @@ static void ShowConfigure(MediaEditorSettings & config)
         switch (ConfigureIndex)
         {
             case 0:
-                // system setting
+            // system setting
             {
                 ImGuiContext& g = *GImGui;
                 if (g.LanguagesLoaded && !g.StringMap.empty())
@@ -8921,6 +8921,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
         return;
     bool force_update_preview = false;
     ImGuiIO &io = ImGui::GetIO();
+    bool power_saving_mode = io.ConfigFlags & ImGuiConfigFlags_EnablePowerSavingMode;
     ImVec2 default_size(0, 0);
     MediaCore::SubtitleImage current_image;
     TextClip * editing_clip = dynamic_cast<TextClip*>(timeline->FindEditingClip());
@@ -9007,7 +9008,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
             if (ImGui::BeginChild("##text_sytle_window", style_view_size - ImVec2(8, 0), false, child_flags))
             {
                 ImVec2 table_size;
-                if (ImGui::TabLabels(TextEditorTabNames, StyleWindowIndex, table_size, std::vector<std::string>() , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
+                if (ImGui::TabLabels(TextEditorTabNames, StyleWindowIndex, table_size, std::vector<std::string>() , false, !power_saving_mode, nullptr, nullptr, false, false, nullptr, nullptr))
                 {
                 }
 
@@ -11048,6 +11049,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
     const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite | ImGuiFileDialogFlags_Modal;
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    bool power_saving_mode = io.ConfigFlags & ImGuiConfigFlags_EnablePowerSavingMode;
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
     const ImGuiViewportP* viewport = (ImGuiViewportP*) ImGui::GetMainViewport();
     main_mon = viewport->PlatformMonitor;
@@ -11070,7 +11072,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     //if (first_display) { ImGui::SetNextWindowFocus(); first_display = false; }
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 12.0f);
-    UpdateBreathing();
+    if (power_saving_mode) UpdateBreathing();
     if (timeline && timeline->mIsPreviewPlaying)
     {
         ImGui::UpdateData();
@@ -11410,7 +11412,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         {
             ImVec2 bank_window_size = ImGui::GetWindowSize();
             ImVec2 table_size;
-            if (ImGui::TabLabels(ControlPanelTabNames, ControlPanelIndex, table_size, ControlPanelTabTooltips , false, true, nullptr, nullptr, false, false, nullptr, nullptr))
+            if (ImGui::TabLabels(ControlPanelTabNames, ControlPanelIndex, table_size, ControlPanelTabTooltips , false, !power_saving_mode, nullptr, nullptr, false, false, nullptr, nullptr))
             {
             }
 
@@ -11501,7 +11503,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImDrawList *draw_list = ImGui::GetWindowDrawList();
             ImVec2 table_size;
             int window_index = MainWindowIndex;
-            if (ImGui::TabLabels(MainWindowTabNames, window_index, table_size, MainWindowTabTooltips, false, true, nullptr, nullptr, false, false, nullptr, nullptr))
+            if (ImGui::TabLabels(MainWindowTabNames, window_index, table_size, MainWindowTabTooltips, false, !power_saving_mode, nullptr, nullptr, false, false, nullptr, nullptr))
             {
                 MainWindowIndex = window_index;
                 timeline->mSelectedItem = -1;
