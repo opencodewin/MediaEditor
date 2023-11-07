@@ -2789,7 +2789,10 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
             }
             ImTextureID tid = timeline->mMediaPlayer->g_tx ? timeline->mMediaPlayer->g_tx->TextureID() : nullptr;
             if (tid)
-                ImGui::Image(tid, window_size);
+            {
+                ImGui::ImShowVideoWindow(draw_list, tid, window_pos, window_size);
+                //ImGui::Image(tid, window_size);
+            }
             else
                 ImGui::Dummy(window_size);
 
@@ -2803,8 +2806,9 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
                         timeline->mMediaPlayer->g_vidrdr->SetLogLevel(Logger::DEBUG);
                         timeline->mMediaPlayer->g_vidrdr->EnableHwAccel(timeline->mMediaPlayer->g_useHwAccel);
                         timeline->mMediaPlayer->g_vidrdr->Open(timeline->mMediaPlayer->g_mediaParser);
-                        timeline->mMediaPlayer->g_vidrdr->ConfigVideoReader((uint32_t)window_size.x, (uint32_t)window_size.y,
-                                IM_CF_RGBA, IM_DT_INT8, IM_INTERPOLATE_AREA, MediaCore::HwaccelManager::GetDefaultInstance());
+                        //timeline->mMediaPlayer->g_vidrdr->ConfigVideoReader((uint32_t)window_size.x, (uint32_t)window_size.y,
+                        //        IM_CF_RGBA, IM_DT_INT8, IM_INTERPOLATE_AREA, MediaCore::HwaccelManager::GetDefaultInstance());
+                        timeline->mMediaPlayer->g_vidrdr->ConfigVideoReader(1.f, 1.f, IM_CF_RGBA, IM_DT_INT8, IM_INTERPOLATE_AREA, MediaCore::HwaccelManager::GetDefaultInstance());
                         // g_vidrdr->ConfigVideoReader(1.0f, 1.0f);
                         if (playPos > 0)
                             timeline->mMediaPlayer->g_vidrdr->SeekTo(playPos*1000);
@@ -11079,7 +11083,9 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 12.0f);
     if (power_saving_mode) UpdateBreathing();
-    if (g_project_loading || (timeline && timeline->mIsPreviewPlaying))
+    if (g_project_loading || 
+        (timeline && timeline->mIsPreviewPlaying) || 
+        (timeline && timeline->mMediaPlayer && timeline->mMediaPlayer->g_isPlay))
     {
         ImGui::UpdateData();
     }
