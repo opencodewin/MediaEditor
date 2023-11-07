@@ -380,6 +380,7 @@ struct MediaEditorSettings
     bool TextCurveExpanded {true};          // Text curve view expanded
     float OldBottomViewHeight {0.4};        // Old Bottom view height, recorde at non-expanded
     bool showMeters {true};                 // show fps/GPU usage at top right of windows
+    bool powerSaving {false};               // power saving mode of imgui in low refresh rate
 
     bool HardwareCodec {true};              // try HW codec
     int VideoWidth  {1920};                 // timeline Media Width
@@ -1381,6 +1382,9 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::BulletText("Show UI Meters");
                 // ImGui::TextUnformatted("Show UI Meters");
                 ImGui::ToggleButton("##show_ui_meters", &config.showMeters);
+                ImGui::Separator();
+                ImGui::BulletText("UI PowerSaving");
+                ImGui::ToggleButton("##ui_power_saving", &config.powerSaving);
                 ImGui::Separator();
                 ImGui::BulletText("Bank View Style");
                 // ImGui::TextUnformatted("Bank View Style");
@@ -10627,6 +10631,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         else if (sscanf(line, "BottomViewHeight=%f", &val_float) == 1) { setting->BottomViewHeight = isnan(val_float) ? 0.4f : val_float; }
         else if (sscanf(line, "OldBottomViewHeight=%f", &val_float) == 1) { setting->OldBottomViewHeight = val_float; }
         else if (sscanf(line, "ShowMeters=%d", &val_int) == 1) { setting->showMeters = val_int == 1; }
+        else if (sscanf(line, "PowerSaving=%d", &val_int) == 1) { setting->powerSaving = val_int == 1; }
         else if (sscanf(line, "ControlPanelWidth=%f", &val_float) == 1) { setting->ControlPanelWidth = val_float; }
         else if (sscanf(line, "MainViewWidth=%f", &val_float) == 1) { setting->MainViewWidth = val_float; }
         else if (sscanf(line, "HWCodec=%d", &val_int) == 1) { setting->HardwareCodec = val_int == 1; }
@@ -10745,6 +10750,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         out_buf->appendf("BottomViewHeight=%f\n", g_media_editor_settings.BottomViewHeight);
         out_buf->appendf("OldBottomViewHeight=%f\n", g_media_editor_settings.OldBottomViewHeight);
         out_buf->appendf("ShowMeters=%d\n", g_media_editor_settings.showMeters ? 1 : 0);
+        out_buf->appendf("PowerSaving=%d\n", g_media_editor_settings.powerSaving ? 1 : 0);
         out_buf->appendf("ControlPanelWidth=%f\n", g_media_editor_settings.ControlPanelWidth);
         out_buf->appendf("MainViewWidth=%f\n", g_media_editor_settings.MainViewWidth);
         out_buf->appendf("HWCodec=%d\n", g_media_editor_settings.HardwareCodec ? 1 : 0);
@@ -11073,7 +11079,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 12.0f);
     if (power_saving_mode) UpdateBreathing();
-    if (timeline && timeline->mIsPreviewPlaying)
+    if (g_project_loading || (timeline && timeline->mIsPreviewPlaying))
     {
         ImGui::UpdateData();
     }
@@ -11231,6 +11237,15 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImGui::Text("%s", project_name.c_str());
     if (project_changed) { ImGui::SameLine(); ImGui::TextUnformatted("*"); }
     ImGui::SetWindowFontScale(1.0);
+    // power saving mode check
+    if (g_media_editor_settings.powerSaving)
+    {
+        io.ConfigFlags |= ImGuiConfigFlags_EnablePowerSavingMode;
+    }
+    else
+    {
+        io.ConfigFlags &= ~ImGuiConfigFlags_EnablePowerSavingMode;
+    }
     // show meters
     if (g_media_editor_settings.showMeters)
     {
@@ -11975,12 +11990,7 @@ void Application_Setup(ApplicationWindowProperty& property)
     property.internationalize = true;
     property.navigator = false;
     //property.using_setting_path = false;
-#if 0
-    property.power_save = true;
-    //property.low_reflash = false;
-#else
     property.low_reflash = true;
-#endif
     property.font_scale = 2.0f;
 #if 1
     //property.resizable = false;
