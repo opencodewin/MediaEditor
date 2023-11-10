@@ -58,16 +58,16 @@ struct MatWarpPerspectiveNode final : Node
                 }
             }
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
-            ImVec2 src_corners[4];
-            ImVec2 dst_corners[4];
-            dst_corners[0] = ImVec2(0, 0);
-            dst_corners[1] = ImVec2(mat_in.w, 0);
-            dst_corners[2] = ImVec2(mat_in.w, mat_in.h);
-            dst_corners[3] = ImVec2(0, mat_in.h);
-            src_corners[0] = m_warp_tl * ImVec2(mat_in.w, mat_in.h);
-            src_corners[1] = m_warp_tr * ImVec2(mat_in.w, mat_in.h);
-            src_corners[2] = m_warp_br * ImVec2(mat_in.w, mat_in.h);
-            src_corners[3] = m_warp_bl * ImVec2(mat_in.w, mat_in.h);
+            ImPoint src_corners[4];
+            ImPoint dst_corners[4];
+            dst_corners[0] = ImPoint(0, 0);
+            dst_corners[1] = ImPoint(mat_in.w, 0);
+            dst_corners[2] = ImPoint(mat_in.w, mat_in.h);
+            dst_corners[3] = ImPoint(0, mat_in.h);
+            src_corners[0] = Vec2Point(m_warp_tl * ImVec2(mat_in.w, mat_in.h));
+            src_corners[1] = Vec2Point(m_warp_tr * ImVec2(mat_in.w, mat_in.h));
+            src_corners[2] = Vec2Point(m_warp_br * ImVec2(mat_in.w, mat_in.h));
+            src_corners[3] = Vec2Point(m_warp_bl * ImVec2(mat_in.w, mat_in.h));
             m_matrix = ImGui::getPerspectiveTransform(src_corners, dst_corners);
             m_NodeTimeMs = m_transform->warp(mat_in, im_RGB, m_matrix, m_interpolation_mode, ImPixel(0, 0, 0, 0));
             m_MatOut.SetValue(im_RGB);
