@@ -19,6 +19,7 @@
 #include "MediaInfo.h"
 #include <imgui_helper.h>
 #include <imgui_extra_widget.h>
+#include <imgui_fft.h>
 #include <implot.h>
 #include <cmath>
 #include <sstream>
@@ -7358,7 +7359,7 @@ void TimeLine::CustomDraw(
         float start_offset_x = std::max((legendRect.GetSize().x - back_icon_size.x) / 2, 0.f);
         float start_offset_y = std::max((legendRect.GetSize().y - back_icon_size.y) / 2, 0.f);
         ImGui::SetWindowFontScale(1.0f);
-        ImGui::AddTextComplex(draw_list, legendRect.Min + ImVec2(start_offset_x, start_offset_y), back_icon.c_str(), back_icon_scale * 0.75, back_icon_color, 1.0f, IM_COL32(0, 0, 0, 255));
+        draw_list->AddTextComplex(legendRect.Min + ImVec2(start_offset_x, start_offset_y), back_icon.c_str(), back_icon_scale * 0.75, back_icon_color, 1.0f, IM_COL32(0, 0, 0, 255));
     }
 
     auto is_control_hovered = track->DrawTrackControlBar(draw_list, legendRect, enable_select, pActionList);
@@ -10462,7 +10463,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             auto string_width = ImGui::CalcTextSize(tips_string.c_str());
             auto tips_pos = pos_center - string_width / 2;
             ImGui::SetWindowFontScale(1.0);
-            ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 4.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
+            draw_list->AddTextComplex(tips_pos, tips_string.c_str(), 4.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
 
             if (regionRect.Contains(io.MousePos) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && !ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right))
             {
@@ -12547,7 +12548,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         auto string_width = ImGui::CalcTextSize(tips_string.c_str());
         auto tips_pos = pos_center - string_width / 2;
         ImGui::SetWindowFontScale(1);
-        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
+        draw_list->AddTextComplex(tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
         return false;
     }
     ImGuiIO &io = ImGui::GetIO();
@@ -13673,7 +13674,7 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         auto string_width = ImGui::CalcTextSize(tips_string.c_str());
         auto tips_pos = pos_center - string_width / 2;
         ImGui::SetWindowFontScale(1.0);
-        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
+        draw_list->AddTextComplex(tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
         return changed;
     }
     ImGuiIO &io = ImGui::GetIO();

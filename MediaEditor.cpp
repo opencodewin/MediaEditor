@@ -867,14 +867,14 @@ static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 p
         tf_y = offset_y + adj_h;
         if (!title.empty() && title_size > 0)
         {
-            ImGui::AddTextComplex(draw_list, ImVec2(offset_x, offset_y) + ImVec2(20, 10),
+            draw_list->AddTextComplex(ImVec2(offset_x, offset_y) + ImVec2(20, 10),
                                 title.c_str(), title_size, IM_COL32(224, 224, 224, 128),
                                 0.25f, IM_COL32(128, 128, 128, 255),
                                 ImVec2(title_size * 1.5, title_size * 1.5), IM_COL32(32, 32, 32, 255));
         }
         if (out_border)
         {
-            ImGui::AddTextComplex(draw_list, ImVec2(offset_x, offset_y + adj_h - 48) + ImVec2(20, 10),
+            draw_list->AddTextComplex(ImVec2(offset_x, offset_y + adj_h - 48) + ImVec2(20, 10),
                                 "Out of range", title_size, IM_COL32(224, 0, 0, 224),
                                 0.25f, IM_COL32(128, 128, 128, 255),
                                 ImVec2(title_size * 1.5, title_size * 1.5), IM_COL32(32, 32, 32, 255));
@@ -1013,7 +1013,7 @@ static bool Show_Version(ImDrawList* draw_list, int32_t start_time)
         auto mark_size = ImGui::CalcTextSize(str.c_str());
         float xoft = (logo_texture ? 32 + 256 : 0) + (window_size.x - mark_size.x - (logo_texture ? 256 : 0)) / 2;
         float yoft = (window_size.y - mark_size.y - 32) / 2 - 32;
-        ImGui::AddTextComplex(draw_list, window_pos + ImVec2(xoft, yoft), str.c_str(), 4.f, IM_COL32(255, 255, 255, title_alpha * 255), 0.f, 0, ImVec2(4, 4), IM_COL32(0, 0, 0, 255));
+        draw_list->AddTextComplex(window_pos + ImVec2(xoft, yoft), str.c_str(), 4.f, IM_COL32(255, 255, 255, title_alpha * 255), 0.f, 0, ImVec2(4, 4), IM_COL32(0, 0, 0, 255));
         ImGui::SetWindowFontScale(2.0);
         std::string cstr = "Community";
         auto csize = ImGui::CalcTextSize(cstr.c_str());
@@ -2402,7 +2402,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
         if (ImGui::BeginChild("##Media_bank_content_menu", menu_window_size, false, child_window_flags))
         {
             ImDrawList * draw_list = ImGui::GetWindowDrawList();
-            ImGui::AddTextComplex(draw_list, ImGui::GetWindowPos() + ImVec2(4, 0),
+            draw_list->AddTextComplex(ImGui::GetWindowPos() + ImVec2(4, 0),
                                     "Media Bank", 2.5, COL_GRAY_TEXT,
                                     0.5f, IM_COL32(56, 56, 56, 192));
             // Modify by Jimmy, Begin
@@ -2483,10 +2483,10 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
             if (timeline->media_items.empty())
             {
                 ImU32 text_color = IM_COL32(ui_breathing * 255, ui_breathing * 255, ui_breathing * 255, 255);
-                ImGui::AddTextComplex(draw_list, window_pos + ImVec2(128,  48), "Please Click", 2.0f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
-                ImGui::AddTextComplex(draw_list, window_pos + ImVec2(128,  80), "<-- Here", 2.0f, text_color, 0.5f, IM_COL32(56, 56, 56, 192));
-                ImGui::AddTextComplex(draw_list, window_pos + ImVec2(128, 112), "To Add Media", 2.0f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
-                ImGui::AddTextComplex(draw_list, window_pos + ImVec2( 10, 144), "Or Drag Files From Brower", 2.f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
+                draw_list->AddTextComplex(window_pos + ImVec2(128,  48), "Please Click", 2.0f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
+                draw_list->AddTextComplex(window_pos + ImVec2(128,  80), "<-- Here", 2.0f, text_color, 0.5f, IM_COL32(56, 56, 56, 192));
+                draw_list->AddTextComplex(window_pos + ImVec2(128, 112), "To Add Media", 2.0f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
+                draw_list->AddTextComplex(window_pos + ImVec2( 10, 144), "Or Drag Files From Brower", 2.f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
             }
             // Show Media Icons
             int icon_number_pre_row = window_size.x / (media_icon_size + 24);
@@ -2652,7 +2652,7 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
         if (ImGui::BeginChild("##Media_finder_content_dialog", dialog_window_size, false, child_window_flags))
         {
             ImDrawList * draw_list = ImGui::GetWindowDrawList();
-            ImGui::AddTextComplex(draw_list, ImGui::GetWindowPos() + ImVec2(4, 0),
+            draw_list->AddTextComplex(ImGui::GetWindowPos() + ImVec2(4, 0),
                                     "Media Finder", 2.5, COL_GRAY_TEXT,
                                     0.5f, IM_COL32(56, 56, 56, 192));
             ImGui::SetCursorPos(ImVec2(0, 50));
@@ -2907,7 +2907,7 @@ static void ShowTransitionBankIconWindow(ImDrawList *_draw_list)
         ImVec2 window_pos = ImGui::GetWindowPos();
         ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
         ImDrawList * draw_list = ImGui::GetWindowDrawList();
-        ImGui::AddTextComplex(draw_list, window_pos + ImVec2(8, 0), "Transition Bank", 2.5f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
+        draw_list->AddTextComplex(window_pos + ImVec2(8, 0), "Transition Bank", 2.5f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
         ImGui::Indent(20);
         // Show Transition Icons
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
@@ -2981,7 +2981,7 @@ static void ShowTransitionBankTreeWindow(ImDrawList *_draw_list)
 
         ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
         const ImVec2 item_size(window_size.x, 32);
-        ImGui::AddTextComplex(draw_list, window_pos + ImVec2(8, 0), "Transition Bank", 2.5f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
+        draw_list->AddTextComplex(window_pos + ImVec2(8, 0), "Transition Bank", 2.5f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
         // Show Transition Tree
         if (timeline->m_BP_UI.m_Document)
         {
@@ -3158,7 +3158,7 @@ static void ShowFilterBankIconWindow(ImDrawList *_draw_list)
         ImVec2 window_pos = ImGui::GetWindowPos();
         ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
         ImDrawList * draw_list = ImGui::GetWindowDrawList();
-        ImGui::AddTextComplex(draw_list, window_pos + ImVec2(8, 0), "Filter Bank", 2.5f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
+        draw_list->AddTextComplex(window_pos + ImVec2(8, 0), "Filter Bank", 2.5f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
         ImGui::Indent(20);
         // Show Filter Icons
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
@@ -3231,7 +3231,7 @@ static void ShowFilterBankTreeWindow(ImDrawList *_draw_list)
         ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
         ImDrawList * draw_list = ImGui::GetWindowDrawList();
         const ImVec2 item_size(window_size.x, 32);
-        ImGui::AddTextComplex(draw_list, window_pos + ImVec2(8, 0), "Filter Bank", 2.5f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
+        draw_list->AddTextComplex(window_pos + ImVec2(8, 0), "Filter Bank", 2.5f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
 
         // Show Filter Tree
         if (timeline->m_BP_UI.m_Document)
@@ -3412,7 +3412,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
         ImDrawList * draw_list = ImGui::GetWindowDrawList();
         ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
         const ImVec2 item_size(window_size.x, 32);
-        ImGui::AddTextComplex(draw_list, window_pos + ImVec2(8, 0), "Media Output", 2.5f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
+        draw_list->AddTextComplex(window_pos + ImVec2(8, 0), "Media Output", 2.5f, COL_GRAY_TEXT, 0.5f, IM_COL32(56, 56, 56, 192));
 
         ImGui::SetCursorPos({20, 50});
         ImGui::SetWindowFontScale(1.2);
@@ -4788,7 +4788,7 @@ static void ShowClipBluePrintWindow(ImDrawList *draw_list, BaseEditingClip * edi
         auto string_width = ImGui::CalcTextSize(tips_string.c_str());
         auto tips_pos = pos_center - string_width / 2;
         ImGui::SetWindowFontScale(1);
-        ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
+        draw_list->AddTextComplex(tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
     }
 }
 
@@ -5309,7 +5309,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         //auto string_width = ImGui::CalcTextSize(tips_string.c_str());
         //auto tips_pos = pos_center - string_width / 2;
         //ImGui::SetWindowFontScale(1);
-        //ImGui::AddTextComplex(draw_list, tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
+        //draw_list->AddTextComplex(tips_pos, tips_string.c_str(), 2.f, IM_COL32(255, 255, 255, 128), 0.5f, IM_COL32(56, 56, 56, 192));
         ImGui::TextUnformatted("No Event");
         return;
     }
@@ -5836,7 +5836,7 @@ static void ShowVideoClipWindow(ImDrawList *draw_list, ImRect title_rect, Editin
     auto title_size = ImGui::CalcTextSize("Video Clip");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     ImGui::SetWindowFontScale(1.0);
-    ImGui::AddTextComplex(draw_list, ImVec2(str_offset, title_rect.Min.y), "Video Clip", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
+    draw_list->AddTextComplex(ImVec2(str_offset, title_rect.Min.y), "Video Clip", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -6283,7 +6283,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
     auto title_size = ImGui::CalcTextSize("Video Transition");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     ImGui::SetWindowFontScale(1.0);
-    ImGui::AddTextComplex(draw_list, ImVec2(str_offset, title_rect.Min.y), "Video Transition", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
+    draw_list->AddTextComplex(ImVec2(str_offset, title_rect.Min.y), "Video Transition", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -6758,7 +6758,7 @@ static void ShowAudioClipWindow(ImDrawList *draw_list, ImRect title_rect, Editin
     auto title_size = ImGui::CalcTextSize("Audio Clip");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     ImGui::SetWindowFontScale(1.0);
-    ImGui::AddTextComplex(draw_list, ImVec2(str_offset, title_rect.Min.y), "Audio Clip", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
+    draw_list->AddTextComplex(ImVec2(str_offset, title_rect.Min.y), "Audio Clip", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -7009,7 +7009,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
     auto title_size = ImGui::CalcTextSize("Audio Transition");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     ImGui::SetWindowFontScale(1.0);
-    ImGui::AddTextComplex(draw_list, ImVec2(str_offset, title_rect.Min.y), "Audio Transition", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
+    draw_list->AddTextComplex(ImVec2(str_offset, title_rect.Min.y), "Audio Transition", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -7433,7 +7433,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     auto title_size = ImGui::CalcTextSize("Audio Mixer");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     ImGui::SetWindowFontScale(1.0);
-    ImGui::AddTextComplex(draw_list, ImVec2(str_offset, title_rect.Min.y), "Audio Mixer", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
+    draw_list->AddTextComplex(ImVec2(str_offset, title_rect.Min.y), "Audio Mixer", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
     
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -8913,7 +8913,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     auto title_size = ImGui::CalcTextSize("Text Style");
     float str_offset = title_rect.Max.x - title_size.x - 16;
     ImGui::SetWindowFontScale(1.0);
-    ImGui::AddTextComplex(draw_list, ImVec2(str_offset, title_rect.Min.y), "Text Style", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
+    draw_list->AddTextComplex(ImVec2(str_offset, title_rect.Min.y), "Text Style", 1.8f, COL_TITLE_COLOR, 0.5f, COL_TITLE_OUTLINE);
 
     static int StyleWindowIndex = 0; 
     ImVec2 window_pos = ImGui::GetCursorScreenPos();

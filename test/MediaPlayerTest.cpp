@@ -3,6 +3,7 @@
 #include <imgui_helper.h>
 #include <ImGuiFileDialog.h>
 #include <imgui_extra_widget.h>
+#include <imgui_fft.h>
 #include <iostream>
 #include <sstream>
 #include <fstream>
