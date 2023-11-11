@@ -242,6 +242,8 @@ struct MatImageNode final : Node
 
     span<Pin*> GetInputPins() override { return m_InputPins; }
     span<Pin*> GetOutputPins() override { return m_OutputPins; }
+    Pin* GetAutoLinkInputFlowPin() override { return &m_Enter; }
+    Pin* GetAutoLinkOutputFlowPin() override { return &m_Exit; }
 
     FlowPin   m_Enter  = { this, "Enter" };
     FlowPin   m_Reset  = { this, "Reset" };

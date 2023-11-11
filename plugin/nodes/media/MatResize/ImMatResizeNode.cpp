@@ -225,6 +225,8 @@ struct MatResizeNode final : Node
 
     Pin* m_InputPins[3] = { &m_Enter, &m_IReset, &m_MatIn };
     Pin* m_OutputPins[3] = { &m_Exit, &m_OReset, &m_MatOut };
+    Pin* GetAutoLinkInputFlowPin() override { return &m_Enter; }
+    Pin* GetAutoLinkOutputFlowPin() override { return &m_Exit; }
 
 private:
 #if IMGUI_VULKAN_SHADER
