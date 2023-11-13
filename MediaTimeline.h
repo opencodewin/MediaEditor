@@ -1288,7 +1288,6 @@ struct TimeLine
     void SortMediaItemByName();
     void SortMediaItemByType();
     void FilterMediaItemByType(uint32_t mediaType);     // Media Bank, filter
-    ImGuiFileDialog embedded_filedialog;                // Media Finder, embedded filedialog
     MEC::MediaPlayer * mMediaPlayer;                    // Media Player
     // Add By Jimmy: End
 

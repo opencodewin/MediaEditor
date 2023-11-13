@@ -140,7 +140,7 @@ static void TransitionMake_SetupContext(ImGuiContext* ctx, bool in_splash)
     bookmark_ini_handler.ReadLineFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line) -> void
     {
         IGFD::FileDialog * dialog = (IGFD::FileDialog *)entry;
-        dialog->DeserializeBookmarks(line);
+        if (dialog) dialog->DeserializeBookmarks(line);
     };
     bookmark_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
     {

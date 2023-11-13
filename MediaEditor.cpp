@@ -568,6 +568,7 @@ static bool project_changed = false;
 static bool mouse_hold = false;
 static uint32_t scope_flags = 0xFFFFFFFF;
 static bool set_context_in_splash = false;
+static ImGuiFileDialog embedded_filedialog; // Media Finder, embedded filedialog
 
 static int ConfigureIndex = 0;              // default timeline setting
 static int ControlPanelIndex = 0;           // default Media Bank window
@@ -2658,7 +2659,7 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
             ImGui::SetCursorPos(ImVec2(0, 50));
             ImGui::PushStyleColor(ImGuiCol_Separator, COL_MARK);
             ImGui::Separator();
-            timeline->embedded_filedialog.OpenDialog("##MediaEmbeddedFileDlgKey", "Select File",
+            embedded_filedialog.OpenDialog("##MediaEmbeddedFileDlgKey", "Select File",
                                             abbr_ffilters.c_str(),
                                             "",
                                             -1,
@@ -2666,16 +2667,17 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
                                             ImGuiFileDialogFlags_NoDialog |
                                             ImGuiFileDialogFlags_NoButton |
                                             ImGuiFileDialogFlags_DontShowHiddenFiles |
-                                            ImGuiFileDialogFlags_PathDecompositionShort |
-                                            ImGuiFileDialogFlags_DisableBookmarkMode | 
+                                            //ImGuiFileDialogFlags_PathDecompositionShort |
+                                            //ImGuiFileDialogFlags_DisableBookmarkMode | 
+                                            ImGuiFileDialogFlags_ShowBookmark |
                                             ImGuiFileDialogFlags_ReadOnlyFileNameField |
                                             ImGuiFileDialogFlags_CaseInsensitiveExtention);
         }
 
         // ImGui::BeginDisabled(timeline->mMediaPlayer->g_isPlay);
-        if (timeline->embedded_filedialog.Display("##MediaEmbeddedFileDlgKey", ImGuiWindowFlags_NoCollapse, ImVec2(0,0), dialog_window_size - ImVec2(0, 60)))
+        if (embedded_filedialog.Display("##MediaEmbeddedFileDlgKey", ImGuiWindowFlags_NoCollapse, ImVec2(0,0), dialog_window_size - ImVec2(0, 60)))
         {
-            if (timeline->embedded_filedialog.IsOk())
+            if (embedded_filedialog.IsOk())
             {
                 if (timeline->mMediaPlayer->g_vidrdr) timeline->mMediaPlayer->g_vidrdr->Close();
                 timeline->mMediaPlayer->g_audrdr->Close();
@@ -2684,13 +2686,13 @@ static void ShowMediaFinderWindow(ImDrawList *_draw_list, float media_icon_size)
                 timeline->mMediaPlayer->g_playStartPos = 0;
                 timeline->mMediaPlayer->g_audioStreamCount = 0;
                 if (timeline->mMediaPlayer->g_tx) timeline->mMediaPlayer->g_tx = nullptr;
-                std::string filePathName = timeline->embedded_filedialog.GetFilePathName();
+                std::string filePathName = embedded_filedialog.GetFilePathName();
                 timeline->mMediaPlayer->g_mediaParser = MediaCore::MediaParser::CreateInstance();
                 timeline->mMediaPlayer->g_mediaParser->Open(filePathName);
                 timeline->mMediaPlayer->g_isOpening = true;
                 timeline->mMediaPlayer->g_isPlay = true;
             }
-            timeline->embedded_filedialog.Close();
+            embedded_filedialog.Close();
         }
         // ImGui::EndDisabled();
         ImGui::Separator();
@@ -10618,6 +10620,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
     setting_ini_handler.ReadLineFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line) -> void
     {
         MediaEditorSettings * setting = (MediaEditorSettings*)entry;
+        if (!setting) return;
         int val_int = 0;
         int64_t val_int64 = 0;
         float val_float = 0;
@@ -10890,7 +10893,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
     bookmark_ini_handler.ReadLineFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line) -> void
     {
         IGFD::FileDialog * dialog = (IGFD::FileDialog *)entry;
-        dialog->DeserializeBookmarks(line);
+        if (dialog) dialog->DeserializeBookmarks(line);
     };
     bookmark_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
     {
@@ -10902,6 +10905,24 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         out_buf->append("\n");
     };
     ctx->SettingsHandlers.push_back(bookmark_ini_handler);
+
+    ImGuiSettingsHandler bookmark_ini_handler_media_bank;
+    bookmark_ini_handler_media_bank.TypeName = "BookMark_Bank";
+    bookmark_ini_handler_media_bank.TypeHash = ImHashStr("BookMark_Bank");
+    bookmark_ini_handler_media_bank.ReadLineFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line) -> void
+    {
+        embedded_filedialog.DeserializeBookmarks(line);
+    };
+    bookmark_ini_handler_media_bank.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
+    {
+        ImGuiContext& g = *ctx;
+        out_buf->reserve(out_buf->size() + g.SettingsWindows.size() * 6); // ballpark reserve
+        auto bookmark = embedded_filedialog.SerializeBookmarks();
+        out_buf->appendf("[%s][##%s]\n", handler->TypeName, handler->TypeName);
+        out_buf->appendf("%s\n", bookmark.c_str());
+        out_buf->append("\n");
+    };
+    ctx->SettingsHandlers.push_back(bookmark_ini_handler_media_bank);
 #endif
 }
 
