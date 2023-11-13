@@ -340,6 +340,7 @@ struct MediaItem
     std::string mName;
     std::string mPath;
     bool mValid {false};                    // Media source is valid
+    bool mSelected {false};                 // Media source is selected by double clicked
     int64_t mSrcLength  {0};                // whole Media end in ms
     MediaCore::Overview::Holder mMediaOverview;
     uint32_t mMediaType {MEDIA_UNKNOWN};
