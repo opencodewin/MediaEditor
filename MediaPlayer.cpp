@@ -20,6 +20,14 @@ MediaPlayer::MediaPlayer()
 
 MediaPlayer::~MediaPlayer()
 {
+    if (g_vidrdr)
+    {
+        g_vidrdr->Close();
+    }
+    if (g_audrdr)
+    {
+        g_audrdr->Close();
+    }
     if (g_audrnd)
     {
         g_audrnd->CloseDevice();

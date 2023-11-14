@@ -2008,7 +2008,7 @@ static void StopTimelineMediaPlay()
     {
         for (auto media : timeline->media_items) media->mSelected = false;
         if (timeline->mMediaPlayer->g_vidrdr) timeline->mMediaPlayer->g_vidrdr->Close();
-        timeline->mMediaPlayer->g_audrdr->Close();
+        if (timeline->mMediaPlayer->g_audrdr) timeline->mMediaPlayer->g_audrdr->Close();
         timeline->mMediaPlayer->g_audrnd->Flush();
         timeline->mMediaPlayer->g_pcmStream->g_audPos = 0;
         timeline->mMediaPlayer->g_playStartPos = 0;
