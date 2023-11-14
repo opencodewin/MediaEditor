@@ -11586,20 +11586,23 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             // Add by Jimmy: Start
             if(ControlPanelIndex != 0) // switch ControlPanel page to stop play media file
             {
+                if (timeline->mMediaPlayer->g_isPlay)
+                {
+                    if (timeline->mMediaPlayer->g_audrdr->IsOpened())
+                    {
+                        timeline->mMediaPlayer->g_playStartPos = timeline->mMediaPlayer->g_pcmStream->g_audPos;
+                    }
+                    else
+                    {
+                        bool isForward = timeline->mMediaPlayer->g_vidrdr->IsDirectionForward();
+                        double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((Clock::now()-timeline->mMediaPlayer->g_playStartTp)).count();
+                        timeline->mMediaPlayer->g_playStartPos = isForward ? timeline->mMediaPlayer->g_playStartPos+elapsedTime : timeline->mMediaPlayer->g_playStartPos-elapsedTime;
+                    }
+                }
                 timeline->mMediaPlayer->g_isPlay = false;
-                if (timeline->mMediaPlayer->g_audrdr->IsOpened())
-                {
-                    timeline->mMediaPlayer->g_playStartPos = timeline->mMediaPlayer->g_pcmStream->g_audPos;
-                }
-                else
-                {
-                    bool isForward = timeline->mMediaPlayer->g_vidrdr->IsDirectionForward();
-                    double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((Clock::now()-timeline->mMediaPlayer->g_playStartTp)).count();
-                    timeline->mMediaPlayer->g_playStartPos = isForward ? timeline->mMediaPlayer->g_playStartPos+elapsedTime : timeline->mMediaPlayer->g_playStartPos-elapsedTime;
-                }
                 if (timeline->mMediaPlayer->g_audrdr && timeline->mMediaPlayer->g_audrdr->IsOpened())
                     timeline->mMediaPlayer->g_audrnd->Pause();
-            } 
+            }
             // Add by Jimmy: End
             ImGui::PopStyleColor();
         }
