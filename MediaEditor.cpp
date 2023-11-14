@@ -2832,17 +2832,18 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                             auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
                             auto next_item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size, changed, filtered, searched);
 
-                            if (next_item == timeline->media_items.end())
-                            {
-                                item = next_item;
-                                break;
-                            }
-
                             if ((*item)->mSelected)
                             {
                                 if (g_media_editor_settings.ExpandScope) g_media_editor_settings.ExpandScope = false;
                                 show_player = true;
                             }
+
+                            if (next_item == timeline->media_items.end())
+                            {
+                                item = next_item;
+                                break;
+                            }
+                            
                             item = next_item;
                         }
                         media_add_icon = false;
