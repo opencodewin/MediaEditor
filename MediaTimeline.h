@@ -1328,6 +1328,8 @@ struct TimeLine
     MediaItem* FindMediaItemByName(std::string name);   // Find media from bank by name
     MediaItem* FindMediaItemByID(int64_t id);           // Find media from bank by ID
 
+    MediaItem* isURLInMediaBank(std::string url);       // check media url is in media bank
+    bool isURLInTimeline(std::string url);              // check media url is in timeline
     // Add By Jimmy: Start
     ImGuiTextFilter mTextSearchFilter;                  // Media Bank, search
     uint32_t mCurrViewCount = 0;

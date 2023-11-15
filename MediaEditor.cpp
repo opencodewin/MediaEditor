@@ -1976,6 +1976,7 @@ static void ShowMediaPlayWindow(bool &show)
     bool isFileOpened = timeline->mMediaPlayer->IsOpened();
     float playPos = 0;
     float mediaDur = 0;
+    std::string media_url = isFileOpened ? timeline->mMediaPlayer->GetUrl() : "";
     if (timeline->mMediaPlayer->HasVideo())
     {
         mediaDur = timeline->mMediaPlayer->GetVideoDuration();
@@ -2009,9 +2010,6 @@ static void ShowMediaPlayWindow(bool &show)
             timeline->mMediaPlayer->Play();
         }
     }
-    
-    // TODO::Dicky add insert media button
-    // TODO::Dicky add full screen mode button
 
     ImGui::Spacing();
     ImGui::SetNextItemWidth(window_size.x);
@@ -2029,6 +2027,65 @@ static void ShowMediaPlayWindow(bool &show)
     else
         ImGui::Dummy(video_size);
 
+    std::string media_status_icon;
+    bool could_be_added = false;
+    bool is_in_timeline = false;
+    if (media_url.empty())
+    {
+        media_status_icon = ICON_FA_PLUG_CIRCLE_XMARK;
+        could_be_added = true;
+    }
+    else if (timeline->isURLInTimeline(media_url))
+    {
+        media_status_icon = ICON_FA_PLUG_CIRCLE_BOLT;
+        is_in_timeline = true;
+    }
+    else if (timeline->isURLInMediaBank(media_url))
+    {
+        media_status_icon = ICON_FA_PLUG_CIRCLE_CHECK;
+    }
+    else
+    {
+        media_status_icon = ICON_FA_PLUG_CIRCLE_XMARK;
+        could_be_added = true;
+    }
+
+    ImGui::SetCursorScreenPos(ImVec2(window_pos.x + 8, window_pos.y + window_size.y - 56));
+    if (could_be_added)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 0.0, 0.0, 1.0));
+    }
+    else
+    {
+        if (is_in_timeline) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0));
+        else ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+    }
+    if (ImGui::Button(media_status_icon.c_str()))
+    {
+        if (!media_url.empty() && could_be_added)
+        {
+            auto name = ImGuiHelper::path_filename(media_url);
+            auto path = std::string(media_url);
+            auto file_suffix = ImGuiHelper::path_filename_suffix(path);
+            auto type = EstimateMediaType(file_suffix);
+            MediaItem * item = new MediaItem(name, path, type, timeline);
+            timeline->media_items.push_back(item);
+        }
+    }
+    if (could_be_added)
+        ImGui::PopStyleColor();
+    else
+        ImGui::PopStyleColor(4);
+
+    ImGui::SetCursorScreenPos(ImVec2(window_pos.x + window_size.x - 8 - 16, window_pos.y + window_size.y - 56));
+    if (ImGui::Button(ICON_MD_ASPECT_RATIO "##mediaplay_fullscreen"))
+    {
+        // TODO::Dicky add full screen mode play
+    }
+    
     // close button
     ImVec2 close_pos = ImVec2(window_pos.x + window_size.x - 32, window_pos.y + 4);
     ImVec2 close_size = ImVec2(16, 16);
@@ -2780,7 +2837,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
     ImGui::SameLine(0,0);
     if (ImGui::TabLabelsVertical(MediaBankTabNames,g_media_editor_settings.MediaBankViewType,MediaBankTabTooltips, false, nullptr, nullptr, false, false, nullptr, nullptr, true, false))
     {
-        timeline->mMediaPlayer->Close();
+        StopTimelineMediaPlay();
         show_player = false;
     }
     if (show_player)
@@ -11402,7 +11459,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 
             if(ControlPanelIndex != 0) // switch ControlPanel page to stop play media file
             {
-                timeline->mMediaPlayer->Close();
+                StopTimelineMediaPlay();
             }
             ImGui::PopStyleColor();
         }
