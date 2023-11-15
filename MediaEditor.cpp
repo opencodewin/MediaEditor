@@ -2011,7 +2011,53 @@ static void ShowMediaPlayWindow(bool &show)
             (isForward ? timeline->mMediaPlayer->m_playStartPos+elapsedTime : timeline->mMediaPlayer->m_playStartPos-elapsedTime) : timeline->mMediaPlayer->m_playStartPos;
     }
     if (playPos < 0) playPos = 0;
-    if (playPos > mediaDur) playPos = mediaDur;
+    if (playPos > mediaDur)
+    {
+        playPos = mediaDur;
+        timeline->mMediaPlayer->m_isPlay = false;
+        if (timeline->mMediaPlayer->m_audrdr->IsOpened())
+            timeline->mMediaPlayer->m_audrnd->Pause();
+    }
+
+    // player controller
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::BeginDisabled(!isFileOpened);
+    std::string playBtnLabel = timeline->mMediaPlayer->m_isPlay ? ICON_STOP : ICON_PLAY_FORWARD;
+    ImGui::SetCursorScreenPos(ImVec2(window_pos.x + window_size.x / 2 - 15, window_pos.y + window_size.y - 56));
+    if (ImGui::Button(playBtnLabel.c_str()))
+        timeline->mMediaPlayer->m_isPlay = !timeline->mMediaPlayer->m_isPlay;
+
+    if (timeline->mMediaPlayer->m_isPlay)
+    {
+        if (timeline->mMediaPlayer->m_vidrdr && timeline->mMediaPlayer->m_vidrdr->IsSuspended())
+                timeline->mMediaPlayer->m_vidrdr->Wakeup();
+            timeline->mMediaPlayer->m_playStartTp = Clock::now();
+            timeline->mMediaPlayer->m_playStartPos = playPos;
+            if (timeline->mMediaPlayer->m_audrdr->IsOpened())
+                timeline->mMediaPlayer->m_audrnd->Resume();
+    }
+    else
+    {
+        timeline->mMediaPlayer->m_playStartPos = playPos;
+        if (timeline->mMediaPlayer->m_audrdr->IsOpened())
+            timeline->mMediaPlayer->m_audrnd->Pause();
+    }
+
+    // TODO::Dicky add full screen mode button
+
+    ImGui::Spacing();
+    ImGui::SetNextItemWidth(window_size.x);
+    if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, "%.3f"))
+    {
+        int64_t seekPos = playPos*1000;
+        if (timeline->mMediaPlayer->m_vidrdr && timeline->mMediaPlayer->m_vidrdr->IsOpened())
+            timeline->mMediaPlayer->m_vidrdr->SeekTo(seekPos);
+        if (timeline->mMediaPlayer->m_audrdr && timeline->mMediaPlayer->m_audrdr->IsOpened())
+            timeline->mMediaPlayer->m_audrdr->SeekTo(seekPos);
+        timeline->mMediaPlayer->m_playStartPos = playPos;
+        timeline->mMediaPlayer->m_playStartTp = Clock::now();
+    }
+    ImGui::EndDisabled();
 
     string imgTag;
     if (timeline->mMediaPlayer->m_vidrdr && timeline->mMediaPlayer->m_vidrdr->IsOpened() && !timeline->mMediaPlayer->m_vidrdr->IsSuspended())
@@ -2019,7 +2065,7 @@ static void ShowMediaPlayWindow(bool &show)
         bool eof;
         ImGui::ImMat vmat;
         int64_t readPos = (int64_t)(playPos*1000);
-        auto hVf = timeline->mMediaPlayer->m_vidrdr->ReadVideoFrame(readPos, eof, false);
+        auto hVf = timeline->mMediaPlayer->m_vidrdr->ReadVideoFrame(readPos, eof);
         if (hVf)
         {
             Logger::Log(Logger::VERBOSE) << "Succeeded to read video frame @pos=" << playPos << "." << std::endl;
@@ -2109,46 +2155,6 @@ static void ShowMediaPlayWindow(bool &show)
             timeline->mMediaPlayer->m_isOpening = false;
         }
     }
-    
-    // player controller
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    ImGui::BeginDisabled(!isFileOpened);
-    std::string playBtnLabel = timeline->mMediaPlayer->m_isPlay ? ICON_STOP : ICON_PLAY_FORWARD;
-    ImGui::SetCursorScreenPos(ImVec2(window_pos.x + window_size.x / 2 - 15, window_pos.y + window_size.y - 56));
-    if (ImGui::Button(playBtnLabel.c_str()))
-        timeline->mMediaPlayer->m_isPlay = !timeline->mMediaPlayer->m_isPlay;
-
-    if (timeline->mMediaPlayer->m_isPlay)
-    {
-        if (timeline->mMediaPlayer->m_vidrdr && timeline->mMediaPlayer->m_vidrdr->IsSuspended())
-                timeline->mMediaPlayer->m_vidrdr->Wakeup();
-            timeline->mMediaPlayer->m_playStartTp = Clock::now();
-            timeline->mMediaPlayer->m_playStartPos = playPos;
-            if (timeline->mMediaPlayer->m_audrdr->IsOpened())
-                timeline->mMediaPlayer->m_audrnd->Resume();
-    }
-    else
-    {
-        timeline->mMediaPlayer->m_playStartPos = playPos;
-        if (timeline->mMediaPlayer->m_audrdr->IsOpened())
-            timeline->mMediaPlayer->m_audrnd->Pause();
-    }
-
-    // TODO::Dicky add full screen mode button
-
-    ImGui::Spacing();
-    ImGui::SetNextItemWidth(window_size.x);
-    if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, "%.3f"))
-    {
-        int64_t seekPos = playPos*1000;
-        if (timeline->mMediaPlayer->m_vidrdr && timeline->mMediaPlayer->m_vidrdr->IsOpened())
-            timeline->mMediaPlayer->m_vidrdr->SeekTo(seekPos);
-        if (timeline->mMediaPlayer->m_audrdr && timeline->mMediaPlayer->m_audrdr->IsOpened())
-            timeline->mMediaPlayer->m_audrdr->SeekTo(seekPos);
-        timeline->mMediaPlayer->m_playStartPos = playPos;
-        timeline->mMediaPlayer->m_playStartTp = Clock::now();
-    }
-    ImGui::EndDisabled();
 
     // close button
     ImVec2 close_pos = ImVec2(window_pos.x + window_size.x - 32, window_pos.y + 4);
