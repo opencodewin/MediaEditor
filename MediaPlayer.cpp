@@ -190,7 +190,7 @@ ImTextureID MediaPlayer::GetFrame(float pos)
         bool eof;
         ImGui::ImMat vmat;
         int64_t readPos = (int64_t)(pos*1000);
-        auto hVf = m_vidrdr->ReadVideoFrame(readPos, eof, false);
+        auto hVf = m_vidrdr->ReadVideoFrame(readPos, eof);
         if (hVf)
         {
             Logger::Log(Logger::VERBOSE) << "Succeeded to read video frame @pos=" << pos << "." << std::endl;

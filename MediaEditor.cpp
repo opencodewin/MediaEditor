@@ -1987,16 +1987,12 @@ static void ShowMediaPlayWindow(bool &show)
 
     playPos = timeline->mMediaPlayer->GetCurrentPos();
     if (playPos < 0) playPos = 0;
-    if (playPos > mediaDur) playPos = mediaDur;
-
-    ImTextureID tid = timeline->mMediaPlayer->GetFrame(playPos);
-    if (tid)
+    if (playPos > mediaDur)
     {
-        ImGui::ImShowVideoWindow(draw_list, tid, window_pos, video_size);
+        playPos = mediaDur;
+        timeline->mMediaPlayer->Pause();
     }
-    else
-        ImGui::Dummy(video_size);
-    
+
     // player controller
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
     ImGui::BeginDisabled(!isFileOpened);
@@ -2024,6 +2020,14 @@ static void ShowMediaPlayWindow(bool &show)
         timeline->mMediaPlayer->Seek(playPos);
     }
     ImGui::EndDisabled();
+
+    ImTextureID tid = timeline->mMediaPlayer->GetFrame(playPos);
+    if (tid)
+    {
+        ImGui::ImShowVideoWindow(draw_list, tid, window_pos, video_size);
+    }
+    else
+        ImGui::Dummy(video_size);
 
     // close button
     ImVec2 close_pos = ImVec2(window_pos.x + window_size.x - 32, window_pos.y + 4);
