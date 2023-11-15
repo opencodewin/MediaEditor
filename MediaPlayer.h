@@ -21,7 +21,7 @@ namespace MEC
             bool eof;
             if (!m_audrdr->ReadAudioSamples(buff, readSize, pos, eof, blocking))
                 return 0;
-            g_audPos = (double)pos/1000;
+            m_audPos = (double)pos/1000;
             return readSize;
         }
 
@@ -33,7 +33,7 @@ namespace MEC
         }
 
     public:
-        double g_audPos {0};
+        double m_audPos {0};
 
     private:
         MediaCore::MediaReader::Holder m_audrdr;
@@ -45,22 +45,22 @@ namespace MEC
         MediaPlayer();
         ~MediaPlayer();
     public:
-        RenderUtils::TextureManager::Holder g_txmgr;
-        RenderUtils::ManagedTexture::Holder g_tx;
-        bool g_isOpening {false};
-        MediaCore::MediaParser::Holder g_mediaParser;
-        bool g_useHwAccel {true};
-        int32_t g_audioStreamCount {0};
-        int32_t g_chooseAudioIndex {-1};
-        MediaCore::MediaReader::Holder g_vidrdr; // video
-        double g_playStartPos = 0.f;
-        Clock::time_point g_playStartTp;
-        bool g_isPlay {false};
-        MediaCore::MediaReader::Holder g_audrdr; // audio
-        MediaCore::AudioRender* g_audrnd {nullptr};
+        RenderUtils::TextureManager::Holder m_txmgr;
+        RenderUtils::ManagedTexture::Holder m_tx;
+        bool m_isOpening {false};
+        MediaCore::MediaParser::Holder m_mediaParser;
+        bool m_useHwAccel {true};
+        int32_t m_audioStreamCount {0};
+        int32_t m_chooseAudioIndex {-1};
+        MediaCore::MediaReader::Holder m_vidrdr; // video
+        double m_playStartPos = 0.f;
+        Clock::time_point m_playStartTp;
+        bool m_isPlay {false};
+        MediaCore::MediaReader::Holder m_audrdr; // audio
+        MediaCore::AudioRender* m_audrnd {nullptr};
         MediaCore::AudioRender::PcmFormat c_audioRenderFormat {MediaCore::AudioRender::PcmFormat::FLOAT32};
         int c_audioRenderChannels {2};
         int c_audioRenderSampleRate {44100};
-        SimplePcmStream* g_pcmStream {nullptr};
+        SimplePcmStream* m_pcmStream {nullptr};
     };
 }

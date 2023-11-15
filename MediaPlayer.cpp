@@ -7,41 +7,41 @@ namespace MEC
  ***********************************************************************************************************/
 MediaPlayer::MediaPlayer()
 {
-    g_txmgr = RenderUtils::TextureManager::CreateInstance();
-    g_txmgr->SetLogLevel(Logger::INFO);
-    g_audrdr = MediaCore::MediaReader::CreateInstance();
-    g_audrdr->SetLogLevel(Logger::INFO);
+    m_txmgr = RenderUtils::TextureManager::CreateInstance();
+    m_txmgr->SetLogLevel(Logger::INFO);
+    m_audrdr = MediaCore::MediaReader::CreateInstance();
+    m_audrdr->SetLogLevel(Logger::INFO);
 
-    g_pcmStream = new SimplePcmStream(g_audrdr);
-    g_audrnd = MediaCore::AudioRender::CreateInstance();
-    g_audrnd->OpenDevice(c_audioRenderSampleRate, c_audioRenderChannels, c_audioRenderFormat, g_pcmStream);
+    m_pcmStream = new SimplePcmStream(m_audrdr);
+    m_audrnd = MediaCore::AudioRender::CreateInstance();
+    m_audrnd->OpenDevice(c_audioRenderSampleRate, c_audioRenderChannels, c_audioRenderFormat, m_pcmStream);
     MediaCore::HwaccelManager::GetDefaultInstance()->Init();
 }
 
 MediaPlayer::~MediaPlayer()
 {
-    if (g_vidrdr)
+    if (m_vidrdr)
     {
-        g_vidrdr->Close();
+        m_vidrdr->Close();
     }
-    if (g_audrdr)
+    if (m_audrdr)
     {
-        g_audrdr->Close();
+        m_audrdr->Close();
     }
-    if (g_audrnd)
+    if (m_audrnd)
     {
-        g_audrnd->CloseDevice();
-        MediaCore::AudioRender::ReleaseInstance(&g_audrnd);
+        m_audrnd->CloseDevice();
+        MediaCore::AudioRender::ReleaseInstance(&m_audrnd);
     }
-    if (g_pcmStream)
+    if (m_pcmStream)
     {
-        delete g_pcmStream;
-        g_pcmStream = nullptr;
+        delete m_pcmStream;
+        m_pcmStream = nullptr;
     }
-    g_vidrdr = nullptr;
-    g_audrdr = nullptr;
+    m_vidrdr = nullptr;
+    m_audrdr = nullptr;
 
-    g_tx = nullptr;
-    g_txmgr = nullptr;
+    m_tx = nullptr;
+    m_txmgr = nullptr;
 }
 }
