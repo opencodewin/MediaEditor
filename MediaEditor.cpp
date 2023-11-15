@@ -1961,15 +1961,7 @@ static void StopTimelineMediaPlay()
     if (timeline)
     {
         for (auto media : timeline->media_items) media->mSelected = false;
-        if (timeline->mMediaPlayer->m_vidrdr) timeline->mMediaPlayer->m_vidrdr->Close();
-        if (timeline->mMediaPlayer->m_audrdr) timeline->mMediaPlayer->m_audrdr->Close();
-        timeline->mMediaPlayer->m_audrnd->Flush();
-        timeline->mMediaPlayer->m_pcmStream->m_audPos = 0;
-        timeline->mMediaPlayer->m_playStartPos = 0;
-        timeline->mMediaPlayer->m_audioStreamCount = 0;
-        if (timeline->mMediaPlayer->m_tx) timeline->mMediaPlayer->m_tx = nullptr;
-        timeline->mMediaPlayer->m_isOpening = false;
-        timeline->mMediaPlayer->m_isPlay = false;
+        timeline->mMediaPlayer->Close();
     }
 }
 
@@ -1981,180 +1973,57 @@ static void ShowMediaPlayWindow(bool &show)
     ImVec2 window_size = ImGui::GetWindowSize();
     ImVec2 video_size = window_size - ImVec2(4, 60);
     draw_list->AddRectFilled(window_pos, ImVec2(window_pos.x + window_size.x - 4, window_pos.y + window_size.y - 60), IM_COL32(0, 0, 0, 255));
-    bool isFileOpened = (timeline->mMediaPlayer->m_vidrdr && timeline->mMediaPlayer->m_vidrdr->IsOpened()) || \
-                            (timeline->mMediaPlayer->m_audrdr && timeline->mMediaPlayer->m_audrdr->IsOpened());
-    bool isForward;
+    bool isFileOpened = timeline->mMediaPlayer->IsOpened();
     float playPos = 0;
     float mediaDur = 0;
-    if (timeline->mMediaPlayer->m_vidrdr && timeline->mMediaPlayer->m_vidrdr->IsOpened())
+    if (timeline->mMediaPlayer->HasVideo())
     {
-        isForward = timeline->mMediaPlayer->m_vidrdr->IsDirectionForward();
-        const MediaCore::VideoStream* vstminfo = timeline->mMediaPlayer->m_vidrdr->GetVideoStream();
-        float vidDur = vstminfo ? (float)vstminfo->duration : 0;
-        mediaDur = vidDur;
+        mediaDur = timeline->mMediaPlayer->GetVideoDuration();
     }
-    if (timeline->mMediaPlayer->m_audrdr->IsOpened())
+    else if (timeline->mMediaPlayer->HasAudio())
     {
-        if (!timeline->mMediaPlayer->m_vidrdr || !timeline->mMediaPlayer->m_vidrdr->IsOpened())
-        {
-            isForward = timeline->mMediaPlayer->m_audrdr->IsDirectionForward();
-            const MediaCore::AudioStream* astminfo = timeline->mMediaPlayer->m_audrdr->GetAudioStream();
-            float audDur = astminfo ? (float)astminfo->duration : 0;
-            mediaDur = audDur;
-        }
-        playPos = timeline->mMediaPlayer->m_isPlay ? timeline->mMediaPlayer->m_pcmStream->m_audPos : timeline->mMediaPlayer->m_playStartPos;
+        mediaDur = timeline->mMediaPlayer->GetAudioDuration();
     }
-    else
-    {
-        double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((Clock::now()-timeline->mMediaPlayer->m_playStartTp)).count();
-        playPos = timeline->mMediaPlayer->m_isPlay ? \
-            (isForward ? timeline->mMediaPlayer->m_playStartPos+elapsedTime : timeline->mMediaPlayer->m_playStartPos-elapsedTime) : timeline->mMediaPlayer->m_playStartPos;
-    }
+
+    playPos = timeline->mMediaPlayer->GetCurrentPos();
     if (playPos < 0) playPos = 0;
-    if (playPos > mediaDur)
-    {
-        playPos = mediaDur;
-        timeline->mMediaPlayer->m_isPlay = false;
-        if (timeline->mMediaPlayer->m_audrdr->IsOpened())
-            timeline->mMediaPlayer->m_audrnd->Pause();
-    }
+    if (playPos > mediaDur) playPos = mediaDur;
 
-    // player controller
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    ImGui::BeginDisabled(!isFileOpened);
-    std::string playBtnLabel = timeline->mMediaPlayer->m_isPlay ? ICON_STOP : ICON_PLAY_FORWARD;
-    ImGui::SetCursorScreenPos(ImVec2(window_pos.x + window_size.x / 2 - 15, window_pos.y + window_size.y - 56));
-    if (ImGui::Button(playBtnLabel.c_str()))
-        timeline->mMediaPlayer->m_isPlay = !timeline->mMediaPlayer->m_isPlay;
-
-    if (timeline->mMediaPlayer->m_isPlay)
-    {
-        if (timeline->mMediaPlayer->m_vidrdr && timeline->mMediaPlayer->m_vidrdr->IsSuspended())
-                timeline->mMediaPlayer->m_vidrdr->Wakeup();
-            timeline->mMediaPlayer->m_playStartTp = Clock::now();
-            timeline->mMediaPlayer->m_playStartPos = playPos;
-            if (timeline->mMediaPlayer->m_audrdr->IsOpened())
-                timeline->mMediaPlayer->m_audrnd->Resume();
-    }
-    else
-    {
-        timeline->mMediaPlayer->m_playStartPos = playPos;
-        if (timeline->mMediaPlayer->m_audrdr->IsOpened())
-            timeline->mMediaPlayer->m_audrnd->Pause();
-    }
-
-    // TODO::Dicky add full screen mode button
-
-    ImGui::Spacing();
-    ImGui::SetNextItemWidth(window_size.x);
-    if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, "%.3f"))
-    {
-        int64_t seekPos = playPos*1000;
-        if (timeline->mMediaPlayer->m_vidrdr && timeline->mMediaPlayer->m_vidrdr->IsOpened())
-            timeline->mMediaPlayer->m_vidrdr->SeekTo(seekPos);
-        if (timeline->mMediaPlayer->m_audrdr && timeline->mMediaPlayer->m_audrdr->IsOpened())
-            timeline->mMediaPlayer->m_audrdr->SeekTo(seekPos);
-        timeline->mMediaPlayer->m_playStartPos = playPos;
-        timeline->mMediaPlayer->m_playStartTp = Clock::now();
-    }
-    ImGui::EndDisabled();
-
-    string imgTag;
-    if (timeline->mMediaPlayer->m_vidrdr && timeline->mMediaPlayer->m_vidrdr->IsOpened() && !timeline->mMediaPlayer->m_vidrdr->IsSuspended())
-    {
-        bool eof;
-        ImGui::ImMat vmat;
-        int64_t readPos = (int64_t)(playPos*1000);
-        auto hVf = timeline->mMediaPlayer->m_vidrdr->ReadVideoFrame(readPos, eof);
-        if (hVf)
-        {
-            Logger::Log(Logger::VERBOSE) << "Succeeded to read video frame @pos=" << playPos << "." << std::endl;
-            hVf->GetMat(vmat);
-            imgTag = TimestampToString(vmat.time_stamp);
-            bool imgValid = true;
-            if (vmat.empty())
-            {
-                imgValid = false;
-                imgTag += "(loading)";
-            }
-            if (imgValid &&
-                ((vmat.color_format != IM_CF_RGBA && vmat.color_format != IM_CF_ABGR) ||
-                vmat.type != IM_DT_INT8 ||
-                (vmat.device != IM_DD_CPU && vmat.device != IM_DD_VULKAN)))
-            {
-                Logger::Log(Logger::Error) << "WRONG snapshot format!" << std::endl;
-                imgValid = false;
-                imgTag += "(bad format)";
-            }
-            if (imgValid)
-            {
-                if (!timeline->mMediaPlayer->m_tx)
-                {
-                    RenderUtils::Vec2<int32_t> txSize(vmat.w, vmat.h);
-                    // Vec2<int32_t> txSize(g_imageDisplaySize);
-                    timeline->mMediaPlayer->m_tx = timeline->mMediaPlayer->m_txmgr->CreateManagedTextureFromMat(vmat, txSize);
-                    if (!timeline->mMediaPlayer->m_tx)
-                        Logger::Log(Logger::Error) << "FAILED to create ManagedTexture from ImMat! Error is '" << \
-                                                                            timeline->mMediaPlayer->m_txmgr->GetError() << "'." << std::endl;
-                }
-                else
-                {
-                    timeline->mMediaPlayer->m_tx->RenderMatToTexture(vmat);
-                }
-            }
-        }
-        else
-        {
-            Logger::Log(Logger::Error) << "FAILED to read video frame @pos=" << playPos << ": " << timeline->mMediaPlayer->m_vidrdr->GetError() << std::endl;
-        }
-    }
-    ImTextureID tid = timeline->mMediaPlayer->m_tx ? timeline->mMediaPlayer->m_tx->TextureID() : nullptr;
+    ImTextureID tid = timeline->mMediaPlayer->GetFrame(playPos);
     if (tid)
     {
         ImGui::ImShowVideoWindow(draw_list, tid, window_pos, video_size);
     }
     else
         ImGui::Dummy(video_size);
-    if (timeline->mMediaPlayer->m_isOpening)
+    
+    // player controller
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::BeginDisabled(!isFileOpened);
+    std::string playBtnLabel = timeline->mMediaPlayer->IsPlaying() ? ICON_STOP : ICON_PLAY_FORWARD;
+    ImGui::SetCursorScreenPos(ImVec2(window_pos.x + window_size.x / 2 - 15, window_pos.y + window_size.y - 56));
+    if (ImGui::Button(playBtnLabel.c_str()))
     {
-        if (timeline->mMediaPlayer->m_mediaParser->CheckInfoReady(MediaCore::MediaParser::MEDIA_INFO))
+        if (timeline->mMediaPlayer->IsPlaying())
         {
-            if (timeline->mMediaPlayer->m_mediaParser->HasVideo())
-            {
-                timeline->mMediaPlayer->m_vidrdr = MediaCore::MediaReader::CreateVideoInstance();
-                timeline->mMediaPlayer->m_vidrdr->SetLogLevel(Logger::DEBUG);
-                timeline->mMediaPlayer->m_vidrdr->EnableHwAccel(timeline->mMediaPlayer->m_useHwAccel);
-                timeline->mMediaPlayer->m_vidrdr->Open(timeline->mMediaPlayer->m_mediaParser);
-                timeline->mMediaPlayer->m_vidrdr->ConfigVideoReader(1.f, 1.f, IM_CF_RGBA, IM_DT_INT8, IM_INTERPOLATE_AREA, MediaCore::HwaccelManager::GetDefaultInstance());
-                if (playPos > 0)
-                    timeline->mMediaPlayer->m_vidrdr->SeekTo(playPos*1000);
-                timeline->mMediaPlayer->m_vidrdr->Start();
-            }
-            if (timeline->mMediaPlayer->m_mediaParser->HasAudio())
-            {
-                timeline->mMediaPlayer->m_audrdr->Open(timeline->mMediaPlayer->m_mediaParser);
-                auto mediaInfo = timeline->mMediaPlayer->m_mediaParser->GetMediaInfo();
-                for (auto stream : mediaInfo->streams)
-                {
-                    if (stream->type == MediaCore::MediaType::AUDIO)
-                        timeline->mMediaPlayer->m_audioStreamCount++;
-                }
-                timeline->mMediaPlayer->m_chooseAudioIndex = 0;
-                timeline->mMediaPlayer->m_audrdr->ConfigAudioReader(
-                                                        timeline->mMediaPlayer->c_audioRenderChannels,
-                                                        timeline->mMediaPlayer->c_audioRenderSampleRate,
-                                                        "flt",
-                                                        timeline->mMediaPlayer->m_chooseAudioIndex);
-                if (playPos > 0)
-                    timeline->mMediaPlayer->m_audrdr->SeekTo(playPos*1000);
-                timeline->mMediaPlayer->m_audrdr->Start();
-            }
-            if ((!timeline->mMediaPlayer->m_vidrdr || !timeline->mMediaPlayer->m_vidrdr->IsOpened()) && !timeline->mMediaPlayer->m_audrdr->IsOpened())
-                Logger::Log(Logger::Error) << "Neither VIDEO nor AUDIO stream is ready for playback!" << std::endl;
-            timeline->mMediaPlayer->m_playStartTp = Clock::now();
-            timeline->mMediaPlayer->m_isOpening = false;
+            timeline->mMediaPlayer->Pause();
+        }
+        else
+        {
+            timeline->mMediaPlayer->Play();
         }
     }
+    
+    // TODO::Dicky add insert media button
+    // TODO::Dicky add full screen mode button
+
+    ImGui::Spacing();
+    ImGui::SetNextItemWidth(window_size.x);
+    if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, "%.3f"))
+    {
+        timeline->mMediaPlayer->Seek(playPos);
+    }
+    ImGui::EndDisabled();
 
     // close button
     ImVec2 close_pos = ImVec2(window_pos.x + window_size.x - 32, window_pos.y + 4);
@@ -2255,17 +2124,9 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                 for (auto media : timeline->media_items) media->mSelected = false;
                 (*item)->mSelected = true;
                 // set timeline player
-                if (timeline->mMediaPlayer->m_vidrdr) timeline->mMediaPlayer->m_vidrdr->Close();
-                timeline->mMediaPlayer->m_audrdr->Close();
-                timeline->mMediaPlayer->m_audrnd->Flush();
-                timeline->mMediaPlayer->m_pcmStream->m_audPos = 0;
-                timeline->mMediaPlayer->m_playStartPos = 0;
-                timeline->mMediaPlayer->m_audioStreamCount = 0;
-                if (timeline->mMediaPlayer->m_tx) timeline->mMediaPlayer->m_tx = nullptr;
-                timeline->mMediaPlayer->m_mediaParser = MediaCore::MediaParser::CreateInstance();
-                timeline->mMediaPlayer->m_mediaParser->Open((*item)->mPath);
-                timeline->mMediaPlayer->m_isOpening = true;
-                timeline->mMediaPlayer->m_isPlay = true;
+                timeline->mMediaPlayer->Close();
+                timeline->mMediaPlayer->Open((*item)->mPath);
+                timeline->mMediaPlayer->Play();
             }
 
             // Show help tooltip
@@ -2898,18 +2759,10 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                 {
                     if (embedded_filedialog.IsOk())
                     {
-                        if (timeline->mMediaPlayer->m_vidrdr) timeline->mMediaPlayer->m_vidrdr->Close();
-                        timeline->mMediaPlayer->m_audrdr->Close();
-                        timeline->mMediaPlayer->m_audrnd->Flush();
-                        timeline->mMediaPlayer->m_pcmStream->m_audPos = 0;
-                        timeline->mMediaPlayer->m_playStartPos = 0;
-                        timeline->mMediaPlayer->m_audioStreamCount = 0;
-                        if (timeline->mMediaPlayer->m_tx) timeline->mMediaPlayer->m_tx = nullptr;
                         finder_filename = embedded_filedialog.GetFilePathName();
-                        timeline->mMediaPlayer->m_mediaParser = MediaCore::MediaParser::CreateInstance();
-                        timeline->mMediaPlayer->m_mediaParser->Open(finder_filename);
-                        timeline->mMediaPlayer->m_isOpening = true;
-                        timeline->mMediaPlayer->m_isPlay = true;
+                        timeline->mMediaPlayer->Close();
+                        timeline->mMediaPlayer->Open(finder_filename);
+                        timeline->mMediaPlayer->Play();
                         show_player = true;
                     }
                     embedded_filedialog.Close();
@@ -2923,9 +2776,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
     ImGui::SameLine(0,0);
     if (ImGui::TabLabelsVertical(MediaBankTabNames,g_media_editor_settings.MediaBankViewType,MediaBankTabTooltips, false, nullptr, nullptr, false, false, nullptr, nullptr, true, false))
     {
-        timeline->mMediaPlayer->m_isPlay = false;
-        if (timeline->mMediaPlayer->m_audrdr && timeline->mMediaPlayer->m_audrdr->IsOpened())
-            timeline->mMediaPlayer->m_audrnd->Pause();
+        timeline->mMediaPlayer->Close();
         show_player = false;
     }
     if (show_player)
@@ -11160,7 +11011,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     if (power_saving_mode) UpdateBreathing();
     if (g_project_loading || 
         (timeline && timeline->mIsPreviewPlaying) || 
-        (timeline && timeline->mMediaPlayer && timeline->mMediaPlayer->m_isPlay))
+        (timeline && timeline->mMediaPlayer && timeline->mMediaPlayer->IsPlaying()))
     {
         ImGui::UpdateData();
     }
@@ -11544,27 +11395,11 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 }
             }
             ImGui::EndChild();
-            // Add by Jimmy: Start
+
             if(ControlPanelIndex != 0) // switch ControlPanel page to stop play media file
             {
-                if (timeline->mMediaPlayer->m_isPlay)
-                {
-                    if (timeline->mMediaPlayer->m_audrdr->IsOpened())
-                    {
-                        timeline->mMediaPlayer->m_playStartPos = timeline->mMediaPlayer->m_pcmStream->m_audPos;
-                    }
-                    else
-                    {
-                        bool isForward = timeline->mMediaPlayer->m_vidrdr->IsDirectionForward();
-                        double elapsedTime = std::chrono::duration_cast<std::chrono::duration<double>>((Clock::now()-timeline->mMediaPlayer->m_playStartTp)).count();
-                        timeline->mMediaPlayer->m_playStartPos = isForward ? timeline->mMediaPlayer->m_playStartPos+elapsedTime : timeline->mMediaPlayer->m_playStartPos-elapsedTime;
-                    }
-                }
-                timeline->mMediaPlayer->m_isPlay = false;
-                if (timeline->mMediaPlayer->m_audrdr && timeline->mMediaPlayer->m_audrdr->IsOpened())
-                    timeline->mMediaPlayer->m_audrnd->Pause();
+                timeline->mMediaPlayer->Close();
             }
-            // Add by Jimmy: End
             ImGui::PopStyleColor();
         }
         ImGui::EndChild();

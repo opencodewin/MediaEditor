@@ -44,10 +44,27 @@ namespace MEC
     public:
         MediaPlayer();
         ~MediaPlayer();
+        void Open(std::string url);
+        void Close();
+        bool IsOpened();
+        bool HasVideo();
+        bool HasAudio();
+        std::string GetUrl() { return m_playURL; };
+        float GetVideoDuration();
+        float GetAudioDuration();
+        float GetCurrentPos();
+        bool Play();
+        bool Pause();
+        bool Seek(float pos);
+        bool IsPlaying();
+
     public:
+        ImTextureID GetFrame(float pos);
+
+    private:
+        std::string m_playURL;
         RenderUtils::TextureManager::Holder m_txmgr;
         RenderUtils::ManagedTexture::Holder m_tx;
-        bool m_isOpening {false};
         MediaCore::MediaParser::Holder m_mediaParser;
         bool m_useHwAccel {true};
         int32_t m_audioStreamCount {0};
