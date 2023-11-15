@@ -12314,9 +12314,28 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         else if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ImGuiFileDialog"))
         {
             IGFD::DropInfos* dinfo = (IGFD::DropInfos*)payload->Data;
-            // TODO::Dicky
-            // first check drop whether file is in media bank, if in media bank then insert it
-            // if file isn't in media bank, then create a new meda item and insert item into time line
+            auto name = ImGuiHelper::path_filename(dinfo->filePath);
+            auto path = std::string(dinfo->filePath);
+            auto file_suffix = ImGuiHelper::path_filename_suffix(path);
+            auto type = EstimateMediaType(file_suffix);
+            auto iter = std::find_if(timeline->media_items.begin(), timeline->media_items.end(), [name, path, type](const MediaItem* item)
+            {
+                return  name.compare(item->mName) == 0 &&
+                        path.compare(item->mPath) == 0 &&
+                        type == item->mMediaType;
+            });
+            if (iter != timeline->media_items.end())
+            {
+                // media is in bank
+                insert_item_into_timeline(*iter, track);
+            }
+            else
+            {
+                // isn't in media bank, then create a new meda item and insert item into time line
+                MediaItem * item = new MediaItem(name, path, type, timeline);
+                timeline->media_items.push_back(item);
+                insert_item_into_timeline(item, track);
+            }
         }
         ImGui::EndDragDropTarget();
     }

@@ -1817,57 +1817,11 @@ static inline std::string GetAudioChannelName(int channels)
     else return "Channels " + std::to_string(channels);
 }
 
-static uint32_t CheckMediaType(std::string file_suffix)
-{
-    uint32_t type = MEDIA_UNKNOWN;
-    std::transform(file_suffix.begin(), file_suffix.end(), file_suffix.begin(), [](auto c) { return std::tolower(c); });
-    if (!file_suffix.empty())
-    {
-        if ((file_suffix.compare(".mp4") == 0) ||
-            (file_suffix.compare(".mov") == 0) ||
-            (file_suffix.compare(".mkv") == 0) ||
-            (file_suffix.compare(".mxf") == 0) ||
-            (file_suffix.compare(".avi") == 0) ||
-            (file_suffix.compare(".webm") == 0) ||
-            (file_suffix.compare(".ts") == 0))
-            type = MEDIA_VIDEO;
-        else 
-            if ((file_suffix.compare(".wav") == 0) ||
-                (file_suffix.compare(".mp3") == 0) ||
-                (file_suffix.compare(".aac") == 0) ||
-                (file_suffix.compare(".ac3") == 0) ||
-                (file_suffix.compare(".dts") == 0) ||
-                (file_suffix.compare(".ogg") == 0))
-            type = MEDIA_AUDIO;
-        else
-            if ((file_suffix.compare(".mid") == 0) ||
-                (file_suffix.compare(".midi") == 0))
-            type = MEDIA_SUBTYPE_AUDIO_MIDI;
-        else 
-            if ((file_suffix.compare(".jpg") == 0) ||
-                (file_suffix.compare(".jpeg") == 0) ||
-                (file_suffix.compare(".png") == 0) ||
-                (file_suffix.compare(".gif") == 0) ||
-                (file_suffix.compare(".tiff") == 0) ||
-                (file_suffix.compare(".webp") == 0))
-            type = MEDIA_SUBTYPE_VIDEO_IMAGE;
-        else
-            if ((file_suffix.compare(".txt") == 0) ||
-                (file_suffix.compare(".srt") == 0) ||
-                (file_suffix.compare(".ass") == 0) ||
-                (file_suffix.compare(".stl") == 0) ||
-                (file_suffix.compare(".lrc") == 0) ||
-                (file_suffix.compare(".xml") == 0))
-            type = MEDIA_SUBTYPE_TEXT_SUBTITLE;
-    }
-    return type;
-}
-
 static bool InsertMedia(const std::string path)
 {
     auto file_suffix = ImGuiHelper::path_filename_suffix(path);
     auto name = ImGuiHelper::path_filename(path);
-    auto type = CheckMediaType(file_suffix);
+    auto type = EstimateMediaType(file_suffix);
     if (timeline)
     {
         // check media is already in bank
@@ -1897,7 +1851,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
     auto file_suffix = ImGuiHelper::path_filename_suffix(path);
     auto name = ImGuiHelper::path_filename(path);
     // check type match
-    auto type = CheckMediaType(file_suffix);
+    auto type = EstimateMediaType(file_suffix);
     if (type != item->mMediaType)
         return false;
     auto old_name = item->mName;
