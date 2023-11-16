@@ -2446,14 +2446,14 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
     }
 
     ImGui::SetCursorScreenPos(icon_pos + ImVec2(media_icon_size - 16, 0));
+    bool is_item_in_timeline = timeline->isURLInTimeline((*item)->mPath);
     ImGui::SetWindowFontScale(0.8);
-    ImGui::Button((std::string(ICON_TRASH "##delete_media") + (*item)->mPath).c_str(), ImVec2(16, 16));
+    ImGui::Button(((is_item_in_timeline ? std::string(ICON_FA_PLUG_CIRCLE_BOLT) : std::string(ICON_TRASH)) + "##delete_media" + (*item)->mPath).c_str(), ImVec2(16, 16));
     ImGui::SetWindowFontScale(1.0);
     ImRect button_rect(icon_pos + ImVec2(media_icon_size - 16, 0), icon_pos + ImVec2(media_icon_size - 16, 0) + ImVec2(16, 16));
     bool overButton = button_rect.Contains(io.MousePos);
-    if (overButton && io.MouseClicked[0])
+    if (overButton && io.MouseClicked[0] && !is_item_in_timeline)
     {
-        // TODO::Dicky need delete it from timeline list ?
         MediaItem * it = *item;
         // Modify by Jimmy, Begin
         if (searched)
@@ -2495,7 +2495,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
     }
     else
         item++;
-    ImGui::ShowTooltipOnHover("Delete Media");
+    ImGui::ShowTooltipOnHover(is_item_in_timeline ? "Media in Timeline" : "Delete Media");
 
     ImGui::PopStyleColor();
     return item;
