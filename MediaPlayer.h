@@ -60,7 +60,7 @@ namespace MEC
         bool Step(bool forward);
 
     public:
-        ImTextureID GetFrame(float pos);
+        ImTextureID GetFrame(float pos, bool blocking = false);
 
     private:
         std::string m_playURL;

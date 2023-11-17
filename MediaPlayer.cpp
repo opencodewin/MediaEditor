@@ -185,6 +185,7 @@ bool MediaPlayer::Seek(float pos)
         m_audrdr->SeekTo(seekPos);
     m_playStartPos = pos;
     m_playStartTp = Clock::now();
+    if (!m_isPlay) m_tx = nullptr;
     return true;
 }
 
@@ -208,6 +209,15 @@ bool MediaPlayer::Step(bool forward)
         auto frame = m_vidrdr->ReadNextVideoFrame(eof);
         if (frame)
         {
+            ImGui::ImMat vmat;
+            frame->GetMat(vmat);
+            if (!m_tx)
+            {
+                RenderUtils::Vec2<int32_t> txSize(vmat.w, vmat.h);
+                m_tx = m_txmgr->CreateManagedTextureFromMat(vmat, txSize);
+            }
+            else
+                m_tx->RenderMatToTexture(vmat);
             m_playStartPos = (double)frame->Pos() / 1000.0;
             m_audioNeedSeek = true;
         }
@@ -220,14 +230,16 @@ bool MediaPlayer::IsPlaying()
     return m_isPlay;
 }
 
-ImTextureID MediaPlayer::GetFrame(float pos)
+ImTextureID MediaPlayer::GetFrame(float pos, bool blocking)
 {
+    if (!m_isPlay && m_tx)
+        return m_tx->TextureID();
     if (m_vidrdr && m_vidrdr->IsOpened() && !m_vidrdr->IsSuspended())
     {
         bool eof;
         ImGui::ImMat vmat;
         int64_t readPos = (int64_t)(pos*1000);
-        auto hVf = m_vidrdr->ReadVideoFrame(readPos, eof, false);
+        auto hVf = m_vidrdr->ReadVideoFrame(readPos, eof, blocking);
         if (hVf)
         {
             Logger::Log(Logger::VERBOSE) << "Succeeded to read video frame @pos=" << pos << "." << std::endl;
