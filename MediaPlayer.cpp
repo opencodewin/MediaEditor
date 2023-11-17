@@ -8,9 +8,9 @@ namespace MEC
 MediaPlayer::MediaPlayer()
 {
     m_txmgr = RenderUtils::TextureManager::CreateInstance();
-    m_txmgr->SetLogLevel(Logger::INFO);
+    //m_txmgr->SetLogLevel(Logger::INFO);
     m_audrdr = MediaCore::MediaReader::CreateInstance();
-    m_audrdr->SetLogLevel(Logger::INFO);
+    //m_audrdr->SetLogLevel(Logger::INFO);
 
     m_pcmStream = new SimplePcmStream(m_audrdr);
     m_audrnd = MediaCore::AudioRender::CreateInstance();
@@ -52,7 +52,7 @@ void MediaPlayer::Open(std::string url)
     if (m_mediaParser->HasVideo())
     {
         m_vidrdr = MediaCore::MediaReader::CreateVideoInstance();
-        m_vidrdr->SetLogLevel(Logger::DEBUG);
+        //m_vidrdr->SetLogLevel(Logger::DEBUG);
         m_vidrdr->EnableHwAccel(m_useHwAccel);
         m_vidrdr->Open(m_mediaParser);
         m_vidrdr->ConfigVideoReader(1.f, 1.f, IM_CF_RGBA, IM_DT_INT8, IM_INTERPOLATE_AREA, MediaCore::HwaccelManager::GetDefaultInstance());
@@ -143,12 +143,22 @@ bool MediaPlayer::Play()
 {
     if (!m_vidrdr && !m_audrdr)
         return false;
-    if (m_vidrdr && m_vidrdr->IsSuspended())
-        m_vidrdr->Wakeup();
+    if (m_vidrdr && !m_vidrdr->IsDirectionForward())
+        m_vidrdr->SetDirection(true);
+    if (m_audrdr && !m_audrdr->IsDirectionForward())
+        m_audrdr->SetDirection(true);
     m_playStartTp = Clock::now();
     m_playStartPos = GetCurrentPos();
     if (m_audrdr->IsOpened())
+    {
+        if (m_audioNeedSeek)
+        {
+            int64_t seekPos = m_playStartPos * 1000;
+            m_audrdr->SeekTo(seekPos);
+            m_audioNeedSeek = false;
+        }
         m_audrnd->Resume();
+    }
     m_isPlay = true;
     return true;
 }
@@ -178,6 +188,33 @@ bool MediaPlayer::Seek(float pos)
     return true;
 }
 
+bool MediaPlayer::Step(bool forward)
+{
+    if (!m_vidrdr && !m_audrdr)
+        return false;
+    if (m_isPlay)
+        return false;
+    bool eof;
+    if (m_vidrdr && forward != m_vidrdr->IsDirectionForward())
+    {
+        m_vidrdr->SetDirection(forward);
+    }
+    if (m_audrdr && forward != m_audrdr->IsDirectionForward())
+    {
+        m_audrdr->SetDirection(forward);
+    }
+    if (m_vidrdr)
+    {
+        auto frame = m_vidrdr->ReadNextVideoFrame(eof);
+        if (frame)
+        {
+            m_playStartPos = (double)frame->Pos() / 1000.0;
+            m_audioNeedSeek = true;
+        }
+    }
+    return true;
+}
+
 bool MediaPlayer::IsPlaying()
 {
     return m_isPlay;
@@ -190,7 +227,7 @@ ImTextureID MediaPlayer::GetFrame(float pos)
         bool eof;
         ImGui::ImMat vmat;
         int64_t readPos = (int64_t)(pos*1000);
-        auto hVf = m_vidrdr->ReadVideoFrame(readPos, eof);
+        auto hVf = m_vidrdr->ReadVideoFrame(readPos, eof, false);
         if (hVf)
         {
             Logger::Log(Logger::VERBOSE) << "Succeeded to read video frame @pos=" << pos << "." << std::endl;

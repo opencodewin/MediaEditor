@@ -847,7 +847,7 @@ struct MediaSourceNode final : Node
     {
         ImGui::SetCurrentContext(ctx);
         ImGui::Text("%s", m_file_name.c_str());
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput | ImGuiSliderFlags_NoLabel;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
         ImGui::Dummy(ImVec2(320, 8));
         ImGui::PushItemWidth(300);
         if (ImGui::Button(m_paused ? ICON_FAD_PLAY : ICON_FAD_PAUSE, ImVec2(32.0f, 32.0f)))
@@ -857,7 +857,7 @@ struct MediaSourceNode final : Node
         ImGui::SameLine();
         float time = m_current_pts;
         float total_time = m_total_time;
-        if (ImGui::SliderFloat("time", &time, 0, total_time, "%.2f", flags))
+        if (ImGui::SliderFloat("##time", &time, 0, total_time, "%.2f", flags))
         {
             if (m_fmt_ctx)
             {

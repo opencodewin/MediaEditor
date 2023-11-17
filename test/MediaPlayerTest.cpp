@@ -192,7 +192,7 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
     if (playPos > mediaDur) playPos = mediaDur;
 
     // Show PlayControl panel
-    if (g_isOpened && (show_ctrlbar && io.FrameCountSinceLastUpdate))
+    if (g_isOpened && (show_ctrlbar && io.FrameCountSinceLastEvent))
     {
         ctrlbar_hide_count++;
         if (ctrlbar_hide_count >= 100)
@@ -201,7 +201,7 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
             show_ctrlbar = false;
         }
     }
-    if (io.FrameCountSinceLastUpdate == 0)
+    if (io.FrameCountSinceLastEvent == 0)
     {
         ctrlbar_hide_count = 0;
         show_ctrlbar = true;

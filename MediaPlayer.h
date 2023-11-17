@@ -57,6 +57,7 @@ namespace MEC
         bool Pause();
         bool Seek(float pos);
         bool IsPlaying();
+        bool Step(bool forward);
 
     public:
         ImTextureID GetFrame(float pos);
@@ -79,5 +80,6 @@ namespace MEC
         int c_audioRenderChannels {2};
         int c_audioRenderSampleRate {44100};
         SimplePcmStream* m_pcmStream {nullptr};
+        bool m_audioNeedSeek {false};
     };
 }

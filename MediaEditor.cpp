@@ -1090,7 +1090,8 @@ static void ShowAbout(int32_t about_start_time)
     ImGui::ShowImGuiInfo();
     ImGui::Separator();
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", ImGui::GetIO().DeltaTime * 1000.f, ImGui::GetIO().Framerate);
-    ImGui::Text("Frames since last input: %d", ImGui::GetIO().FrameCountSinceLastUpdate);
+    ImGui::Text("Frames since last update: %d", ImGui::GetIO().FrameCountSinceLastUpdate);
+    ImGui::Text("Frames since last event: %d", ImGui::GetIO().FrameCountSinceLastEvent);
 #if IMGUI_VULKAN_SHADER
     ImGui::Separator();
     int device_count = ImGui::get_gpu_count();
@@ -1972,8 +1973,8 @@ static void ShowMediaPlayWindow(bool &show)
     ImVec2 window_pos = ImGui::GetWindowPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     ImVec2 video_size = window_size - ImVec2(4, 60);
-    draw_list->AddRectFilled(window_pos, ImVec2(window_pos.x + window_size.x - 4, window_pos.y + window_size.y - 60), IM_COL32(0, 0, 0, 255));
     bool isFileOpened = timeline->mMediaPlayer->IsOpened();
+    static bool isFullscreen = false;
     float playPos = 0;
     float mediaDur = 0;
     std::string media_url = isFileOpened ? timeline->mMediaPlayer->GetUrl() : "";
@@ -1994,111 +1995,269 @@ static void ShowMediaPlayWindow(bool &show)
         timeline->mMediaPlayer->Pause();
     }
 
-    // player controller
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-    ImGui::BeginDisabled(!isFileOpened);
-    std::string playBtnLabel = timeline->mMediaPlayer->IsPlaying() ? ICON_STOP : ICON_PLAY_FORWARD;
-    ImGui::SetCursorScreenPos(ImVec2(window_pos.x + window_size.x / 2 - 15, window_pos.y + window_size.y - 56));
-    if (ImGui::Button(playBtnLabel.c_str()))
+    if (!isFullscreen)
     {
-        if (timeline->mMediaPlayer->IsPlaying())
+        draw_list->AddRectFilled(window_pos, ImVec2(window_pos.x + window_size.x - 4, window_pos.y + window_size.y - 60), IM_COL32(0, 0, 0, 255));
+        ImTextureID tid = timeline->mMediaPlayer->GetFrame(playPos);
+        if (tid)
         {
-            timeline->mMediaPlayer->Pause();
+            ImGui::ImShowVideoWindow(draw_list, tid, window_pos, video_size);
+        }
+        else
+            ImGui::Dummy(video_size);
+        // player controller
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::BeginDisabled(!isFileOpened);
+        std::string playBtnLabel = timeline->mMediaPlayer->IsPlaying() ? ICON_STOP : ICON_PLAY_FORWARD;
+        ImGui::SetCursorScreenPos(ImVec2(window_pos.x + window_size.x / 2 - 15, window_pos.y + window_size.y - 56));
+        if (ImGui::Button(playBtnLabel.c_str()))
+        {
+            if (timeline->mMediaPlayer->IsPlaying())
+            {
+                timeline->mMediaPlayer->Pause();
+            }
+            else
+            {
+                timeline->mMediaPlayer->Play();
+            }
+        }
+
+        ImGui::Spacing();
+        ImGui::SetNextItemWidth(window_size.x);
+        if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, ""))
+        {
+            timeline->mMediaPlayer->Seek(playPos);
+        }
+
+        // Time stamp on left of control panel
+        ImGui::SetCursorScreenPos(ImVec2(window_pos.x + 48, window_pos.y + window_size.y - 48));
+        auto time_str = ImGuiHelper::MillisecToString(playPos * 1000, 3);
+        auto dur_str = ImGuiHelper::MillisecToString(mediaDur * 1000, 3);
+        auto show_text = time_str + "/" + dur_str;
+        ImGui::TextUnformatted(show_text.c_str());
+        ImGui::EndDisabled();
+
+        std::string media_status_icon;
+        bool could_be_added = false;
+        bool is_in_timeline = false;
+        if (media_url.empty())
+        {
+            media_status_icon = ICON_FA_PLUG_CIRCLE_XMARK;
+            could_be_added = true;
+        }
+        else if (timeline->isURLInTimeline(media_url))
+        {
+            media_status_icon = ICON_FA_PLUG_CIRCLE_BOLT;
+            is_in_timeline = true;
+        }
+        else if (timeline->isURLInMediaBank(media_url))
+        {
+            media_status_icon = ICON_FA_PLUG_CIRCLE_CHECK;
         }
         else
         {
-            timeline->mMediaPlayer->Play();
+            media_status_icon = ICON_FA_PLUG_CIRCLE_XMARK;
+            could_be_added = true;
         }
-    }
 
-    ImGui::Spacing();
-    ImGui::SetNextItemWidth(window_size.x);
-    if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, "%.3f"))
-    {
-        timeline->mMediaPlayer->Seek(playPos);
-    }
-    ImGui::EndDisabled();
-
-    ImTextureID tid = timeline->mMediaPlayer->GetFrame(playPos);
-    if (tid)
-    {
-        ImGui::ImShowVideoWindow(draw_list, tid, window_pos, video_size);
-    }
-    else
-        ImGui::Dummy(video_size);
-
-    std::string media_status_icon;
-    bool could_be_added = false;
-    bool is_in_timeline = false;
-    if (media_url.empty())
-    {
-        media_status_icon = ICON_FA_PLUG_CIRCLE_XMARK;
-        could_be_added = true;
-    }
-    else if (timeline->isURLInTimeline(media_url))
-    {
-        media_status_icon = ICON_FA_PLUG_CIRCLE_BOLT;
-        is_in_timeline = true;
-    }
-    else if (timeline->isURLInMediaBank(media_url))
-    {
-        media_status_icon = ICON_FA_PLUG_CIRCLE_CHECK;
-    }
-    else
-    {
-        media_status_icon = ICON_FA_PLUG_CIRCLE_XMARK;
-        could_be_added = true;
-    }
-
-    ImGui::SetCursorScreenPos(ImVec2(window_pos.x + 8, window_pos.y + window_size.y - 56));
-    if (could_be_added)
-    {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 0.0, 0.0, 1.0));
-    }
-    else
-    {
-        if (is_in_timeline) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0));
-        else ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0));
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-    }
-    if (ImGui::Button(media_status_icon.c_str()))
-    {
-        if (!media_url.empty() && could_be_added)
+        ImGui::SetCursorScreenPos(ImVec2(window_pos.x + 8, window_pos.y + window_size.y - 56));
+        if (could_be_added)
         {
-            auto name = ImGuiHelper::path_filename(media_url);
-            auto path = std::string(media_url);
-            auto file_suffix = ImGuiHelper::path_filename_suffix(path);
-            auto type = EstimateMediaType(file_suffix);
-            MediaItem * item = new MediaItem(name, path, type, timeline);
-            timeline->media_items.push_back(item);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 0.0, 0.0, 1.0));
         }
-    }
-    if (could_be_added)
+        else
+        {
+            if (is_in_timeline) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 0.0, 1.0));
+            else ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0, 1.0, 0.0, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+        }
+        if (ImGui::Button(media_status_icon.c_str()))
+        {
+            if (!media_url.empty() && could_be_added)
+            {
+                auto name = ImGuiHelper::path_filename(media_url);
+                auto path = std::string(media_url);
+                auto file_suffix = ImGuiHelper::path_filename_suffix(path);
+                auto type = EstimateMediaType(file_suffix);
+                MediaItem * item = new MediaItem(name, path, type, timeline);
+                timeline->media_items.push_back(item);
+            }
+        }
+        if (could_be_added)
+            ImGui::PopStyleColor();
+        else
+            ImGui::PopStyleColor(4);
+
+        if (timeline->mMediaPlayer->HasVideo())
+        {
+            ImGui::SetCursorScreenPos(ImVec2(window_pos.x + window_size.x - 8 - 16, window_pos.y + window_size.y - 56));
+            if (ImGui::Button(ICON_MD_SETTINGS_OVERSCAN "##mediaplay_fullscreen"))
+            {
+                ImGui::OpenPopup(ICON_MEDIA_PREVIEW " MediaPlay FullScreen", ImGuiPopupFlags_AnyPopup);
+                isFullscreen = true;
+            }
+        }
+
+        // close button
+        ImVec2 close_pos = ImVec2(window_pos.x + window_size.x - 32, window_pos.y + 4);
+        ImVec2 close_size = ImVec2(16, 16);
+        ImRect close_rect(close_pos, close_pos + close_size);
+        ImGui::SetCursorScreenPos(close_pos);
+        ImGui::Button(ICON_MD_CLEAR "##close_player");
+        if (close_rect.Contains(io.MousePos) && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        {
+            StopTimelineMediaPlay();
+            show = false;
+        }
         ImGui::PopStyleColor();
+    }
     else
-        ImGui::PopStyleColor(4);
-
-    ImGui::SetCursorScreenPos(ImVec2(window_pos.x + window_size.x - 8 - 16, window_pos.y + window_size.y - 56));
-    if (ImGui::Button(ICON_MD_ASPECT_RATIO "##mediaplay_fullscreen"))
     {
-        // TODO::Dicky add full screen mode play
-    }
-    
-    // close button
-    ImVec2 close_pos = ImVec2(window_pos.x + window_size.x - 32, window_pos.y + 4);
-    ImVec2 close_size = ImVec2(16, 16);
-    ImRect close_rect(close_pos, close_pos + close_size);
-    ImGui::SetCursorScreenPos(close_pos);
-    ImGui::Button(ICON_MD_CLEAR "##close_player");
-    if (close_rect.Contains(io.MousePos) && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-    {
-        StopTimelineMediaPlay();
-        show = false;
+        draw_list->AddRectFilled(window_pos, ImVec2(window_pos.x + window_size.x, window_pos.y + window_size.y), IM_COL32(0, 0, 0, 255));
+        std::string center_str = "Full screen playing...";
+        auto string_width = ImGui::CalcTextSize(center_str.c_str());
+        auto pos_center = window_pos + window_size / 2;
+        auto str_pos = pos_center - string_width / 2;
+        ImGui::SetCursorScreenPos(str_pos);
+        ImGui::TextUnformatted(center_str.c_str());
     }
 
-    ImGui::PopStyleColor();
+    if (ImGui::BeginPopupModal(ICON_MEDIA_PREVIEW " MediaPlay FullScreen", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_FullScreen | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+    {
+        static bool show_ctrlbar = true;
+        static int ctrlbar_hide_count = 0;
+        static int ctrlbar_alpha = 255;
+        auto viewport = ImGui::GetWindowViewport();
+        ImDrawList * popup_draw_list = ImGui::GetWindowDrawList();
+        ImVec2 popup_window_pos = ImGui::GetWindowPos();
+        ImVec2 popup_window_size = ImGui::GetWindowSize();
+        // handle key event
+        bool no_ctrl_key = !io.KeyCtrl && !io.KeyShift && !io.KeyAlt;
+        if (no_ctrl_key && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Space), false))
+        {
+            if (timeline->mMediaPlayer->IsPlaying())
+            {
+                timeline->mMediaPlayer->Pause();
+            }
+            else
+            {
+                timeline->mMediaPlayer->Play();
+            }
+        }
+        if (no_ctrl_key && !timeline->mMediaPlayer->IsPlaying() && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftArrow), false))
+        {
+            timeline->mMediaPlayer->Step(false);
+        }
+        if (no_ctrl_key && !timeline->mMediaPlayer->IsPlaying() && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_RightArrow), false))
+        {
+            timeline->mMediaPlayer->Step(true);
+        }
+        if (no_ctrl_key && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
+        {
+            isFullscreen = false;
+            ImGui::CloseCurrentPopup();
+        }
+        
+        // Show PlayControl panel
+        if (show_ctrlbar && io.FrameCountSinceLastEvent)
+        {
+            ctrlbar_hide_count++;
+            if (ctrlbar_hide_count >= 100)
+            {
+                ctrlbar_alpha-=4;
+            }
+            if (ctrlbar_alpha <= 0)
+            {
+                ctrlbar_hide_count = 0;
+                ctrlbar_alpha = 0;
+                show_ctrlbar = false;
+            }
+        }
+        
+        if (io.KeyShift)
+        {
+            // we may using shift to tiggle video zoom
+            ctrlbar_hide_count = 0;
+            ctrlbar_alpha = 0;
+            show_ctrlbar = false;
+        }
+        else if (io.FrameCountSinceLastEvent == 0)
+        {
+            ctrlbar_hide_count = 0;
+            ctrlbar_alpha = 255;
+            show_ctrlbar = true;
+        }
+
+        ImTextureID tid = timeline->mMediaPlayer->GetFrame(playPos);
+        if (tid)
+        {
+            ImGui::ImShowVideoWindow(popup_draw_list, tid, popup_window_pos, popup_window_size, 512);
+        }
+
+        if (show_ctrlbar)
+        {
+            ImVec2 center(20.f, io.DisplaySize.y * 0.85f);
+            ImVec2 panel_size(io.DisplaySize.x - 40.0, 120);
+            ImGui::SetNextWindowPos(center, ImGuiCond_Always);
+            ImGui::SetNextWindowBgAlpha(0.f);
+            ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.25, 0.25, 0.25, 0.5));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.75, 0.75, 0.75, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.75, 0.75, 0.75, 1));
+            ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(1, 1, 1, 1));
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, (float)ctrlbar_alpha / 255.f);
+            if (ImGui::BeginChild("MediaPlayControlPanel", panel_size, 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize))
+            {
+                ImDrawList * ctrl_draw_list = ImGui::GetWindowDrawList();
+                ImVec2 ctrl_window_pos = ImGui::GetWindowPos();
+                ImVec2 ctrl_window_size = ImGui::GetWindowSize();
+                ctrl_draw_list->AddRectFilled(ctrl_window_pos, ctrl_window_pos + ctrl_window_size, IM_COL32(64, 64, 64, ctrlbar_alpha / 2), 16);
+                std::string playBtnLabel = timeline->mMediaPlayer->IsPlaying() ? ICON_STOP : ICON_PLAY_FORWARD;
+                ImGui::SetCursorScreenPos(ImVec2(ctrl_window_pos.x + ctrl_window_size.x / 2 - 15, ctrl_window_pos.y + 8));
+                ImGui::SetWindowFontScale(2.0);
+
+                if (ImGui::Button(playBtnLabel.c_str()))
+                {
+                    if (timeline->mMediaPlayer->IsPlaying())
+                    {
+                        timeline->mMediaPlayer->Pause();
+                    }
+                    else
+                    {
+                        timeline->mMediaPlayer->Play();
+                    }
+                }
+                ImGui::SameLine();
+                if (ImGui::Button(ICON_MD_ZOOM_IN_MAP "##exit_fullscreen"))
+                {
+                    isFullscreen = false;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SetWindowFontScale(1.0);
+                ImGui::Spacing();
+                ImGui::SetNextItemWidth(ctrl_window_size.x);
+                if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, ""))
+                {
+                    timeline->mMediaPlayer->Seek(playPos);
+                }
+                // Time stamp on left of control panel
+                ImRect TimeStampRect = ImRect(ctrl_window_pos.x + 32, ctrl_window_pos.y + 12, 
+                                            ctrl_window_pos.x + ctrl_window_size.x / 2, ctrl_window_pos.y + 64);
+                ctrl_draw_list->PushClipRect(TimeStampRect.Min, TimeStampRect.Max, true);
+                ImGui::SetWindowFontScale(1.5);
+                ImGui::ShowDigitalTimeDuration(ctrl_draw_list, playPos * 1000, mediaDur * 1000, 3, TimeStampRect.Min, IM_COL32(255, 255, 255, ctrlbar_alpha));
+                ImGui::SetWindowFontScale(1.0);
+                ctrl_draw_list->PopClipRect();
+            }
+            ImGui::EndChild();
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor(5);
+        }
+        
+        ImGui::EndPopup();
+    }
 }
 
 static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size)
@@ -4541,16 +4700,16 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
             // filter input texture area
             ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, "Original", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
-            if (!out_of_border && timeline->mVideoFilterInputTexture)
+            if (!out_of_border && timeline->mVideoFilterInputTexture && ImGui::IsItemHovered())
             {
-                if (ImGui::IsItemHovered() && io.MouseType == 1)
+                float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
+                float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
+                float scale_w = image_width / (tf_x - offset_x);
+                float scale_h = image_height / (tf_y - offset_y);
+                pos_x = (io.MousePos.x - offset_x) * scale_w;
+                pos_y = (io.MousePos.y - offset_y) * scale_h;
+                if (io.MouseType == 1)
                 {
-                    float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
-                    float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
-                    float scale_w = image_width / (tf_x - offset_x);
-                    float scale_h = image_height / (tf_y - offset_y);
-                    pos_x = (io.MousePos.x - offset_x) * scale_w;
-                    pos_y = (io.MousePos.y - offset_y) * scale_h;
                     ImGui::RenderMouseCursor(ICON_STRAW, ImVec2(2, 12));
                     draw_list->AddRect(io.MousePos - ImVec2(2, 2), io.MousePos + ImVec2(2, 2), IM_COL32(255,0, 0,255));
                     auto pixel = ImGui::ImGetTexturePixel(timeline->mVideoFilterInputTexture, pos_x, pos_y);
@@ -4615,7 +4774,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
                 else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
                 if (region_y < 0.0f) { region_y = 0.0f; }
                 else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
-                ImGui::SetNextWindowPos(VideoZoomPos);
+                //ImGui::SetNextWindowPos(VideoZoomPos);
                 ImGui::SetNextWindowBgAlpha(1.0);
                 if (ImGui::BeginTooltip())
                 {
@@ -11244,6 +11403,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     {
         std::ostringstream oss;
         oss << std::fixed << std::setprecision(2) << ImGui::GetIO().DeltaTime * 1000.f << "ms/frame ";
+        oss << "(" << ImGui::GetIO().FrameCountSinceLastUpdate << "/" << ImGui::GetIO().FrameCountSinceLastEvent <<  ") ";
         oss << ImGui::GetIO().Framerate << "FPS";
 #ifdef SHOW_GPU_INFO
         int device_count = ImGui::get_gpu_count();
