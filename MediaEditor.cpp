@@ -2214,10 +2214,20 @@ static void ShowMediaPlayWindow(bool &show)
                 ImVec2 ctrl_window_pos = ImGui::GetWindowPos();
                 ImVec2 ctrl_window_size = ImGui::GetWindowSize();
                 ctrl_draw_list->AddRectFilled(ctrl_window_pos, ctrl_window_pos + ctrl_window_size, IM_COL32(64, 64, 64, ctrlbar_alpha / 2), 16);
-                std::string playBtnLabel = timeline->mMediaPlayer->IsPlaying() ? ICON_STOP : ICON_PLAY_FORWARD;
-                ImGui::SetCursorScreenPos(ImVec2(ctrl_window_pos.x + ctrl_window_size.x / 2 - 15, ctrl_window_pos.y + 8));
+                
                 ImGui::SetWindowFontScale(2.0);
 
+                ImGui::BeginDisabled(timeline->mMediaPlayer->IsPlaying());
+                ImGui::SetCursorScreenPos(ImVec2(ctrl_window_pos.x + ctrl_window_size.x / 2 - 15 - 32 - 16, ctrl_window_pos.y + 8));
+                if (ImGui::Button(ICON_STEP_BACKWARD "##media_play_back_step"))
+                {
+                    timeline->mMediaPlayer->Step(false);
+                }
+                ImGui::ShowTooltipOnHover("Step Prev (<-)");
+                ImGui::EndDisabled();
+
+                std::string playBtnLabel = (timeline->mMediaPlayer->IsPlaying() ? std::string(ICON_STOP) : std::string(ICON_PLAY_FORWARD)) + "##media_play_pause";
+                ImGui::SetCursorScreenPos(ImVec2(ctrl_window_pos.x + ctrl_window_size.x / 2 - 15, ctrl_window_pos.y + 8));
                 if (ImGui::Button(playBtnLabel.c_str()))
                 {
                     if (timeline->mMediaPlayer->IsPlaying())
@@ -2229,12 +2239,25 @@ static void ShowMediaPlayWindow(bool &show)
                         timeline->mMediaPlayer->Play();
                     }
                 }
-                ImGui::SameLine();
+                ImGui::ShowTooltipOnHover("Play/Pause (Space)");
+
+                ImGui::BeginDisabled(timeline->mMediaPlayer->IsPlaying());
+                ImGui::SetCursorScreenPos(ImVec2(ctrl_window_pos.x + ctrl_window_size.x / 2 + 15 + 16, ctrl_window_pos.y + 8));
+                if (ImGui::Button(ICON_STEP_FORWARD "##media_play_next_step"))
+                {
+                    timeline->mMediaPlayer->Step(true);
+                }
+                ImGui::ShowTooltipOnHover("Step Next (->)");
+                ImGui::EndDisabled();
+
+                ImGui::SetCursorScreenPos(ImVec2(ctrl_window_pos.x + ctrl_window_size.x - 64, ctrl_window_pos.y + 8));
                 if (ImGui::Button(ICON_MD_ZOOM_IN_MAP "##exit_fullscreen"))
                 {
                     isFullscreen = false;
                     ImGui::CloseCurrentPopup();
                 }
+                ImGui::ShowTooltipOnHover("Exit FullScreen");
+
                 ImGui::SetWindowFontScale(1.0);
                 ImGui::Spacing();
                 ImGui::SetNextItemWidth(ctrl_window_size.x);

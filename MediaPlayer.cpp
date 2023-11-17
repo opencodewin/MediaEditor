@@ -185,7 +185,11 @@ bool MediaPlayer::Seek(float pos)
         m_audrdr->SeekTo(seekPos);
     m_playStartPos = pos;
     m_playStartTp = Clock::now();
-    if (!m_isPlay) m_tx = nullptr;
+    if (!m_isPlay)
+    {
+        m_tx = nullptr;
+        GetFrame(pos, true);
+    }
     return true;
 }
 
