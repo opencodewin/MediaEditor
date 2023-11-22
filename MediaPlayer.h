@@ -44,19 +44,20 @@ namespace MEC
     public:
         MediaPlayer();
         ~MediaPlayer();
-        void Open(std::string url);
+        void Open(const std::string& url);
         void Close();
-        bool IsOpened();
-        bool HasVideo();
-        bool HasAudio();
+        bool IsOpened() const { return m_bIsVideoReady || m_bIsAudioReady; }
+        bool HasVideo() const { return m_bIsVideoReady; }
+        bool HasAudio() const { return m_bIsAudioReady; }
         std::string GetUrl() { return m_playURL; };
         float GetVideoDuration();
         float GetAudioDuration();
         float GetCurrentPos();
         bool Play();
         bool Pause();
-        bool Seek(float pos);
-        bool IsPlaying();
+        bool Seek(float pos, bool bSeekingMode);
+        bool IsPlaying() const { return m_bIsPlay; }
+        bool IsSeeking() const { return m_bIsSeeking; }
         bool Step(bool forward);
 
     public:
@@ -70,10 +71,13 @@ namespace MEC
         bool m_useHwAccel {true};
         int32_t m_audioStreamCount {0};
         int32_t m_chooseAudioIndex {-1};
+        bool m_bIsVideoReady {false};
         MediaCore::MediaReader::Holder m_vidrdr; // video
         double m_playStartPos = 0.f;
         Clock::time_point m_playStartTp;
-        bool m_isPlay {false};
+        bool m_bIsPlay {false};
+        bool m_bIsSeeking {false};
+        bool m_bIsAudioReady {false};
         MediaCore::MediaReader::Holder m_audrdr; // audio
         MediaCore::AudioRender* m_audrnd {nullptr};
         MediaCore::AudioRender::PcmFormat c_audioRenderFormat {MediaCore::AudioRender::PcmFormat::FLOAT32};

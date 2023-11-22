@@ -1973,61 +1973,52 @@ static void ShowMediaPlayWindow(bool &show)
     ImVec2 window_pos = ImGui::GetWindowPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     ImVec2 video_size = window_size - ImVec2(4, 60);
-    bool isFileOpened = timeline->mMediaPlayer->IsOpened();
+    auto& player = timeline->mMediaPlayer;
+    bool isFileOpened = player->IsOpened();
     static bool isFullscreen = false;
     float playPos = 0;
     float mediaDur = 0;
-    std::string media_url = isFileOpened ? timeline->mMediaPlayer->GetUrl() : "";
-    if (timeline->mMediaPlayer->HasVideo())
-    {
-        mediaDur = timeline->mMediaPlayer->GetVideoDuration();
-    }
-    else if (timeline->mMediaPlayer->HasAudio())
-    {
-        mediaDur = timeline->mMediaPlayer->GetAudioDuration();
-    }
+    std::string media_url = isFileOpened ? player->GetUrl() : "";
+    if (player->HasVideo())
+        mediaDur = player->GetVideoDuration();
+    else if (player->HasAudio())
+        mediaDur = player->GetAudioDuration();
 
-    playPos = timeline->mMediaPlayer->GetCurrentPos();
+    playPos = player->GetCurrentPos();
     if (playPos < 0) playPos = 0;
     if (playPos > mediaDur)
     {
         playPos = mediaDur;
-        timeline->mMediaPlayer->Pause();
+        player->Pause();
     }
 
     if (!isFullscreen)
     {
         draw_list->AddRectFilled(window_pos, ImVec2(window_pos.x + window_size.x - 4, window_pos.y + window_size.y - 60), IM_COL32(0, 0, 0, 255));
-        ImTextureID tid = timeline->mMediaPlayer->GetFrame(playPos);
+        ImTextureID tid = player->GetFrame(playPos);
         if (tid)
-        {
             ImGui::ImShowVideoWindow(draw_list, tid, window_pos, video_size);
-        }
         else
             ImGui::Dummy(video_size);
         // player controller
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         ImGui::BeginDisabled(!isFileOpened);
-        std::string playBtnLabel = timeline->mMediaPlayer->IsPlaying() ? ICON_STOP : ICON_PLAY_FORWARD;
+        std::string playBtnLabel = player->IsPlaying() ? ICON_STOP : ICON_PLAY_FORWARD;
         ImGui::SetCursorScreenPos(ImVec2(window_pos.x + window_size.x / 2 - 15, window_pos.y + window_size.y - 56));
         if (ImGui::Button(playBtnLabel.c_str()))
         {
-            if (timeline->mMediaPlayer->IsPlaying())
-            {
-                timeline->mMediaPlayer->Pause();
-            }
+            if (player->IsPlaying())
+                player->Pause();
             else
-            {
-                timeline->mMediaPlayer->Play();
-            }
+                player->Play();
         }
 
         ImGui::Spacing();
         ImGui::SetNextItemWidth(window_size.x);
         if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, ""))
-        {
-            timeline->mMediaPlayer->Seek(playPos);
-        }
+            player->Seek(playPos, true);
+        if (player->IsSeeking() && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+            player->Seek(playPos, false);
 
         // Time stamp on left of control panel
         ImGui::SetCursorScreenPos(ImVec2(window_pos.x + 48, window_pos.y + window_size.y - 48));
@@ -2090,7 +2081,7 @@ static void ShowMediaPlayWindow(bool &show)
         else
             ImGui::PopStyleColor(4);
 
-        if (timeline->mMediaPlayer->HasVideo())
+        if (player->HasVideo())
         {
             ImGui::SetCursorScreenPos(ImVec2(window_pos.x + window_size.x - 8 - 16, window_pos.y + window_size.y - 56));
             if (ImGui::Button(ICON_MD_SETTINGS_OVERSCAN "##mediaplay_fullscreen"))
@@ -2137,22 +2128,18 @@ static void ShowMediaPlayWindow(bool &show)
         bool no_ctrl_key = !io.KeyCtrl && !io.KeyShift && !io.KeyAlt;
         if (no_ctrl_key && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Space), false))
         {
-            if (timeline->mMediaPlayer->IsPlaying())
-            {
-                timeline->mMediaPlayer->Pause();
-            }
+            if (player->IsPlaying())
+                player->Pause();
             else
-            {
-                timeline->mMediaPlayer->Play();
-            }
+                player->Play();
         }
-        if (no_ctrl_key && !timeline->mMediaPlayer->IsPlaying() && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftArrow), false))
+        if (no_ctrl_key && !player->IsPlaying() && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_LeftArrow), false))
         {
-            timeline->mMediaPlayer->Step(false);
+            player->Step(false);
         }
-        if (no_ctrl_key && !timeline->mMediaPlayer->IsPlaying() && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_RightArrow), false))
+        if (no_ctrl_key && !player->IsPlaying() && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_RightArrow), false))
         {
-            timeline->mMediaPlayer->Step(true);
+            player->Step(true);
         }
         if (no_ctrl_key && ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape), false))
         {
@@ -2190,11 +2177,9 @@ static void ShowMediaPlayWindow(bool &show)
             show_ctrlbar = true;
         }
 
-        ImTextureID tid = timeline->mMediaPlayer->GetFrame(playPos);
+        ImTextureID tid = player->GetFrame(playPos);
         if (tid)
-        {
             ImGui::ImShowVideoWindow(popup_draw_list, tid, popup_window_pos, popup_window_size, 512);
-        }
 
         if (show_ctrlbar)
         {
@@ -2217,35 +2202,31 @@ static void ShowMediaPlayWindow(bool &show)
                 
                 ImGui::SetWindowFontScale(2.0);
 
-                ImGui::BeginDisabled(timeline->mMediaPlayer->IsPlaying());
+                ImGui::BeginDisabled(player->IsPlaying());
                 ImGui::SetCursorScreenPos(ImVec2(ctrl_window_pos.x + ctrl_window_size.x / 2 - 15 - 32 - 16, ctrl_window_pos.y + 8));
                 if (ImGui::Button(ICON_STEP_BACKWARD "##media_play_back_step"))
                 {
-                    timeline->mMediaPlayer->Step(false);
+                    player->Step(false);
                 }
                 ImGui::ShowTooltipOnHover("Step Prev (<-)");
                 ImGui::EndDisabled();
 
-                std::string playBtnLabel = (timeline->mMediaPlayer->IsPlaying() ? std::string(ICON_STOP) : std::string(ICON_PLAY_FORWARD)) + "##media_play_pause";
+                std::string playBtnLabel = (player->IsPlaying() ? std::string(ICON_STOP) : std::string(ICON_PLAY_FORWARD)) + "##media_play_pause";
                 ImGui::SetCursorScreenPos(ImVec2(ctrl_window_pos.x + ctrl_window_size.x / 2 - 15, ctrl_window_pos.y + 8));
                 if (ImGui::Button(playBtnLabel.c_str()))
                 {
-                    if (timeline->mMediaPlayer->IsPlaying())
-                    {
-                        timeline->mMediaPlayer->Pause();
-                    }
+                    if (player->IsPlaying())
+                        player->Pause();
                     else
-                    {
-                        timeline->mMediaPlayer->Play();
-                    }
+                        player->Play();
                 }
                 ImGui::ShowTooltipOnHover("Play/Pause (Space)");
 
-                ImGui::BeginDisabled(timeline->mMediaPlayer->IsPlaying());
+                ImGui::BeginDisabled(player->IsPlaying());
                 ImGui::SetCursorScreenPos(ImVec2(ctrl_window_pos.x + ctrl_window_size.x / 2 + 15 + 16, ctrl_window_pos.y + 8));
                 if (ImGui::Button(ICON_STEP_FORWARD "##media_play_next_step"))
                 {
-                    timeline->mMediaPlayer->Step(true);
+                    player->Step(true);
                 }
                 ImGui::ShowTooltipOnHover("Step Next (->)");
                 ImGui::EndDisabled();
@@ -2262,9 +2243,9 @@ static void ShowMediaPlayWindow(bool &show)
                 ImGui::Spacing();
                 ImGui::SetNextItemWidth(ctrl_window_size.x);
                 if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, ""))
-                {
-                    timeline->mMediaPlayer->Seek(playPos);
-                }
+                    player->Seek(playPos, true);
+                if (player->IsSeeking() && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+                    player->Seek(playPos, false);
                 // Time stamp on left of control panel
                 ImRect TimeStampRect = ImRect(ctrl_window_pos.x + 32, ctrl_window_pos.y + 12, 
                                             ctrl_window_pos.x + ctrl_window_size.x / 2, ctrl_window_pos.y + 64);
