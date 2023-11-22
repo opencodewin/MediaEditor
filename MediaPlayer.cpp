@@ -237,8 +237,6 @@ ImTextureID MediaPlayer::GetFrame(float pos, bool blocking)
 {
     if (!m_bIsVideoReady)
         return nullptr;
-    if (blocking)
-        std::cout << "NOT HERE!" << std::endl;
 
     bool eof;
     ImGui::ImMat vmat;
