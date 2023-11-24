@@ -4747,9 +4747,9 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
                 bool bInMaskEventRange = timeline->mCurrentTime >= start+editing_clip->mMaskEventStart && timeline->mCurrentTime < start+editing_clip->mMaskEventEnd;
                 if (editing_clip->mhMaskCreator && bInMaskEventRange)
                 {
-                    if (editing_clip->mhMaskCreator->DrawContent({offset_x, offset_y}, {tf_x-offset_x, tf_y-offset_y}))
+                    int64_t i64Tick = timeline->mCurrentTime-(start+editing_clip->mMaskEventStart);
+                    if (editing_clip->mhMaskCreator->DrawContent({offset_x, offset_y}, {tf_x-offset_x, tf_y-offset_y}, true, i64Tick))
                     {
-                        editing_clip->SaveEditingMask();
                         auto pTrack = timeline->FindTrackByClipID(editing_clip->mID);
                         timeline->RefreshTrackView({ pTrack->mID });
                     }
@@ -5484,27 +5484,20 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         {
             if (ImGui::Button(ICON_ADD "##add_event_mask"))
             {
-                pEdtVidClip->SaveEditingMask();
                 auto pVidEvt = dynamic_cast<MEC::VideoEvent*>(event.get());
                 auto newMaskIdx = pVidEvt->GetMaskCount();
                 std::ostringstream oss; oss << "Mask " << newMaskIdx;
                 std::string maskName = oss.str();
                 const MatUtils::Size2i vidPreviewSize(timeline->mhPreviewSettings->VideoOutWidth(), timeline->mhPreviewSettings->VideoOutHeight());
-                auto hMaskCreator = ImGui::MaskCreator::CreateInstance(vidPreviewSize, maskName);
-                imgui_json::value jnMask;
-                hMaskCreator->SaveAsJson(jnMask);
-                auto maskMat = hMaskCreator->GetMask(ImGui::MaskCreator::AA, true, IM_DT_FLOAT32, 1, 0);
-                pVidEvt->SaveMask(jnMask, maskMat, newMaskIdx);
+                auto hMaskCreator = pVidEvt->CreateNewMask(maskName, vidPreviewSize);
+                assert(hMaskCreator);
                 if (is_selected)
                     pEdtVidClip->SelectEditingMask(event, -1, newMaskIdx, hMaskCreator);
             }
             ImGui::ShowTooltipOnHover("Add new mask");
             ImGui::SameLine();
             if (pEdtVidClip->mMaskEventId == event->Id() && !is_selected)
-            {
-                pEdtVidClip->SaveEditingMask();
                 pEdtVidClip->UnselectEditingMask();
-            }
         }
         if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_event"))
         {
@@ -5523,36 +5516,61 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 const auto iMaskCount = pVidEvt->GetMaskCount();
                 int iToDelIdx = -1;
                 auto currPos = ImGui::GetCursorScreenPos();
-                auto rightIconPosX = sub_window_pos.x+sub_window_size.x-80;
+                const float iconWidth = 30;
+                const int iconCnt = 2;
+                auto rightIconPosX = sub_window_pos.x+sub_window_size.x-iconWidth*iconCnt-60;
                 const ImVec2 selectableItemSize = { rightIconPosX-currPos.x-20, 20 };
                 for (int idx = 0; idx < iMaskCount; idx++)
                 {
-                    imgui_json::value jnMask;
-                    if (!pVidEvt->GetMask(jnMask, idx))
+                    auto hMaskCreator = pVidEvt->GetMaskCreator(idx);
+                    if (!hMaskCreator)
                     {
                         Logger::Log(Logger::WARN) << pVidEvt->GetError() << std::endl;
                         continue;
                     }
-                    std::string maskName;
-                    if (jnMask.contains("name")) maskName = jnMask["name"].get<imgui_json::string>();
+                    std::string maskName = hMaskCreator->GetName();
                     std::ostringstream oss; oss << maskName << "##event" << event->Id() << "_mask@" << idx;
                     std::string label = oss.str();
                     bool bMaskSelected = pEdtVidClip->mMaskEventId == event->Id() && pEdtVidClip->mMaskNodeId == -1 && pEdtVidClip->mMaskIndex == idx;
                     if (ImGui::Selectable(label.c_str(), bMaskSelected, 0, selectableItemSize) && !bMaskSelected)
                     {
                         if (!is_selected) editing_clip->SelectEvent(event);
-                        pEdtVidClip->SaveEditingMask();
-                        auto hMaskCreator = ImGui::MaskCreator::LoadFromJson(jnMask);
                         pEdtVidClip->SelectEditingMask(event, -1, idx, hMaskCreator);
                     }
                     ImGui::SameLine();
                     currPos = ImGui::GetCursorScreenPos();
-                    ImGui::SetCursorScreenPos({rightIconPosX, currPos.y});
+                    int iconIdx = 0;
+                    ImGui::SetCursorScreenPos({rightIconPosX+(iconIdx++)*iconWidth, currPos.y});
+                    oss.str(""); oss << ICON_FA_CLOCK << "##enable_keyframe@event" << event->Id() << "_index" << idx;
+                    label = oss.str();
+                    bool bKeyFrameEnabled = hMaskCreator->IsKeyFrameEnabled();
+                    const ImColor tChkbtnColor(100, 100, 100);
+                    bool bKeyFrameEnabled_ = !bKeyFrameEnabled;
+                    ImGui::BeginDisabled(!bMaskSelected);
+                    if (ImGui::CheckButton(label.c_str(), &bKeyFrameEnabled_, tChkbtnColor))
+                    {
+                        bKeyFrameEnabled = !bKeyFrameEnabled_;
+                        pEdtVidClip->mhMaskCreator->EnableKeyFrames(bKeyFrameEnabled);
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::SetCursorScreenPos({rightIconPosX+(iconIdx++)*iconWidth, currPos.y});
                     oss.str(""); oss << ICON_DELETE << "##delete_mask@event" << event->Id() << "_index" << idx;
                     label = oss.str();
                     if (ImGui::Button(label.c_str()))
                         iToDelIdx = idx;
                     ImGui::ShowTooltipOnHover("Delete Mask");
+
+                    // draw mask key-frame timeline
+                    if (bMaskSelected && bKeyFrameEnabled)
+                    {
+                        currPos = ImGui::GetCursorScreenPos();
+                        auto wdgWidth = sub_window_pos.x+sub_window_size.x-currPos.x-60;
+                        const int64_t i64Tick = timeline->mCurrentTime-(pEdtVidClip->mStart+pEdtVidClip->mMaskEventStart);
+                        int64_t i64Tick_ = i64Tick;
+                        pEdtVidClip->mhMaskCreator->DrawContourPointKeyFrames(i64Tick_, nullptr, wdgWidth);
+                        if (i64Tick != i64Tick_)
+                            timeline->Seek(i64Tick_+pEdtVidClip->mStart+pEdtVidClip->mMaskEventStart);
+                    }
                 }
                 if (iToDelIdx >= 0)
                 {

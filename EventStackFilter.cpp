@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <functional>
 #include <sstream>
-#include <ImMaskCreator.h>
 #include <VideoBlender.h>
 #include <MatMath.h>
 #include "EventStackFilter.h"
@@ -52,7 +51,7 @@ public:
     void SetStart(int64_t start) { m_start = start; }
     void SetEnd(int64_t end) { m_end = end; }
     void SetZ(int32_t z) { m_z = z; }
-    void UpdateKeyPointRange() { m_pKp->SetTimeRange(0, m_end-m_start, true); }
+    virtual void UpdateKeyPointRange() { m_pKp->SetTimeRange(0, Length(), true); }
 
     void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
     {
@@ -527,35 +526,47 @@ public:
                 ImGui::ImMat inMat(vmat);
                 m_pBp->Blueprint_RunFilter(inMat, outMat, pos, Length());
 
-                if (!m_amEventMasks.empty())
+                if (!m_ahMaskCreators.empty())
                 {
-                    if (!m_hBlender) m_hBlender = MediaCore::VideoBlender::CreateInstance();
+                    const int64_t i64Tick = pos;
                     ImGui::ImMat mCombinedMask;
-                    if (m_amEventMasks.size() == 1)
+                    const auto szMaskCnt = m_ahMaskCreators.size();
+                    for (auto i = 0; i < szMaskCnt; i++)
                     {
-                        mCombinedMask = m_amEventMasks.front();
-                    }
-                    else
-                    {
-                        auto maskIter = m_amEventMasks.begin();
-                        do {
-                            const auto& mMask = *maskIter++;
-                            if (mCombinedMask.empty())
-                                mCombinedMask = mMask;
-                            else if (!mMask.empty())
-                                MatUtils::Max(mCombinedMask, mMask);
-                        } while (maskIter != m_amEventMasks.end());
+                        auto mMask = m_ahMaskCreators[i]->GetMask(ImGui::MaskCreator::AA, true, IM_DT_FLOAT32, 1, 0, i64Tick);
+                        if (mCombinedMask.empty())
+                            mCombinedMask = mMask;
+                        else
+                            MatUtils::Max(mCombinedMask, mMask);
                     }
                     if (!mCombinedMask.empty())
+                    {
+                        if (!m_hBlender) m_hBlender = MediaCore::VideoBlender::CreateInstance();
                         outMat = m_hBlender->Blend(outMat, inMat, mCombinedMask);
+                    }
                 }
             }
             return outMat;
         }
 
+        void UpdateKeyPointRange() override
+        {
+            Event_Base::UpdateKeyPointRange();
+            for (auto& hMaskCreator : m_ahMaskCreators)
+                hMaskCreator->SetTickRange(0, Length());
+        }
+
+        ImGui::MaskCreator::Holder CreateNewMask(const string& name, const MatUtils::Size2i& szMaskSize) override
+        {
+            auto hMaskCreator = ImGui::MaskCreator::CreateInstance(szMaskSize, name);
+            hMaskCreator->SetTickRange(0, Length());
+            m_ahMaskCreators.push_back(hMaskCreator);
+            return hMaskCreator;
+        }
+
         int GetMaskCount() const override
         {
-            return m_ajnEventMasks.size();
+            return m_ahMaskCreators.size();
         }
 
         int GetMaskCount(int64_t nodeId) const override
@@ -566,60 +577,52 @@ public:
             return iter->second.size();
         }
 
-        bool GetMask(imgui_json::value& j, int index) const override
+        const ImGui::MaskCreator::Holder GetMaskCreator(size_t index) const override
         {
-            if (index >= m_ajnEventMasks.size())
+            const auto szMaskCnt = m_ahMaskCreators.size();
+            if (index >= szMaskCnt)
             {
-                ostringstream oss; oss << "FAILED to get mask json! Event with id (" << m_id << ") has only " << m_ajnEventMasks.size() << " masks, cannot get mask at index " << index << ".";
+                ostringstream oss; oss << "FAILED to get mask json! Event with id (" << m_id << ") has only " << szMaskCnt << " masks, cannot get mask at index " << index << ".";
                 m_owner->m_errMsg = oss.str();
-                return false;
+                return nullptr;
             }
-            j = m_ajnEventMasks.at(index);
-            return true;
+            return m_ahMaskCreators[index];
         }
 
-        bool GetMask(imgui_json::value& j, int64_t nodeId, int index) const override
+        const ImGui::MaskCreator::Holder GetMaskCreator(int64_t nodeId, size_t index) const
         {
             auto iter = m_mapEffectMaskTable.find(nodeId);
             if (iter == m_mapEffectMaskTable.end())
             {
                 ostringstream oss; oss << "FAILED to get mask json! No mask is found for node id (" <<  nodeId << ").";
                 m_owner->m_errMsg = oss.str();
-                return false;
+                return nullptr;
             }
-            const auto& masks = iter->second;
-            if (index >= masks.size())
+            const auto& ahMaskCreators = iter->second;
+            if (index >= ahMaskCreators.size())
             {
-                ostringstream oss; oss << "FAILED to get mask json! Node with id (" << nodeId << ") has only " << masks.size() << " masks, cannot get mask at index " << index << ".";
+                ostringstream oss; oss << "FAILED to get mask json! Node with id (" << nodeId << ") has only " << ahMaskCreators.size() << " masks, cannot get mask at index " << index << ".";
                 m_owner->m_errMsg = oss.str();
-                return false;
+                return nullptr;
             }
-            j = masks.at(index);
-            return true;
+            return ahMaskCreators[index];
         }
 
-        bool RemoveMask(int index) override
+        bool RemoveMask(size_t index) override
         {
-            auto& ajnMasks = m_ajnEventMasks;
-            if (index >= ajnMasks.size())
+            const auto szMaskCnt = m_ahMaskCreators.size();
+            if (index >= szMaskCnt)
             {
-                ostringstream oss; oss << "FAILED to remove mask json! Event with id (" << m_id << ") has only " << ajnMasks.size() << " masks, cannot remove mask at index " << index << ".";
+                ostringstream oss; oss << "FAILED to remove mask json! Event with id (" << m_id << ") has only " << szMaskCnt << " masks, cannot remove mask at index " << index << ".";
                 m_owner->m_errMsg = oss.str();
                 return false;
             }
-            auto iter2 = ajnMasks.begin();
-            auto iter3 = m_amEventMasks.begin();
-            int i = 0;
-            while (i++ < index)
-            {
-                iter2++; iter3++;
-            }
-            ajnMasks.erase(iter2);
-            m_amEventMasks.erase(iter3);
+            auto itDel = m_ahMaskCreators.begin()+index;
+            m_ahMaskCreators.erase(itDel);
             return true;
         }
 
-        bool RemoveMask(int64_t nodeId, int index) override
+        bool RemoveMask(int64_t nodeId, size_t index) override
         {
             auto iter = m_mapEffectMaskTable.find(nodeId);
             if (iter == m_mapEffectMaskTable.end())
@@ -628,89 +631,50 @@ public:
                 m_owner->m_errMsg = oss.str();
                 return false;
             }
-            auto& ajnMasks = iter->second;
-            if (index >= ajnMasks.size())
+            auto& ahMaskCreators = iter->second;
+            if (index >= ahMaskCreators.size())
             {
-                ostringstream oss; oss << "FAILED to remove mask json! Node with id (" << nodeId << ") has only " << ajnMasks.size() << " masks, cannot remove mask at index " << index << ".";
+                ostringstream oss; oss << "FAILED to remove mask json! Node with id (" << nodeId << ") has only " << ahMaskCreators.size() << " masks, cannot remove mask at index " << index << ".";
                 m_owner->m_errMsg = oss.str();
                 return false;
             }
-            auto iter2 = ajnMasks.begin();
-            int i = 0;
-            while (i++ < index)
-            {
-                iter2++;
-            }
-            ajnMasks.erase(iter2);
-            return true;
-        }
-
-        bool SaveMask(const imgui_json::value& j, const ImGui::ImMat* pmMask, int index) override
-        {
-            auto& ajnMasks = m_ajnEventMasks;
-            if (index > ajnMasks.size())
-            {
-                ostringstream oss; oss << "FAILED to save mask json! Event with id (" << m_id << ") has only " << ajnMasks.size() << " masks, cannot save mask at index " << index << ".";
-                m_owner->m_errMsg = oss.str();
-                return false;
-            }
-            ImGui::ImMat mMask;
-            if (pmMask)
-                mMask = *pmMask;
-            else
-            {
-                auto hMaskCreator = ImGui::MaskCreator::LoadFromJson(j);
-                mMask = hMaskCreator->GetMask(ImGui::MaskCreator::AA, true, IM_DT_FLOAT32, 1, 0);
-            }
-            if (index < 0 || index == ajnMasks.size())
-            {
-                ajnMasks.push_back(j);
-                m_amEventMasks.push_back(mMask);
-            }
-            else
-            {
-                ajnMasks.at(index) = j;
-                m_amEventMasks.at(index) = mMask;
-            }
-            return true;
-        }
-
-        bool SaveMask(int64_t nodeId, const imgui_json::value& j, int index) override
-        {
-            auto iter = m_mapEffectMaskTable.find(nodeId);
-            int maskArySize = iter != m_mapEffectMaskTable.end() ? iter->second.size() : 0;
-            if (index > maskArySize)
-            {
-                ostringstream oss; oss << "Invalid argument value (" << index << ") for 'index'! Can not be larger than the size of the mask array (" << maskArySize << ").";
-                m_owner->m_errMsg = oss.str();
-                return false;
-            }
-            if (iter == m_mapEffectMaskTable.end())
-                m_mapEffectMaskTable[nodeId] = imgui_json::array();
-            auto& masks = m_mapEffectMaskTable[nodeId];
-            if (index > masks.size())
-            {
-                ostringstream oss; oss << "FAILED to save mask json! Node with id (" << nodeId << ") has only " << masks.size() << " masks, cannot save mask at index " << index << ".";
-                m_owner->m_errMsg = oss.str();
-                return false;
-            }
-            if (index < 0 || index == masks.size())
-                masks.push_back(j);
-            else
-                masks.at(index) = j;
+            auto itDel = ahMaskCreators.begin()+index;
+            ahMaskCreators.erase(itDel);
             return true;
         }
 
         imgui_json::value SaveAsJson() const override
         {
             auto j = Event_Base::SaveAsJson();
-            j["event_masks"] = m_ajnEventMasks;
+            imgui_json::array ajnMaskCreators;
+            for (const auto& hMaskCreator : m_ahMaskCreators)
+            {
+                imgui_json::value jnMask;
+                if (!hMaskCreator->SaveAsJson(jnMask))
+                {
+                    ostringstream oss; oss << "FAILED to save 'ImGui::MaskCreator' instance as json! Error is '" << hMaskCreator->GetError() << "'.";
+                    throw runtime_error(oss.str());
+                }
+                ajnMaskCreators.push_back(jnMask);
+            }
+            j["event_masks"] = ajnMaskCreators;
             imgui_json::array maskTableJson;
             for (auto& elem : m_mapEffectMaskTable)
             {
                 imgui_json::value subj;
                 subj["node_id"] = imgui_json::number(elem.first);
-                subj["masks"] = elem.second;
+                ajnMaskCreators.clear();
+                for (const auto& hMaskCreator : elem.second)
+                {
+                    imgui_json::value jnMask;
+                    if (!hMaskCreator->SaveAsJson(jnMask))
+                    {
+                        ostringstream oss; oss << "FAILED to save 'ImGui::MaskCreator' instance as json! Error is '" << hMaskCreator->GetError() << "'.";
+                        throw runtime_error(oss.str());
+                    }
+                    ajnMaskCreators.push_back(jnMask);
+                }
+                subj["masks"] = ajnMaskCreators;
                 maskTableJson.push_back(subj);
             }
             j["effect_mask_table"] = maskTableJson;
@@ -723,9 +687,8 @@ public:
     private:
         VideoEvent_Impl(VideoEventStackFilter_Impl* owner) : Event_Base(owner) {}
 
-        imgui_json::array m_ajnEventMasks;
-        vector<ImGui::ImMat> m_amEventMasks;
-        unordered_map<int64_t, imgui_json::array> m_mapEffectMaskTable;
+        vector<ImGui::MaskCreator::Holder> m_ahMaskCreators;
+        unordered_map<int64_t, vector<ImGui::MaskCreator::Holder>> m_mapEffectMaskTable;
     };
 
     static const function<void(Event*)> VIDEO_EVENT_DELETER;
@@ -740,9 +703,6 @@ protected:
 private:
     VideoClip* m_pClip{nullptr};
 };
-
-// MediaCore::VideoBlender::Holder
-// VideoEventStackFilter_Impl::VideoEvent_Impl::m_hBlender = MediaCore::VideoBlender::CreateInstance();
 
 Event::Holder
 VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(
@@ -825,13 +785,12 @@ VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(
     itemName = "event_masks";
     if (eventJson.contains(itemName))
     {
-        pEvtImpl->m_ajnEventMasks = eventJson[itemName].get<imgui_json::array>();
-        const auto& ajnMasks = pEvtImpl->m_ajnEventMasks;
+        const auto& ajnMasks = eventJson[itemName].get<imgui_json::array>();
         for (const auto& jnMask : ajnMasks)
         {
             auto hMaskCreator = ImGui::MaskCreator::LoadFromJson(jnMask);
-            if (hMaskCreator)
-                pEvtImpl->m_amEventMasks.push_back(hMaskCreator->GetMask(ImGui::MaskCreator::AA, true, IM_DT_FLOAT32, 1, 0));
+            hMaskCreator->SetTickRange(0, pEvtImpl->Length());
+            pEvtImpl->m_ahMaskCreators.push_back(hMaskCreator);
         }
     }
     itemName = "effect_mask_table";
@@ -841,8 +800,15 @@ VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(
         for (const auto& elemJn : maskTableJn)
         {
             int64_t nodeId = elemJn["node_id"].get<imgui_json::number>();
-            imgui_json::array masks = elemJn["masks"].get<imgui_json::array>();
-            pEvtImpl->m_mapEffectMaskTable.emplace(nodeId, masks);
+            const auto& ajnMasks = elemJn["masks"].get<imgui_json::array>();
+            vector<ImGui::MaskCreator::Holder> ahMaskCreators;
+            for (const auto& jnMask : ajnMasks)
+            {
+                auto hMaskCreator = ImGui::MaskCreator::LoadFromJson(jnMask);
+                hMaskCreator->SetTickRange(0, pEvtImpl->Length());
+                ahMaskCreators.push_back(hMaskCreator);
+            }
+            pEvtImpl->m_mapEffectMaskTable.emplace(nodeId, ahMaskCreators);
         }
     }
     return hEvt;

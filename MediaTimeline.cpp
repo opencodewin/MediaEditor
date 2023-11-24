@@ -3534,34 +3534,6 @@ void EditingVideoClip::CalcDisplayParams(int64_t viewWndDur)
     }
 }
 
-void EditingVideoClip::SaveEditingMask()
-{
-    TimeLine* pTL = (TimeLine*)mHandle;
-    if (!pTL)
-        return;
-    VideoClip* pVidClip = (VideoClip*)pTL->FindClipByID(mID);
-    if (!pVidClip->mEventStack)
-        return;
-    if (mhMaskCreator)
-    {
-        auto hMaskEvt = pVidClip->mEventStack->GetEvent(mMaskEventId);
-        auto pVidEvt = dynamic_cast<MEC::VideoEvent*>(hMaskEvt.get());
-        if (!pVidEvt)
-            return;
-        imgui_json::value jnMask;
-        if (!mhMaskCreator->SaveAsJson(jnMask))
-        {
-            Logger::Log(Logger::WARN) << "FAILED to save mask json! Error is '" << mhMaskCreator->GetError() << "'." << std::endl;
-            return;
-        }
-        auto maskMat = mhMaskCreator->GetMask(ImGui::MaskCreator::AA, true, IM_DT_FLOAT32, 1, 0);
-        if (mMaskNodeId == -1)
-            pVidEvt->SaveMask(jnMask, &maskMat, mMaskIndex);
-        else
-            pVidEvt->SaveMask(mMaskNodeId, jnMask, mMaskIndex);
-    }
-}
-
 void EditingVideoClip::SelectEditingMask(MEC::Event::Holder hEvent, int64_t nodeId, int maskIndex, ImGui::MaskCreator::Holder hMaskCreator)
 {
     mhMaskCreator = hMaskCreator;
@@ -5084,7 +5056,8 @@ void MediaTrack::SelectEditingClip(Clip * clip)
             item->mIndex = timeline->mEditingItems.size();
             timeline->mEditingItems.push_back(item);
             timeline->mSelectedItem = item->mIndex;
-            timeline->Seek(clip->Start());
+            if (timeline->mCurrentTime < clip->Start() || timeline->mCurrentTime >= clip->End())
+                timeline->Seek(clip->Start());
         }
     }
     else

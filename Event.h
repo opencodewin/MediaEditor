@@ -3,10 +3,11 @@
 #include <memory>
 #include <functional>
 #include <ostream>
-#include "UI.h"
-#include "immat.h"
-#include "imgui_curve.h"
-#include "imgui_json.h"
+#include <UI.h>
+#include <immat.h>
+#include <imgui_curve.h>
+#include <imgui_json.h>
+#include <ImMaskCreator.h>
 
 namespace MEC
 {
@@ -43,14 +44,13 @@ namespace MEC
     {
         virtual ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) = 0;
 
+        virtual ImGui::MaskCreator::Holder CreateNewMask(const std::string& name, const MatUtils::Size2i& szMaskSize) = 0;
         virtual int GetMaskCount() const = 0;
         virtual int GetMaskCount(int64_t nodeId) const = 0;
-        virtual bool GetMask(imgui_json::value& j, int index) const = 0;
-        virtual bool GetMask(imgui_json::value& j, int64_t nodeId, int index) const = 0;
-        virtual bool RemoveMask(int index) = 0;
-        virtual bool RemoveMask(int64_t nodeId, int index) = 0;
-        virtual bool SaveMask(const imgui_json::value& j, const ImGui::ImMat* pmMask, int index = -1) = 0;
-        virtual bool SaveMask(int64_t nodeId, const imgui_json::value& j, int index = -1) = 0;
+        virtual const ImGui::MaskCreator::Holder GetMaskCreator(size_t index) const = 0;
+        virtual const ImGui::MaskCreator::Holder GetMaskCreator(int64_t nodeId, size_t index) const = 0;
+        virtual bool RemoveMask(size_t index) = 0;
+        virtual bool RemoveMask(int64_t nodeId, size_t index) = 0;
     };
 
     struct AudioEvent : virtual Event
