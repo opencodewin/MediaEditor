@@ -38,7 +38,7 @@ Wind_vulkan::~Wind_vulkan()
     }
 }
 
-void Wind_vulkan::upload_param(const VkMat& src1, const VkMat& src2, VkMat& dst, float progress, float size) const
+void Wind_vulkan::upload_param(const VkMat& src1, const VkMat& src2, VkMat& dst, float progress, float size, bool reversed) const
 {
     std::vector<VkMat> bindings(12);
     if      (dst.type == IM_DT_INT8)     bindings[0] = dst;
@@ -56,7 +56,7 @@ void Wind_vulkan::upload_param(const VkMat& src1, const VkMat& src2, VkMat& dst,
     else if (src2.type == IM_DT_FLOAT16)   bindings[10] = src2;
     else if (src2.type == IM_DT_FLOAT32)   bindings[11] = src2;
 
-    std::vector<vk_constant_type> constants(17);
+    std::vector<vk_constant_type> constants(18);
     constants[0].i = src1.w;
     constants[1].i = src1.h;
     constants[2].i = src1.c;
@@ -74,10 +74,11 @@ void Wind_vulkan::upload_param(const VkMat& src1, const VkMat& src2, VkMat& dst,
     constants[14].i = dst.type;
     constants[15].f = progress;
     constants[16].f = size;
+    constants[17].i = reversed ? 1 : 0;
     cmd->record_pipeline(pipe, bindings, constants, dst);
 }
 
-double Wind_vulkan::transition(const ImMat& src1, const ImMat& src2, ImMat& dst, float progress, float size) const
+double Wind_vulkan::transition(const ImMat& src1, const ImMat& src2, ImMat& dst, float progress, float size, bool reversed) const
 {
     double ret = 0.0;
     if (!vkdev || !pipe || !cmd)
@@ -112,7 +113,7 @@ double Wind_vulkan::transition(const ImMat& src1, const ImMat& src2, ImMat& dst,
     cmd->benchmark_start();
 #endif
 
-    upload_param(src1_gpu, src2_gpu, dst_gpu, progress, size);
+    upload_param(src1_gpu, src2_gpu, dst_gpu, progress, size, reversed);
 
 #ifdef VULKAN_SHADER_BENCHMARK
     cmd->benchmark_end();

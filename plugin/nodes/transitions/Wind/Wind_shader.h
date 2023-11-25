@@ -25,6 +25,7 @@ layout (push_constant) uniform parameter \n\
 \n\
     float progress; \n\
     float size; \n\
+    int reversed; \n\
 } p; \
 "
 
@@ -37,8 +38,9 @@ float rand(vec2 co) \n\
 \n\
 sfpvec4 transition(vec2 uv) \n\
 { \n\
+    float x = p.reversed == 1 ? 1. - uv.x : uv.x; \n\
     float r = rand(vec2(0, uv.y)); \n\
-    float m = smoothstep(0.0, -p.size, uv.x * (1.0 - p.size) + p.size * r - (p.progress * (1.0 + p.size))); \n\
+    float m = smoothstep(0.0, -p.size, x * (1.0 - p.size) + p.size * r - (p.progress * (1.0 + p.size))); \n\
     sfpvec4 rgba_to = load_rgba_src2(int(uv.x * (p.w2 - 1)), int((1.f - uv.y) * (p.h2 - 1)), p.w2, p.h2, p.cstep2, p.in_format2, p.in_type2); \n\
     sfpvec4 rgba_from = load_rgba(int(uv.x * (p.w - 1)), int((1.f - uv.y) * (p.h - 1)), p.w, p.h, p.cstep, p.in_format, p.in_type); \n\
     return mix( \n\

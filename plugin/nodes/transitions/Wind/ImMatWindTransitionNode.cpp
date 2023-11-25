@@ -4,7 +4,7 @@
 #include <ImVulkanShader.h>
 #include "Wind_vulkan.h"
 
-#define NODE_VERSION    0x01000000
+#define NODE_VERSION    0x01000001
 
 namespace BluePrint
 {
@@ -51,7 +51,7 @@ struct WindTransitionNode final : Node
             }
             m_device = gpu;
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_first.type : m_mat_data_type;
-            m_NodeTimeMs = m_transition->transition(mat_first, mat_second, im_RGB, progress, m_size);
+            m_NodeTimeMs = m_transition->transition(mat_first, mat_second, im_RGB, progress, m_size, m_reversed);
             m_MatOut.SetValue(im_RGB);
         }
         return m_Exit;
@@ -91,6 +91,7 @@ struct WindTransitionNode final : Node
         ImGui::SliderFloat("Size##Wind", &_size, 0.1, 1.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_size##Wind")) { _size = 0.2f; changed = true; }
         ImGui::ShowTooltipOnHover("Reset");
+        if (ImGui::Checkbox("Reversed", &m_reversed)) changed = true;
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_size != m_size) { m_size = _size; changed = true; }
@@ -115,6 +116,12 @@ struct WindTransitionNode final : Node
             if (val.is_number()) 
                 m_size = val.get<imgui_json::number>();
         }
+        if (value.contains("reversed"))
+        {
+            auto& val = value["reversed"];
+            if (val.is_boolean()) 
+                m_reversed = val.get<imgui_json::boolean>();
+        }
         return ret;
     }
 
@@ -123,6 +130,7 @@ struct WindTransitionNode final : Node
         Node::Save(value, MapID);
         value["mat_type"] = imgui_json::number(m_mat_data_type);
         value["size"] = imgui_json::number(m_size);
+        value["reversed"] = imgui_json::boolean(m_reversed);
     }
 
     void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
@@ -154,6 +162,7 @@ private:
     ImDataType m_mat_data_type {IM_DT_UNDEFINED};
     int m_device        {-1};
     float m_size        {0.2f};
+    bool m_reversed     {false};
     ImGui::Wind_vulkan * m_transition   {nullptr};
     mutable ImTextureID  m_logo {nullptr};
     mutable int m_logo_index {0};

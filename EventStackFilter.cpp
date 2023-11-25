@@ -589,7 +589,7 @@ public:
             return m_ahMaskCreators[index];
         }
 
-        const ImGui::MaskCreator::Holder GetMaskCreator(int64_t nodeId, size_t index) const
+        const ImGui::MaskCreator::Holder GetMaskCreator(int64_t nodeId, size_t index) const override
         {
             auto iter = m_mapEffectMaskTable.find(nodeId);
             if (iter == m_mapEffectMaskTable.end())
