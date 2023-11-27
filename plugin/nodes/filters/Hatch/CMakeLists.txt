@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5.1)
-project(Sketch_node)
+project(Hatch_node)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_SKIP_RPATH ON)
@@ -14,14 +14,14 @@ if (POLICY CMP0068)
     cmake_policy(SET CMP0068 NEW)
 endif()
 
-set(PLUGIN Sketch)
+set(PLUGIN Hatch)
 add_library(
     ${PLUGIN}
     SHARED
-    ImMatSketchNode.cpp
-    Sketch_vulkan.cpp
-    Sketch_vulkan.h
-    Sketch_shader.h
+    ImMatHatchNode.cpp
+    Hatch_vulkan.cpp
+    Hatch_vulkan.h
+    Hatch_shader.h
 )
 
 add_dependencies(${PLUGIN} BluePrintSDK VkShader imgui)

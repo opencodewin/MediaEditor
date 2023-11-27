@@ -389,6 +389,8 @@ add_subdirectory(plugin/nodes/filters/BarrelDistortion)
 add_subdirectory(plugin/nodes/filters/PixeLate)
 add_subdirectory(plugin/nodes/filters/Kuwahara)
 add_subdirectory(plugin/nodes/filters/Sketch)
+add_subdirectory(plugin/nodes/filters/Emboss)
+add_subdirectory(plugin/nodes/filters/Hatch)
 #transitions
 add_subdirectory(plugin/nodes/transitions/Alpha)
 add_subdirectory(plugin/nodes/transitions/BookFlip)
