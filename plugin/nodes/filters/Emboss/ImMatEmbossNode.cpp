@@ -1,0 +1,218 @@
+#include <UI.h>
+#include <imgui_json.h>
+#include <imgui_extra_widget.h>
+#include <ImVulkanShader.h>
+#include "Emboss_vulkan.h"
+#define NODE_VERSION    0x01000000
+
+namespace BluePrint
+{
+struct EmbossNode final : Node
+{
+    BP_NODE_WITH_NAME(EmbossNode, "Emboss", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Stylization")
+    EmbossNode(BP* blueprint): Node(blueprint) { m_Name = "Emboss"; }
+
+    ~EmbossNode()
+    {
+        if (m_filter) { delete m_filter; m_filter = nullptr; }
+    }
+
+    void Reset(Context& context) override
+    {
+        Node::Reset(context);
+        m_mutex.lock();
+        m_MatOut.SetValue(ImGui::ImMat());
+        m_mutex.unlock();
+    }
+
+    FlowPin Execute(Context& context, FlowPin& entryPoint, bool threading = false) override
+    {
+        auto mat_in = context.GetPinValue<ImGui::ImMat>(m_MatIn);
+        if (m_IntensityIn.IsLinked()) m_intensity = context.GetPinValue<float>(m_IntensityIn);
+        if (m_StrideIn.IsLinked()) m_stride = context.GetPinValue<int32_t>(m_StrideIn);
+        if (m_AngleIn.IsLinked()) m_angle = context.GetPinValue<int32_t>(m_AngleIn);
+        if (!mat_in.empty())
+        {
+            int gpu = mat_in.device == IM_DD_VULKAN ? mat_in.device_number : ImGui::get_default_gpu_index();
+            if (!m_Enabled)
+            {
+                m_MatOut.SetValue(mat_in);
+                return m_Exit;
+            }
+            if (!m_filter || gpu != m_device)
+            {
+                if (m_filter) { delete m_filter; m_filter = nullptr; }
+                m_filter = new ImGui::Emboss_vulkan(gpu);
+            }
+            if (!m_filter)
+            {
+                return {};
+            }
+            m_device = gpu;
+            ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
+            m_NodeTimeMs = m_filter->filter(mat_in, im_RGB, m_intensity, m_angle, m_stride);
+            m_MatOut.SetValue(im_RGB);
+        }
+        return m_Exit;
+    }
+
+    void WasUnlinked(const Pin& receiver, const Pin& provider) override
+    {
+        if (receiver.m_ID == m_IntensityIn.m_ID)
+        {
+            m_IntensityIn.SetValue(m_intensity);
+        }
+        if (receiver.m_ID == m_AngleIn.m_ID)
+        {
+            m_AngleIn.SetValue(m_angle);
+        }
+        if (receiver.m_ID == m_StrideIn.m_ID)
+        {
+            m_StrideIn.SetValue(m_stride);
+        }
+    }
+
+    void DrawSettingLayout(ImGuiContext * ctx) override
+    {
+        // Draw Setting
+        Node::DrawSettingLayout(ctx);
+        ImGui::Separator();
+        ImGui::TextUnformatted("Mat Type:"); ImGui::SameLine();
+        ImGui::RadioButton("AsInput", (int *)&m_mat_data_type, (int)IM_DT_UNDEFINED); ImGui::SameLine();
+        ImGui::RadioButton("Int8", (int *)&m_mat_data_type, (int)IM_DT_INT8); ImGui::SameLine();
+        ImGui::RadioButton("Int16", (int *)&m_mat_data_type, (int)IM_DT_INT16); ImGui::SameLine();
+        ImGui::RadioButton("Float16", (int *)&m_mat_data_type, (int)IM_DT_FLOAT16); ImGui::SameLine();
+        ImGui::RadioButton("Float32", (int *)&m_mat_data_type, (int)IM_DT_FLOAT32);
+    }
+
+    bool CustomLayout() const override { return true; }
+    bool Skippable() const override { return true; }
+
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
+    {
+        ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
+        bool changed = false;
+        float _intensity = m_intensity;
+        int _stride = m_stride;
+        float _angle = m_angle;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
+        ImGui::PushItemWidth(200);
+        ImGui::BeginDisabled(!m_Enabled || m_IntensityIn.IsLinked());
+        ImGui::SliderFloat("Intensity##Emboss", &_intensity, 0.0f, 1.f, "%.2f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_intensity##Emboss")) { _intensity = 0.4f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_intensity##Emboss", key, ImGui::ImCurveEdit::DIM_X, m_IntensityIn.IsLinked(), "Intensity##Emboss@" + std::to_string(m_ID), 0.01f, 1.f, 0.4f, m_IntensityIn.m_ID);
+        ImGui::EndDisabled();
+
+        ImGui::BeginDisabled(!m_Enabled || m_StrideIn.IsLinked());
+        ImGui::SliderInt("Stride##Emboss", &_stride, 1, 5, "%d", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_stride##Emboss")) { _stride = 1; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_stride##Emboss", key, ImGui::ImCurveEdit::DIM_X, m_StrideIn.IsLinked(), "Stride##Emboss@" + std::to_string(m_ID), 1, 4, 1, m_StrideIn.m_ID);
+        ImGui::EndDisabled();
+
+        ImGui::BeginDisabled(!m_Enabled || m_AngleIn.IsLinked());
+        ImGui::SliderFloat("Angle##Emboss", &_angle, 0.f, 360.f, "%.1f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_angle##Emboss")) { _angle = 45.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_angle##Emboss", key, ImGui::ImCurveEdit::DIM_X, m_AngleIn.IsLinked(), "Angle##Emboss@" + std::to_string(m_ID), 1, 4, 1, m_AngleIn.m_ID);
+        ImGui::EndDisabled();
+
+        ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
+        if (_intensity != m_intensity) { m_intensity = _intensity; changed = true; }
+        if (_stride != m_stride) { m_stride = _stride; changed = true; }
+        if (_angle != m_angle) { m_angle = _angle; changed = true; }
+        return m_Enabled ? changed : false;
+    }
+
+    int Load(const imgui_json::value& value) override
+    {
+        int ret = BP_ERR_NONE;
+        if ((ret = Node::Load(value)) != BP_ERR_NONE)
+            return ret;
+
+        if (value.contains("mat_type"))
+        {
+            auto& val = value["mat_type"];
+            if (val.is_number()) 
+                m_mat_data_type = (ImDataType)val.get<imgui_json::number>();
+        }
+        if (value.contains("intensity"))
+        {
+            auto& val = value["intensity"];
+            if (val.is_number()) 
+                m_intensity = val.get<imgui_json::number>();
+        }
+        if (value.contains("stride"))
+        {
+            auto& val = value["stride"];
+            if (val.is_number()) 
+                m_stride = val.get<imgui_json::number>();
+        }
+        if (value.contains("angle"))
+        {
+            auto& val = value["angle"];
+            if (val.is_number()) 
+                m_angle = val.get<imgui_json::number>();
+        }
+        return ret;
+    }
+
+    void Save(imgui_json::value& value, std::map<ID_TYPE, ID_TYPE> MapID) override
+    {
+        Node::Save(value, MapID);
+        value["mat_type"] = imgui_json::number(m_mat_data_type);
+        value["intensity"] = imgui_json::number(m_intensity);
+        value["stride"] = imgui_json::number(m_stride);
+        value["angle"] = imgui_json::number(m_angle);
+    }
+
+    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
+    {
+        Node::DrawNodeLogo(ctx, size, std::string(u8"\uf2ad"));
+    }
+
+    span<Pin*> GetInputPins() override { return m_InputPins; }
+    span<Pin*> GetOutputPins() override { return m_OutputPins; }
+    Pin* GetAutoLinkInputFlowPin() override { return &m_Enter; }
+    Pin* GetAutoLinkOutputFlowPin() override { return &m_Exit; }
+    vector<Pin*> GetAutoLinkInputDataPin() override { return {&m_MatIn}; }
+    vector<Pin*> GetAutoLinkOutputDataPin() override { return {&m_MatOut}; }
+
+    FlowPin   m_Enter   = { this, "Enter" };
+    FlowPin   m_Exit    = { this, "Exit" };
+    MatPin    m_MatIn   = { this, "In" };
+    FloatPin  m_IntensityIn  = { this, "Intensity" };
+    FloatPin  m_AngleIn = { this, "Angle" };
+    Int32Pin  m_StrideIn = { this, "Stride" };
+    MatPin    m_MatOut  = { this, "Out" };
+
+    Pin* m_InputPins[4] = { &m_Enter, &m_MatIn, &m_IntensityIn, &m_StrideIn };
+    Pin* m_OutputPins[2] = { &m_Exit, &m_MatOut };
+
+private:
+    ImDataType m_mat_data_type {IM_DT_UNDEFINED};
+    int m_device            {-1};
+    float m_intensity       {0.5f};
+    int m_stride            {2};
+    float m_angle           {45.f};
+    ImGui::Emboss_vulkan * m_filter   {nullptr};
+};
+} // namespace BluePrint
+
+BP_NODE_DYNAMIC_WITH_NAME(EmbossNode, "Emboss", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, BluePrint::NodeType::External, BluePrint::NodeStyle::Default, "Filter#Video#Stylization")
