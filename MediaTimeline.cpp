@@ -3397,7 +3397,7 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
     else
     {
         auto iter_out = std::find_if(frames.begin(), frames.end(), [&] (auto& cf) {
-            return cf.clipId == mID && cf.phase == MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM;
+            return cf.clipId == mID && cf.phase == MediaCore::CorrelativeFrame::PHASE_AFTER_FILTER;
         });
         if (iter_out != frames.end())
             in_out_frame.second = iter_out->frame;
@@ -8529,7 +8529,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
             newClipStart, newClipEnd, newClipStartOffset, newClipEndOffset, mCurrentTime-newClipStart, hVidTrk->Direction());
         MediaCore::VideoFilter::Holder hNewFilter;
         if (hClip->GetFilter())
-            hNewFilter = hClip->GetFilter()->Clone();
+            hNewFilter = hClip->GetFilter()->Clone(mhPreviewSettings);
         if (hNewFilter)
         {
             const auto filterName = hNewFilter->GetFilterName();
@@ -8803,7 +8803,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         MediaCore::VideoClip::Holder hNewClip = MediaCore::VideoClip::CreateImageInstance(
             newClipId, hClip->GetMediaParser(), mMtvReader->GetSharedSettings(),
             newClipStart, newClipLength);
-        auto hNewFilter = hClip->GetFilter()->Clone();
+        auto hNewFilter = hClip->GetFilter()->Clone(mhPreviewSettings);
         if (hNewFilter)
         {
             const auto filterName = hNewFilter->GetFilterName();

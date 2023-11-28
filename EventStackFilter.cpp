@@ -411,11 +411,11 @@ public:
         return "EventStackFilter";
     }
 
-    Holder Clone() override
+    Holder Clone(SharedSettings::Holder hSettings) override
     {
         imgui_json::value filterJson = SaveAsJson();
         BluePrint::BluePrintCallbackFunctions bpCallbacks;
-        return LoadFromJson(filterJson, bpCallbacks);
+        return LoadFromJson(filterJson, bpCallbacks, hSettings);
     }
 
     void ApplyTo(VideoClip* clip) override
@@ -508,7 +508,7 @@ public:
         ~VideoEvent_Impl()
         {}
 
-        static Event::Holder LoadFromJson(VideoEventStackFilter_Impl* owner, const imgui_json::value& bpJson, const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
+        static Event::Holder LoadFromJson(VideoEventStackFilter_Impl* owner, const imgui_json::value& bpJson, const BluePrint::BluePrintCallbackFunctions& bpCallbacks, SharedSettings::Holder hSettings = nullptr);
 
         ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override
         {
@@ -530,9 +530,13 @@ public:
                 {
                     const int64_t i64Tick = pos;
                     ImGui::ImMat mCombinedMask;
+                    const MatUtils::Size2i szImageSize(outMat.w, outMat.h);
                     const auto szMaskCnt = m_ahMaskCreators.size();
                     for (auto i = 0; i < szMaskCnt; i++)
                     {
+                        auto& hMaskCreator = m_ahMaskCreators[i];
+                        if (szImageSize != hMaskCreator->GetMaskSize())
+                            hMaskCreator->ChangeMaskSize(szImageSize, true);
                         auto mMask = m_ahMaskCreators[i]->GetMask(ImGui::MaskCreator::AA, true, IM_DT_FLOAT32, 1, 0, i64Tick);
                         if (mCombinedMask.empty())
                             mCombinedMask = mMask;
@@ -706,7 +710,7 @@ private:
 
 Event::Holder
 VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(
-        VideoEventStackFilter_Impl* owner, const imgui_json::value& eventJson, const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
+        VideoEventStackFilter_Impl* owner, const imgui_json::value& eventJson, const BluePrint::BluePrintCallbackFunctions& bpCallbacks, SharedSettings::Holder hSettings)
 {
     owner->m_logger->Log(DEBUG) << "Load EventJson : " << eventJson.dump() << endl;
     auto pEvtImpl = new VideoEventStackFilter_Impl::VideoEvent_Impl(owner);
@@ -782,6 +786,9 @@ VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(
         owner->m_errMsg = "BAD event json! Missing '"+itemName+"'.";
         return nullptr;
     }
+    const uint32_t u32VideoOutWidth = hSettings ? hSettings->VideoOutWidth() : 0;
+    const uint32_t u32VideoOutHeight = hSettings ? hSettings->VideoOutHeight() : 0;
+    const MatUtils::Size2i szMaskSize(u32VideoOutWidth, u32VideoOutHeight);
     itemName = "event_masks";
     if (eventJson.contains(itemName))
     {
@@ -790,6 +797,7 @@ VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(
         {
             auto hMaskCreator = ImGui::MaskCreator::LoadFromJson(jnMask);
             hMaskCreator->SetTickRange(0, pEvtImpl->Length());
+            if (hSettings) hMaskCreator->ChangeMaskSize(szMaskSize, true);
             pEvtImpl->m_ahMaskCreators.push_back(hMaskCreator);
         }
     }
@@ -806,6 +814,7 @@ VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(
             {
                 auto hMaskCreator = ImGui::MaskCreator::LoadFromJson(jnMask);
                 hMaskCreator->SetTickRange(0, pEvtImpl->Length());
+                if (hSettings) hMaskCreator->ChangeMaskSize(szMaskSize, true);
                 ahMaskCreators.push_back(hMaskCreator);
             }
             pEvtImpl->m_mapEffectMaskTable.emplace(nodeId, ahMaskCreators);
@@ -829,7 +838,7 @@ VideoFilter::Holder VideoEventStackFilter::CreateInstance(const BluePrint::BlueP
     return VideoFilter::Holder(new VideoEventStackFilter_Impl(bpCallbacks), VIDEO_EVENT_STACK_FILTER_DELETER);
 }
 
-VideoFilter::Holder VideoEventStackFilter::LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks)
+VideoFilter::Holder VideoEventStackFilter::LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks, SharedSettings::Holder hSettings)
 {
     if (!json.contains("name") || !json["name"].is_string())
         return nullptr;
@@ -842,7 +851,7 @@ VideoFilter::Holder VideoEventStackFilter::LoadFromJson(const imgui_json::value&
         auto& evtAry = json["events"].get<imgui_json::array>();
         for (auto& evtJson : evtAry)
         {
-            auto pEvent = VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(pFilter, evtJson, bpCallbacks);
+            auto pEvent = VideoEventStackFilter_Impl::VideoEvent_Impl::LoadFromJson(pFilter, evtJson, bpCallbacks, hSettings);
             if (!pEvent)
             {
                 Log(Error) << "FAILED to create VideoEventStackFilter::Event isntance from Json! Error is '" << pFilter->GetError() << "'." << endl;

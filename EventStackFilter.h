@@ -31,7 +31,7 @@ namespace MEC
     struct VideoEventStackFilter : MediaCore::VideoFilter, virtual EventStack
     {
         static MediaCore::VideoFilter::Holder CreateInstance(const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
-        static MediaCore::VideoFilter::Holder LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
+        static MediaCore::VideoFilter::Holder LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks, MediaCore::SharedSettings::Holder hSettings = nullptr);
         virtual imgui_json::value SaveAsJson() const = 0;
         virtual void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks) = 0;
     };
