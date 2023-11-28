@@ -5457,32 +5457,37 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
     };
     for (auto event : event_list)
     {
+
         bool is_selected = event->Status() & EVENT_SELECTED;
         bool is_in_range = event->End() > 0 && event->Start() < editing_clip->Length();
         std::string event_label = ImGuiHelper::MillisecToString(event->Start(), 3) + " -> " + ImGuiHelper::MillisecToString(event->End(), 3) + "##clip_event##" + std::to_string(event->Id());
         std::string event_drag_drop_label = "##event_tree##" + std::to_string(event->Id());
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        if (is_selected)
+            ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.5, 0.5, 0.0, 0.5));
+
         if (!is_in_range)
         {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 0.0, 0.0, 1.0));
-            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.3, 0.0, 0.0, 1.0));
-            ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.3, 0.0, 0.0, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.3, 0.0, 0.0, 0.5));
+            ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.3, 0.0, 0.0, 0.5));
         }
         else
         {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 1.0));
-            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.4, 0.4, 1.0, 1.0));
-            ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.2, 0.2, 1.0, 1.0));
+            ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.4, 0.4, 1.0, 0.5));
+            ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.2, 0.2, 1.0, 0.5));
         }
         auto tree_pos = ImGui::GetCursorScreenPos();
         ImGui::Circle(is_selected);
         ImGui::Dummy(ImVec2(0, 30));
         ImGui::SameLine(15);
         bool event_tree_open = ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None));
-        int iReserveWidth = is_video_clip ? 96 : 48;
+        int iReserveWidth = is_video_clip ? 80 : 40;
         ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - iReserveWidth, tree_pos.y));
         if (is_video_clip)
         {
-            if (ImGui::Button(ICON_ADD "##add_event_mask"))
+            if (ImGui::Button(ICON_MASK "##add_event_mask"))
             {
                 auto pVidEvt = dynamic_cast<MEC::VideoEvent*>(event.get());
                 auto newMaskIdx = pVidEvt->GetMaskCount();
@@ -5800,8 +5805,8 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(60, 30));
                     ImGui::SameLine(30);
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 1.0));
-                    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.2, 0.5, 0.2, 1.0));
-                    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.1, 0.5, 0.1, 1.0));
+                    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.2, 0.5, 0.2, 0.5));
+                    ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.1, 0.5, 0.1, 0.5));
                     bool tree_open = ImGui::TreeNodeEx(lable_id.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap);
                     ImGui::PopStyleColor(3);
                     if (ImGui::BeginDragDropSource())
@@ -5893,6 +5898,9 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         }
         ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0,1.0,1.0,0.75));
         ImGui::Separator();
+        ImGui::PopStyleColor();
+        if (is_selected)
+            ImGui::PopStyleColor();
         ImGui::PopStyleColor();
     }
     if (!g_project_loading) project_changed |= changed;

@@ -322,19 +322,19 @@ void EventTrack::Save(imgui_json::value& value)
     if (m_Events.size() > 0) value["EventIDS"] = events;
 }
 
-void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int curve_height, int64_t view_start, int64_t view_end, float pixelWidthMS, bool editable, bool& changed)
+bool EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int curve_height, int64_t view_start, int64_t view_end, float pixelWidthMS, bool editable, bool& changed)
 {
+    bool mouse_hold = false;
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
-        return;
+        return mouse_hold;
     auto clip = timeline->FindClipByID(mClipID);
     if (!clip || !clip->mEventStack)
-        return;
+        return mouse_hold;
 
     ImGui::PushClipRect(rect.Min, rect.Max, true);
     ImGui::SetCursorScreenPos(rect.Min);
     bool mouse_clicked = false;
-    bool mouse_hold = false;
     bool curve_hovered = false;
 
     // draw events
@@ -514,6 +514,7 @@ void EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
         mExpanded = !mExpanded;
 
     ImGui::PopClipRect();
+    return mouse_hold;
 }
 
 void EventTrack::SelectEvent(MEC::Event::Holder event, bool appand)
@@ -13376,7 +13377,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 ImGui::SetCursorScreenPos(attribute_curve_area.Min);
                 drawList->AddRectFilled(attribute_curve_area.Min, attribute_curve_area.Max, IM_COL32_BLACK);
-                bool mouse_hold = false;
                 bool _changed = false;
                 float current_time = editingClip->mCurrentTime;
                 const auto frameRate = main_timeline->mhMediaSettings->VideoOutFrameRate();
@@ -13402,6 +13402,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             auto track_pos = ImGui::GetCursorScreenPos();
             auto track_current = track_pos;
             int current_index = 0;
+            bool mouse_hold = false;
             for (auto event : clip->mEventStack->GetEventList())  event->SetStatus(EVENT_HOVERED_BIT, 0); // clear clip hovered status
             for ( auto track : tracks)
             {
@@ -13490,7 +13491,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                     }
                     mouse_track_index = current_index;
                 }
-                track->DrawContent(drawList, ImRect(track_current, track_current + track_size), trackHeight, curveHeight, editingClip->firstTime, editingClip->lastTime, editingClip->msPixelWidthTarget, event_editable, changed);
+                mouse_hold |= track->DrawContent(drawList, ImRect(track_current, track_current + track_size), trackHeight, curveHeight, editingClip->firstTime, editingClip->lastTime, editingClip->msPixelWidthTarget, event_editable, changed);
                 
                 track_current += ImVec2(0, track_size.y);
                 current_index ++;
@@ -13520,7 +13521,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             }
 
             // event cropping or moving
-            if (eventMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+            if (!mouse_hold && eventMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
             {
                 ImGui::CaptureMouseFromApp();
                 diffTime += io.MouseDelta.x / editingClip->msPixelWidthTarget;

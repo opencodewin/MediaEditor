@@ -114,7 +114,7 @@
 #define ICON_SAVE           u8"\uf0c7"
 #define ICON_CLIP_START     u8"\uf090"
 #define ICON_CLIP_END       u8"\uf08b"
-#define ICON_RETURN_DEFAULT u8"\ue042"
+#define ICON_RETURN_DEFAULT u8"\ue4e0"
 #define ICON_NODE           u8"\uf542"
 #define ICON_WATCH          u8"\ue8f4"
 #define ICON_UNWATCH        u8"\ue8f5"
@@ -127,6 +127,7 @@
 #define ICON_TRACK_UNZIP    u8"\uead0"
 #define ICON_FILTER_EDITOR  u8"\ueb03"
 #define ICON_DELETE_CLIPS   u8"\ue16f"
+#define ICON_MASK           u8"\ueb63"
 
 #define ICON_FONT_BOLD      u8"\ue238"
 #define ICON_FONT_ITALIC    u8"\ue23f"
@@ -459,7 +460,7 @@ struct EventTrack
     static EventTrack* Load(const imgui_json::value& value, void * handle);
     void Save(imgui_json::value& value);
 
-    void DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int curve_height, int64_t view_start, int64_t view_end, float pixelWidthMS, bool editable, bool& changed);
+    bool DrawContent(ImDrawList *draw_list, ImRect rect, int event_height, int curve_height, int64_t view_start, int64_t view_end, float pixelWidthMS, bool editable, bool& changed);
     void SelectEvent(MEC::Event::Holder event, bool appand);
     MEC::Event::Holder FindPreviousEvent(int64_t id);
     MEC::Event::Holder FindNextEvent(int64_t id);
