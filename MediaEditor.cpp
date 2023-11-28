@@ -551,15 +551,15 @@ static TimeLine * timeline = nullptr;
 static ImTextureID codewin_texture = nullptr;
 static ImTextureID logo_texture = nullptr;
 static std::thread * g_loading_project_thread {nullptr};
-static bool g_project_loading {false};
-static float g_project_loading_percentage {0};
 static std::thread * g_loading_plugin_thread {nullptr};
+static std::thread * g_env_scan_thread {nullptr};
+static float g_project_loading_percentage {0};
 static bool g_plugin_loading {false};
 static bool g_plugin_loaded {false};
+static bool g_project_loading {false};
 static float g_plugin_loading_percentage {0};
 static int g_plugin_loading_current_index {0};
 static std::string g_plugin_loading_message;
-static std::thread g_env_scan_thread;
 static bool g_env_scanned = false;
 static bool g_env_scanning = false;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
@@ -1632,8 +1632,8 @@ static void LoadProjectThread(std::string path, bool in_splash)
     {
         ImGui::sleep(100);
     }
-    if (g_env_scan_thread.joinable())
-        g_env_scan_thread.join();
+    if (g_env_scan_thread && g_env_scan_thread->joinable())
+        g_env_scan_thread->join();
     g_project_loading = true;
     g_project_loading_percentage = 0;
     Logger::Log(Logger::DEBUG) << "[MEC] Load project from '" << path << "'." << std::endl;
@@ -11016,6 +11016,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         }
         else
         {
+            g_project_loading = false;
             NewTimeline();
         }
 #if IMGUI_VULKAN_SHADER
@@ -11125,6 +11126,7 @@ static void MediaEditor_Initialize(void** handle)
     m_cie = new ImGui::CIE_vulkan(gpu);
     m_vector = new ImGui::Vector_vulkan(gpu);
 #endif
+    g_project_loading = true;
     if (!ImGuiHelper::file_exists(io.IniFilename) && !timeline)  NewTimeline();
 }
 
@@ -12062,7 +12064,7 @@ bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
     if (!g_env_scanned)
     {
         g_env_scanning = true;
-        g_env_scan_thread = std::thread(EnvScanThread);
+        g_env_scan_thread = new std::thread(EnvScanThread);
         g_env_scanned = true;
     }
     std::string load_str;
