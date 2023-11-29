@@ -91,7 +91,6 @@
 #define ICON_HDR            u8"\ue3ee"
 #define ICON_HDR_DISABLE    u8"\ue3ed"
 #define ICON_PALETTE        u8"\uf53f"
-#define ICON_STRAW          u8"\ue3b8"
 #define ICON_CROP           u8"\uf125"
 #define ICON_ROTATE         u8"\ue437"
 #define ICON_LOCKED         u8"\ue897"

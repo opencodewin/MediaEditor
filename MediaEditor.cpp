@@ -4714,7 +4714,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
                 pos_y = (io.MousePos.y - offset_y) * scale_h;
                 if (io.MouseType == 1)
                 {
-                    ImGui::RenderMouseCursor(ICON_STRAW, ImVec2(2, 12));
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_Straw);
                     draw_list->AddRect(io.MousePos - ImVec2(2, 2), io.MousePos + ImVec2(2, 2), IM_COL32(255,0, 0,255));
                     auto pixel = ImGui::ImGetTexturePixel(timeline->mVideoFilterInputTexture, pos_x, pos_y);
                     if (ImGui::BeginTooltip())
