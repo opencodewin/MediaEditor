@@ -4712,7 +4712,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
                 float scale_h = image_height / (tf_y - offset_y);
                 pos_x = (io.MousePos.x - offset_x) * scale_w;
                 pos_y = (io.MousePos.y - offset_y) * scale_h;
-                if (io.MouseType == 1)
+                if (io.MouseStrawed)
                 {
                     ImGui::SetMouseCursor(ImGuiMouseCursor_Straw);
                     draw_list->AddRect(io.MousePos - ImVec2(2, 2), io.MousePos + ImVec2(2, 2), IM_COL32(255,0, 0,255));
@@ -4724,9 +4724,8 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
                         ImGui::Text("R:%d G:%d B:%d A:%d", (int)(pixel.r * 255), (int)(pixel.g * 255), (int)(pixel.b * 255), (int)(pixel.a * 255));
                         ImGui::EndTooltip();
                     }
-                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Left))
                     {
-                        io.MouseStrawed = true;
                         io.MouseStrawValue = ImVec4(pixel.r, pixel.g, pixel.b, pixel.a);
                     }
                 }

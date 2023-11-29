@@ -99,8 +99,7 @@ struct ChromaKeyNode final : Node
         ImGui::SameLine();
         if (ImGui::CheckButton(u8"\ue3b8" "##color_pick##ChromaKey", &m_color_straw, ImVec4(0.5, 0.0, 0.0, 1.0)))
         {
-            if (m_color_straw) io.MouseType = 1;
-            else { io.MouseType = 0; io.MouseStrawed = false; }
+            io.MouseStrawed = m_color_straw;
         }
         ImGui::ShowTooltipOnHover("Color Straw");
         ImVec4 straw_color;
