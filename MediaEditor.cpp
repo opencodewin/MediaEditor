@@ -5119,6 +5119,11 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         };
         if (attribute && ImGui::TreeNodeEx("Video Attribute", ImGuiTreeNodeFlags_DefaultOpen))
         {
+            if (editing_clip->bAttributeScrolling)
+            {
+                ImGui::ScrollToItem(ImGuiScrollFlags_KeepVisibleCenterY);
+                editing_clip->bAttributeScrolling = false;
+            }
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
             ImGui::PushItemWidth(200);
             float setting_offset = sub_window_size.x - 80;
@@ -5458,6 +5463,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
     {
 
         bool is_selected = event->Status() & EVENT_SELECTED;
+        bool is_scrolling = event->Status() & EVENT_SCROLLING;
         bool is_in_range = event->End() > 0 && event->Start() < editing_clip->Length();
         std::string event_label = ImGuiHelper::MillisecToString(event->Start(), 3) + " -> " + ImGuiHelper::MillisecToString(event->End(), 3) + "##clip_event##" + std::to_string(event->Id());
         std::string event_drag_drop_label = "##event_tree##" + std::to_string(event->Id());
@@ -5483,6 +5489,13 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         ImGui::SameLine(15);
         bool event_tree_open = ImGui::TreeNodeEx(event_label.c_str(), ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowOverlap | (is_selected ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None));
         int iReserveWidth = is_video_clip ? 80 : 40;
+        
+        if (is_selected && is_scrolling)
+        {
+            ImGui::ScrollToItem(ImGuiScrollFlags_KeepVisibleCenterY);
+            event->SetStatus(EVENT_NEED_SCROLL, 0);
+        }
+        
         ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - iReserveWidth, tree_pos.y));
         if (is_video_clip)
         {

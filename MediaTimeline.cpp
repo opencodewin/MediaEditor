@@ -543,11 +543,17 @@ void EventTrack::SelectEvent(MEC::Event::Holder event, bool appand)
                 if (!appand)
                 {
                     _event->SetStatus(EVENT_SELECTED_BIT, selected ? 0 : 1);
+                    if (selected) _event->SetStatus(EVENT_NEED_SCROLL, 0);
                 }
             }
         }
     }
     event->SetStatus(EVENT_SELECTED_BIT, selected ? 1 : 0);
+    if (selected)
+    {
+        clip->bAttributeScrolling = false;
+        event->SetStatus(EVENT_NEED_SCROLL, 1);
+    }
     if (clip->mEventStack)
     {
         clip->mEventStack->SetEditingEvent(selected ? event->Id() : -1);
@@ -13372,6 +13378,12 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             if (is_attribute_title_hovered && event_editable && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             {
                 clip->bAttributeExpanded = !clip->bAttributeExpanded;
+            }
+            if (is_attribute_title_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            {
+                // attribute selected, clear event select
+                for (auto event : clip->mEventStack->GetEventList())  event->SetStatus(EVENT_SELECTED_BIT, 0);
+                clip->bAttributeScrolling = true;
             }
             if (clip->bAttributeExpanded)
             {

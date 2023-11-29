@@ -444,8 +444,10 @@ struct Overlap
 
 #define EVENT_SELECTED_BIT  0
 #define EVENT_HOVERED_BIT   1
+#define EVENT_NEED_SCROLL   2
 #define EVENT_SELECTED      (1UL << EVENT_SELECTED_BIT)
 #define EVENT_HOVERED       (1UL << EVENT_HOVERED_BIT)
+#define EVENT_SCROLLING     (1UL << EVENT_NEED_SCROLL)
 
 struct EventTrack
 {
@@ -489,6 +491,7 @@ struct Clip
     imgui_json::value           mFilterJson;        // clip filter blue print, project saved
     imgui_json::value           mAttributeJson;     // clip attribute, project saved
     bool                        bAttributeExpanded {false}; // clip attribute curve expanded, project saved
+    bool                        bAttributeScrolling {false}; // need scrolling UI to attribute setting
 
     MEC::EventStack*            mEventStack {nullptr};// clip event stack,
     std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
