@@ -1997,7 +1997,14 @@ static void ShowMediaPlayWindow(bool &show)
         draw_list->AddRectFilled(window_pos, ImVec2(window_pos.x + window_size.x - 4, window_pos.y + window_size.y - 60), IM_COL32(0, 0, 0, 255));
         ImTextureID tid = player->GetFrame(playPos);
         if (tid)
+        {
             ImGui::ImShowVideoWindow(draw_list, tid, window_pos, video_size);
+            if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+            {
+                ImGui::OpenPopup(ICON_MEDIA_PREVIEW " MediaPlay FullScreen", ImGuiPopupFlags_AnyPopup);
+                isFullscreen = true;
+            }
+        }
         else
             ImGui::Dummy(video_size);
         // player controller
