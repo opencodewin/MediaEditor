@@ -12065,7 +12065,7 @@ static void EnvScanThread()
     g_env_scanning = false;
 }
 
-bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
+static bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
 {
     static int32_t splash_start_time = ImGui::get_current_time_msec();
     auto& io = ImGui::GetIO();
