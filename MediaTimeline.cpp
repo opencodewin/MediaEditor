@@ -25,7 +25,7 @@
 #include <sstream>
 #include <iomanip>
 #include "EventStackFilter.h"
-#include "SysUtils.h"
+#include "ThreadUtils.h"
 #include "TextureManager.h"
 #include "MatUtils.h"
 #include "Logger.h"
