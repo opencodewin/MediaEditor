@@ -294,26 +294,28 @@ namespace MediaTimeline
 #define VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME           "VideoClipSnapshotGridTexturePool"
 #define EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME   "EditingVideoClipSnapshotGridTexturePool"
 
-#define MEDIA_UNKNOWN               0
-#define MEDIA_DUMMY                 0x00000001
-#define MEDIA_VIDEO                 0x00000100
-#define MEDIA_SUBTYPE_VIDEO_IMAGE   0x00000110
-#define MEDIA_AUDIO                 0x00001000
-#define MEDIA_SUBTYPE_AUDIO_MIDI    0x00001100
-#define MEDIA_TEXT                  0x00100000
-#define MEDIA_SUBTYPE_TEXT_SUBTITLE 0x00110000
-#define MEDIA_EVENT                 0x01000000
-#define MEDIA_CUSTOM                0x10000000
+#define MEDIA_UNKNOWN                       0
+#define MEDIA_DUMMY                         0x80000000
+#define MEDIA_VIDEO                         0x00000100
+#define MEDIA_SUBTYPE_VIDEO_IMAGE           (MEDIA_VIDEO+1)
+#define MEDIA_SUBTYPE_VIDEO_IMAGE_SEQUENCE  (MEDIA_VIDEO+2)
+#define MEDIA_AUDIO                         0x00000200
+#define MEDIA_SUBTYPE_AUDIO_MIDI            (MEDIA_AUDIO+1)
+#define MEDIA_TEXT                          0x00000400
+#define MEDIA_SUBTYPE_TEXT_SUBTITLE         (MEDIA_TEXT+1)
+#define MEDIA_EVENT                         0x00000800
+#define MEDIA_CUSTOM                        0x40000000
 
 #define IS_DUMMY(t)     ((t) & MEDIA_DUMMY)
 #define IS_VIDEO(t)     ((t) & MEDIA_VIDEO)
+#define IS_IMAGE(t)     ((t) == MEDIA_SUBTYPE_VIDEO_IMAGE)
+#define IS_IMAGESEQ(t)  ((t) == MEDIA_SUBTYPE_VIDEO_IMAGE_SEQUENCE)
 #define IS_AUDIO(t)     ((t) & MEDIA_AUDIO)
-#define IS_IMAGE(t)     (((t) & MEDIA_SUBTYPE_VIDEO_IMAGE) == MEDIA_SUBTYPE_VIDEO_IMAGE)
+#define IS_MIDI(t)      ((t) == MEDIA_SUBTYPE_AUDIO_MIDI)
 #define IS_TEXT(t)      ((t) & MEDIA_TEXT)
-#define IS_SUBTITLE(t)  (((t) & MEDIA_SUBTYPE_TEXT_SUBTITLE) == MEDIA_SUBTYPE_TEXT_SUBTITLE)
-#define IS_MIDI(t)      (((t) & MEDIA_SUBTYPE_AUDIO_MIDI) == MEDIA_SUBTYPE_AUDIO_MIDI)
-#define IS_EVENT(t)     (t & MEDIA_EVENT)
-#define IS_SAME_TYPE(t1, t2) ((t1) & (t2))
+#define IS_SUBTITLE(t)  ((t) == MEDIA_SUBTYPE_TEXT_SUBTITLE)
+#define IS_EVENT(t)     ((t) & MEDIA_EVENT)
+#define IS_SAME_TYPE(t1, t2) ((t1) & (t2) & 0xFFFFFF00)
 
 static inline uint32_t EstimateMediaType(std::string file_suffix)
 {

@@ -213,7 +213,16 @@ void MediaItem::UpdateItem(const std::string& name, const std::string& path, voi
                 mMediaOverview->SetSnapshotSize(txSize.x, txSize.y);
             else
                 mMediaOverview->SetSnapshotResizeFactor(0.05, 0.05);
-            mMediaOverview->Open(path, 64);
+            if (IS_IMAGESEQ(mMediaType))
+            {
+                auto hParser = MediaCore::MediaParser::CreateInstance();
+                hParser->OpenImageSequence({25, 1}, path, ".+_([[:digit:]]{1,})\\.png", false, true);
+                mMediaOverview->Open(hParser, 64);
+            }
+            else
+            {
+                mMediaOverview->Open(path, 64);
+            }
             if (mMediaOverview->IsOpened())
             {
                 mSrcLength = mMediaOverview->GetMediaInfo()->duration * 1000;
@@ -12120,19 +12129,162 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     auto insert_item_into_timeline = [&](MediaItem * item, MediaTrack * track)
     {
         auto clipRange = timeline->AlignClipRange({0, item->mSrcLength});
-        if (IS_IMAGE(item->mMediaType))
+        if (IS_VIDEO(item->mMediaType))
         {
-            VideoClip * new_image_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, timeline);
-            timeline->m_Clips.push_back(new_image_clip);
-            MediaTrack* insertTrack = track;
-            if (!track || !track->CanInsertClip(new_image_clip, mouseTime))
+            if (IS_IMAGE(item->mMediaType))
             {
-                int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
-                insertTrack = timeline->m_Tracks[newTrackIndex];
-                bInsertNewTrack = true;
-                InsertHeight += insertTrack->mTrackHeight + trackHeadHeight;
+                VideoClip* new_image_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Image", item->mMediaOverview, timeline);
+                timeline->m_Clips.push_back(new_image_clip);
+                MediaTrack* insertTrack = track;
+                if (!track || !track->CanInsertClip(new_image_clip, mouseTime))
+                {
+                    int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
+                    insertTrack = timeline->m_Tracks[newTrackIndex];
+                    bInsertNewTrack = true;
+                    InsertHeight += insertTrack->mTrackHeight + trackHeadHeight;
+                }
+                insertTrack->InsertClip(new_image_clip, mouseTime, true, &actionList);
             }
-            insertTrack->InsertClip(new_image_clip, mouseTime, true, &actionList);
+            else if (IS_IMAGESEQ(item->mMediaType))
+            {
+                MediaCore::Snapshot::Viewer::Holder hViewer;
+                MediaCore::Snapshot::Generator::Holder hSsGen = timeline->GetSnapshotGenerator(item->mID);
+                if (hSsGen) hViewer = hSsGen->CreateViewer();
+                VideoClip* new_imageseq_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName + ":ImageSeq", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
+                timeline->m_Clips.push_back(new_imageseq_clip);
+                MediaTrack* insertTrack = track;
+                if (!track || !track->CanInsertClip(new_imageseq_clip, mouseTime))
+                {
+                    int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
+                    insertTrack = timeline->m_Tracks[newTrackIndex];
+                    bInsertNewTrack = true;
+                    InsertHeight += insertTrack->mTrackHeight + trackHeadHeight;
+                }
+                insertTrack->InsertClip(new_imageseq_clip, mouseTime, true, &actionList);
+            }
+            else  // handle general video file
+            {
+                bool create_new_track = false;
+                MediaTrack* videoTrack = nullptr;
+                VideoClip* new_video_clip = nullptr;
+                AudioClip* new_audio_clip = nullptr;
+                const MediaCore::VideoStream* video_stream = item->mMediaOverview->GetVideoStream();
+                const MediaCore::AudioStream* audio_stream = item->mMediaOverview->GetAudioStream();
+                const MediaCore::SubtitleStream * subtitle_stream = nullptr;
+                if (video_stream)
+                {
+                    MediaCore::Snapshot::Viewer::Holder hViewer;
+                    MediaCore::Snapshot::Generator::Holder hSsGen = timeline->GetSnapshotGenerator(item->mID);
+                    if (hSsGen) hViewer = hSsGen->CreateViewer();
+                    new_video_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Video", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
+                    timeline->m_Clips.push_back(new_video_clip);
+                    videoTrack = track;
+                    if (!track || !track->CanInsertClip(new_video_clip, mouseTime))
+                    {
+                        int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
+                        videoTrack = timeline->m_Tracks[newTrackIndex];
+                        bInsertNewTrack = true;
+                        InsertHeight += videoTrack->mTrackHeight + trackHeadHeight;
+                    }
+                    videoTrack->InsertClip(new_video_clip, mouseTime, true, &actionList);
+                }
+                if (audio_stream)
+                {
+                    new_audio_clip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Audio", item->mMediaOverview, timeline);
+                    timeline->m_Clips.push_back(new_audio_clip);
+                    if (!create_new_track)
+                    {
+                        if (new_video_clip)
+                        {
+                            // video clip is insert into track, we need check if this track has linked track
+                            if (track && track->mLinkedTrack != -1)
+                            {
+                                MediaTrack * relative_track = timeline->FindTrackByID(track->mLinkedTrack);
+                                if (relative_track && IS_AUDIO(relative_track->mType))
+                                {
+                                    bool can_insert_clip = relative_track->CanInsertClip(new_audio_clip, mouseTime);
+                                    if (can_insert_clip)
+                                    {
+                                        if (new_video_clip->mGroupID == -1)
+                                        {
+                                            timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
+                                        }
+                                        relative_track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
+                                        timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
+                                    }
+                                    else
+                                        create_new_track = true;
+                                }
+                                else
+                                    create_new_track = true;
+                            }
+                            else if (track)
+                            {
+                                // no mLinkedTrack with track, we try to find empty audio track first
+                                MediaTrack * empty_track = timeline->FindEmptyTrackByType(MEDIA_AUDIO);
+                                if (empty_track)
+                                {
+                                    if (new_video_clip->mGroupID == -1)
+                                    {
+                                        timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
+                                    }
+                                    timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
+                                    empty_track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
+                                }
+                                else
+                                    create_new_track = true;
+                            }
+                            else
+                                create_new_track = true;
+                        }
+                        else
+                        {
+                            // no video stream
+                            bool can_insert_clip = track ? track->CanInsertClip(new_audio_clip, mouseTime) : false;
+                            if (can_insert_clip)
+                            {
+                                // update clip info and push into track
+                                track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
+                            }
+                            else
+                            {
+                                create_new_track = true;
+                            }
+                        }
+                    }
+                    if (create_new_track)
+                    {
+                        if (new_video_clip)
+                        {
+                            if (new_video_clip->mGroupID == -1)
+                            {
+                                timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
+                            }
+                            timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
+                        }
+                        //  we try to find empty audio track first
+                        MediaTrack * audioTrack = timeline->FindEmptyTrackByType(MEDIA_AUDIO);
+                        if (!audioTrack)
+                        {
+                            int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &actionList);
+                            audioTrack = timeline->m_Tracks[newTrackIndex];
+                            bInsertNewTrack = true;
+                            InsertHeight += audioTrack->mTrackHeight + trackHeadHeight;
+                        }
+                        audioTrack->InsertClip(new_audio_clip, mouseTime, true, &actionList);
+                        if (videoTrack)
+                        {
+                            videoTrack->mLinkedTrack = audioTrack->mID;
+                            audioTrack->mLinkedTrack = videoTrack->mID;
+                            imgui_json::value action;
+                            action["action"] = "LINK_TRACK";
+                            action["track_id1"] = imgui_json::number(videoTrack->mID);
+                            action["track_id2"] = imgui_json::number(audioTrack->mID);
+                            actionList.push_back(std::move(action));
+                        }
+                    }
+                }
+            }
         }
         else if (IS_AUDIO(item->mMediaType))
         {
@@ -12180,129 +12332,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             bInsertNewTrack = true;
             InsertHeight += newTrack->mTrackHeight + trackHeadHeight;
         }
-        else  // add a video clip
+        else
         {
-            bool create_new_track = false;
-            MediaTrack * videoTrack = nullptr;
-            VideoClip * new_video_clip = nullptr;
-            AudioClip * new_audio_clip = nullptr;
-            const MediaCore::VideoStream* video_stream = item->mMediaOverview->GetVideoStream();
-            const MediaCore::AudioStream* audio_stream = item->mMediaOverview->GetAudioStream();
-            const MediaCore::SubtitleStream * subtitle_stream = nullptr;
-            if (video_stream)
-            {
-                MediaCore::Snapshot::Viewer::Holder hViewer;
-                MediaCore::Snapshot::Generator::Holder hSsGen = timeline->GetSnapshotGenerator(item->mID);
-                if (hSsGen) hViewer = hSsGen->CreateViewer();
-                new_video_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Video", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
-                timeline->m_Clips.push_back(new_video_clip);
-                videoTrack = track;
-                if (!track || !track->CanInsertClip(new_video_clip, mouseTime))
-                {
-                    int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
-                    videoTrack = timeline->m_Tracks[newTrackIndex];
-                    bInsertNewTrack = true;
-                    InsertHeight += videoTrack->mTrackHeight + trackHeadHeight;
-                }
-                videoTrack->InsertClip(new_video_clip, mouseTime, true, &actionList);
-            }
-            if (audio_stream)
-            {
-                new_audio_clip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Audio", item->mMediaOverview, timeline);
-                timeline->m_Clips.push_back(new_audio_clip);
-                if (!create_new_track)
-                {
-                    if (new_video_clip)
-                    {
-                        // video clip is insert into track, we need check if this track has linked track
-                        if (track && track->mLinkedTrack != -1)
-                        {
-                            MediaTrack * relative_track = timeline->FindTrackByID(track->mLinkedTrack);
-                            if (relative_track && IS_AUDIO(relative_track->mType))
-                            {
-                                bool can_insert_clip = relative_track->CanInsertClip(new_audio_clip, mouseTime);
-                                if (can_insert_clip)
-                                {
-                                    if (new_video_clip->mGroupID == -1)
-                                    {
-                                        timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
-                                    }
-                                    relative_track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
-                                    timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
-                                }
-                                else
-                                    create_new_track = true;
-                            }
-                            else
-                                create_new_track = true;
-                        }
-                        else if (track)
-                        {
-                            // no mLinkedTrack with track, we try to find empty audio track first
-                            MediaTrack * empty_track = timeline->FindEmptyTrackByType(MEDIA_AUDIO);
-                            if (empty_track)
-                            {
-                                if (new_video_clip->mGroupID == -1)
-                                {
-                                    timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
-                                }
-                                timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
-                                empty_track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
-                            }
-                            else
-                                create_new_track = true;
-                        }
-                        else
-                            create_new_track = true;
-                    }
-                    else
-                    {
-                        // no video stream
-                        bool can_insert_clip = track ? track->CanInsertClip(new_audio_clip, mouseTime) : false;
-                        if (can_insert_clip)
-                        {
-                            // update clip info and push into track
-                            track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
-                        }
-                        else
-                        {
-                            create_new_track = true;
-                        }
-                    }
-                }
-                if (create_new_track)
-                {
-                    if (new_video_clip)
-                    {
-                        if (new_video_clip->mGroupID == -1)
-                        {
-                            timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
-                        }
-                        timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
-                    }
-                    //  we try to find empty audio track first
-                    MediaTrack * audioTrack = timeline->FindEmptyTrackByType(MEDIA_AUDIO);
-                    if (!audioTrack)
-                    {
-                        int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &actionList);
-                        audioTrack = timeline->m_Tracks[newTrackIndex];
-                        bInsertNewTrack = true;
-                        InsertHeight += audioTrack->mTrackHeight + trackHeadHeight;
-                    }
-                    audioTrack->InsertClip(new_audio_clip, mouseTime, true, &actionList);
-                    if (videoTrack)
-                    {
-                        videoTrack->mLinkedTrack = audioTrack->mID;
-                        audioTrack->mLinkedTrack = videoTrack->mID;
-                        imgui_json::value action;
-                        action["action"] = "LINK_TRACK";
-                        action["track_id1"] = imgui_json::number(videoTrack->mID);
-                        action["track_id2"] = imgui_json::number(audioTrack->mID);
-                        actionList.push_back(std::move(action));
-                    }
-                }
-            }
-            // TODO::Dicky add subtitle stream here?
+            throw std::runtime_error("Unsupported media type!");
         }
         timeline->Update();
         changed = true;

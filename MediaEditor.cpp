@@ -49,6 +49,8 @@
 #define DEFAULT_MAIN_VIEW_WIDTH     1680
 #define DEFAULT_MAIN_VIEW_HEIGHT    1024
 
+// #define ENABLE_IMPORT_IMAGESEQ
+
 #ifdef __APPLE__
 #define DEFAULT_FONT_NAME ""
 #elif defined(_WIN32)
@@ -1818,11 +1820,11 @@ static inline std::string GetAudioChannelName(int channels)
     else return "Channels " + std::to_string(channels);
 }
 
-static bool InsertMedia(const std::string path)
+static bool InsertMedia(const std::string path, bool bIsImageSeq = false)
 {
     auto file_suffix = ImGuiHelper::path_filename_suffix(path);
     auto name = ImGuiHelper::path_filename(path);
-    auto type = EstimateMediaType(file_suffix);
+    auto type = bIsImageSeq ? MEDIA_SUBTYPE_VIDEO_IMAGE_SEQUENCE : EstimateMediaType(file_suffix);
     if (timeline)
     {
         // check media is already in bank
@@ -2299,6 +2301,37 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
     ImGui::PopStyleColor(3);
     return ret;
 }
+
+#ifdef ENABLE_IMPORT_IMAGESEQ
+static bool InsertImageSequenceAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size)
+{
+    bool ret = false;
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5, 0.5, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.65, 0.65, 0.4, 1.0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+    ImVec2 icon_size = ImVec2(media_icon_size, media_icon_size);
+    draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(16, 16, 16, 255), 8, ImDrawFlags_RoundCornersAll);
+    draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(32, 32, 48, 255), 8, ImDrawFlags_RoundCornersAll);
+    draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(0, 0, 0, 255), 8, ImDrawFlags_RoundCornersAll);
+    ImGui::SetCursorScreenPos(icon_pos);
+    ImGui::SetWindowFontScale(2.0);
+    if (ImGui::Button(ICON_IGFD_ADD "##AddImageSeq", icon_size))
+    {
+        ret = true;
+        ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Image Sequence Folder", 
+                                                    nullptr,
+                                                    ".",
+                                                    1, 
+                                                    IGFDUserDatas("Image Sequence"), 
+                                                    ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal);
+    }
+    ImGui::SetWindowFontScale(1.0);
+    ImGui::ShowTooltipOnHover("Add image sequence into bank");
+    ImGui::SetCursorScreenPos(icon_pos);
+    ImGui::PopStyleColor(3);
+    return ret;
+}
+#endif
 
 // Tips by Jimmy: add 'bool& filtered' param, 'bool& searched'
 // 'true' indicates that the media_items is filtered
@@ -2794,9 +2827,16 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                 // Show Media Icons
                 int icon_number_pre_row = window_size.x / (media_icon_size + 24);
                 // insert empty icon for add media
-                bool media_add_icon = true;
-                auto icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
+                int media_add_icon_cnt = 1;
+                const auto icon_area_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
+                auto icon_pos = icon_area_pos;
                 InsertMediaAddIcon(draw_list, icon_pos, media_icon_size);
+#ifdef ENABLE_IMPORT_IMAGESEQ
+                icon_pos += ImVec2(media_icon_size+24, 0);
+                InsertImageSequenceAddIcon(draw_list, icon_pos, media_icon_size);
+                media_add_icon_cnt++;
+#endif
+                int icon_row_idx = 0;
                 // Modify by Jimmy, Start
                 if (timeline->mTextSearchFilter.IsActive())// op in timeline->filter_media_items
                 {
@@ -2821,10 +2861,10 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
 
                     for (auto item = timeline->search_media_items.begin(); item != timeline->search_media_items.end();)
                     {
-                        if (!media_add_icon) icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
-                        for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
+                        int icon_col_idx = icon_row_idx > 0 ? 0 : media_add_icon_cnt;
+                        for (; icon_col_idx < icon_number_pre_row; icon_col_idx++)
                         {
-                            auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
+                            auto row_icon_pos = icon_area_pos + ImVec2(icon_col_idx * (media_icon_size + 24), icon_row_idx * (media_icon_size + 24));
                             auto next_item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size, changed, filtered, searched);
 
                             if (next_item == timeline->search_media_items.end())
@@ -2839,10 +2879,9 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                             }
                             item = next_item;
                         }
-                        media_add_icon = false;
                         if (item == timeline->search_media_items.end())
                             break;
-                        ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
+                        icon_row_idx++;
                     }
                 }
                 else if (timeline->mFilterMethod != 0) // op in timeline->filter_media_items
@@ -2850,10 +2889,10 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                     filtered = true;
                     for (auto item = timeline->filter_media_items.begin(); item != timeline->filter_media_items.end();)
                     {
-                        if (!media_add_icon) icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
-                        for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
+                        int icon_col_idx = icon_row_idx > 0 ? 0 : media_add_icon_cnt;
+                        for (; icon_col_idx < icon_number_pre_row; icon_col_idx++)
                         {
-                            auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
+                            auto row_icon_pos = icon_pos + ImVec2(icon_col_idx * (media_icon_size + 24), icon_row_idx * (media_icon_size + 24));
                             auto next_item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size, changed, filtered, searched);
 
                             if (next_item == timeline->filter_media_items.end())
@@ -2868,20 +2907,19 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                             }
                             item = next_item;
                         }
-                        media_add_icon = false;
                         if (item == timeline->filter_media_items.end())
                             break;
-                        ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
+                        icon_row_idx++;
                     }
                 }
                 else
                 {
                     for (auto item = timeline->media_items.begin(); item != timeline->media_items.end();)
                     {
-                        if (!media_add_icon) icon_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
-                        for (int i = media_add_icon ? 1 : 0; i < icon_number_pre_row; i++)
+                        int icon_col_idx = icon_row_idx > 0 ? 0 : media_add_icon_cnt;
+                        for (; icon_col_idx < icon_number_pre_row; icon_col_idx++)
                         {
-                            auto row_icon_pos = icon_pos + ImVec2(i * (media_icon_size + 24), 0);
+                            auto row_icon_pos = icon_area_pos + ImVec2(icon_col_idx * (media_icon_size + 24), icon_row_idx * (media_icon_size + 24));
                             auto next_item = InsertMediaIcon(item, draw_list, row_icon_pos, media_icon_size, changed, filtered, searched);
 
                             if ((*item)->mSelected)
@@ -2898,10 +2936,9 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                             
                             item = next_item;
                         }
-                        media_add_icon = false;
                         if (item == timeline->media_items.end())
                             break;
-                        ImGui::SetCursorScreenPos(icon_pos + ImVec2(0, media_icon_size));
+                        icon_row_idx++;
                     }
                 }
                 // Modify by Jimmy, End
@@ -11980,19 +12017,25 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 InsertMedia(file_path);
                 project_changed = true;
             }
-            if (userDatas.compare("ProjectOpen") == 0)
+            else if (userDatas.compare("Image Sequence") == 0)
+            {
+                auto dir_path = ImGuiFileDialog::Instance()->GetCurrentPath();
+                InsertMedia(dir_path, true);
+                project_changed = true;
+            }
+            else if (userDatas.compare("ProjectOpen") == 0)
             {
                 OpenProject(file_path);
                 project_name = ImGuiHelper::path_filename_prefix(file_path);
             }
-            if (userDatas.compare("ProjectSave") == 0)
+            else if (userDatas.compare("ProjectSave") == 0)
             {
                 if (file_suffix.empty())
                     file_path += ".mep";
                 SaveProject(file_path);
                 project_name = ImGuiHelper::path_filename_prefix(file_path);
             }
-            if (userDatas.compare("ProjectSaveAndNew") == 0)
+            else if (userDatas.compare("ProjectSaveAndNew") == 0)
             {
                 if (file_suffix.empty())
                     file_path += ".mep";
@@ -12000,7 +12043,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 NewProject();
                 project_name = "Untitled";
             }
-            if (userDatas.compare("ProjectSaveQuit") == 0)
+            else if (userDatas.compare("ProjectSaveQuit") == 0)
             {
                 if (file_suffix.empty())
                     file_path += ".mep";
