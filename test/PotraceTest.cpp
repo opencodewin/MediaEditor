@@ -335,11 +335,14 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (output_path.empty())
             backend_lookup("mem", &info.backend);
         else
+        {
             backend_lookup("svg", &info.backend);
+        }
 
         imginfo.pixwidth = bitmap->w;
         imginfo.pixheight = bitmap->h;
         imginfo.channels = 4;
+        imginfo.invert = info.invert_background;
         int out_width = 0;
         int out_height = 0;
         calc_dimensions(&imginfo, st->plist, &out_width, &out_height);
@@ -361,6 +364,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
             FILE * fout = fopen(output_path.c_str(), "wb");
             if (fout)
             {
+                info.opaque = info.invert_background ? 1 : 0;
                 info.backend->page_f(fout, st->plist, &imginfo);
                 fclose(fout);
             }
@@ -403,6 +407,47 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
                                                             ImGuiFileDialogFlags_ConfirmOverwrite);
         }
         ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (ImGui::Button("Generator", ImVec2(120, 32)))
+        {
+            const int range = 200;
+            const int range2 = 100;
+            m_mat = ImGui::ImMat(2048, 2048, 4, 1u, 4);
+            for (int i = 0; i < 20; i++)
+            {
+                ImVec2 center;
+                float radius = rand() % range2 + (1024 - range2 - 200);
+                float thiness = rand()/double(RAND_MAX) * 2.f + 0.5f;
+                center.x = rand() % range + (1024 - range2);
+                center.y = rand() % range + (1024 - range2);
+                m_mat.draw_circle(center.x, center.y, radius, thiness, ImPixel(1,1,1,1));
+            }
+            if (m_texture)
+            {
+                ImGui::ImDestroyTexture(m_texture);
+                m_texture = 0;
+            }
+            if (m_bm_texture)
+            {
+                ImGui::ImDestroyTexture(m_bm_texture);
+                m_bm_texture = 0;
+            }
+            ImGui::ImMatToTexture(m_mat, m_texture);
+            m_gray.create_type(m_mat.w, m_mat.h, IM_DT_INT8);
+            for (int y = 0; y < m_mat.h; y++)
+            {
+                for (int x = 0; x < m_mat.w; x++)
+                {
+                    float R = m_mat.at<uint8_t>(x, y, 0);
+                    float G = m_mat.at<uint8_t>(x, y, 1);
+                    float B = m_mat.at<uint8_t>(x, y, 2);
+                    float gray = R * 0.299 + G * 0.587 + B * 0.114;
+                    m_gray.at<uint8_t>(x, y) = (uint8_t)gray;
+                }
+            }
+            process_image();
+        }
+
         ImGui::Separator();
 
         if (m_texture) ImGui::ImShowVideoWindow(draw_list, m_texture, ImGui::GetCursorScreenPos(), ImVec2(window_size.x, window_size.x / 3));
@@ -485,6 +530,13 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
 
         ImGui::Separator();
         ImGui::TextUnformatted("Scaling and placement options:");
+        bool invert_background = info.invert_background;
+        if (ImGui::Checkbox("Invert Background", &invert_background))
+        {
+            info.invert_background = invert_background;
+            process_image();
+        }
+
         // Left margin
         float l_margin = info.lmar_d.x == UNDEF ? 0 : info.lmar_d.x;
         if (!m_mat.empty())
