@@ -191,6 +191,165 @@ inline void SVGPane(const char* vFilter, IGFDUserDatas vUserDatas, bool* vCantCo
     ImGui::RadioButton("Group Related",&info.grouping, 2);
 }
 
+struct dither_info
+{
+    bool m_dither_upscale = false;
+    int m_dither_type = 0;
+    int m_dot_diffusion_type = 0;
+    int m_err_diffusion_type = 0;
+    int m_ord_dithering_type = 0;
+    int m_verr_diffusion_type = 0;
+    int m_riemersma_type = 0;
+    int m_pattern_type = 0;
+    int m_dot_lippens_type = 0;
+    int m_grid_width = 4;
+    int m_grid_height = 4;
+    int m_grid_min_pixels = 0;
+    bool m_grid_alt_algorithm = true;
+    float m_err_diffusion_sigma = 0.f;
+    bool m_err_diffusion_serpentine = true;
+    float m_ord_diffusion_sigma = 0.f;
+    int m_ord_diffusion_step = 55;
+    float m_ord_diffusion_a = 52.9829189f;
+    float m_ord_diffusion_b = 0.06711056f;
+    float m_ord_diffusion_c = 0.00583715;
+    bool m_verr_diffusion_serpentine = true;
+    float m_threshold_thres = 0.5f;
+    bool m_threshold_auto = true;
+    float m_threshold_noise = 0.55f;
+    int m_dbs_formula = 0;
+    bool m_kacker_allebach_random = true;
+    bool m_riemersma_modified = true;
+};
+
+static void process_image(const ImGui::ImMat& gray, const bool dither_filter, const dither_info& dither, ImTextureID& bm_texture, std::string output_path = std::string())
+{
+    potrace_bitmap_t *bitmap = nullptr;
+    potrace_state_t *st = nullptr;
+    if (gray.empty())
+        return;
+    
+    auto gray_dup = gray.clone();
+    if (info.lambda_high > 0)
+        gray_dup = gray_dup.highpass(info.lambda_high);
+    else if (info.lambda_low > 0)
+        gray_dup = gray_dup.lowpass(info.lambda_low);
+
+    if (dither_filter)
+    {
+        ImGui::ImMat result;
+        result.create_type(gray_dup.w, gray_dup.h, 1, IM_DT_INT8);
+        switch (dither.m_dither_type)
+        {
+            case 0 : 
+                grid_dither(gray_dup, dither.m_grid_width, dither.m_grid_height, dither.m_grid_min_pixels, dither.m_grid_alt_algorithm, result);
+            break;
+            case 1 : 
+                dot_diffusion_dither(gray_dup, (DD_TYPE)dither.m_dot_diffusion_type, result);
+            break;
+            case 2 : 
+                error_diffusion_dither(gray_dup, (ED_TYPE)dither.m_err_diffusion_type, dither.m_err_diffusion_serpentine, dither.m_err_diffusion_sigma, result);
+            break;
+            case 3 : 
+                ordered_dither(gray_dup, (OD_TYPE)dither.m_ord_dithering_type, dither.m_ord_diffusion_sigma, result, ImGui::ImMat(), dither.m_ord_diffusion_step, ImVec4(dither.m_ord_diffusion_a, dither.m_ord_diffusion_b, dither.m_ord_diffusion_c, 0));
+            break;
+            case 4 : 
+                variable_error_diffusion_dither(gray_dup, (VD_TYPE)dither.m_verr_diffusion_type, dither.m_verr_diffusion_serpentine, result);
+            break;
+            case 5 : 
+                threshold_dither(gray_dup, dither.m_threshold_auto ? auto_threshold(gray_dup) : dither.m_threshold_thres, dither.m_threshold_noise, result);
+            break;
+            case 6 : 
+                dbs_dither(gray_dup, dither.m_dbs_formula, result);
+            break;
+            case 7 : 
+                kallebach_dither(gray_dup, dither.m_kacker_allebach_random, result);
+            break;
+            case 8 : 
+                riemersma_dither(gray_dup, (RD_TYPE)dither.m_riemersma_type, dither.m_riemersma_modified, result);
+            break;
+            case 9 : 
+                pattern_dither(gray_dup, (PD_TYPE)dither.m_pattern_type, result);
+            break;
+            case 10 : 
+                dotlippens_dither(gray_dup, (LP_TYPE)dither.m_dot_lippens_type, result);
+            break;
+            default : break;
+        }
+        gray_dup = result;
+        if (dither.m_dither_upscale) gray_dup = gray_dup.resize(2);
+        info.param->turdsize = 0;
+        info.param->alphamax = 0;
+    }
+
+    bitmap = bm_new(gray_dup.w, gray_dup.h);
+    if (!bitmap)
+        return;
+    for (int y = 0; y < gray_dup.h; y++)
+    {
+        for (int x = 0; x < gray_dup.w; x++)
+        {
+            BM_UPUT(bitmap, x, gray_dup.h - y, gray_dup.at<uint8_t>(x, y) > (dither_filter ? 0.999 : info.blacklevel) * 255 ? 0 : 1);
+        }
+    }
+    imginfo_t imginfo;
+    if (bm_texture && output_path.empty())
+    {
+        ImGui::ImDestroyTexture(bm_texture);
+        bm_texture = 0;
+    }
+    if (info.invert)
+    {
+        bm_invert(bitmap);
+    }
+    st = potrace_trace(info.param, bitmap);
+    if (!st || st->status != POTRACE_STATUS_OK)
+    {
+        bm_free(bitmap);
+        return;
+    }
+
+    if (output_path.empty())
+        backend_lookup("mem", &info.backend);
+    else
+    {
+        backend_lookup("svg", &info.backend);
+    }
+
+    imginfo.pixwidth = bitmap->w;
+    imginfo.pixheight = bitmap->h;
+    imginfo.channels = 4;
+    imginfo.invert = info.invert_background;
+    int out_width = 0;
+    int out_height = 0;
+    calc_dimensions(&imginfo, st->plist, &out_width, &out_height);
+
+    if (output_path.empty())
+    {
+        ImGui::ImMat mat(out_width, out_height, 4, 1u, 4);
+        if (page_mem(mat.data, st->plist, &imginfo))
+        {
+            potrace_state_free(st);
+            bm_free(bitmap);
+            return;
+        }
+        if (!mat.empty())
+            ImGui::ImMatToTexture(mat, bm_texture);
+    }
+    else if (info.backend)
+    {
+        FILE * fout = fopen(output_path.c_str(), "wb");
+        if (fout)
+        {
+            info.opaque = info.invert_background ? 1 : 0;
+            info.backend->page_f(fout, st->plist, &imginfo);
+            fclose(fout);
+        }
+    }
+    potrace_state_free(st);
+    bm_free(bitmap);
+}
+
 static bool Potrace_Frame(void *handle, bool app_will_quit)
 {
     bool app_done = false;
@@ -201,41 +360,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
     static std::string m_file_path;
 
     static bool m_dither_filter = false;
-    static bool m_dither_upscale = false;
-    static int m_dither_type = 0;
-    static int m_dot_diffusion_type = 0;
-    static int m_err_diffusion_type = 0;
-    static int m_ord_dithering_type = 0;
-    static int m_verr_diffusion_type = 0;
-    static int m_riemersma_type = 0;
-    static int m_pattern_type = 0;
-    static int m_dot_lippens_type = 0;
-
-    static int m_grid_width = 4;
-    static int m_grid_height = 4;
-    static int m_grid_min_pixels = 0;
-    static bool m_grid_alt_algorithm = true;
-
-    static float m_err_diffusion_sigma = 0.f;
-    static bool m_err_diffusion_serpentine = true;
-
-    static float m_ord_diffusion_sigma = 0.f;
-    static int m_ord_diffusion_step = 55;
-    static float m_ord_diffusion_a = 52.9829189f;
-    static float m_ord_diffusion_b = 0.06711056f;
-    static float m_ord_diffusion_c = 0.00583715;
-
-    static bool m_verr_diffusion_serpentine = true;
-
-    static float m_threshold_thres = 0.5f;
-    static bool m_threshold_auto = true;
-    static float m_threshold_noise = 0.55f;
-
-    static int m_dbs_formula = 0;
-
-    static bool m_kacker_allebach_random = true;
-
-    static bool m_riemersma_modified = true;
+    static dither_info dither;
 
     ImGuiIO &io = ImGui::GetIO();
     (void)io;
@@ -246,132 +371,6 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
     ImGui::SetNextWindowSize(io.DisplaySize, ImGuiCond_None);
     ImGui::Begin("Potrace Test", nullptr, flags);
 
-    auto process_image = [&](std::string output_path = std::string())
-    {
-        potrace_bitmap_t *bitmap = nullptr;
-        potrace_state_t *st = nullptr;
-        if (m_mat.empty() || m_gray.empty())
-            return;
-        
-        auto gray_dup = m_gray.clone();
-        if (info.lambda_high > 0)
-            gray_dup = gray_dup.highpass(info.lambda_high);
-        else if (info.lambda_low > 0)
-            gray_dup = m_gray.lowpass(info.lambda_low);
-
-        if (m_dither_filter)
-        {
-            ImGui::ImMat result;
-            result.create_type(m_gray.w, m_gray.h, 1, IM_DT_INT8);
-            switch (m_dither_type)
-            {
-                case 0 : 
-                    grid_dither(gray_dup, m_grid_width, m_grid_height, m_grid_min_pixels, m_grid_alt_algorithm, result);
-                break;
-                case 1 : 
-                    dot_diffusion_dither(gray_dup, (DD_TYPE)m_dot_diffusion_type, result);
-                break;
-                case 2 : 
-                    error_diffusion_dither(gray_dup, (ED_TYPE)m_err_diffusion_type, m_err_diffusion_serpentine, m_err_diffusion_sigma, result);
-                break;
-                case 3 : 
-                    ordered_dither(gray_dup, (OD_TYPE)m_ord_dithering_type, m_ord_diffusion_sigma, result, ImGui::ImMat(), m_ord_diffusion_step, ImVec4(m_ord_diffusion_a, m_ord_diffusion_b, m_ord_diffusion_c, 0));
-                break;
-                case 4 : 
-                    variable_error_diffusion_dither(gray_dup, (VD_TYPE)m_verr_diffusion_type, m_verr_diffusion_serpentine, result);
-                break;
-                case 5 : 
-                    threshold_dither(gray_dup, m_threshold_auto ? auto_threshold(gray_dup) : m_threshold_thres, m_threshold_noise, result);
-                break;
-                case 6 : 
-                    dbs_dither(gray_dup, m_dbs_formula, result);
-                break;
-                case 7 : 
-                    kallebach_dither(gray_dup, m_kacker_allebach_random, result);
-                break;
-                case 8 : 
-                    riemersma_dither(gray_dup, (RD_TYPE)m_riemersma_type, m_riemersma_modified, result);
-                break;
-                case 9 : 
-                    pattern_dither(gray_dup, (PD_TYPE)m_pattern_type, result);
-                break;
-                case 10 : 
-                    dotlippens_dither(gray_dup, (LP_TYPE)m_dot_lippens_type, result);
-                break;
-                default : break;
-            }
-            gray_dup = result;
-            if (m_dither_upscale) gray_dup = gray_dup.resize(2);
-            info.param->turdsize = 0;
-            info.param->alphamax = 0;
-        }
-        bitmap = bm_new(gray_dup.w, gray_dup.h);
-        if (!bitmap)
-            return;
-        for (int y = 0; y < gray_dup.h; y++)
-        {
-            for (int x = 0; x < gray_dup.w; x++)
-            {
-                BM_UPUT(bitmap, x, gray_dup.h - y, gray_dup.at<uint8_t>(x, y) > (m_dither_filter ? 0.999 : info.blacklevel) * 255 ? 0 : 1);
-            }
-        }
-        imginfo_t imginfo;
-        if (m_bm_texture && output_path.empty())
-        {
-            ImGui::ImDestroyTexture(m_bm_texture);
-            m_bm_texture = 0;
-        }
-        if (info.invert)
-        {
-            bm_invert(bitmap);
-        }
-        st = potrace_trace(info.param, bitmap);
-        if (!st || st->status != POTRACE_STATUS_OK)
-        {
-            bm_free(bitmap);
-            return;
-        }
-
-        if (output_path.empty())
-            backend_lookup("mem", &info.backend);
-        else
-        {
-            backend_lookup("svg", &info.backend);
-        }
-
-        imginfo.pixwidth = bitmap->w;
-        imginfo.pixheight = bitmap->h;
-        imginfo.channels = 4;
-        imginfo.invert = info.invert_background;
-        int out_width = 0;
-        int out_height = 0;
-        calc_dimensions(&imginfo, st->plist, &out_width, &out_height);
-
-        if (output_path.empty())
-        {
-            ImGui::ImMat mat(out_width, out_height, 4, 1u, 4);
-            if (page_mem(mat.data, st->plist, &imginfo))
-            {
-                potrace_state_free(st);
-                bm_free(bitmap);
-                return;
-            }
-            if (!mat.empty())
-                ImGui::ImMatToTexture(mat, m_bm_texture);
-        }
-        else if (info.backend)
-        {
-            FILE * fout = fopen(output_path.c_str(), "wb");
-            if (fout)
-            {
-                info.opaque = info.invert_background ? 1 : 0;
-                info.backend->page_f(fout, st->plist, &imginfo);
-                fclose(fout);
-            }
-        }
-        potrace_state_free(st);
-        bm_free(bitmap);
-    };
     // control panel
     ImGui::BeginChild("##Potrace_Config", ImVec2(500, ImGui::GetWindowHeight() - 60), true);
     {
@@ -445,7 +444,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
                     m_gray.at<uint8_t>(x, y) = (uint8_t)gray;
                 }
             }
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         ImGui::Separator();
@@ -466,7 +465,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (turnpolicy != info.param->turnpolicy)
         {
             info.param->turnpolicy = turnpolicy;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         int turdsize = info.param->turdsize;
@@ -479,7 +478,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (turdsize != info.param->turdsize)
         {
             info.param->turdsize = turdsize;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         float alphamax = info.param->alphamax;
@@ -492,7 +491,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (alphamax != info.param->alphamax)
         {
             info.param->alphamax = alphamax;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         float unit = info.unit;
@@ -505,7 +504,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (unit != info.unit)
         {
             info.unit = unit;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         float opttolerance = info.param->opttolerance;
@@ -518,14 +517,14 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (opttolerance != info.param->opttolerance)
         {
             info.param->opttolerance = opttolerance;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         bool longcurve = info.param->opticurve == 0;
         if (ImGui::Checkbox("Curve optimization", &longcurve))
         {
             info.param->opticurve = longcurve ? 0 : 1;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         ImGui::Separator();
@@ -534,7 +533,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (ImGui::Checkbox("Invert Background", &invert_background))
         {
             info.invert_background = invert_background;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         // Left margin
@@ -555,7 +554,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (l_margin != old_l)
         {
             info.lmar_d.x = l_margin == 0 ? UNDEF : l_margin * (m_mat.empty() ? 1 : m_mat.w);
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         // Right margin
@@ -576,7 +575,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (r_margin != old_r)
         {
             info.rmar_d.x = r_margin == 0 ? UNDEF : r_margin * (m_mat.empty() ? 1 : m_mat.w);
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         // Top margin
@@ -597,7 +596,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (t_margin != old_t)
         {
             info.tmar_d.x = t_margin == 0 ? UNDEF : t_margin * (m_mat.empty() ? 1 : m_mat.h);
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         // Bottom margin
@@ -618,7 +617,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (b_margin != old_b)
         {
             info.bmar_d.x = b_margin == 0 ? UNDEF : b_margin * (m_mat.empty() ? 1 : m_mat.h);
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         // Angle
@@ -632,7 +631,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (angle != info.angle)
         {
             info.angle = angle;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         // Tighten
@@ -640,7 +639,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (ImGui::Checkbox("Tighten the bounding", &tight))
         {
             info.tight = tight ? 1 : 0;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         ImGui::Separator();
@@ -655,14 +654,14 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (blacklevel != info.blacklevel)
         {
             info.blacklevel = blacklevel;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         bool invert = info.invert == 1;
         if (ImGui::Checkbox("Invert input", &invert))
         {
             info.invert = invert ? 1 : 0;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         float lambda_low = info.lambda_low;
@@ -675,7 +674,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (lambda_low != info.lambda_low)
         {
             info.lambda_low = lambda_low;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         float lambda_high = info.lambda_high;
@@ -688,85 +687,85 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         if (lambda_high != info.lambda_high)
         {
             info.lambda_high = lambda_high;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         bool draw_dot = info.draw_dot == 1;
         if (ImGui::Checkbox("Draw dot", &draw_dot))
         {
             info.draw_dot = draw_dot ? 1 : 0;
-            process_image();
+            process_image(m_gray, m_dither_filter, dither, m_bm_texture);
         }
 
         ImGui::Separator();
         bool changed = false;
         changed |= ImGui::Checkbox("Dither Filters", &m_dither_filter);
-        changed |= ImGui::Checkbox("Dither Upscale", &m_dither_upscale);
+        changed |= ImGui::Checkbox("Dither Upscale", &dither.m_dither_upscale);
         ImGui::BeginDisabled(!m_dither_filter);
-        changed |= ImGui::Combo("Type", &m_dither_type, Dither_items, IM_ARRAYSIZE(Dither_items));
-        switch (m_dither_type)
+        changed |= ImGui::Combo("Type", &dither.m_dither_type, Dither_items, IM_ARRAYSIZE(Dither_items));
+        switch (dither.m_dither_type)
         {
             case 0 : 
             {
-                changed |= ImGui::SliderInt("Grid width", &m_grid_width, 1, 20);
-                changed |= ImGui::SliderInt("Grid height", &m_grid_height, 1, 20);
-                changed |= ImGui::SliderInt("Min pixels", &m_grid_min_pixels, 0, 20);
-                changed |= ImGui::Checkbox("Alt Algorithm", &m_grid_alt_algorithm);
+                changed |= ImGui::SliderInt("Grid width", &dither.m_grid_width, 1, 20);
+                changed |= ImGui::SliderInt("Grid height", &dither.m_grid_height, 1, 20);
+                changed |= ImGui::SliderInt("Min pixels", &dither.m_grid_min_pixels, 0, 20);
+                changed |= ImGui::Checkbox("Alt Algorithm", &dither.m_grid_alt_algorithm);
             }
             break;
             case 1 : 
-                changed |= ImGui::Combo("Dot Diffusion Type", &m_dot_diffusion_type, Dot_Diffusion_items, IM_ARRAYSIZE(Dot_Diffusion_items));
+                changed |= ImGui::Combo("Dot Diffusion Type", &dither.m_dot_diffusion_type, Dot_Diffusion_items, IM_ARRAYSIZE(Dot_Diffusion_items));
             break;
             case 2 : 
-                changed |= ImGui::Combo("Error Diffusion Type", &m_err_diffusion_type, Error_Diffusion_items, IM_ARRAYSIZE(Error_Diffusion_items));
-                changed |= ImGui::SliderFloat("Jitter##error", &m_err_diffusion_sigma, 0.f, 1.f, "%.2f");
-                changed |= ImGui::Checkbox("Serpentine", &m_err_diffusion_serpentine);
+                changed |= ImGui::Combo("Error Diffusion Type", &dither.m_err_diffusion_type, Error_Diffusion_items, IM_ARRAYSIZE(Error_Diffusion_items));
+                changed |= ImGui::SliderFloat("Jitter##error", &dither.m_err_diffusion_sigma, 0.f, 1.f, "%.2f");
+                changed |= ImGui::Checkbox("Serpentine", &dither.m_err_diffusion_serpentine);
             break;
             case 3 : 
-                changed |= ImGui::Combo("Ordered Dithering Type", &m_ord_dithering_type, Ordered_Dithering_item, IM_ARRAYSIZE(Ordered_Dithering_item));
-                changed |= ImGui::SliderFloat("Jitter##order", &m_ord_diffusion_sigma, 0.f, 1.f, "%.2f");
-                if (m_ord_dithering_type >= 40 && m_ord_dithering_type < 43)
+                changed |= ImGui::Combo("Ordered Dithering Type", &dither.m_ord_dithering_type, Ordered_Dithering_item, IM_ARRAYSIZE(Ordered_Dithering_item));
+                changed |= ImGui::SliderFloat("Jitter##order", &dither.m_ord_diffusion_sigma, 0.f, 1.f, "%.2f");
+                if (dither.m_ord_dithering_type >= 40 && dither.m_ord_dithering_type < 43)
                 {
-                    changed |= ImGui::SliderInt("Step", &m_ord_diffusion_step, 1, 100);
-                    if (m_ord_dithering_type == 42)
+                    changed |= ImGui::SliderInt("Step", &dither.m_ord_diffusion_step, 1, 100);
+                    if (dither.m_ord_dithering_type == 42)
                     {
-                        changed |= ImGui::SliderFloat("A", &m_ord_diffusion_a, 0.f, 100.f, "%.3f");
-                        changed |= ImGui::SliderFloat("B", &m_ord_diffusion_b, 0.f, 1.f, "%.3f");
-                        changed |= ImGui::SliderFloat("C", &m_ord_diffusion_c, 0.f, 1.f, "%.3f");
+                        changed |= ImGui::SliderFloat("A", &dither.m_ord_diffusion_a, 0.f, 100.f, "%.3f");
+                        changed |= ImGui::SliderFloat("B", &dither.m_ord_diffusion_b, 0.f, 1.f, "%.3f");
+                        changed |= ImGui::SliderFloat("C", &dither.m_ord_diffusion_c, 0.f, 1.f, "%.3f");
                     }
                 }
             break;
             case 4 : 
-                changed |= ImGui::Combo("Variable Error Diffusion Type", &m_verr_diffusion_type, Variable_Error_Diffusion_items, IM_ARRAYSIZE(Variable_Error_Diffusion_items));
-                changed |= ImGui::Checkbox("Serpentine", &m_verr_diffusion_serpentine);
+                changed |= ImGui::Combo("Variable Error Diffusion Type", &dither.m_verr_diffusion_type, Variable_Error_Diffusion_items, IM_ARRAYSIZE(Variable_Error_Diffusion_items));
+                changed |= ImGui::Checkbox("Serpentine", &dither.m_verr_diffusion_serpentine);
             break;
             case 5 : 
-                changed |= ImGui::SliderFloat("Noise", &m_threshold_noise, 0.f, 1.f, "%.3f");
-                changed |= ImGui::Checkbox("Auto threshold", &m_threshold_auto);
-                ImGui::BeginDisabled(m_threshold_auto);
-                changed |= ImGui::SliderFloat("Threshold", &m_threshold_thres, 0.f, 1.f, "%.3f");
+                changed |= ImGui::SliderFloat("Noise", &dither.m_threshold_noise, 0.f, 1.f, "%.3f");
+                changed |= ImGui::Checkbox("Auto threshold", &dither.m_threshold_auto);
+                ImGui::BeginDisabled(dither.m_threshold_auto);
+                changed |= ImGui::SliderFloat("Threshold", &dither.m_threshold_thres, 0.f, 1.f, "%.3f");
                 ImGui::EndDisabled();
             break;
             case 6 : 
-                changed |= ImGui::SliderInt("Formula", &m_dbs_formula, 1, 7);
+                changed |= ImGui::SliderInt("Formula", &dither.m_dbs_formula, 1, 7);
             break;
             case 7 : 
-                changed |= ImGui::Checkbox("Random", &m_kacker_allebach_random);
+                changed |= ImGui::Checkbox("Random", &dither.m_kacker_allebach_random);
             break;
             case 8 : 
-                changed |= ImGui::Combo("Riemersma Dithering Type", &m_riemersma_type, Riemersma_Dithering_items, IM_ARRAYSIZE(Riemersma_Dithering_items));
-                changed |= ImGui::Checkbox("Modified", &m_riemersma_modified);
+                changed |= ImGui::Combo("Riemersma Dithering Type", &dither.m_riemersma_type, Riemersma_Dithering_items, IM_ARRAYSIZE(Riemersma_Dithering_items));
+                changed |= ImGui::Checkbox("Modified", &dither.m_riemersma_modified);
             break;
             case 9 : 
-                changed |= ImGui::Combo("Pattern Dithering Type", &m_pattern_type, Pattern_items, IM_ARRAYSIZE(Pattern_items));
+                changed |= ImGui::Combo("Pattern Dithering Type", &dither.m_pattern_type, Pattern_items, IM_ARRAYSIZE(Pattern_items));
             break;
             case 10 : 
-                changed |= ImGui::Combo("Dot Lippens Type", &m_dot_lippens_type, Dot_Lippens_items, IM_ARRAYSIZE(Dot_Lippens_items));
+                changed |= ImGui::Combo("Dot Lippens Type", &dither.m_dot_lippens_type, Dot_Lippens_items, IM_ARRAYSIZE(Dot_Lippens_items));
             break;
             default : break;
         }
         ImGui::EndDisabled();
-        if (changed) process_image();
+        if (changed) process_image(m_gray, m_dither_filter, dither, m_bm_texture);
 
         ImGui::PopItemWidth();
     }
@@ -853,12 +852,12 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
                             m_gray.at<uint8_t>(x, y) = (uint8_t)gray;
                         }
                     }
-                    process_image();
+                    process_image(m_gray, m_dither_filter, dither, m_bm_texture);
                 }
             }
             if (userDatas.compare("SVGPane") == 0)
             {
-                process_image(file_path);
+                process_image(m_gray, m_dither_filter, dither, m_bm_texture, file_path);
             }
         }
         ImGuiFileDialog::Instance()->Close();
