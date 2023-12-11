@@ -49,8 +49,6 @@
 #define DEFAULT_MAIN_VIEW_WIDTH     1680
 #define DEFAULT_MAIN_VIEW_HEIGHT    1024
 
-// #define ENABLE_IMPORT_IMAGESEQ
-
 #ifdef __APPLE__
 #define DEFAULT_FONT_NAME ""
 #elif defined(_WIN32)
@@ -2266,7 +2264,7 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
                                                     ".",
                                                     1, 
                                                     IGFDUserDatas("Media Source"), 
-                                                    ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal);
+                                                    ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_AllowDirectorySelect);
     }
     ImGui::SetWindowFontScale(1.0);
     ImGui::ShowTooltipOnHover("Add new media into bank");
@@ -2274,37 +2272,6 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
     ImGui::PopStyleColor(3);
     return ret;
 }
-
-#ifdef ENABLE_IMPORT_IMAGESEQ
-static bool InsertImageSequenceAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float media_icon_size)
-{
-    bool ret = false;
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.5, 0.5, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.65, 0.65, 0.4, 1.0));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
-    ImVec2 icon_size = ImVec2(media_icon_size, media_icon_size);
-    draw_list->AddRectFilled(icon_pos + ImVec2(6, 6), icon_pos + ImVec2(6, 6) + icon_size, IM_COL32(16, 16, 16, 255), 8, ImDrawFlags_RoundCornersAll);
-    draw_list->AddRectFilled(icon_pos + ImVec2(4, 4), icon_pos + ImVec2(4, 4) + icon_size, IM_COL32(32, 32, 48, 255), 8, ImDrawFlags_RoundCornersAll);
-    draw_list->AddRectFilled(icon_pos + ImVec2(2, 2), icon_pos + ImVec2(2, 2) + icon_size, IM_COL32(0, 0, 0, 255), 8, ImDrawFlags_RoundCornersAll);
-    ImGui::SetCursorScreenPos(icon_pos);
-    ImGui::SetWindowFontScale(2.0);
-    if (ImGui::Button(ICON_IGFD_ADD "##AddImageSeq", icon_size))
-    {
-        ret = true;
-        ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Image Sequence Folder", 
-                                                    nullptr,
-                                                    ".",
-                                                    1, 
-                                                    IGFDUserDatas("Image Sequence"), 
-                                                    ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal);
-    }
-    ImGui::SetWindowFontScale(1.0);
-    ImGui::ShowTooltipOnHover("Add image sequence into bank");
-    ImGui::SetCursorScreenPos(icon_pos);
-    ImGui::PopStyleColor(3);
-    return ret;
-}
-#endif
 
 // Tips by Jimmy: add 'bool& filtered' param, 'bool& searched'
 // 'true' indicates that the media_items is filtered
@@ -2804,11 +2771,6 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                 const auto icon_area_pos = ImGui::GetCursorScreenPos() + ImVec2(0, 24);
                 auto icon_pos = icon_area_pos;
                 InsertMediaAddIcon(draw_list, icon_pos, media_icon_size);
-#ifdef ENABLE_IMPORT_IMAGESEQ
-                icon_pos += ImVec2(media_icon_size+24, 0);
-                InsertImageSequenceAddIcon(draw_list, icon_pos, media_icon_size);
-                media_add_icon_cnt++;
-#endif
                 int icon_row_idx = 0;
                 // Modify by Jimmy, Start
                 if (timeline->mTextSearchFilter.IsActive())// op in timeline->filter_media_items
@@ -11995,13 +11957,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
             if (userDatas.compare("Media Source") == 0)
             {
-                InsertMedia(file_path);
-                project_changed = true;
-            }
-            else if (userDatas.compare("Image Sequence") == 0)
-            {
-                auto dir_path = ImGuiFileDialog::Instance()->GetCurrentPath();
-                InsertMedia(dir_path, true);
+                bool image_sequence = file_suffix.empty() || file_suffix == ".";
+                InsertMedia(file_path, image_sequence);
                 project_changed = true;
             }
             else if (userDatas.compare("ProjectOpen") == 0)
