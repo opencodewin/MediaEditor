@@ -255,21 +255,18 @@ static const std::vector<std::string> MediaBankTabTooltips = {
 
 static const std::vector<std::string> MainWindowTabNames = {
     ICON_MEDIA_PREVIEW " Preview",
-    ICON_MEDIA_TEXT " Text",
     ICON_AUDIO_MIXING " Mixing"
 };
 
 static const std::vector<std::string> MainWindowTabTooltips = 
 {
     "Media Preview",
-    "Text Editor",
     "Audio Mixing",
 };
 
 enum MainPage : int
 {
     MAIN_PAGE_PREVIEW = 0,
-    MAIN_PAGE_TEXT,
     MAIN_PAGE_MIXING,
     MAIN_PAGE_CLIP_EDITOR,
 };
@@ -696,16 +693,6 @@ static bool UIPageChanged()
         timeline->UpdatePreview();
     }
 
-    if (LastMainWindowIndex == MAIN_PAGE_TEXT && MainWindowIndex != MAIN_PAGE_TEXT)
-    {
-        // we leave text editor windows
-        Logger::Log(Logger::DEBUG) << "[Changed page] leaving Text editor page!!!" << std::endl;
-        if (timeline)
-        {
-            timeline->bEditingText = false;
-        }
-    }
-
     if (LastMainWindowIndex == MAIN_PAGE_MIXING && MainWindowIndex != MAIN_PAGE_MIXING)
     {
         // we leave audio mixing editor windows
@@ -730,7 +717,7 @@ static bool UIPageChanged()
             if (item)
             {
                 int64_t seek_time = -1;
-                if (item->mEditorType == EDITING_FILTER && item->mEditingClip)
+                if (item->mEditorType == EDITING_CLIP && item->mEditingClip)
                 {
                     seek_time = item->mEditingClip->mCurrentTime != -1 ? item->mEditingClip->mStart + item->mEditingClip->mCurrentTime : -1;
                 }
@@ -753,16 +740,6 @@ static bool UIPageChanged()
         timeline->UpdatePreview();
     }
 
-    if (MainWindowIndex == MAIN_PAGE_TEXT && LastMainWindowIndex != MAIN_PAGE_TEXT)
-    {
-        // we enter text editor windows
-        Logger::Log(Logger::DEBUG) << "[Changed page] Enter text editor page!!!" << std::endl;
-        if (timeline)
-        {
-            timeline->bEditingText = true;
-        }
-    }
-
     if (MainWindowIndex == MAIN_PAGE_MIXING && LastMainWindowIndex != MAIN_PAGE_MIXING)
     {
         // we enter audio mixing editor windows
@@ -775,11 +752,7 @@ static bool UIPageChanged()
 
 static int EditingClip(int type, void* handle)
 {
-    if (IS_TEXT(type))
-    {
-        MainWindowIndex = MAIN_PAGE_TEXT;
-    }
-    else if (timeline && timeline->mSelectedItem != -1)
+    if (timeline && timeline->mSelectedItem != -1)
     {
         MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
     }
@@ -9099,7 +9072,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     return update_preview;
 }
 
-static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
+static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect, EditingTextClip* editing)
 {
     /*
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -9143,7 +9116,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
     bool power_saving_mode = io.ConfigFlags & ImGuiConfigFlags_EnablePowerSavingMode;
     ImVec2 default_size(0, 0);
     MediaCore::SubtitleImage current_image;
-    TextClip * editing_clip = dynamic_cast<TextClip*>(timeline->FindEditingClip());
+    TextClip * editing_clip = dynamic_cast<TextClip*>(editing->GetClip());
     MediaTrack * editing_track = nullptr;
     if (editing_clip && !IS_TEXT(editing_clip->mType))
     {
@@ -9208,6 +9181,8 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect)
                 {
                     editing_clip->mText = value;
                     editing_clip->mClipHolder->SetText(editing_clip->mText);
+                    auto found = timeline->FindEditingItem(EDITING_CLIP, editing_clip->mID);
+                    if (found != -1) timeline->mEditingItems[found]->mTooltip = value;
                     force_update_preview = true;
                     changed = true;
                 }
@@ -11233,7 +11208,7 @@ static void ShowEditingItemWindow(ImDrawList *draw_list, ImRect title_rect)
 
     if (IS_VIDEO(item->mMediaType))
     {
-        if (item->mEditorType == EDITING_FILTER)
+        if (item->mEditorType == EDITING_CLIP)
         {
             ShowVideoClipWindow(draw_list, title_rect, (EditingVideoClip*)item->mEditingClip);
         }
@@ -11244,13 +11219,20 @@ static void ShowEditingItemWindow(ImDrawList *draw_list, ImRect title_rect)
     }
     else if (IS_AUDIO(item->mMediaType))
     {
-        if (item->mEditorType == EDITING_FILTER)
+        if (item->mEditorType == EDITING_CLIP)
         {
             ShowAudioClipWindow(draw_list, title_rect, (EditingAudioClip*)item->mEditingClip);
         }
         else if (item->mEditorType == EDITING_TRANSITION)
         {
             ShowAudioTransitionWindow(draw_list, title_rect, (EditingAudioOverlap*)item->mEditingOverlap);
+        }
+    }
+    else if (IS_TEXT(item->mMediaType))
+    {
+        if (item->mEditorType == EDITING_CLIP)
+        {
+            ShowTextEditorWindow(draw_list, title_rect, (EditingTextClip*)item->mEditingClip);
         }
     }
 }
@@ -11775,7 +11757,6 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 switch (MainWindowIndex)
                 {
                     case MAIN_PAGE_PREVIEW: ShowMediaPreviewWindow(draw_list, "Preview", 3.f, video_rect); break;
-                    case MAIN_PAGE_TEXT: ShowTextEditorWindow(draw_list, title_rect); break;
                     case MAIN_PAGE_MIXING: ShowAudioMixingWindow(draw_list, title_rect); break;
                     case MAIN_PAGE_CLIP_EDITOR : ShowEditingItemWindow(draw_list, title_rect); break;
                     default: break;

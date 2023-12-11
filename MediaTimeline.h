@@ -480,7 +480,6 @@ struct Clip
     std::string mName;                              // clip name, project saved
     std::string mPath;                              // clip media path, project saved
     bool bSelected              {false};            // clip is selected, project saved
-    bool bEditing               {false};            // clip is Editing by double click selected
     std::mutex mLock;                               // clip mutex, not using yet
     void * mHandle              {nullptr};          // clip belong to timeline 
     MediaCore::MediaParser::Holder mMediaParser;
@@ -824,6 +823,22 @@ public:
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
 };
 
+struct EditingTextClip : BaseEditingClip
+{
+    std::string mText;
+public:
+    EditingTextClip(TextClip* clip);
+    virtual ~EditingTextClip();
+
+    void CalcDisplayParams(int64_t viewWndDur) override;
+    void UpdateClipRange(Clip* clip) override;
+    void Save() override;
+    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
+    void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
+public:
+    void UpdateClip(Clip* clip);
+};
+
 struct BaseEditingOverlap
 {
     void* mHandle                   {nullptr};  // main timeline handle
@@ -892,7 +907,7 @@ public:
 enum EditingType : int
 {
     EDITING_UNKNOWN = -1,
-    EDITING_FILTER = 0,
+    EDITING_CLIP = 0,
     EDITING_TRANSITION,
 };
 
@@ -1350,7 +1365,6 @@ struct TimeLine
     MediaTrack * FindEmptyTrackByType(uint32_t type);   // Find first empty track by type
     int FindTrackIndexByClipID(int64_t id);             // Find track by clip ID
     Clip * FindClipByID(int64_t id);                    // Find clip with clip ID
-    Clip * FindEditingClip();                           // Find clip which is editing
     Overlap * FindOverlapByID(int64_t id);              // Find overlap with overlap ID
     Overlap * FindEditingOverlap();                     // Find overlap which is editing
     int GetSelectedClipCount();                         // Get current selected clip count
