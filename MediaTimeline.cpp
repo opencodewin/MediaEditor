@@ -882,7 +882,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
     }
 
 #if 0 // TODO::Dicky editing item support cropping
-    auto found = timeline->FindEditingItem(EDITING_FILTER, mID);
+    auto found = timeline->FindEditingItem(EDITING_CLIP, mID);
     if (found != -1)
     {
         auto item = timeline->mEditingItems[found];
@@ -3361,7 +3361,6 @@ void EditingVideoClip::Save()
     clip->lastTime = lastTime;
     clip->visibleTime = visibleTime;
     clip->msPixelWidthTarget = msPixelWidthTarget;
-    clip->bEditing = false;
     if (mFilter)
     {
         auto filterName = mFilter->GetFilterName();
@@ -3647,7 +3646,6 @@ void EditingAudioClip::Save()
     clip->lastTime = lastTime;
     clip->visibleTime = visibleTime;
     clip->msPixelWidthTarget = msPixelWidthTarget;
-    clip->bEditing = false;
     if (mFilter)
     {
         auto filterName = mFilter->GetFilterName();
@@ -3769,6 +3767,67 @@ void EditingAudioClip::CalcDisplayParams(int64_t viewWndDur)
     visibleTime = viewWndDur;
 }
 } //namespace MediaTimeline/Clip
+
+namespace MediaTimeline
+{
+EditingTextClip::EditingTextClip(TextClip* clip)
+    : BaseEditingClip(clip->mID, clip->mMediaID, clip->mType, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), clip->mHandle)
+{
+    mText = clip->mText;
+}
+
+EditingTextClip::~EditingTextClip()
+{
+
+}
+
+void EditingTextClip::CalcDisplayParams(int64_t viewWndDur)
+{
+
+}
+
+void EditingTextClip::UpdateClipRange(Clip* clip)
+{
+    if (mStart != clip->Start())
+        mStart = clip->Start();
+    if (mEnd != clip->End())
+        mEnd = clip->End();
+    if (mStartOffset != clip->StartOffset() || mEndOffset != clip->EndOffset())
+    {
+        mStartOffset = clip->StartOffset();
+        mEndOffset = clip->StartOffset();
+        mDuration = mEnd - mStart;
+    }
+}
+
+void EditingTextClip::UpdateClip(Clip* clip)
+{
+    TextClip* tclip = (TextClip*)clip;
+    mID = tclip->mID;
+    mMediaID = tclip->mMediaID;
+    mType = tclip->mType;
+    mStart = tclip->Start();
+    mEnd = tclip->End();
+    mStartOffset = tclip->StartOffset();
+    mEndOffset = tclip->EndOffset();
+    mHandle = tclip->mHandle;
+    mText = tclip->mText;
+}
+
+void EditingTextClip::Save()
+{
+
+}
+
+bool EditingTextClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame)
+{
+    return false;
+}
+
+void EditingTextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
+{
+}
+} // namespace MediaTimeline/Text
 
 namespace MediaTimeline
 {
@@ -5049,9 +5108,8 @@ void MediaTrack::SelectEditingClip(Clip * clip)
         return;
     
     int updated = 0;
-    clip->bEditing = true;
 
-    auto found = timeline->FindEditingItem(EDITING_FILTER, clip->mID);
+    auto found = timeline->FindEditingItem(EDITING_CLIP, clip->mID);
     if (found == -1)
     {
         uint32_t type = MEDIA_UNKNOWN;
@@ -5065,6 +5123,11 @@ void MediaTrack::SelectEditingClip(Clip * clip)
         {
             type = MEDIA_AUDIO;
             eclip = new EditingAudioClip((AudioClip*)clip);
+        }
+        else if (IS_TEXT(clip->mType))
+        {
+            type = MEDIA_TEXT;
+            eclip = new EditingTextClip((TextClip*)clip);
         }
         if (eclip)
         {
@@ -5082,13 +5145,24 @@ void MediaTrack::SelectEditingClip(Clip * clip)
         auto item = timeline->mEditingItems[found];
         if (item)
         {
-            if (item->mEditorType == EDITING_FILTER && item->mEditingClip && item->mEditingClip->mCurrentTime != -1)
+            if (item->mEditorType == EDITING_CLIP && item->mEditingClip && item->mEditingClip->mCurrentTime != -1)
             {
                 timeline->Seek(clip->Start() + item->mEditingClip->mCurrentTime);
             }
             else
             {
                 timeline->Seek(clip->Start());
+            }
+            if (IS_TEXT(item->mMediaType))
+            {
+                TextClip* tclip = (TextClip*)clip;
+                EditingTextClip * eclip = (EditingTextClip *)item->mEditingClip;
+                if (eclip->mText != tclip->mText || eclip->mStart != tclip->Start() || eclip->mDuration != tclip->Length())
+                {
+                    // text editing clip need to update if we choose diff clip(text clip editing shared UI with same track)
+                    eclip->UpdateClip(clip);
+                    item->mTooltip = tclip->mText;
+                }
             }
         }
     }
@@ -5555,14 +5629,25 @@ EditingItem::EditingItem(uint32_t media_type, BaseEditingClip * clip)
     if (!timeline)
         return;
     auto item = timeline->FindMediaItemByID(clip->mMediaID);
-    if (!item || !item->mValid)
+    if (!IS_TEXT(clip->mType) && (!item || !item->mValid))
         return;
     mMediaType = media_type; 
     mEditingClip = clip; 
-    mEditorType = EDITING_FILTER;
-    mName = IS_VIDEO(media_type) ? std::string(ICON_MEDIA_VIDEO) : IS_AUDIO(media_type) ? std::string(ICON_MEDIA_AUDIO) : "?";
-    mName += " " + item->mName;
-    mTooltip = "Clip Editing " + mName;
+    mEditorType = EDITING_CLIP;
+    mName = IS_VIDEO(media_type) ? std::string(ICON_MEDIA_VIDEO) : IS_AUDIO(media_type) ? std::string(ICON_MEDIA_AUDIO) : IS_TEXT(media_type) ? std::string(ICON_MEDIA_TEXT) : "?";
+    if (!IS_TEXT(clip->mType))
+    {
+        mName += " " + item->mName;
+        mTooltip = "Clip Editing " + mName;
+    }
+    else
+    {
+        auto track = timeline->FindTrackByClipID(clip->mID);
+        auto tclip = (EditingTextClip*)clip;
+        if (track) mName += " " + track->mName;
+        mTooltip = tclip->mText;
+    }
+    
     if (IS_VIDEO(media_type))
     {
         if (!item->mMediaThumbnail.empty() && item->mMediaThumbnail[0])
@@ -5593,6 +5678,10 @@ EditingItem::EditingItem(uint32_t media_type, BaseEditingClip * clip)
             }
         }
     }
+    else if (IS_TEXT(media_type))
+    {
+        mTexture = nullptr;
+    }
 }
 
 EditingItem::EditingItem(uint32_t media_type, BaseEditingOverlap * overlap)
@@ -5616,7 +5705,7 @@ EditingItem::EditingItem(uint32_t media_type, BaseEditingOverlap * overlap)
     mMediaType = media_type; 
     mEditingOverlap = overlap; 
     mEditorType = EDITING_TRANSITION;
-    auto type_char = IS_VIDEO(media_type) ? std::string(ICON_MEDIA_VIDEO) : IS_AUDIO(media_type) ? std::string(ICON_MEDIA_AUDIO) : "?";
+    auto type_char = IS_VIDEO(media_type) ? std::string(ICON_MEDIA_VIDEO) : IS_AUDIO(media_type) ? std::string(ICON_MEDIA_AUDIO) : IS_TEXT(media_type) ? std::string(ICON_MEDIA_TEXT) : "?";
     mName = type_char + " " + first_item->mName + "->" + type_char + " " + second_item->mName;
     mTooltip = "Transition Editing " + mName;
     if (IS_VIDEO(media_type))
@@ -5689,6 +5778,10 @@ EditingItem::EditingItem(uint32_t media_type, BaseEditingOverlap * overlap)
             if (!first_mat.empty()) ImMatToTexture(first_mat, mTexture);
             else if (!second_mat.empty()) ImMatToTexture(second_mat, mTexture);
         }
+    }
+    else if (IS_TEXT(media_type))
+    {
+
     }
 }
 
@@ -6520,7 +6613,7 @@ bool TimeLine::DeleteClip(int64_t id, std::list<imgui_json::value>* pActionList)
         auto clip = *iter;
         m_Clips.erase(iter);
 
-        auto found = FindEditingItem(EDITING_FILTER, clip->mID);
+        auto found = FindEditingItem(EDITING_CLIP, clip->mID);
         if (found != -1)
         {
             auto iter = mEditingItems.begin() + found;
@@ -7075,17 +7168,6 @@ Clip * TimeLine::FindClipByID(int64_t id)
     return nullptr;
 }
 
-Clip * TimeLine::FindEditingClip()
-{
-    auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [](const Clip* clip)
-    {
-        return clip->bEditing;
-    });
-    if (iter != m_Clips.end())
-        return *iter;
-    return nullptr;
-}
-
 Overlap * TimeLine::FindOverlapByID(int64_t id)
 {
     auto iter = std::find_if(m_Overlaps.begin(), m_Overlaps.end(), [id](const Overlap* overlap)
@@ -7512,14 +7594,7 @@ void TimeLine::CustomDraw(
 
             if (clip->bSelected)
             {
-                if (clip->bEditing)
-                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,224), 4, flag, 4.0f);
-                else
-                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
-            }
-            else if (clip->bEditing)
-            {
-                draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,224), 4, flag, 3.0f);
+                draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,0,0,224), 4, flag, 2.0f);
             }
 
             // Clip select
@@ -7528,7 +7603,7 @@ void TimeLine::CustomDraw(
                 //if (clip_rect.Contains(io.MousePos) )
                 if (clip->bHovered)
                 {
-                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,0,0,255), 4, flag, 2.0f);
+                    draw_list->AddRect(clip_rect.Min, clip_rect.Max, IM_COL32(255,255,255,255), 4, flag, 2.0f);
                     // [shortcut]: shift+a for appand select
                     //const bool is_shift_key_only = (io.KeyMods == ImGuiModFlags_Shift);
                     bool appand = (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift)) && ImGui::IsKeyDown(ImGuiKey_A);
@@ -10291,9 +10366,15 @@ int64_t TimeLine::AddNewClip(
 
 int TimeLine::FindEditingItem(int type, int64_t id)
 {
-    auto iter = std::find_if(mEditingItems.begin(), mEditingItems.end(), [id, type] (auto& item) {
-            return item->mEditorType == type && 
-                    ((type == EDITING_FILTER && item->mEditingClip && item->mEditingClip->mID == id) ||
+    auto track = FindTrackByClipID(id);
+    auto iter = std::find_if(mEditingItems.begin(), mEditingItems.end(), [id, track, type, this] (auto& item) {
+        if (IS_TEXT(item->mMediaType) && item->mEditorType == type)
+        {
+            auto _track = FindTrackByClipID(item->mEditingClip->mID);
+            return track->mID == _track->mID;
+        }
+        return item->mEditorType == type && 
+                    ((type == EDITING_CLIP && item->mEditingClip && item->mEditingClip->mID == id) ||
                     (type == EDITING_TRANSITION && item->mEditingOverlap && item->mEditingOverlap->mID == id));
     });
     if (iter != mEditingItems.end())
