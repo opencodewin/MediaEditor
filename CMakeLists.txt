@@ -352,6 +352,7 @@ add_subdirectory(plugin/nodes/media/MatResize)
 add_subdirectory(plugin/nodes/media/MatRender)
 add_subdirectory(plugin/nodes/media/MediaSource)
 add_subdirectory(plugin/nodes/media/ImageSource)
+add_subdirectory(plugin/nodes/media/CustomVulkanShader)
 #filers
 add_subdirectory(plugin/nodes/filters/ALM)
 add_subdirectory(plugin/nodes/filters/Bilateral)
