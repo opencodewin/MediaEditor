@@ -1869,11 +1869,11 @@ static inline std::string GetAudioChannelName(int channels)
     else return "Channels " + std::to_string(channels);
 }
 
-static bool InsertMedia(const std::string path, bool bIsImageSeq = false)
+static bool InsertMedia(const std::string path)
 {
     auto file_suffix = ImGuiHelper::path_filename_suffix(path);
     auto name = ImGuiHelper::path_filename(path);
-    auto type = bIsImageSeq ? MEDIA_SUBTYPE_VIDEO_IMAGE_SEQUENCE : EstimateMediaType(file_suffix);
+    auto type = EstimateMediaType(file_suffix);
     if (timeline)
     {
         // check media is already in bank
@@ -3033,11 +3033,11 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                                                 ImGuiFileDialogFlags_NoDialog |
                                                 ImGuiFileDialogFlags_NoButton |
                                                 ImGuiFileDialogFlags_DontShowHiddenFiles |
-                                                //ImGuiFileDialogFlags_PathDecompositionShort |
-                                                //ImGuiFileDialogFlags_DisableBookmarkMode | 
+                                                ImGuiFileDialogFlags_HideColumnDate |
                                                 ImGuiFileDialogFlags_ShowBookmark |
                                                 ImGuiFileDialogFlags_ReadOnlyFileNameField |
-                                                ImGuiFileDialogFlags_CaseInsensitiveExtention);
+                                                ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                                                ImGuiFileDialogFlags_AllowDirectorySelect);
 
                 if (embedded_filedialog.Display("##MediaEmbeddedFileDlgKey", ImGuiWindowFlags_NoCollapse, ImVec2(0,0), finder_size))
                 {
@@ -12051,11 +12051,11 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
             auto file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
             auto file_suffix = ImGuiFileDialog::Instance()->GetCurrentFileSuffix();
+            if (file_suffix == ".") file_suffix.clear();
             auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
             if (userDatas.compare("Media Source") == 0)
             {
-                bool image_sequence = file_suffix.empty() || file_suffix == ".";
-                InsertMedia(file_path, image_sequence);
+                InsertMedia(file_path);
                 project_changed = true;
             }
             else if (userDatas.compare("ProjectOpen") == 0)
