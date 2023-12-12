@@ -369,7 +369,19 @@ const std::string ffilters = "All Support Files (" + video_file_dis + " " + audi
                                                     ".*";
 const std::string abbr_ffilters = "All Support Files{" + video_file_suffix + "," + audio_file_suffix + "," + image_file_suffix + "}";
 const std::string pfilters = "Project files (*.mep){.mep},.*";
-                                                    
+
+struct ImageSequenceSetting
+{
+    bool bPng {true};
+    bool bJpg {true};
+    bool bBmp {true};
+    bool bTif {true};
+    bool bTga {false};
+    bool bWebP {false};
+    // more...
+    MediaCore::Ratio frame_rate {25000, 1000};
+};
+
 struct MediaEditorSettings
 {
     std::string UILanguage {"Default"};     // UI Language
@@ -466,6 +478,9 @@ struct MediaEditorSettings
     // Scope view
     int ScopeWindowIndex {0};           // default video histogram
     int ScopeWindowExpandIndex {4};     // default audio waveform
+
+    // Image sequence
+    ImageSequenceSetting image_sequence;
 
     // Text configure
     std::string FontName {DEFAULT_FONT_NAME};
@@ -1552,6 +1567,69 @@ static void ShowConfigure(MediaEditorSettings & config)
     ImGui::Separator();
 }
 
+static inline void ImgSeuqPane(const char* vFilter, const char* currentPath, IGFDUserDatas vUserDatas, bool* vCantContinue)
+{
+    auto file_suffix = ImGuiHelper::path_filename_suffix(std::string(currentPath));
+    bool isDirectory = file_suffix.empty();
+    ImageSequenceSetting* setting = &g_media_editor_settings.image_sequence;
+    if (setting)
+    {
+        ImGui::BeginDisabled(!isDirectory);
+        static int frame_rate_index = GetVideoFrameIndex(setting->frame_rate);
+        static char buf_fmr_x[64] = {0}; snprintf(buf_fmr_x, 64, "%d", setting->frame_rate.num);
+        static char buf_fmr_y[64] = {0}; snprintf(buf_fmr_y, 64, "%d", setting->frame_rate.den);
+        ImGui::TextUnformatted("Image Sequence Setting:");
+        ImGui::Checkbox("png", &setting->bPng);
+        ImGui::Checkbox("jpg", &setting->bJpg);
+        ImGui::Checkbox("bmp", &setting->bBmp);
+        ImGui::Checkbox("tif", &setting->bTif);
+        ImGui::Checkbox("tga", &setting->bTga);
+        ImGui::Checkbox("webp", &setting->bWebP);
+        ImGui::TextUnformatted("Image Sequence Frame Rate:");
+        if (ImGui::Combo("##Image Frame Rate", &frame_rate_index, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
+        {
+            SetVideoFrameRate(setting->frame_rate, frame_rate_index);
+        }
+        ImGui::BeginDisabled(frame_rate_index != 0);
+        ImGui::PushItemWidth(60);
+        ImGui::InputText("##ImageFrameRate_x", buf_fmr_x, 64, ImGuiInputTextFlags_CharsDecimal);
+        ImGui::SameLine();
+        ImGui::TextUnformatted(":");
+        ImGui::SameLine();
+        ImGui::InputText("##ImageFrameRate_y", buf_fmr_y, 64, ImGuiInputTextFlags_CharsDecimal);
+        ImGui::PopItemWidth();
+        ImGui::EndDisabled();
+        if (frame_rate_index == 0)
+        {
+            setting->frame_rate.num = atoi(buf_fmr_x);
+            setting->frame_rate.den = atoi(buf_fmr_y);
+            if (setting->frame_rate.den == 0) setting->frame_rate.den = 1;
+        }
+        ImGui::EndDisabled();
+        if (isDirectory)
+        {
+            std::vector<std::string> files, file_names;
+            std::vector<std::string> filter;
+            if (setting->bPng) filter.push_back("png");
+            if (setting->bJpg) { filter.push_back("jpg"); filter.push_back("jpeg"); }
+            if (setting->bBmp) filter.push_back("bmp");
+            if (setting->bTif) { filter.push_back("tif"); filter.push_back("tiff"); }
+            if (setting->bTga) filter.push_back("tga");
+            if (setting->bWebP) filter.push_back("webp");
+            if (filter.empty())
+            {
+                *vCantContinue = false;
+                return;
+            }
+            int ret = DIR_Iterate(currentPath, files, file_names, filter, false, false, false, true);
+            if (ret == -2)
+                *vCantContinue = true;
+            else
+                *vCantContinue = false;
+        }
+    }
+}
+
 // Document Framework
 static void NewTimeline()
 {
@@ -2259,12 +2337,15 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
     if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", icon_size))
     {
         ret = true;
-        ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
-                                                    ffilters.c_str(),
-                                                    ".",
-                                                    1, 
-                                                    IGFDUserDatas("Media Source"), 
-                                                    ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_AllowDirectorySelect);
+        ImGuiFileDialog::Instance()->OpenDialogWithPane("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
+                                                        ffilters.c_str(), ".", 
+                                                        std::bind(&ImgSeuqPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
+                                                        200, 1, IGFDUserDatas("Media Source"),
+                                                        ImGuiFileDialogFlags_ShowBookmark | 
+                                                        ImGuiFileDialogFlags_CaseInsensitiveExtention | 
+                                                        ImGuiFileDialogFlags_DisableCreateDirectoryButton | 
+                                                        ImGuiFileDialogFlags_Modal | 
+                                                        ImGuiFileDialogFlags_AllowDirectorySelect);
     }
     ImGui::SetWindowFontScale(1.0);
     ImGui::ShowTooltipOnHover("Add new media into bank");
@@ -10836,6 +10917,14 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         else if (sscanf(line, "AudioSpectrogramLight=%f", &val_float) == 1) { setting->AudioSpectrogramLight = val_float; }
         else if (sscanf(line, "ScopeWindowIndex=%d", &val_int) == 1) { setting->ScopeWindowIndex = val_int; }
         else if (sscanf(line, "ScopeWindowExpandIndex=%d", &val_int) == 1) { setting->ScopeWindowExpandIndex = val_int; }
+        else if (sscanf(line, "ImageSequSetting_png=%d", &val_int) == 1) { setting->image_sequence.bPng = val_int == 1; }
+        else if (sscanf(line, "ImageSequSetting_jpg=%d", &val_int) == 1) { setting->image_sequence.bJpg = val_int == 1; }
+        else if (sscanf(line, "ImageSequSetting_bmp=%d", &val_int) == 1) { setting->image_sequence.bBmp = val_int == 1; }
+        else if (sscanf(line, "ImageSequSetting_tif=%d", &val_int) == 1) { setting->image_sequence.bTif = val_int == 1; }
+        else if (sscanf(line, "ImageSequSetting_tga=%d", &val_int) == 1) { setting->image_sequence.bTga = val_int == 1; }
+        else if (sscanf(line, "ImageSequSetting_webp=%d", &val_int) == 1) { setting->image_sequence.bWebP = val_int == 1; }
+        else if (sscanf(line, "ImageSequSetting_rate_den=%d", &val_int) == 1) { setting->image_sequence.frame_rate.den = val_int; }
+        else if (sscanf(line, "ImageSequSetting_rate_num=%d", &val_int) == 1) { setting->image_sequence.frame_rate.num = val_int; }
         else if (sscanf(line, "FontName=%[^|\n]", val_path) == 1) { setting->FontName = std::string(val_path); }
         else if (sscanf(line, "FontScaleLink=%d", &val_int) == 1) { setting->FontScaleLink = val_int == 1; }
         else if (sscanf(line, "FontScaleX=%f", &val_float) == 1) { setting->FontScaleX = val_float; }
@@ -10956,6 +11045,14 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
         out_buf->appendf("AudioSpectrogramLight=%f\n", g_media_editor_settings.AudioSpectrogramLight);
         out_buf->appendf("ScopeWindowIndex=%d\n", g_media_editor_settings.ScopeWindowIndex);
         out_buf->appendf("ScopeWindowExpandIndex=%d\n", g_media_editor_settings.ScopeWindowExpandIndex);
+        out_buf->appendf("ImageSequSetting_png=%d\n", g_media_editor_settings.image_sequence.bPng ? 1 : 0);
+        out_buf->appendf("ImageSequSetting_jpg=%d\n", g_media_editor_settings.image_sequence.bJpg ? 1 : 0);
+        out_buf->appendf("ImageSequSetting_bmp=%d\n", g_media_editor_settings.image_sequence.bBmp ? 1 : 0);
+        out_buf->appendf("ImageSequSetting_tif=%d\n", g_media_editor_settings.image_sequence.bTif ? 1 : 0);
+        out_buf->appendf("ImageSequSetting_tga=%d\n", g_media_editor_settings.image_sequence.bTga ? 1 : 0);
+        out_buf->appendf("ImageSequSetting_webp=%d\n", g_media_editor_settings.image_sequence.bWebP ? 1 : 0);
+        out_buf->appendf("ImageSequSetting_rate_den=%d\n", g_media_editor_settings.image_sequence.frame_rate.den);
+        out_buf->appendf("ImageSequSetting_rate_num=%d\n", g_media_editor_settings.image_sequence.frame_rate.num);
         out_buf->appendf("FontName=%s\n", g_media_editor_settings.FontName.c_str());
         out_buf->appendf("FontScaleLink=%d\n", g_media_editor_settings.FontScaleLink ? 1 : 0);
         out_buf->appendf("FontScaleX=%f\n", g_media_editor_settings.FontScaleX);

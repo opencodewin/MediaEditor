@@ -184,7 +184,7 @@ static void Potrace_Finalize(void **handle)
 {
 }
 
-inline void SVGPane(const char* vFilter, IGFDUserDatas vUserDatas, bool* vCantContinue)
+inline void SVGPane(const char* vFilter, const char* currentPath, IGFDUserDatas vUserDatas, bool* vCantContinue)
 {
     ImGui::RadioButton("Flat as Single", &info.grouping, 0);
     ImGui::RadioButton("Auto Group", &info.grouping, 1);
@@ -398,7 +398,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
         {
             ImGuiFileDialog::Instance()->OpenDialogWithPane("##PotraceFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save File",
                                                             ".svg", ".", "", 
-                                                            std::bind(&SVGPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)
+                                                            std::bind(&SVGPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4)
                                                             , 200, 1, IGFDUserDatas("SVGPane"),
                                                             ImGuiFileDialogFlags_ShowBookmark |
                                                             ImGuiFileDialogFlags_CaseInsensitiveExtention |
