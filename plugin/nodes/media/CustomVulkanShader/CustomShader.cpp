@@ -17,7 +17,11 @@ CustomShader::CustomShader(const std::string shader, int gpu, bool fp16)
     {
         pipe = new ImGui::Pipeline(vkdev);
         pipe->set_optimal_local_size_xyz(16, 16, 1);
-        pipe->create(spirv_data.data(), spirv_data.size() * 4, specializations);
+        if (pipe->create(spirv_data.data(), spirv_data.size() * 4, specializations) != 0)
+        {
+            delete pipe;
+            pipe = nullptr;
+        }
     }
 
     cmd->reset();
