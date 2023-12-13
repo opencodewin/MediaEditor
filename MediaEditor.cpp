@@ -255,13 +255,16 @@ static const std::vector<std::string> MediaBankTabTooltips = {
 
 static const std::vector<std::string> MainWindowTabNames = {
     ICON_MEDIA_PREVIEW " Preview",
-    ICON_AUDIO_MIXING " Mixing"
+    ICON_MEDIA_TEXT " Text",
+    ICON_AUDIO_MIXING " Mixing",
+    ICON_NODE " Tasks",
 };
 
 static const std::vector<std::string> MainWindowTabTooltips = 
 {
     "Media Preview",
     "Audio Mixing",
+    "Background Tasks",
 };
 
 enum MainPage : int
@@ -11135,7 +11138,7 @@ static void MediaEditor_Initialize(void** handle)
 #if defined(NDEBUG)
     av_log_set_level(AV_LOG_FATAL);
 #else
-    Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
+    // Logger::GetDefaultLogger()->SetShowLevels(Logger::DEBUG);
     // MediaCore::MultiTrackVideoReader::GetLogger()->SetShowLevels(Logger::DEBUG);
     // MediaCore::MultiTrackAudioReader::GetLogger()->SetShowLevels(Logger::DEBUG);
     // MediaCore::MediaReader::GetLogger()->SetShowLevels(Logger::DEBUG);

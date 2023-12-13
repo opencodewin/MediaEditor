@@ -161,6 +161,8 @@ set(MEDIA_EDITOR_SRCS
     Event.cpp
     EventStackFilter.cpp
     MediaPlayer.cpp
+    BackgroundTask.cpp
+    BgtaskVidstab.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 
