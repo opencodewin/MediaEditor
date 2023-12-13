@@ -22,6 +22,7 @@ typedef struct _Node_Param
     float      value {0};
     float      min_value {0};
     float      max_value {1};
+    bool       name_valid {false};
 } Node_Param;
 
 namespace BluePrint
@@ -39,8 +40,7 @@ struct CustomShaderNode final : Node
             "sfp", "sfpvec2", "sfpvec3", "sfpvec4", "sfpvec8", "eps", "sfpmat3","sfpmat4",
             "afp", "afpvec2", "afpvec3", "afpvec4", "afpvec8", "afpmat3","afpmat4"
         };
-        std::string param_string = std::string(SHADER_DEFAULT_PARAM_HEADER);
-        param_string += std::string(SHADER_DEFAULT_PARAM_TAIL);
+
         for (auto& k : my_keywork) m_lang.mKeywords.insert(k);
 
         static std::map<std::string, std::string> my_identifiers;
@@ -60,7 +60,7 @@ struct CustomShaderNode final : Node
         my_identifiers.insert(std::make_pair("store_rgba", "void store_rgba(sfpvec4 val, int x, int y, int w, int cstep, int format, int type)"));
         my_identifiers.insert(std::make_pair("load", "sfpvec4 load(int x, int y) //sample call as load_rgba"));
         my_identifiers.insert(std::make_pair("store", "void store(sfpvec4 val, int x, int y) //sample call as store_rgba"));
-        my_identifiers.insert(std::make_pair("p", param_string));
+        my_identifiers.insert(std::make_pair("p", "param:"));
         for (const auto& k : my_identifiers)
         {
             TextEditor::Identifier id;
@@ -85,17 +85,21 @@ struct CustomShaderNode final : Node
             "\tstore(result, gx, gy);\n"
             "}\n"
         );
+        m_program_function_alias = std::string(
+            "#define load(x, y) load_rgba(x, y, p.w, p.h, p.cstep, p.in_format, p.in_type)\n"
+            "#define store(v, x, y) store_rgba(v, x, y, p.out_w, p.out_h, p.out_cstep, p.out_format, p.out_type)\n\n"
+        );
         m_editor.SetTabSize(4);
         m_program_filter = m_program_filter_default;
         m_editor.SetText(m_program_filter);
 
         m_program_start =   std::string(SHADER_HEADER) + 
-                            param_string +
+                            std::string(SHADER_DEFAULT_PARAM_HEADER) +
+                            std::string(SHADER_DEFAULT_PARAM_TAIL) +
                             std::string(SHADER_INPUT_OUTPUT_DATA) +
                             std::string(SHADER_LOAD_RGBA) +
                             std::string(SHADER_STORE_RGBA) +
-                            "#define load(x, y) load_rgba(x, y, p.w, p.h, p.cstep, p.in_format, p.in_type)\n" +
-                            "#define store(v, x, y) store_rgba(v, x, y, p.out_w, p.out_h, p.out_cstep, p.out_format, p.out_type)\n" ;
+                            m_program_function_alias;
     }
     ~CustomShaderNode()
     {
@@ -108,7 +112,10 @@ struct CustomShaderNode final : Node
         std::string param_string = std::string(SHADER_DEFAULT_PARAM_HEADER);
         for (int i = 0; i < m_params.size(); i++)
         {
-            param_string += "\tfloat param_" + std::to_string(i + 1) + ";\n";
+            if (m_params[i].name.empty() || !m_params[i].name_valid)
+                param_string += "\tfloat param_" + std::to_string(i + 1) + ";\n";
+            else
+                param_string += "\tfloat " + m_params[i].name + ";\n";
         }
         param_string += std::string(SHADER_DEFAULT_PARAM_TAIL);
         m_program_start =   std::string(SHADER_HEADER) + 
@@ -116,8 +123,7 @@ struct CustomShaderNode final : Node
                             std::string(SHADER_INPUT_OUTPUT_DATA) +
                             std::string(SHADER_LOAD_RGBA) +
                             std::string(SHADER_STORE_RGBA) +
-                            "#define load(x, y) load_rgba(x, y, p.w, p.h, p.cstep, p.in_format, p.in_type)\n" +
-                            "#define store(v, x, y) store_rgba(v, x, y, p.out_w, p.out_h, p.out_cstep, p.out_format, p.out_type)\n" ;
+                            m_program_function_alias;
         // need earse old pair ? 
         for (auto& ident : m_lang.mIdentifiers)
         {
@@ -130,7 +136,6 @@ struct CustomShaderNode final : Node
             }
         }
         m_editor.SetLanguageDefinition(m_lang);
-        m_compile_succeed = false;
     }
 
     void Reset(Context& context) override
@@ -276,6 +281,33 @@ struct CustomShaderNode final : Node
         }
     }
 
+    void Compile_shader()
+    {
+        m_compile_log.clear();
+        ImGui::Option _opt;
+        _opt.use_fp16_arithmetic = m_fp16;
+        _opt.use_fp16_storage = m_fp16;
+        std::vector<uint32_t> spirv_data;
+        m_program_filter = m_editor.GetText();
+        int start_lines = GetLineNumber(m_program_start);
+        int filter_lines = GetLineNumber(m_program_filter);
+        std::string shader_program = m_program_start + m_program_filter;
+        int ret = ImGui::compile_spirv_module(shader_program.data(), _opt, spirv_data, m_compile_log);
+        if (ret != 0)
+        {
+            SetErrorPoint(start_lines, filter_lines);
+            m_compile_succeed = false;
+            m_compile_log = "Compile Failed!!!";
+        }
+        else
+        {
+            TextEditor::ErrorMarkers markers;
+            m_editor.SetErrorMarkers(markers);
+            m_compile_log = "Compile Succeed!!!";
+            m_compile_succeed = true;
+        }
+    }
+
     void DrawShaderEditor()
     {        
         auto cpos = m_editor.GetCursorPosition();
@@ -300,29 +332,7 @@ struct CustomShaderNode final : Node
 
         if (ImGui::Button("Compile"))
         {
-            m_compile_log.clear();
-            ImGui::Option _opt;
-            _opt.use_fp16_arithmetic = m_fp16;
-            _opt.use_fp16_storage = m_fp16;
-            std::vector<uint32_t> spirv_data;
-            m_program_filter = m_editor.GetText();
-            int start_lines = GetLineNumber(m_program_start);
-            int filter_lines = GetLineNumber(m_program_filter);
-            std::string shader_program = m_program_start + m_program_filter;
-            int ret = ImGui::compile_spirv_module(shader_program.data(), _opt, spirv_data, m_compile_log);
-            if (ret != 0)
-            {
-                SetErrorPoint(start_lines, filter_lines);
-                m_compile_succeed = false;
-                m_compile_log = "Compile Failed!!!";
-            }
-            else
-            {
-                TextEditor::ErrorMarkers markers;
-                m_editor.SetErrorMarkers(markers);
-                m_compile_log = "Compile Succeed!!!";
-                m_compile_succeed = true;
-            }
+            Compile_shader();
         }
         ImGui::SameLine();
         if (ImGui::Button("Reset"))
@@ -427,13 +437,17 @@ struct CustomShaderNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::TextUnformatted("Param:"); ImGui::SameLine();
         std::string value = param.name;
-        if (ImGui::InputText(("##param_name_string_value" + value).c_str(), (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+        if (param.name_valid)
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1,1,1,1));
+        else
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1,0,0,1));
+        if (ImGui::InputTextWithHint("##param_name_string_value", "Please Input param name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
         {
             if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
             {
                 auto& stringValue = *static_cast<string*>(data->UserData);
                 ImVector<char>* my_str = (ImVector<char>*)data->UserData;
-                IM_ASSERT(stringValue.data() == data->Buf);
+                //IM_ASSERT(stringValue.data() == data->Buf);
                 stringValue.resize(data->BufSize);
                 data->Buf = (char*)stringValue.data();
             }
@@ -448,9 +462,17 @@ struct CustomShaderNode final : Node
             value.resize(strlen(value.c_str()));
             if (param.name.compare(value) != 0)
             {
+                auto iter = std::find_if(m_params.begin(), m_params.end(), [value] (auto p)
+                {
+                    return p.name.compare(value) == 0;
+                });
                 param.name = value;
+                param.name_valid = iter == m_params.end();
+                update_program();
+                m_compile_succeed = false;
             }
         }
+        ImGui::PopStyleColor();
         ImGui::SameLine();
         ImGui::TextUnformatted("Min:"); ImGui::SameLine();
         ImGui::InputFloat(("##param_min_value" + param.name).c_str(), &param.min_value);
@@ -496,21 +518,22 @@ struct CustomShaderNode final : Node
         if (ImGui::Button( ICON_FK_PLUS " Add param"))
         {
             Node_Param param;
-            param.name = "param";
             m_params.push_back(param);
             update_program();
+            m_compile_succeed = false;
         }
 
         int count = 0;
         for (auto iter = m_params.begin(); iter != m_params.end();)
         {
+            ImGui::PushID(count);
             ParamSetting(*iter);
             ImGui::SameLine();
-            ImGui::PushID(count);
             if (ImGui::Button(ICON_FK_TRASH_O "##delete_param"))
             {
                 iter = m_params.erase(iter);
                 update_program();
+                m_compile_succeed = false;
             }
             else
                 iter++;
@@ -540,7 +563,8 @@ struct CustomShaderNode final : Node
             {
                 ImGui::PushID(id);
                 float _value = param.value;
-                ImGui::SliderFloat(param.name.c_str(), &_value, param.min_value, param.max_value, "%.2f", flags);
+                std::string label = param.name.empty() ? "param:" + std::to_string(id + 1) : param.name;
+                ImGui::SliderFloat(label.c_str(), &_value, param.min_value, param.max_value, "%.2f", flags);
                 if (_value != param.value) { param.value = _value; changed = true; }
                 ImGui::PopID();
                 id++;
@@ -550,14 +574,19 @@ struct CustomShaderNode final : Node
         if (m_compile_succeed)
         {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 1, 0, 1));
-            ImGui::TextUnformatted("Shader Compled Passed");
+            ImGui::TextUnformatted("Shader Compiled Passed");
             ImGui::PopStyleColor();
         }
         else
         {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 0, 0, 1));
-            ImGui::TextUnformatted("Shader NOT Compled Yet!!!");
+            ImGui::TextUnformatted("Shader NOT Compiled Yet!!!");
             ImGui::PopStyleColor();
+            ImGui::SameLine();
+            if (ImGui::Button("Compile"))
+            {
+                Compile_shader();
+            }
         }
         ImGui::PopItemWidth();
         return changed;
@@ -623,6 +652,7 @@ struct CustomShaderNode final : Node
                 if (val.contains("value")) { auto& fvalue = val["value"]; if (fvalue.is_number())   param.value = fvalue.get<imgui_json::number>(); }
                 if (val.contains("min")) { auto& fvalue = val["min"]; if (fvalue.is_number())       param.min_value = fvalue.get<imgui_json::number>(); }
                 if (val.contains("max")) { auto& fvalue = val["max"]; if (fvalue.is_number())       param.max_value = fvalue.get<imgui_json::number>(); }
+                if (val.contains("valid")) { auto& bvalue = val["valid"]; if (bvalue.is_boolean())  param.name_valid = bvalue.get<imgui_json::boolean>(); }
                 m_params.push_back(param);
             }
             update_program();
@@ -656,6 +686,7 @@ struct CustomShaderNode final : Node
             val["value"] = param.value;
             val["min"]   = param.min_value;
             val["max"]   = param.max_value;
+            val["valid"] = imgui_json::boolean(param.name_valid);
             params.push_back(val);
         }
         if (m_params.size() > 0) value["params"] = params;
@@ -682,6 +713,7 @@ struct CustomShaderNode final : Node
 private:
     std::string m_program_start;
     std::string m_program_filter_default;
+    std::string m_program_function_alias;
     std::string m_program_filter;
     std::string m_compile_log;
     TextEditor m_editor;
