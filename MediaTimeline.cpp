@@ -5917,7 +5917,7 @@ TimeLine::TimeLine(std::string plugin_path)
     memcpy(&mAudioAttribute.mBandCfg, &DEFAULT_BAND_CFG, sizeof(mAudioAttribute.mBandCfg));
 
     mRecordIter = mHistoryRecords.begin();
-    mMediaPlayer = new MEC::MediaPlayer();
+    mMediaPlayer = new MEC::MediaPlayer(mTxMgr);
 }
 
 TimeLine::~TimeLine()

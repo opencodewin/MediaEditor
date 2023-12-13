@@ -5,12 +5,10 @@ namespace MEC
 /***********************************************************************************************************
  * Media Player Functions
  ***********************************************************************************************************/
-MediaPlayer::MediaPlayer()
+MediaPlayer::MediaPlayer(RenderUtils::TextureManager::Holder hTxmgr)
 {
-    m_txmgr = RenderUtils::TextureManager::CreateInstance();
+    m_txmgr = hTxmgr ? hTxmgr : RenderUtils::TextureManager::CreateInstance();
     //m_txmgr->SetLogLevel(Logger::INFO);
-    m_audrdr = MediaCore::MediaReader::CreateInstance();
-    //m_audrdr->SetLogLevel(Logger::INFO);
 
     m_pcmStream = new SimplePcmStream(m_audrdr);
     m_audrnd = MediaCore::AudioRender::CreateInstance();
@@ -23,24 +21,25 @@ MediaPlayer::~MediaPlayer()
     if (m_vidrdr)
     {
         m_vidrdr->Close();
-    }
-    if (m_audrdr)
-    {
-        m_audrdr->Close();
+        m_vidrdr = nullptr;
     }
     if (m_audrnd)
     {
         m_audrnd->CloseDevice();
         MediaCore::AudioRender::ReleaseInstance(&m_audrnd);
     }
+    m_pcmStream->SetAudioReader(nullptr);
+    if (m_audrdr)
+    {
+        m_audrdr->Close();
+        m_audrdr = nullptr;
+    }
     if (m_pcmStream)
     {
         delete m_pcmStream;
         m_pcmStream = nullptr;
     }
-    m_vidrdr = nullptr;
-    m_audrdr = nullptr;
-
+    m_mediaParser = nullptr;
     m_tx = nullptr;
     m_txmgr = nullptr;
 }
@@ -52,7 +51,7 @@ void MediaPlayer::Open(const std::string& url)
     if (m_mediaParser->HasVideo())
     {
         m_vidrdr = MediaCore::MediaReader::CreateVideoInstance();
-        //m_vidrdr->SetLogLevel(Logger::DEBUG);
+        // m_vidrdr->SetLogLevel(Logger::DEBUG);
         m_vidrdr->EnableHwAccel(m_useHwAccel);
         m_vidrdr->Open(m_mediaParser);
         m_vidrdr->ConfigVideoReader(1.f, 1.f, IM_CF_RGBA, IM_DT_INT8, IM_INTERPOLATE_AREA, MediaCore::HwaccelManager::GetDefaultInstance());
@@ -61,6 +60,8 @@ void MediaPlayer::Open(const std::string& url)
     }
     if (m_mediaParser->HasAudio())
     {
+        m_audrdr = MediaCore::MediaReader::CreateInstance();
+        // m_audrdr->SetLogLevel(Logger::DEBUG);
         m_audrdr->Open(m_mediaParser);
         auto mediaInfo = m_mediaParser->GetMediaInfo();
         for (auto stream : mediaInfo->streams)
@@ -76,22 +77,76 @@ void MediaPlayer::Open(const std::string& url)
                                     m_chooseAudioIndex);
         m_audrdr->Start();
         m_bIsAudioReady = true;
+        m_pcmStream->SetAudioReader(m_audrdr);
     }
     m_playURL = url;
     m_playStartTp = Clock::now();
 }
 
+void MediaPlayer::Open(MediaCore::MediaParser::Holder hParser)
+{
+    if (!hParser->IsOpened())
+        throw std::runtime_error("INVALID argument! MediaParser must be opened.");
+    m_mediaParser = hParser;
+    if (hParser->HasVideo())
+    {
+        if (hParser->IsImageSequence())
+            m_vidrdr = MediaCore::MediaReader::CreateImageSequenceInstance();
+        else
+            m_vidrdr = MediaCore::MediaReader::CreateVideoInstance();
+        // m_vidrdr->SetLogLevel(Logger::DEBUG);
+        m_vidrdr->EnableHwAccel(m_useHwAccel);
+        m_vidrdr->Open(hParser);
+        m_vidrdr->ConfigVideoReader(1.f, 1.f, IM_CF_RGBA, IM_DT_INT8, IM_INTERPOLATE_AREA, MediaCore::HwaccelManager::GetDefaultInstance());
+        m_vidrdr->Start();
+        m_bIsVideoReady = true;
+    }
+    if (hParser->HasAudio())
+    {
+        m_audrdr = MediaCore::MediaReader::CreateInstance();
+        // m_audrdr->SetLogLevel(Logger::DEBUG);
+        m_audrdr->Open(hParser);
+        auto mediaInfo = hParser->GetMediaInfo();
+        for (auto stream : mediaInfo->streams)
+        {
+            if (stream->type == MediaCore::MediaType::AUDIO)
+                m_audioStreamCount++;
+        }
+        m_chooseAudioIndex = 0;
+        m_audrdr->ConfigAudioReader(
+                                    c_audioRenderChannels,
+                                    c_audioRenderSampleRate,
+                                    "flt",
+                                    m_chooseAudioIndex);
+        m_audrdr->Start();
+        m_bIsAudioReady = true;
+        m_pcmStream->SetAudioReader(m_audrdr);
+    }
+    m_playURL = hParser->GetUrl();
+    m_playStartTp = Clock::now();
+}
+
 void MediaPlayer::Close()
 {
-    if (m_vidrdr) m_vidrdr->Close();
+    if (m_vidrdr)
+    {
+        m_vidrdr->Close();
+        m_vidrdr = nullptr;
+    }
     m_bIsVideoReady = false;
-    if (m_audrdr) m_audrdr->Close();
-    m_bIsAudioReady = false;
     if (m_audrnd)
     {
         m_audrnd->Pause();
         m_audrnd->Flush();
     }
+    m_pcmStream->SetAudioReader(nullptr);
+    if (m_audrdr)
+    {
+        m_audrdr->Close();
+        m_audrdr = nullptr;
+    }
+    m_bIsAudioReady = false;
+    m_mediaParser = nullptr;
     m_pcmStream->m_audPos = 0;
     m_playStartPos = 0;
     m_audioStreamCount = 0;

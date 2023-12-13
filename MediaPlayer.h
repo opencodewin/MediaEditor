@@ -25,6 +25,11 @@ namespace MEC
             return readSize;
         }
 
+        void SetAudioReader(MediaCore::MediaReader::Holder hAudioReader)
+        {
+            m_audrdr = hAudioReader;
+        }
+
         void Flush() override {}
 
         bool GetTimestampMs(int64_t& ts) override
@@ -42,9 +47,10 @@ namespace MEC
     class MediaPlayer
     {
     public:
-        MediaPlayer();
+        MediaPlayer(RenderUtils::TextureManager::Holder hTxmgr);
         ~MediaPlayer();
         void Open(const std::string& url);
+        void Open(MediaCore::MediaParser::Holder hParser);
         void Close();
         bool IsOpened() const { return m_bIsVideoReady || m_bIsAudioReady; }
         bool HasVideo() const { return m_bIsVideoReady; }

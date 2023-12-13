@@ -31,6 +31,7 @@
 #include <CIE_vulkan.h>
 #include <Vector_vulkan.h>
 #endif
+#include <FileSystemUtils.h>
 #include "MediaTimeline.h"
 #include "EventStackFilter.h"
 #include "MediaEncoder.h"
@@ -2398,22 +2399,28 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             float pos_x = io.MousePos.x - icon_pos.x;
             float percent = pos_x / icon_size.x;
             ImClamp(percent, 0.0f, 1.0f);
-            int texture_index = (*item)->mMediaThumbnail.size() * percent;
-            if (IS_IMAGE((*item)->mMediaType))
+            auto pItem = *item;
+            int texture_index = pItem->mMediaThumbnail.size() * percent;
+            if (IS_IMAGE(pItem->mMediaType))
                 texture_index = 0;
-            if (!(*item)->mMediaThumbnail.empty())
+            if (!pItem->mMediaThumbnail.empty())
             {
-                hTx = (*item)->mMediaThumbnail[texture_index];
+                hTx = pItem->mMediaThumbnail[texture_index];
             }
 
             if (timeline && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             {
                 // clean all item selected flags
                 for (auto media : timeline->media_items) media->mSelected = false;
-                (*item)->mSelected = true;
+                pItem->mSelected = true;
                 // set timeline player
                 timeline->mMediaPlayer->Close();
-                timeline->mMediaPlayer->Open((*item)->mPath);
+                if (pItem->mMediaOverview && pItem->mMediaOverview->IsOpened())
+                    timeline->mMediaPlayer->Open(pItem->mMediaOverview->GetMediaParser());
+                else if (SysUtils::IsFile(pItem->mPath))
+                    timeline->mMediaPlayer->Open(pItem->mPath);
+                else
+                    Logger::Log(Logger::Error) << "Invalid 'MediaItem'! Path is '" << pItem->mPath << "'." << std::endl;
                 timeline->mMediaPlayer->Play();
             }
 
