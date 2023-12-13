@@ -458,6 +458,7 @@ struct MatRenderNode final : Node
     span<Pin*> GetOutputPins() override { return m_OutputPins; }
     Pin* GetAutoLinkInputFlowPin() override { return &m_Enter; }
     Pin* GetAutoLinkOutputFlowPin() override { return &m_Exit; }
+    vector<Pin*> GetAutoLinkInputDataPin() override { return {&m_Mat}; }
 
     FlowPin   m_Enter   = { this, "Enter" };
     FlowPin   m_Reset   = { this, "Reset" };

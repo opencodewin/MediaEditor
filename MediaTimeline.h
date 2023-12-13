@@ -360,6 +360,10 @@ static inline uint32_t EstimateMediaType(std::string file_suffix)
                 (file_suffix.compare(".xml") == 0))
             type = MEDIA_SUBTYPE_TEXT_SUBTITLE;
     }
+    else
+    {
+        type = MEDIA_SUBTYPE_VIDEO_IMAGE_SEQUENCE;
+    }
     return type;
 }
 

@@ -12216,6 +12216,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             {
                 VideoClip* new_image_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Image", item->mMediaOverview, timeline);
                 timeline->m_Clips.push_back(new_image_clip);
+                new_image_clip->mType = item->mMediaType;
                 MediaTrack* insertTrack = track;
                 if (!track || !track->CanInsertClip(new_image_clip, mouseTime))
                 {
@@ -12232,6 +12233,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 MediaCore::Snapshot::Generator::Holder hSsGen = timeline->GetSnapshotGenerator(item->mID);
                 if (hSsGen) hViewer = hSsGen->CreateViewer();
                 VideoClip* new_imageseq_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName + ":ImageSeq", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
+                new_imageseq_clip->mType = item->mMediaType;
                 timeline->m_Clips.push_back(new_imageseq_clip);
                 MediaTrack* insertTrack = track;
                 if (!track || !track->CanInsertClip(new_imageseq_clip, mouseTime))
@@ -12453,8 +12455,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 auto file_suffix = ImGuiHelper::path_filename_suffix(path);
                 auto type = EstimateMediaType(file_suffix);
                 MediaItem * item = new MediaItem(name, path, type, timeline);
-                timeline->media_items.push_back(item);
-                insert_item_into_timeline(item, track);
+                if (item)
+                {
+                    timeline->media_items.push_back(item);
+                    insert_item_into_timeline(item, track);
+                }
             }
         }
         ImGui::EndDragDropTarget();
