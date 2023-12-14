@@ -254,7 +254,6 @@ static const std::vector<std::string> MediaBankTabTooltips = {
 
 static const std::vector<std::string> MainWindowTabNames = {
     ICON_MEDIA_PREVIEW " Preview",
-    ICON_MEDIA_TEXT " Text",
     ICON_AUDIO_MIXING " Mixing",
     ICON_NODE " Tasks",
 };
