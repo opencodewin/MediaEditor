@@ -54,6 +54,7 @@ struct SDLAudioRenderNode final : Node
     SDLAudioRenderNode(BP* blueprint): Node(blueprint)
     {
         m_Name = "SDLAudioRender";
+        m_HasCustomLayout = true;
 #if !IMGUI_APPLICATION_PLATFORM_SDL2
         SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER);
 #endif
@@ -169,8 +170,6 @@ struct SDLAudioRenderNode final : Node
         }
         return {};
     }
-
-    bool CustomLayout() const override { return true; }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {

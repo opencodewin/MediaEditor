@@ -6893,7 +6893,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                         auto type = node->GetTypeInfo().m_Type;
                         if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
                             continue;
-                        if (!node->CustomLayout())
+                        if (!node->m_HasCustomLayout)
                             continue;
                         auto label_name = node->m_Name;
                         std::string lable_id = label_name + "##video_transition_node" + "@" + std::to_string(node->m_ID);
@@ -7613,7 +7613,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                         auto type = node->GetTypeInfo().m_Type;
                         if (type == BluePrint::NodeType::EntryPoint || type == BluePrint::NodeType::ExitPoint)
                             continue;
-                        if (!node->CustomLayout())
+                        if (!node->m_HasCustomLayout)
                             continue;
                         auto label_name = node->m_Name;
                         std::string lable_id = label_name + "##audio_transition_node" + "@" + std::to_string(node->m_ID);
