@@ -1,3 +1,4 @@
+#include <UI.h>
 #include <BluePrint.h>
 #include <Node.h>
 #include <Pin.h>
@@ -181,6 +182,8 @@ struct CustomShaderNode final : Node
                 return {};
             }
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
+            im_RGB.w = mat_in.w * m_out_scale.x;
+            im_RGB.h = mat_in.h * m_out_scale.y;
             std::vector<float> params;
             for (auto param : m_params)
                 params.push_back(param.value);
@@ -508,6 +511,10 @@ struct CustomShaderNode final : Node
                 if (m_filter) { delete m_filter; m_filter = nullptr; }
             }
         }
+        ImGui::SliderFloat("X Scale", &m_out_scale.x, 0.1, 4.0, "%.2f", ImGuiSliderFlags_NoInput);
+        ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_x##CustomShader")) { m_out_scale.x = 1.0; }
+        ImGui::SliderFloat("Y Scale", &m_out_scale.y, 0.1, 4.0, "%.2f", ImGuiSliderFlags_NoInput);
+        ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_y##CustomShader")) { m_out_scale.y = 1.0; }
         ImGui::Separator();
         if (ImGui::Button( ICON_FK_PLUS " Add param"))
         {
@@ -635,8 +642,13 @@ struct CustomShaderNode final : Node
             if (val.is_string()) 
             {
                 m_program_filter = val.get<imgui_json::string>();
-                m_program_filter_default = m_program_filter;
+                //m_program_filter_default = m_program_filter;
             }
+        }
+        if (value.contains("out_scale"))
+        {
+            auto& val = value["out_scale"];
+            if (val.is_vec2()) m_out_scale = val.get<imgui_json::vec2>();
         }
         const imgui_json::array* paramArray = nullptr;
         if (imgui_json::GetPtrTo(value, "params", paramArray))
@@ -673,6 +685,7 @@ struct CustomShaderNode final : Node
         value["compiled"] = imgui_json::boolean(m_compile_succeed);
         value["editor_style"] = imgui_json::number(m_editor_style);
         value["program"] = m_program_filter;
+        value["out_scale"] = imgui_json::vec2(m_out_scale);
 
         imgui_json::value params;
         for (auto param : m_params)
@@ -714,6 +727,7 @@ private:
     std::string m_compile_log;
     TextEditor m_editor;
     std::vector<Node_Param> m_params;
+    ImVec2 m_out_scale {1.0, 1.0};
     int m_editor_style  {0};
     bool m_show_space_tab {false};
     bool m_show_short_tab {false};
