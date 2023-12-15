@@ -27,7 +27,7 @@ namespace BluePrint
 struct MatRenderNode final : Node
 {
     BP_NODE_WITH_NAME(MatRenderNode, "Media Render", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Media")
-    MatRenderNode(BP* blueprint): Node(blueprint) { m_Name = "Mat Render"; }
+    MatRenderNode(BP* blueprint): Node(blueprint) { m_Name = "Mat Render"; m_HasCustomLayout = true; }
     ~MatRenderNode()
     {
         if (m_textureID) { ImGui::ImDestroyTexture(m_textureID); m_textureID = 0; }
@@ -282,8 +282,6 @@ struct MatRenderNode final : Node
             }
         }
     }
-
-    bool CustomLayout() const override { return true; }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {

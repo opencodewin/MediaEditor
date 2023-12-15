@@ -1,3 +1,4 @@
+#include <UI.h>
 #include <BluePrint.h>
 #include <Node.h>
 #include <Pin.h>
@@ -34,6 +35,9 @@ struct CustomShaderNode final : Node
     CustomShaderNode(BP* blueprint): Node(blueprint)
     { 
         m_Name = "Custom Vulkan Shader";
+        m_SettingAutoResize = false;
+        m_HasCustomLayout = true;
+        m_Skippable = true; 
         //glslang::InitializeProcess();
         m_lang = TextEditor::LanguageDefinition::GLSL();
         static const char* const my_keywork[] = { 
@@ -178,6 +182,8 @@ struct CustomShaderNode final : Node
                 return {};
             }
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
+            im_RGB.w = mat_in.w * m_out_scale.x;
+            im_RGB.h = mat_in.h * m_out_scale.y;
             std::vector<float> params;
             for (auto param : m_params)
                 params.push_back(param.value);
@@ -311,7 +317,9 @@ struct CustomShaderNode final : Node
     void DrawShaderEditor()
     {        
         auto cpos = m_editor.GetCursorPosition();
-        ImGui::BeginChild("Vulkan Shader Editor", ImVec2(800, 400), false);
+        auto window_size = ImGui::GetWindowSize();
+        float height = fmax(window_size.y - ImGui::GetCursorPosY() - 80.f - 48.f, 400.f);
+        ImGui::BeginChild("Vulkan Shader Editor", ImVec2(window_size.x - 16, height), false);
         ImGui::Text("%6d/%-6d %6d lines  | %s | %s | %s | ", cpos.mLine + 1, cpos.mColumn + 1, m_editor.GetTotalLines(),
                     m_editor.IsOverwrite() ? "Ovr" : "Ins",
                     m_editor.CanUndo() ? "*" : " ",
@@ -487,22 +495,11 @@ struct CustomShaderNode final : Node
         // Draw Setting
         ImGui::SetCurrentContext(ctx); // External Node must set context
 
-        // Draw Set Node Name
         Node::DrawSettingLayout(ctx);
         ImGui::Separator();
-        // Custom Node Setting
-        DrawShaderEditor();
-        ImGui::Separator();
-        DrawCompileLog();
+        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
         ImGui::Separator();
 
-        ImGui::TextUnformatted("Mat Type:"); ImGui::SameLine();
-        ImGui::RadioButton("AsInput", (int *)&m_mat_data_type, (int)IM_DT_UNDEFINED); ImGui::SameLine();
-        ImGui::RadioButton("Int8", (int *)&m_mat_data_type, (int)IM_DT_INT8); ImGui::SameLine();
-        ImGui::RadioButton("Int16", (int *)&m_mat_data_type, (int)IM_DT_INT16); ImGui::SameLine();
-        ImGui::RadioButton("Float16", (int *)&m_mat_data_type, (int)IM_DT_FLOAT16); ImGui::SameLine();
-        ImGui::RadioButton("Float32", (int *)&m_mat_data_type, (int)IM_DT_FLOAT32);
-        ImGui::Separator();
         bool check = m_fp16;
         ImGui::TextUnformatted("Half Float(16bits):"); ImGui::SameLine();
         if (ImGui::Checkbox("##16bit FLoat:", &check))
@@ -514,6 +511,10 @@ struct CustomShaderNode final : Node
                 if (m_filter) { delete m_filter; m_filter = nullptr; }
             }
         }
+        ImGui::SliderFloat("X Scale", &m_out_scale.x, 0.1, 4.0, "%.2f", ImGuiSliderFlags_NoInput);
+        ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_x##CustomShader")) { m_out_scale.x = 1.0; }
+        ImGui::SliderFloat("Y Scale", &m_out_scale.y, 0.1, 4.0, "%.2f", ImGuiSliderFlags_NoInput);
+        ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_y##CustomShader")) { m_out_scale.y = 1.0; }
         ImGui::Separator();
         if (ImGui::Button( ICON_FK_PLUS " Add param"))
         {
@@ -540,10 +541,12 @@ struct CustomShaderNode final : Node
             ImGui::PopID();
             count++;
         }
+        ImGui::Separator();
+        // Custom Node Setting
+        DrawShaderEditor();
+        ImGui::Separator();
+        DrawCompileLog();
     }
-
-    bool CustomLayout() const override { return true; }
-    bool Skippable() const override { return true; }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {
@@ -639,8 +642,13 @@ struct CustomShaderNode final : Node
             if (val.is_string()) 
             {
                 m_program_filter = val.get<imgui_json::string>();
-                m_program_filter_default = m_program_filter;
+                //m_program_filter_default = m_program_filter;
             }
+        }
+        if (value.contains("out_scale"))
+        {
+            auto& val = value["out_scale"];
+            if (val.is_vec2()) m_out_scale = val.get<imgui_json::vec2>();
         }
         const imgui_json::array* paramArray = nullptr;
         if (imgui_json::GetPtrTo(value, "params", paramArray))
@@ -677,6 +685,7 @@ struct CustomShaderNode final : Node
         value["compiled"] = imgui_json::boolean(m_compile_succeed);
         value["editor_style"] = imgui_json::number(m_editor_style);
         value["program"] = m_program_filter;
+        value["out_scale"] = imgui_json::vec2(m_out_scale);
 
         imgui_json::value params;
         for (auto param : m_params)
@@ -718,6 +727,7 @@ private:
     std::string m_compile_log;
     TextEditor m_editor;
     std::vector<Node_Param> m_params;
+    ImVec2 m_out_scale {1.0, 1.0};
     int m_editor_style  {0};
     bool m_show_space_tab {false};
     bool m_show_short_tab {false};

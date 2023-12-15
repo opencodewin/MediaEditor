@@ -12,7 +12,7 @@ namespace BluePrint
 struct GuidedNode final : Node
 {
     BP_NODE_WITH_NAME(GuidedNode, "Guided Filter", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Matting")
-    GuidedNode(BP* blueprint): Node(blueprint) { m_Name = "Guided Filter"; }
+    GuidedNode(BP* blueprint): Node(blueprint) { m_Name = "Guided Filter"; m_HasCustomLayout = true; m_Skippable = true; }
     ~GuidedNode()
     {
         if (m_filter) { delete m_filter; m_filter = nullptr; }
@@ -61,12 +61,7 @@ struct GuidedNode final : Node
         // Draw Setting
         Node::DrawSettingLayout(ctx);
         ImGui::Separator();
-        ImGui::TextUnformatted("Mat Type:"); ImGui::SameLine();
-        ImGui::RadioButton("AsInput", (int *)&m_mat_data_type, (int)IM_DT_UNDEFINED); ImGui::SameLine();
-        ImGui::RadioButton("Int8", (int *)&m_mat_data_type, (int)IM_DT_INT8); ImGui::SameLine();
-        ImGui::RadioButton("Int16", (int *)&m_mat_data_type, (int)IM_DT_INT16); ImGui::SameLine();
-        ImGui::RadioButton("Float16", (int *)&m_mat_data_type, (int)IM_DT_FLOAT16); ImGui::SameLine();
-        ImGui::RadioButton("Float32", (int *)&m_mat_data_type, (int)IM_DT_FLOAT32);
+        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
     }
 
     void WasUnlinked(const Pin& receiver, const Pin& provider) override
@@ -74,9 +69,6 @@ struct GuidedNode final : Node
         if (receiver.m_ID == m_EPSIn.m_ID) m_EPSIn.SetValue(m_eps);
         if (receiver.m_ID == m_RangeIn.m_ID) m_RangeIn.SetValue(m_range);
     }
-
-    bool CustomLayout() const override { return true; }
-    bool Skippable() const override { return true; }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {

@@ -15,6 +15,8 @@ struct ColorCurveNode final : Node
     ColorCurveNode(BP* blueprint): Node(blueprint)
     {
         m_Name = "Color Curve";
+        m_HasCustomLayout = true;
+        m_Skippable = true; 
         mMat_curve.create_type(1024, 1, 4, IM_DT_FLOAT32);
         ResetCurve();
     }
@@ -147,20 +149,12 @@ struct ColorCurveNode final : Node
         return m_Exit;
     }
 
-    bool CustomLayout() const override { return true; }
-    bool Skippable() const override { return true; }
-
     void DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
         Node::DrawSettingLayout(ctx);
         ImGui::Separator();
-        ImGui::TextUnformatted("Mat Type:"); ImGui::SameLine();
-        ImGui::RadioButton("AsInput", (int *)&m_mat_data_type, (int)IM_DT_UNDEFINED); ImGui::SameLine();
-        ImGui::RadioButton("Int8", (int *)&m_mat_data_type, (int)IM_DT_INT8); ImGui::SameLine();
-        ImGui::RadioButton("Int16", (int *)&m_mat_data_type, (int)IM_DT_INT16); ImGui::SameLine();
-        ImGui::RadioButton("Float16", (int *)&m_mat_data_type, (int)IM_DT_FLOAT16); ImGui::SameLine();
-        ImGui::RadioButton("Float32", (int *)&m_mat_data_type, (int)IM_DT_FLOAT32);
+        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
     }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override

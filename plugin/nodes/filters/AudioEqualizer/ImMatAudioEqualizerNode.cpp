@@ -35,6 +35,8 @@ struct AudioEqualizerNode final : Node
     AudioEqualizerNode(BP* blueprint): Node(blueprint)
     {
         m_Name = "Audio Equalizer";
+        m_HasCustomLayout = true;
+        m_Skippable = true;
         memcpy(&m_bandCfg, &DEFAULT_BAND_CFG, sizeof(m_bandCfg));
         std::string errMsg;
 #if !defined(FF_API_OLD_CHANNEL_LAYOUT) && (LIBAVUTIL_VERSION_MAJOR < 58)
@@ -282,16 +284,8 @@ struct AudioEqualizerNode final : Node
         // Draw Setting
         Node::DrawSettingLayout(ctx);
         ImGui::Separator();
-        ImGui::TextUnformatted("Mat Type:"); ImGui::SameLine();
-        ImGui::RadioButton("AsInput", (int *)&m_pcmDataType, (int)IM_DT_UNDEFINED); ImGui::SameLine();
-        ImGui::RadioButton("Int8", (int *)&m_pcmDataType, (int)IM_DT_INT8); ImGui::SameLine();
-        ImGui::RadioButton("Int16", (int *)&m_pcmDataType, (int)IM_DT_INT16); ImGui::SameLine();
-        ImGui::RadioButton("Float16", (int *)&m_pcmDataType, (int)IM_DT_FLOAT16); ImGui::SameLine();
-        ImGui::RadioButton("Float32", (int *)&m_pcmDataType, (int)IM_DT_FLOAT32);
+        Node::DrawDataTypeSetting("Mat Type:", m_pcmDataType);
     }
-
-    bool CustomLayout() const override { return true; }
-    bool Skippable() const override { return true; }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {

@@ -10,7 +10,7 @@ namespace BluePrint
 struct CasNode final : Node
 {
     BP_NODE_WITH_NAME(CasNode, "CAS Sharpen", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Enhance")
-    CasNode(BP* blueprint): Node(blueprint) { m_Name = "CAS Sharpen"; }
+    CasNode(BP* blueprint): Node(blueprint) { m_Name = "CAS Sharpen"; m_HasCustomLayout = true; m_Skippable = true; }
     ~CasNode()
     {
         if (m_filter) { delete m_filter; m_filter = nullptr; }
@@ -69,16 +69,8 @@ struct CasNode final : Node
         // Draw Setting
         Node::DrawSettingLayout(ctx);
         ImGui::Separator();
-        ImGui::TextUnformatted("Mat Type:"); ImGui::SameLine();
-        ImGui::RadioButton("AsInput", (int *)&m_mat_data_type, (int)IM_DT_UNDEFINED); ImGui::SameLine();
-        ImGui::RadioButton("Int8", (int *)&m_mat_data_type, (int)IM_DT_INT8); ImGui::SameLine();
-        ImGui::RadioButton("Int16", (int *)&m_mat_data_type, (int)IM_DT_INT16); ImGui::SameLine();
-        ImGui::RadioButton("Float16", (int *)&m_mat_data_type, (int)IM_DT_FLOAT16); ImGui::SameLine();
-        ImGui::RadioButton("Float32", (int *)&m_mat_data_type, (int)IM_DT_FLOAT32);
+        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
     }
-
-    bool CustomLayout() const override { return true; }
-    bool Skippable() const override { return true; }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {

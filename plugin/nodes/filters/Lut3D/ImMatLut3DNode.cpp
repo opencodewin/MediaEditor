@@ -64,7 +64,7 @@ namespace BluePrint
 struct Lut3DNode final : Node
 {
     BP_NODE_WITH_NAME(Lut3DNode, "Lut 3D", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Color")
-    Lut3DNode(BP* blueprint): Node(blueprint) { m_Name = "Lut 3D"; }
+    Lut3DNode(BP* blueprint): Node(blueprint) { m_Name = "Lut 3D"; m_HasCustomLayout = true; m_Skippable = true; }
     ~Lut3DNode()
     {
         if (m_filter) { delete m_filter; m_filter = nullptr; }
@@ -199,12 +199,7 @@ struct Lut3DNode final : Node
         ImGui::RadioButton("Trilinear",     (int *)&m_interpolation_mode, IM_INTERPOLATE_TRILINEAR); ImGui::SameLine();
         ImGui::RadioButton("Teteahedral",   (int *)&m_interpolation_mode, IM_INTERPOLATE_TETRAHEDRAL);
         ImGui::Separator();
-        ImGui::TextUnformatted("Mat Type:"); ImGui::SameLine();
-        ImGui::RadioButton("AsInput", (int *)&m_mat_data_type, (int)IM_DT_UNDEFINED); ImGui::SameLine();
-        ImGui::RadioButton("Int8", (int *)&m_mat_data_type, (int)IM_DT_INT8); ImGui::SameLine();
-        ImGui::RadioButton("Int16", (int *)&m_mat_data_type, (int)IM_DT_INT16); ImGui::SameLine();
-        ImGui::RadioButton("Float16", (int *)&m_mat_data_type, (int)IM_DT_FLOAT16); ImGui::SameLine();
-        ImGui::RadioButton("Float32", (int *)&m_mat_data_type, (int)IM_DT_FLOAT32);
+        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
         ImGui::Separator();
         if (m_lut_mode != lut_mode)
         {
@@ -244,9 +239,6 @@ struct Lut3DNode final : Node
         ImGui::TextUnformatted(m_file_name.c_str());
         ImGui::EndDisabled();
     }
-
-    bool CustomLayout() const override { return true; }
-    bool Skippable() const override { return true; }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
     {

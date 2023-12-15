@@ -15,7 +15,7 @@ namespace BluePrint
 struct MatImageNode final : Node
 {
     BP_NODE_WITH_NAME(MatImageNode, "Image Mat", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Media")
-    MatImageNode(BP* blueprint): Node(blueprint) { m_Name = "Image Mat"; }
+    MatImageNode(BP* blueprint): Node(blueprint) { m_Name = "Image Mat"; m_HasCustomLayout = true; }
 
     ~MatImageNode()
     {
@@ -61,8 +61,6 @@ struct MatImageNode final : Node
         }
         return false;
     }
-
-    bool CustomLayout() const override { return true; }
 
     FlowPin Execute(Context& context, FlowPin& entryPoint, bool threading = false) override
     {
