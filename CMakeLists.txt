@@ -158,6 +158,7 @@ set(MEDIA_EDITOR_BINARY "mec")
 set(MEDIA_EDITOR_SRCS
     MediaEditor.cpp
     MediaTimeline.cpp
+    MecProject.cpp
     Event.cpp
     EventStackFilter.cpp
     MediaPlayer.cpp

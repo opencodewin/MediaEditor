@@ -8,12 +8,9 @@ namespace MEC
 MediaPlayer::MediaPlayer(RenderUtils::TextureManager::Holder hTxmgr)
 {
     m_txmgr = hTxmgr ? hTxmgr : RenderUtils::TextureManager::CreateInstance();
-    //m_txmgr->SetLogLevel(Logger::INFO);
-
     m_pcmStream = new SimplePcmStream(m_audrdr);
     m_audrnd = MediaCore::AudioRender::CreateInstance();
     m_audrnd->OpenDevice(c_audioRenderSampleRate, c_audioRenderChannels, c_audioRenderFormat, m_pcmStream);
-    MediaCore::HwaccelManager::GetDefaultInstance()->Init();
 }
 
 MediaPlayer::~MediaPlayer()

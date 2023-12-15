@@ -32,6 +32,7 @@
 #include <Vector_vulkan.h>
 #endif
 #include <FileSystemUtils.h>
+#include "MecProject.h"
 #include "MediaTimeline.h"
 #include "EventStackFilter.h"
 #include "MediaEncoder.h"
@@ -558,6 +559,7 @@ struct MediaEditorSettings
     }
 };
 
+static MEC::Project::Holder g_hProject;
 static std::string ini_file = "Media_Editor.ini";
 static std::string icon_file;
 static std::vector<std::string> import_url;    // import file url from system drag
@@ -580,7 +582,6 @@ static bool g_env_scanning = false;
 static ImGui::TabLabelStyle * tab_style = &ImGui::TabLabelStyle::Get();
 static MediaEditorSettings g_media_editor_settings;
 static MediaEditorSettings g_new_setting;
-static imgui_json::value g_project;
 static bool g_vidEncSelChanged = true;
 static std::vector<MediaCore::MediaEncoder::Description> g_currVidEncDescList;
 static bool g_audEncSelChanged = true;
@@ -1660,20 +1661,19 @@ static void NewTimeline()
 
 static void CleanProject()
 {
+    g_hProject->Close(false);
     if (timeline)
     {
         delete timeline;
         timeline = nullptr;
     }
     NewTimeline();
-    g_project = imgui_json::value();
 }
 
 static void NewProject()
 {
     Logger::Log(Logger::DEBUG) << "[Project] Create new project!!!" << std::endl;
     CleanProject();
-    g_media_editor_settings.project_path = "";
     quit_save_confirm = true;
     project_need_save = true;
     project_changed = false;
@@ -1681,6 +1681,12 @@ static void NewProject()
 
 static void LoadProjectThread(std::string path, bool in_splash)
 {
+    if (!timeline)
+    {
+        Logger::Log(Logger::Error) << "FAILED to load MEC project at '" << path << "'! 'timeline' is null." << std::endl;
+        return;
+    }
+
     // waiting plugin loading
     while (g_plugin_loading || !g_plugin_loaded || g_env_scanning || !g_env_scanned)
     {
@@ -1692,8 +1698,8 @@ static void LoadProjectThread(std::string path, bool in_splash)
     g_project_loading_percentage = 0;
     Logger::Log(Logger::DEBUG) << "[MEC] Load project from '" << path << "'." << std::endl;
     g_project_loading_percentage = 0.1;
-    auto loadResult = imgui_json::value::load(path);
-    if (!loadResult.second)
+    auto projErr = g_hProject->Load(path);
+    if (projErr != MEC::Project::OK)
     {
         g_project_loading_percentage = 1.0f;
         g_project_loading = false;
@@ -1701,69 +1707,78 @@ static void LoadProjectThread(std::string path, bool in_splash)
     }
     g_project_loading_percentage = 0.2;
     timeline->m_in_threads = true;
-    auto project = loadResult.first;
-    const imgui_json::array* mediaBankArray = nullptr;
-    if (imgui_json::GetPtrTo(project, "MediaBank", mediaBankArray))
+    const auto& jnProjContent = g_hProject->GetProjectContentJson();
+    string attrName = "MediaBank";
+    if (jnProjContent.contains(attrName) && jnProjContent[attrName].is_array())
     {
-        float percentage = mediaBankArray->size() > 0 ?  0.6 / mediaBankArray->size() : 0;
-        for (auto& media : *mediaBankArray)
+        const auto& jnMediaBank = jnProjContent[attrName].get<imgui_json::array>();
+        const auto szItemCnt = jnMediaBank.size();
+        float percentage = szItemCnt > 0 ?  0.6 / szItemCnt : 0;
+        for (const auto& jnItem : jnMediaBank)
         {
-            MediaItem * item = nullptr;
             int64_t id = -1;
             std::string name;
             std::string path;
             uint32_t type = MEDIA_UNKNOWN;
-            if (media.contains("id"))
+            if (jnItem.contains("id"))
             {
-                auto& val = media["id"];
+                auto& val = jnItem["id"];
                 if (val.is_number())
                 {
                     id = val.get<imgui_json::number>();
                 }
             }
-            if (media.contains("name"))
+            if (jnItem.contains("name"))
             {
-                auto& val = media["name"];
+                auto& val = jnItem["name"];
                 if (val.is_string())
                 {
                     name = val.get<imgui_json::string>();
                 }
             }
-            if (media.contains("path"))
+            if (jnItem.contains("path"))
             {
-                auto& val = media["path"];
+                auto& val = jnItem["path"];
                 if (val.is_string())
                 {
                     path = val.get<imgui_json::string>();
                 }
             }
-            if (media.contains("type"))
+            if (jnItem.contains("type"))
             {
-                auto& val = media["type"];
+                auto& val = jnItem["type"];
                 if (val.is_number())
                 {
                     type = val.get<imgui_json::number>();
                 }
             }
             
-            item = new MediaItem(name, path, type, timeline);
+            MediaItem* item = new MediaItem(name, path, type, timeline);
             if (id != -1) item->mID = id;
             timeline->media_items.push_back(item);
             g_project_loading_percentage += percentage;
         }
     }
+    else
+    {
+        Logger::Log(Logger::WARN) << "CANNOT find '" << attrName << "' attribute in MEC project content json at '" << path << "'!" << std::endl;
+    }
 
     g_project_loading_percentage = 0.8;
 
     // second load TimeLine
-    if (timeline && project.contains("TimeLine"))
+    attrName = "TimeLine";
+    if (jnProjContent.contains(attrName) && jnProjContent[attrName].is_object())
     {
-        auto& val = project["TimeLine"];
+        const auto& val = jnProjContent[attrName];
         timeline->Load(val);
         g_media_editor_settings.SyncSettingsFromTimeline(timeline);
     }
+    else
+    {
+        Logger::Log(Logger::WARN) << "CANNOT find '" << attrName << "' attribute in MEC project content json at '" << path << "'!" << std::endl;
+    }
 
-    g_media_editor_settings.project_path = path;
     quit_save_confirm = false;
     project_need_save = true;
     project_changed = false;
@@ -1772,15 +1787,13 @@ static void LoadProjectThread(std::string path, bool in_splash)
     timeline->m_in_threads = false;
 }
 
-static void SaveProject(const std::string& path)
+static void SaveProject(MEC::Project::Holder hProject)
 {
-    if (!timeline || path.empty())
+    if (!timeline)
         return;
-
-    Logger::Log(Logger::DEBUG) << "[Project] Save project to file!!!" << std::endl;
-
     timeline->Play(false, true);
 
+    imgui_json::value jnProjContent;
     // first save media bank info
     imgui_json::value media_bank;
     for (auto media : timeline->media_items)
@@ -1792,25 +1805,33 @@ static void SaveProject(const std::string& path)
         item["type"] = imgui_json::number(media->mMediaType);
         media_bank.push_back(item);
     }
-    g_project["MediaBank"] = media_bank;
+    jnProjContent["MediaBank"] = media_bank;
 
     // second save Timeline
     imgui_json::value timeline_val;
     timeline->Save(timeline_val);
-    g_project["TimeLine"] = timeline_val;
+    jnProjContent["TimeLine"] = timeline_val;
 
-    g_project.save(path);
-    g_media_editor_settings.project_path = path;
-    project_need_save = false;
-    project_changed = false;
-    timeline->mIsBluePrintChanged = false;
+    hProject->SetContentJson(jnProjContent);
+    const auto errcode = hProject->Save();
+    if (errcode == MEC::Project::OK)
+    {
+        project_need_save = false;
+        project_changed = false;
+        timeline->mIsBluePrintChanged = false;
+    }
+    else
+    {
+        Logger::Log(Logger::Error) << "FAILED to save current project! Project name is '" << hProject->GetProjectName()
+                << "', save op error code is " << (int)errcode << "." << std::endl;
+    }
 }
 
 static void OpenProject(const std::string& projectPath)
 {
-    if (!g_media_editor_settings.project_path.empty())
+    if (g_hProject->IsOpened())
     {
-        SaveProject(g_media_editor_settings.project_path);
+        SaveProject(g_hProject);
     }
     if (g_project_loading)
     {
@@ -11226,6 +11247,7 @@ static void MediaEditor_Initialize(void** handle)
             fontFamilies.push_back(item);
     }
 
+    g_hProject = MEC::Project::CreateInstance();
 #if IMGUI_VULKAN_SHADER
     int gpu = ImGui::get_default_gpu_index();
     m_histogram = new ImGui::Histogram_vulkan(gpu);
@@ -11255,6 +11277,9 @@ static void MediaEditor_Finalize(void** handle)
     if (db_texture) { ImGui::ImDestroyTexture(db_texture); db_texture = nullptr; }
     if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
     if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
+
+    g_media_editor_settings.project_path = g_hProject->IsOpened() ? g_hProject->GetProjectFilePath() : "";
+    g_hProject = nullptr;
 
     ImPlot::DestroyContext();
     MediaCore::ReleaseSubtitleLibrary();
@@ -11632,9 +11657,9 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         ImGui::ShowTooltipOnHover("New Project");
         if (ImGui::Button(ICON_MD_SAVE "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
         {
-            if (!g_media_editor_settings.project_path.empty())
+            if (g_hProject->IsOpened())
             {
-                SaveProject(g_media_editor_settings.project_path);
+                SaveProject(g_hProject);
             }
             else
             {
@@ -11692,7 +11717,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::TextUnformatted("Do you need save current project?");
             if (ImGui::Button("OK", ImVec2(40, 0)))
             {
-                SaveProject(g_media_editor_settings.project_path);
+                SaveProject(g_hProject);
                 ImGui::CloseCurrentPopup();
                 NewProject();
                 project_name = "Untitled";
@@ -12021,9 +12046,9 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                                                         IGFDUserDatas("ProjectSaveQuit"), 
                                                         pflags);
             }
-            else
+            else if (g_hProject->IsOpened())
             {
-                SaveProject(g_media_editor_settings.project_path);
+                SaveProject(g_hProject);
                 app_done = app_will_quit;
             }
         }
@@ -12070,28 +12095,34 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             else if (userDatas.compare("ProjectOpen") == 0)
             {
                 OpenProject(file_path);
-                project_name = ImGuiHelper::path_filename_prefix(file_path);
+                project_name = g_hProject->GetProjectName();
             }
             else if (userDatas.compare("ProjectSave") == 0)
             {
-                if (file_suffix.empty())
-                    file_path += ".mep";
-                SaveProject(file_path);
-                project_name = ImGuiHelper::path_filename_prefix(file_path);
+                auto hNewProj = MEC::Project::CreateInstance();
+                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path));
+                if (err == MEC::Project::OK)
+                {
+                    g_hProject = hNewProj;
+                    SaveProject(g_hProject);
+                    project_name = g_hProject->GetProjectName();
+                }
             }
             else if (userDatas.compare("ProjectSaveAndNew") == 0)
             {
-                if (file_suffix.empty())
-                    file_path += ".mep";
-                SaveProject(file_path);
+                auto hNewProj = MEC::Project::CreateInstance();
+                auto err = hNewProj->CreateNew(file_name, SysUtils::ExtractDirectoryPath(file_path));
+                if (err == MEC::Project::OK)
+                    SaveProject(hNewProj);
                 NewProject();
                 project_name = "Untitled";
             }
             else if (userDatas.compare("ProjectSaveQuit") == 0)
             {
-                if (file_suffix.empty())
-                    file_path += ".mep";
-                SaveProject(file_path);
+                auto hNewProj = MEC::Project::CreateInstance();
+                auto err = hNewProj->CreateNew(file_name, SysUtils::ExtractDirectoryPath(file_path));
+                if (err == MEC::Project::OK)
+                    SaveProject(hNewProj);
                 app_done = true;
             }
             show_file_dialog = false;
