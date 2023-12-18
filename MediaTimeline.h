@@ -199,9 +199,10 @@
 #define ICON_DB_LEVEL       u8"\ue4a9"
 #define ICON_SPECTROGRAM    u8"\ue4a0"
 #define ICON_DRAWING_PIN    u8"\uf08d"
-#define ICON_EXPANMD        u8"\uf0b2"
+#define ICON_EXPAND         u8"\uf0b2"
 #define ICON_EXPAND_EVENT   u8"\ue8be"
 #define ICON_EVENT_ZOOM     u8"\uf247"
+#define ICON_SUBMENU_INDICATOR u8"\ue315"
 
 #define ICON_SETTING_LINK   u8"\uf0c1"
 #define ICON_SETTING_UNLINK u8"\uf127"

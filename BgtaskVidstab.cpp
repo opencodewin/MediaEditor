@@ -414,7 +414,7 @@ public:
                     {
                         if (fferr < 0)
                         {
-                            ostringstream oss; oss << "Background task 'Vidstab' FAILED when invoking 'av_buffersink_get_frame()' at frame #" << (i64FrmIdx-1)
+                            ostringstream oss; oss << "Background task 'Vidstab' FAILED when invoking 'av_buff5ersink_get_frame()' at frame #" << (i64FrmIdx-1)
                                     << ". fferr=" << fferr << ".";
                             m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
                             m_bFailed = true; SetState(DONE);
@@ -562,7 +562,7 @@ static const auto _BGTASK_VIDSTAB_DELETER = [] (BackgroundTask* p) {
     delete ptr;
 };
 
-BackgroundTask::Holder CreateBgtaskInstanceFrameIntepolation(const json::value& jnTask)
+BackgroundTask::Holder CreateBgtaskVidstab(const json::value& jnTask)
 {
     string strTaskName;
     if (jnTask.contains("name"))

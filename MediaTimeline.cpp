@@ -24,6 +24,8 @@
 #include <cmath>
 #include <sstream>
 #include <iomanip>
+#include <vector>
+#include <utility>
 #include "EventStackFilter.h"
 #include "ThreadUtils.h"
 #include "TextureManager.h"
@@ -10525,6 +10527,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     static int markMovingEntry = -1;
     static int64_t markMovingShift = 0;
 
+    static const std::vector<std::pair<std::string, std::string>> s_aBgtaskNames = {
+        { "Video Stabilization", "Vidstab" },
+    };
+    static size_t s_szBgtaskSelIdx;
+    static string s_strBgtaskCreateDlgLabel;
+    static int64_t s_i64BgtaskSrcClipId;
+    bool bOpenCreateBgtaskDialog = false;
+
     float minPixelWidthTarget = ImMin(timeline->msPixelWidthTarget, (float)(timline_size.x - legendWidth) / (float)duration);
     const auto frameRate = timeline->mhMediaSettings->VideoOutFrameRate();
     float frame_duration = (frameRate.den > 0 && frameRate.num > 0) ? frameRate.den * 1000.0 / frameRate.num : 40;
@@ -11315,7 +11325,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             if (headerMarkPos >= 0)
             {
                 int64_t mouse_time = (int64_t)((headerMarkPos - timeMeterRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
-                if (ImGui::MenuItem( ICON_MARK_IN " Add mark in", nullptr, nullptr))
+                if (ImGui::MenuItem( ICON_MARK_IN " Add mark in"))
                 {
                     if (timeline->mark_out != -1 && mouse_time > timeline->mark_out)
                         timeline->mark_out = -1;
@@ -11323,7 +11333,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                     headerMarkPos = -1;
                     changed = true;
                 }
-                if (ImGui::MenuItem(ICON_MARK_OUT " Add mark out", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MARK_OUT " Add mark out"))
                 {
                     if (timeline->mark_in != -1 && mouse_time < timeline->mark_in)
                         timeline->mark_in = -1;
@@ -11331,7 +11341,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                     headerMarkPos = -1;
                     changed = true;
                 }
-                if (ImGui::MenuItem(ICON_MARK_NONE " Delete mark point", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MARK_NONE " Delete mark point"))
                 {
                     timeline->mark_in = timeline->mark_out = -1;
                     headerMarkPos = -1;
@@ -11347,22 +11357,22 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             auto selected_clip_count = timeline->GetSelectedClipCount();
             auto empty_track_count = timeline->GetEmptyTrackCount();
             
-            if (ImGui::MenuItem(ICON_MEDIA_VIDEO  " Insert Empty Video Track", nullptr, nullptr))
+            if (ImGui::MenuItem(ICON_MEDIA_VIDEO  " Insert Empty Video Track"))
             {
                 insertEmptyTrackType = MEDIA_VIDEO;
             }
-            if (ImGui::MenuItem(ICON_MEDIA_AUDIO " Insert Empty Audio Track", nullptr, nullptr))
+            if (ImGui::MenuItem(ICON_MEDIA_AUDIO " Insert Empty Audio Track"))
             {
                 insertEmptyTrackType = MEDIA_AUDIO;
             }
-            if (ImGui::MenuItem(ICON_MEDIA_TEXT " Insert Empty Text Track", nullptr, nullptr))
+            if (ImGui::MenuItem(ICON_MEDIA_TEXT " Insert Empty Text Track"))
             {
                 insertEmptyTrackType = MEDIA_TEXT;
             }
 
             if (empty_track_count > 0)
             {
-                if (ImGui::MenuItem(ICON_MEDIA_DELETE " Delete Empty Track", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE " Delete Empty Track"))
                 {
                     removeEmptyTrack = true;
                     changed = true;
@@ -11380,17 +11390,37 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 //{
                 //    track->SelectEditingClip(clip, false);
                 //}
-                if (ImGui::MenuItem(ICON_FILTER_EDITOR " Edit Clip Filter", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_FILTER_EDITOR " Edit Clip Filter"))
                 {
                     track->SelectEditingClip(clip);
                 }
                 ImGui::EndDisabled();
-                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip", nullptr, nullptr))
+#ifdef ENABLE_BACKGROUND_TASK
+                if (ImGui::BeginMenu(ICON_NODE " Background Task"))
+                {
+                    const auto szSubItemCnt = s_aBgtaskNames.size();
+                    for (auto i = 0; i < szSubItemCnt; i++)
+                    {
+                        const auto& strTaskName = s_aBgtaskNames[i].first;
+                        if (ImGui::MenuItem(strTaskName.c_str()))
+                        {
+                            bOpenCreateBgtaskDialog = true;
+                            s_szBgtaskSelIdx = i;
+                            std::ostringstream oss; oss << "Create " << strTaskName << " Task";
+                            s_strBgtaskCreateDlgLabel = oss.str();
+                            s_i64BgtaskSrcClipId = clipMenuEntry;
+                            break;
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+#endif
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Clip"))
                 {
                     delClipEntry.push_back(clipMenuEntry);
                     changed = true;
                 }
-                if (clip->mGroupID != -1 && ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Clip", nullptr, nullptr))
+                if (clip->mGroupID != -1 && ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Clip"))
                 {
                     unGroupClipEntry.push_back(clipMenuEntry);
                     changed = true;
@@ -11400,7 +11430,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             if (selected_clip_count > 0)
             {
                 ImGui::Separator();
-                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Selected", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MEDIA_DELETE_CLIP " Delete Selected"))
                 {
                     for (auto clip : timeline->m_Clips)
                     {
@@ -11411,7 +11441,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                         }
                     }
                 }
-                if (selected_clip_count > 1 && ImGui::MenuItem(ICON_MEDIA_GROUP " Group Selected", nullptr, nullptr))
+                if (selected_clip_count > 1 && ImGui::MenuItem(ICON_MEDIA_GROUP " Group Selected"))
                 {
                     for (auto clip : timeline->m_Clips)
                     {
@@ -11422,7 +11452,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                         }
                     }
                 }
-                if (ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Selected", nullptr, nullptr))
+                if (ImGui::MenuItem(ICON_MEDIA_UNGROUP " Ungroup Selected"))
                 {
                     for (auto clip : timeline->m_Clips)
                     {
@@ -11441,7 +11471,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 if (IS_TEXT(track->mType))
                 {
                     ImGui::Separator();
-                    if (ImGui::MenuItem(ICON_MEDIA_TEXT  " Add Text", nullptr, nullptr))
+                    if (ImGui::MenuItem(ICON_MEDIA_TEXT  " Add Text"))
                     {
                         if (track->mMttReader && menuMouseTime != -1)
                         {
@@ -12581,6 +12611,21 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         {
             trackMovingEntry = -1;
         }
+    }
+
+    // handle popup dialog
+    if (bOpenCreateBgtaskDialog)
+        ImGui::OpenPopup(s_strBgtaskCreateDlgLabel.c_str(), ImGuiPopupFlags_AnyPopup);
+    if (ImGui::BeginPopupModal(s_strBgtaskCreateDlgLabel.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+    {
+        auto pClip = timeline->FindClipByID(s_i64BgtaskSrcClipId);
+        ImGui::TextColored(ImColor(IM_COL32_WHITE), "Clip ID: ");
+        ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "0x%08lx", s_i64BgtaskSrcClipId);
+        if (ImGui::Button("   OK   "))
+        {} ImGui::SameLine(0, 10);
+        if (ImGui::Button(" Cancel "))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
     }
 
     // for debug

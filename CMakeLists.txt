@@ -283,6 +283,11 @@ target_link_libraries(
 )
 endif(APPLE)
 
+option(DEV_BACKGROUND_TASK "Developping background task feature" OFF)
+if(DEV_BACKGROUND_TASK)
+target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE ENABLE_BACKGROUND_TASK)
+endif()
+
 if(BUILD_TEST)
 # MediaPlayer Test
 add_executable(

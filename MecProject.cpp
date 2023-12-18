@@ -129,6 +129,19 @@ Project::ErrorCode Project::Close(bool bSaveBeforeClose)
     return OK;
 }
 
+// vector<BackgroundTask::Holder> Project::GetBackgroundTasks()
+// {
+//     lock_guard<recursive_mutex> _lk(m_mtxApiLock);
+//     if (!m_bOpened)
+//         return {};
+//     vector<BackgroundTask::Holder> result(m_aBgtasks.size());
+//     auto itSrc = m_aBgtasks.begin();
+//     auto itDst = result.begin();
+//     while (itSrc != m_aBgtasks.end())
+//         *itDst++ = *itSrc++;
+//     return std::move(result);
+// }
+
 uint8_t Project::VER_MAJOR = 1;
 uint8_t Project::VER_MINOR = 0;
 

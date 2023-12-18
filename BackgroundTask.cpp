@@ -7,7 +7,7 @@ using namespace std;
 
 namespace MEC
 {
-BackgroundTask::Holder CreateBgtaskInstanceFrameIntepolation(const json::value& jnTask);
+BackgroundTask::Holder CreateBgtaskVidstab(const json::value& jnTask);
 
 BackgroundTask::Holder BackgroundTask::CreateBackgroundTask(const json::value& jnTask)
 {
@@ -17,8 +17,8 @@ BackgroundTask::Holder BackgroundTask::CreateBackgroundTask(const json::value& j
         return nullptr;
     }
     const string strTaskType = jnTask["type"].get<json::string>();
-    if (strTaskType == "FrameInterpolation")
-        return CreateBgtaskInstanceFrameIntepolation(jnTask);
+    if (strTaskType == "Vidstab")
+        return CreateBgtaskVidstab(jnTask);
     else
     {
         Log(Error) << "FAILED to create 'BackgroundTask'! Unsupported task type '" << strTaskType << "'." << endl;

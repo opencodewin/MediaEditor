@@ -32,6 +32,7 @@
 #include <Vector_vulkan.h>
 #endif
 #include <FileSystemUtils.h>
+#include <ThreadUtils.h>
 #include "MecProject.h"
 #include "MediaTimeline.h"
 #include "EventStackFilter.h"
@@ -256,7 +257,9 @@ static const std::vector<std::string> MediaBankTabTooltips = {
 static const std::vector<std::string> MainWindowTabNames = {
     ICON_MEDIA_PREVIEW " Preview",
     ICON_AUDIO_MIXING " Mixing",
+#ifdef ENABLE_BACKGROUND_TASK
     ICON_NODE " Tasks",
+#endif
 };
 
 static const std::vector<std::string> MainWindowTabTooltips = 
@@ -270,6 +273,7 @@ enum MainPage : int
 {
     MAIN_PAGE_PREVIEW = 0,
     MAIN_PAGE_MIXING,
+    MAIN_PAGE_BGTASK,
     MAIN_PAGE_CLIP_EDITOR,
 };
 
@@ -560,6 +564,7 @@ struct MediaEditorSettings
 };
 
 static MEC::Project::Holder g_hProject;
+static SysUtils::ThreadPoolExecutor::Holder g_hBgtaskExctor;
 static std::string ini_file = "Media_Editor.ini";
 static std::string icon_file;
 static std::vector<std::string> import_url;    // import file url from system drag
@@ -8207,6 +8212,23 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     if (!g_project_loading) project_changed |= changed;
 }
 
+static void ShowBgtaskTab(ImDrawList *draw_list, ImRect title_rect)
+{
+    if (!g_hProject->IsOpened())
+        return;
+    const auto& aBgtasks = g_hProject->GetBackgroundTaskList();
+    ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_GRAY), "Background Task Count: ");
+    const auto szBgtaskCnt = aBgtasks.size();
+    ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGREEN), "%lu", szBgtaskCnt);
+    ImGui::Dummy({0, 6});
+    ImGui::BeginChild("##BgTaskList", ImVec2(0, 0), ImGuiChildFlags_Border);
+    for (const auto& hTask : aBgtasks)
+    {
+        hTask->DrawContent();
+    }
+    ImGui::EndChild();
+}
+
 static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_size)
 {
     if (!clip || !clip->mClipHolder)
@@ -10652,7 +10674,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool spread
     }
 
     ImGui::SetCursorScreenPos(window_pos + ImVec2(window_size.x - 32, 0));
-    if (ImGui::Button(ICON_EXPANMD "##scope_expand"))
+    if (ImGui::Button(ICON_EXPAND "##scope_expand"))
     {
         g_media_editor_settings.SeparateScope = true;
         need_update_scope = true;
@@ -11247,6 +11269,7 @@ static void MediaEditor_Initialize(void** handle)
             fontFamilies.push_back(item);
     }
 
+    g_hBgtaskExctor = SysUtils::ThreadPoolExecutor::CreateInstance("MecBgtaskExctor");
     g_hProject = MEC::Project::CreateInstance();
 #if IMGUI_VULKAN_SHADER
     int gpu = ImGui::get_default_gpu_index();
@@ -11280,10 +11303,12 @@ static void MediaEditor_Finalize(void** handle)
 
     g_media_editor_settings.project_path = g_hProject->IsOpened() ? g_hProject->GetProjectFilePath() : "";
     g_hProject = nullptr;
+    g_hBgtaskExctor = nullptr;
 
     ImPlot::DestroyContext();
     MediaCore::ReleaseSubtitleLibrary();
     RenderUtils::TextureManager::ReleaseDefaultInstance();
+    SysUtils::ThreadPoolExecutor::ReleaseDefaultInstance();
 }
 
 /****************************************************************************************
@@ -11851,6 +11876,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 {
                     case MAIN_PAGE_PREVIEW: ShowMediaPreviewWindow(draw_list, "Preview", 3.f, video_rect); break;
                     case MAIN_PAGE_MIXING: ShowAudioMixingWindow(draw_list, title_rect); break;
+                    case MAIN_PAGE_BGTASK: ShowBgtaskTab(draw_list, title_rect); break;
                     case MAIN_PAGE_CLIP_EDITOR : ShowEditingItemWindow(draw_list, title_rect); break;
                     default: break;
                 }

@@ -3,8 +3,11 @@
 #include <string>
 #include <memory>
 #include <mutex>
+#include <list>
+#include <vector>
 #include <imgui_json.h>
 #include <Logger.h>
+#include "BackgroundTask.h"
 
 namespace MEC
 {
@@ -43,6 +46,7 @@ public:
     bool IsOpened() const { return m_bOpened; }
     void SetContentJson(const imgui_json::value& jnProjContent) { m_jnProjContent = jnProjContent; }
     const imgui_json::value& GetProjectContentJson() const { return m_jnProjContent; }
+    const std::list<BackgroundTask::Holder> GetBackgroundTaskList() const { return m_aBgtasks; }
 
     void SetLogLevel(Logger::Level l) { m_pLogger->SetShowLevels(l); }
 
@@ -58,5 +62,6 @@ private:
     uint32_t m_projVer{0};
     imgui_json::value m_jnProjContent;
     std::recursive_mutex m_mtxApiLock;
+    std::list<BackgroundTask::Holder> m_aBgtasks;
 };
 }
