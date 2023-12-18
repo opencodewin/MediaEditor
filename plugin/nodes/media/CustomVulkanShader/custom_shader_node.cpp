@@ -317,9 +317,10 @@ struct CustomShaderNode final : Node
     void DrawShaderEditor()
     {        
         auto cpos = m_editor.GetCursorPosition();
-        auto window_size = ImGui::GetWindowSize();
-        float height = fmax(window_size.y - ImGui::GetCursorPosY() - 80.f - 48.f, 400.f);
-        ImGui::BeginChild("Vulkan Shader Editor", ImVec2(window_size.x - 16, height), false);
+        auto window_width = ImGui::GetContentRegionAvail().x;
+        auto window_height = ImGui::GetWindowSize().y;
+        float height = fmax(window_height - ImGui::GetCursorPosY() - 80.f - 48.f, 400.f);
+        ImGui::BeginChild("Vulkan Shader Editor", ImVec2(window_width, height), false);
         ImGui::Text("%6d/%-6d %6d lines  | %s | %s | %s | ", cpos.mLine + 1, cpos.mColumn + 1, m_editor.GetTotalLines(),
                     m_editor.IsOverwrite() ? "Ovr" : "Ins",
                     m_editor.CanUndo() ? "*" : " ",
@@ -477,6 +478,7 @@ struct CustomShaderNode final : Node
                 param.name = value;
                 param.name_valid = iter == m_params.end();
                 update_program();
+                m_compile_log.clear();
                 m_compile_succeed = false;
             }
         }
@@ -521,6 +523,7 @@ struct CustomShaderNode final : Node
             Node_Param param;
             m_params.push_back(param);
             update_program();
+            m_compile_log.clear();
             m_compile_succeed = false;
         }
 
@@ -534,6 +537,7 @@ struct CustomShaderNode final : Node
             {
                 iter = m_params.erase(iter);
                 update_program();
+                m_compile_log.clear();
                 m_compile_succeed = false;
             }
             else
@@ -542,7 +546,7 @@ struct CustomShaderNode final : Node
             count++;
         }
         ImGui::Separator();
-        // Custom Node Setting
+        // Draw editor and compile Log
         DrawShaderEditor();
         ImGui::Separator();
         DrawCompileLog();

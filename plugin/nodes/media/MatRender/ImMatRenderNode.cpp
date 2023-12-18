@@ -308,17 +308,19 @@ struct MatRenderNode final : Node
                         ImVec2(1.0f, 1.0f));
             if (ImGui::IsItemHovered())
             {
+                ImVec2 scale_range = ImVec2(2.0 , 8.0);
+                float zoom_size = 384;
                 float scale_w =  (float)m_image_width / (float)m_preview_width;
                 float scale_h =  (float)m_image_height / (float)m_preview_height;
                 ImVec2 pos = ImGui::GetCursorScreenPos();
                 ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
                 ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
-                float region_sz = 128.0f;
+                static float texture_zoom = scale_range.x;
+                float region_sz = zoom_size / texture_zoom;
                 float pos_x = (io.MousePos.x - pos.x) * scale_w;
                 float pos_y = (io.MousePos.y - pos.y + m_preview_height) * scale_h;
                 float region_x = pos_x - region_sz * 0.5f;
                 float region_y = pos_y - region_sz * 0.5f;
-                float texture_zoom = 2.0f;
                 if (region_x < 0.0f) { region_x = 0.0f; }
                 else if (region_x > m_image_width - region_sz) { region_x = m_image_width - region_sz; }
                 if (region_y < 0.0f) { region_y = 0.0f; }
@@ -328,9 +330,9 @@ struct MatRenderNode final : Node
                 {
                     ImGui::SameLine();
                     std::string child_title = "##Texture" + std::to_string((intptr_t)m_textureID);
-                    ImGui::BeginChild(child_title.c_str(), ImVec2(272, 320));
+                    ImGui::BeginChild(child_title.c_str(), ImVec2(0, 0), ImGuiChildFlags_AlwaysAutoResize | ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY);
                     {
-                        ImGui::TextUnformatted(m_Name.c_str());
+                        ImGui::Text("%s(zoom:%.2fx)", m_Name.c_str(), texture_zoom);
                         ImGui::Text(" Pos:(%d, %d)", (int)pos_x, (int)pos_y);
                         ImGui::Text("Rect:(%d, %d, %d, %d)", (int)region_x, (int)region_y, (int)(region_x + region_sz), (int)(region_y + region_sz));
                         ImVec2 uv0 = ImVec2((region_x) / m_image_width, (region_y) / m_image_height);
@@ -339,6 +341,16 @@ struct MatRenderNode final : Node
                     }
                     ImGui::EndChild();
                     ImGui::EndTooltip();
+                    if (io.MouseWheel < -FLT_EPSILON)
+                    {
+                        texture_zoom *= 0.9;
+                        if (texture_zoom < scale_range.x) texture_zoom = scale_range.x;
+                    }
+                    else if (io.MouseWheel > FLT_EPSILON)
+                    {
+                        texture_zoom *= 1.1;
+                        if (texture_zoom > scale_range.y) texture_zoom = scale_range.y;
+                    }
                 }
                 ed::Resume();
             }
