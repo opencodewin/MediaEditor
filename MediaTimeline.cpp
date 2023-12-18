@@ -12620,7 +12620,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     {
         auto pClip = timeline->FindClipByID(s_i64BgtaskSrcClipId);
         ImGui::TextColored(ImColor(IM_COL32_WHITE), "Clip ID: ");
-        ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "0x%08lx", s_i64BgtaskSrcClipId);
+        ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "0x%" IM_PRId64, s_i64BgtaskSrcClipId);
         if (ImGui::Button("   OK   "))
         {} ImGui::SameLine(0, 10);
         if (ImGui::Button(" Cancel "))
