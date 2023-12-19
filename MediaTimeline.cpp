@@ -10568,7 +10568,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                     jnTask["work_dir"] = timeline->mhProject->GetProjectDir();
                     jnTask["source_url"] = hParser->GetUrl();
                     jnTask["is_image_seq"] = IS_IMAGESEQ(pClip->mType);
-                    jnTask["clip_id"] = pClip->mID;
+                    jnTask["clip_id"] = imgui_json::number(pClip->mID);
                     jnTask["clip_start_offset"] = imgui_json::number(pClip->StartOffset());
                     jnTask["clip_length"] = imgui_json::number(pClip->Length());
                     auto hSettings = timeline->mhMediaSettings->Clone();

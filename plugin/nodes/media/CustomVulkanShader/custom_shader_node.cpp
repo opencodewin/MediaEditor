@@ -320,6 +320,9 @@ struct CustomShaderNode final : Node
         auto window_width = ImGui::GetContentRegionAvail().x;
         auto window_height = ImGui::GetWindowSize().y;
         float height = fmax(window_height - ImGui::GetCursorPosY() - 80.f - 48.f, 400.f);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2, 0.2, 0.2, 1.0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5, 0.5, 0.5, 1.0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.75, 0.75, 0.75, 1.0));
         ImGui::BeginChild("Vulkan Shader Editor", ImVec2(window_width, height), false);
         ImGui::Text("%6d/%-6d %6d lines  | %s | %s | %s | ", cpos.mLine + 1, cpos.mColumn + 1, m_editor.GetTotalLines(),
                     m_editor.IsOverwrite() ? "Ovr" : "Ins",
@@ -429,6 +432,7 @@ struct CustomShaderNode final : Node
             m_editor.SetErrorMarkers(markers);
             m_compile_succeed = false;
         }
+        ImGui::PopStyleColor(3);
 
         m_editor.Render("VulkanShader");
         ImGui::EndChild();
@@ -513,9 +517,9 @@ struct CustomShaderNode final : Node
                 if (m_filter) { delete m_filter; m_filter = nullptr; }
             }
         }
-        ImGui::SliderFloat("X Scale", &m_out_scale.x, 0.1, 4.0, "%.2f", ImGuiSliderFlags_NoInput);
+        ImGui::SliderFloat("X Scale", &m_out_scale.x, 0.1, 4.0, "%.2f");
         ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_x##CustomShader")) { m_out_scale.x = 1.0; }
-        ImGui::SliderFloat("Y Scale", &m_out_scale.y, 0.1, 4.0, "%.2f", ImGuiSliderFlags_NoInput);
+        ImGui::SliderFloat("Y Scale", &m_out_scale.y, 0.1, 4.0, "%.2f");
         ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_y##CustomShader")) { m_out_scale.y = 1.0; }
         ImGui::Separator();
         if (ImGui::Button( ICON_FK_PLUS " Add param"))
@@ -549,6 +553,7 @@ struct CustomShaderNode final : Node
         // Draw editor and compile Log
         DrawShaderEditor();
         ImGui::Separator();
+        ImGui::TextUnformatted("Logs:");
         DrawCompileLog();
     }
 
@@ -564,7 +569,7 @@ struct CustomShaderNode final : Node
         else
         {
             int id = 0;
-            static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+            static ImGuiSliderFlags flags = ImGuiSliderFlags_None;
             ImGui::BeginDisabled(!m_Enabled);
             for (auto& param : m_params)
             {
