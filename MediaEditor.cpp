@@ -1646,6 +1646,7 @@ static void NewTimeline()
     if (timeline)
     {
         g_media_editor_settings.SyncSettingsFromTimeline(timeline);
+        timeline->mhProject = g_hProject;
         timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
         timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
         timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
@@ -8216,7 +8217,7 @@ static void ShowBgtaskTab(ImDrawList *draw_list, ImRect title_rect)
 {
     if (!g_hProject->IsOpened())
         return;
-    const auto& aBgtasks = g_hProject->GetBackgroundTaskList();
+    const auto aBgtasks = g_hProject->GetBackgroundTaskList();
     ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_GRAY), "Background Task Count: ");
     const auto szBgtaskCnt = aBgtasks.size();
     ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGREEN), "%lu", szBgtaskCnt);
@@ -11270,7 +11271,7 @@ static void MediaEditor_Initialize(void** handle)
     }
 
     g_hBgtaskExctor = SysUtils::ThreadPoolExecutor::CreateInstance("MecBgtaskExctor");
-    g_hProject = MEC::Project::CreateInstance();
+    g_hProject = MEC::Project::CreateInstance(g_hBgtaskExctor);
 #if IMGUI_VULKAN_SHADER
     int gpu = ImGui::get_default_gpu_index();
     m_histogram = new ImGui::Histogram_vulkan(gpu);
@@ -11301,7 +11302,6 @@ static void MediaEditor_Finalize(void** handle)
     if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
     if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
 
-    g_media_editor_settings.project_path = g_hProject->IsOpened() ? g_hProject->GetProjectFilePath() : "";
     g_hProject = nullptr;
     g_hBgtaskExctor = nullptr;
 
@@ -12125,7 +12125,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             }
             else if (userDatas.compare("ProjectSave") == 0)
             {
-                auto hNewProj = MEC::Project::CreateInstance();
+                auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
                 auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path));
                 if (err == MEC::Project::OK)
                 {
@@ -12136,7 +12136,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             }
             else if (userDatas.compare("ProjectSaveAndNew") == 0)
             {
-                auto hNewProj = MEC::Project::CreateInstance();
+                auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
                 auto err = hNewProj->CreateNew(file_name, SysUtils::ExtractDirectoryPath(file_path));
                 if (err == MEC::Project::OK)
                     SaveProject(hNewProj);
@@ -12145,7 +12145,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             }
             else if (userDatas.compare("ProjectSaveQuit") == 0)
             {
-                auto hNewProj = MEC::Project::CreateInstance();
+                auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
                 auto err = hNewProj->CreateNew(file_name, SysUtils::ExtractDirectoryPath(file_path));
                 if (err == MEC::Project::OK)
                     SaveProject(hNewProj);
@@ -12174,6 +12174,18 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     auto txmgr = RenderUtils::TextureManager::GetDefaultInstance();
     txmgr->UpdateTextureState();
     // Logger::Log(Logger::DEBUG) << txmgr.get() << std::endl;
+
+    if (app_done)
+    {
+        // before app quit, close the current project
+        g_media_editor_settings.project_path = g_hProject->IsOpened() ? g_hProject->GetProjectFilePath() : "";
+        g_hProject->Close(false);
+        if (timeline)
+        {
+            delete timeline;
+            timeline = nullptr;
+        }
+    }
     return app_done;
 }
 

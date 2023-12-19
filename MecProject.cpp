@@ -111,6 +111,14 @@ Project::ErrorCode Project::Close(bool bSaveBeforeClose)
     lock_guard<recursive_mutex> _lk(m_mtxApiLock);
     if (!m_bOpened)
         return OK;
+    list<BackgroundTask::Holder> aBgtaskList;
+    {
+        lock_guard<mutex> _lk2(m_mtxBgtaskLock);
+        aBgtaskList = m_aBgtasks;
+        m_aBgtasks.clear();
+    }
+    for (auto& hTask : aBgtaskList)
+        hTask->Cancel();
     if (bSaveBeforeClose)
     {
         const auto errcode = Save();
@@ -129,24 +137,38 @@ Project::ErrorCode Project::Close(bool bSaveBeforeClose)
     return OK;
 }
 
-// vector<BackgroundTask::Holder> Project::GetBackgroundTasks()
-// {
-//     lock_guard<recursive_mutex> _lk(m_mtxApiLock);
-//     if (!m_bOpened)
-//         return {};
-//     vector<BackgroundTask::Holder> result(m_aBgtasks.size());
-//     auto itSrc = m_aBgtasks.begin();
-//     auto itDst = result.begin();
-//     while (itSrc != m_aBgtasks.end())
-//         *itDst++ = *itSrc++;
-//     return std::move(result);
-// }
+Project::ErrorCode Project::EnqueueBackgroundTask(BackgroundTask::Holder hTask)
+{
+    lock_guard<recursive_mutex> _lk(m_mtxApiLock);
+    if (!m_bOpened)
+        return NOT_OPENED;
+    if (!m_hBgtaskExctor)
+    {
+        m_pLogger->Log(Error) << "Current MEC::Project instance has NOT been set with background task executor!" << endl;
+        return NOT_READY;
+    }
+    SysUtils::AsyncTask::Holder hAsyncTask(hTask);
+    if (!m_hBgtaskExctor->EnqueueTask(hAsyncTask))
+    {
+        m_pLogger->Log(Error) << "Enqueue background task FAILED!" << endl;
+        return FAILED;
+    }
+    lock_guard<mutex> _lk2(m_mtxBgtaskLock);
+    m_aBgtasks.push_back(hTask);
+    return OK;
+}
+
+list<BackgroundTask::Holder> Project::GetBackgroundTaskList()
+{
+    lock_guard<mutex> _lk(m_mtxBgtaskLock);
+    return list<BackgroundTask::Holder>(m_aBgtasks);
+}
 
 uint8_t Project::VER_MAJOR = 1;
 uint8_t Project::VER_MINOR = 0;
 
-Project::Holder Project::CreateInstance()
+Project::Holder Project::CreateInstance(SysUtils::ThreadPoolExecutor::Holder hBgtaskExctor)
 {
-    return Project::Holder(new Project());
+    return Project::Holder(new Project(hBgtaskExctor));
 }
 }

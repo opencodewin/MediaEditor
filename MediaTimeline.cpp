@@ -5885,6 +5885,7 @@ TimeLine::TimeLine(std::string plugin_path)
         Logger::Log(Logger::WARN) << "FAILED to create grid texture pool '" << EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
 
     mhMediaSettings = MediaCore::SharedSettings::CreateInstance();
+    mhMediaSettings->SetHwaccelManager(MediaCore::HwaccelManager::GetDefaultInstance());
     // set default video settings
     mhMediaSettings->SetVideoOutWidth(1920);
     mhMediaSettings->SetVideoOutHeight(1080);
@@ -10421,6 +10422,14 @@ bool TimeLine::isURLInTimeline(std::string url)
 
 namespace MediaTimeline
 {
+struct BgtaskMenuItem
+{
+    std::string label;
+    std::string taskType;
+    std::function<bool(Clip*)> checkUsable;
+    std::function<MEC::BackgroundTask::Holder(Clip*,bool&)> drawCreateTaskDialog;
+};
+
 /***********************************************************************************************************
  * Draw Main Timeline
  ***********************************************************************************************************/
@@ -10527,8 +10536,50 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     static int markMovingEntry = -1;
     static int64_t markMovingShift = 0;
 
-    static const std::vector<std::pair<std::string, std::string>> s_aBgtaskNames = {
-        { "Video Stabilization", "Vidstab" },
+    static const std::vector<BgtaskMenuItem> s_aBgtaskMenuItems = {
+        {
+            "Video Stabilization", "Vidstab",
+            [timeline] (Clip* pClip) {
+                if (!(timeline && timeline->IsProjectDirReady()))
+                    return false;
+                const auto clipType = pClip->mType;
+                return IS_VIDEO(clipType)&&!IS_IMAGE(clipType);
+            },
+            [timeline] (Clip* pClip, bool& bCloseDlg) {
+                auto hParser = pClip->mMediaParser;
+                ImGui::TextColored(ImColor(IM_COL32_WHITE), "Source File: ");
+                ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "%s", SysUtils::ExtractFileName(hParser->GetUrl()).c_str());
+                ImGui::ShowTooltipOnHover("Path: '%s'", hParser->GetUrl().c_str());
+                ImGui::TextColored(ImColor(IM_COL32_WHITE), "Start Offset: ");
+                ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "%s", ImGuiHelper::MillisecToString(pClip->StartOffset()).c_str());
+                ImGui::TextColored(ImColor(IM_COL32_WHITE), "End Offset: ");
+                ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "%s", ImGuiHelper::MillisecToString(pClip->EndOffset()).c_str());
+                ImGui::TextColored(ImColor(IM_COL32_WHITE), "Duration: ");
+                ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "%s", ImGuiHelper::MillisecToString(pClip->Length()).c_str());
+                ImGui::TextColored(ImColor(IM_COL32_WHITE), "Work Dir: ");
+                ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "%s", timeline->mhProject->GetProjectDir().c_str());
+
+                bCloseDlg = false;
+                MEC::BackgroundTask::Holder hTask;
+                if (ImGui::Button("   OK   "))
+                {
+                    imgui_json::value jnTask;
+                    jnTask["type"] = "Vidstab";
+                    jnTask["work_dir"] = timeline->mhProject->GetProjectDir();
+                    jnTask["source_url"] = hParser->GetUrl();
+                    jnTask["is_image_seq"] = IS_IMAGESEQ(pClip->mType);
+                    jnTask["clip_id"] = pClip->mID;
+                    jnTask["clip_start_offset"] = imgui_json::number(pClip->StartOffset());
+                    jnTask["clip_length"] = imgui_json::number(pClip->Length());
+                    auto hSettings = timeline->mhMediaSettings->Clone();
+                    hTask = MEC::BackgroundTask::CreateBackgroundTask(jnTask, hSettings);
+                    bCloseDlg = true;
+                } ImGui::SameLine(0, 10);
+                if (ImGui::Button(" Cancel "))
+                    bCloseDlg = true;
+                return hTask;
+            },
+        },
     };
     static size_t s_szBgtaskSelIdx;
     static string s_strBgtaskCreateDlgLabel;
@@ -11398,19 +11449,21 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
 #ifdef ENABLE_BACKGROUND_TASK
                 if (ImGui::BeginMenu(ICON_NODE " Background Task"))
                 {
-                    const auto szSubItemCnt = s_aBgtaskNames.size();
+                    const auto szSubItemCnt = s_aBgtaskMenuItems.size();
                     for (auto i = 0; i < szSubItemCnt; i++)
                     {
-                        const auto& strTaskName = s_aBgtaskNames[i].first;
-                        if (ImGui::MenuItem(strTaskName.c_str()))
+                        const auto& menuItem = s_aBgtaskMenuItems[i];
+                        bool bDisableMenuItem = !menuItem.checkUsable(clip);
+                        ImGui::BeginDisabled(bDisableMenuItem);
+                        if (ImGui::MenuItem(menuItem.label.c_str()))
                         {
                             bOpenCreateBgtaskDialog = true;
                             s_szBgtaskSelIdx = i;
-                            std::ostringstream oss; oss << "Create " << strTaskName << " Task";
+                            std::ostringstream oss; oss << "Create " << menuItem.label << " Task";
                             s_strBgtaskCreateDlgLabel = oss.str();
                             s_i64BgtaskSrcClipId = clipMenuEntry;
-                            break;
                         }
+                        ImGui::EndDisabled();
                     }
                     ImGui::EndMenu();
                 }
@@ -12618,12 +12671,13 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         ImGui::OpenPopup(s_strBgtaskCreateDlgLabel.c_str(), ImGuiPopupFlags_AnyPopup);
     if (ImGui::BeginPopupModal(s_strBgtaskCreateDlgLabel.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
     {
+        const auto& bgtaskSubMenuItem = s_aBgtaskMenuItems[s_szBgtaskSelIdx];
         auto pClip = timeline->FindClipByID(s_i64BgtaskSrcClipId);
-        ImGui::TextColored(ImColor(IM_COL32_WHITE), "Clip ID: ");
-        ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "0x%08lx", s_i64BgtaskSrcClipId);
-        if (ImGui::Button("   OK   "))
-        {} ImGui::SameLine(0, 10);
-        if (ImGui::Button(" Cancel "))
+        bool bCloseDlg;
+        auto hTask = bgtaskSubMenuItem.drawCreateTaskDialog(pClip, bCloseDlg);
+        if (hTask)
+            timeline->mhProject->EnqueueBackgroundTask(hTask);
+        if (bCloseDlg)
             ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }

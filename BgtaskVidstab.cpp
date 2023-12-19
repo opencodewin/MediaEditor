@@ -43,7 +43,7 @@ public:
         m_pBufsinkCtx = nullptr;
     }
 
-    bool Initialize(const json::value& jnTask)
+    bool Initialize(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings)
     {
         string strAttrName;
         // read 'work_dir'
@@ -72,9 +72,9 @@ public:
             return false;
         }
         m_strSrcUrl = jnTask[strAttrName].get<json::string>();
-        if (!SysUtils::IsFile(strAttrValue))
+        if (!SysUtils::IsFile(m_strSrcUrl))
         {
-            ostringstream oss; oss << "INVALID task json attribute '" << strAttrName << "'! '" << strAttrValue << "' is NOT a FILE.";
+            ostringstream oss; oss << "INVALID task json attribute '" << strAttrName << "'! '" << m_strSrcUrl << "' is NOT a FILE.";
             m_errMsg = oss.str();
             return false;
         }
@@ -204,107 +204,6 @@ public:
             m_errMsg = oss.str();
             return false;
         }
-        // setup SharedSettings
-        auto hSettings = MediaCore::SharedSettings::CreateInstance();
-        // read 'out_width'
-        strAttrName = "out_width";
-        if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_number())
-        {
-            ostringstream oss; oss << "Task json must has a '" << strAttrName << "' attribute of 'number' type!";
-            m_errMsg = oss.str();
-            return false;
-        }
-        const int32_t i32OutW = jnTask[strAttrName].get<json::number>();
-        if (i32OutW < 0)
-        {
-            ostringstream oss; oss << "INVALID task json attribute '" << strAttrName << "'! '" << i32OutW << "' is NOT a valid value.";
-            m_errMsg = oss.str();
-            return false;
-        }
-        hSettings->SetVideoOutWidth(i32OutW == 0 ? m_pVidstm->width : i32OutW);
-        // read 'out_height'
-        strAttrName = "out_height";
-        if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_number())
-        {
-            ostringstream oss; oss << "Task json must has a '" << strAttrName << "' attribute of 'number' type!";
-            m_errMsg = oss.str();
-            return false;
-        }
-        const int32_t i32OutH = jnTask[strAttrName].get<json::number>();
-        if (i32OutH < 0)
-        {
-            ostringstream oss; oss << "INVALID task json attribute '" << strAttrName << "'! '" << i32OutH << "' is NOT a valid value.";
-            m_errMsg = oss.str();
-            return false;
-        }
-        hSettings->SetVideoOutHeight(i32OutH == 0 ? m_pVidstm->height : i32OutH);
-        // read 'out_clrfmt'
-        strAttrName = "out_clrfmt";
-        if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_number())
-        {
-            ostringstream oss; oss << "Task json must has a '" << strAttrName << "' attribute of 'number' type!";
-            m_errMsg = oss.str();
-            return false;
-        }
-        const int32_t i32OutClrfmt = jnTask[strAttrName].get<json::number>();
-        if (i32OutClrfmt < IM_CF_GRAY || i32OutClrfmt > IM_CF_P010LE)
-        {
-            ostringstream oss; oss << "INVALID task json attribute '" << strAttrName << "'! '" << i32OutClrfmt << "' is NOT a valid value.";
-            m_errMsg = oss.str();
-            return false;
-        }
-        hSettings->SetVideoOutColorFormat((ImColorFormat)i32OutClrfmt);
-        // read 'out_dtype'
-        strAttrName = "out_dtype";
-        if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_number())
-        {
-            ostringstream oss; oss << "Task json must has a '" << strAttrName << "' attribute of 'number' type!";
-            m_errMsg = oss.str();
-            return false;
-        }
-        const int32_t i32OutDtype = jnTask[strAttrName].get<json::number>();
-        if (i32OutDtype < IM_DT_UNDEFINED || i32OutDtype >= IM_DT_NB_DATA_TYPE)
-        {
-            ostringstream oss; oss << "INVALID task json attribute '" << strAttrName << "'! '" << i32OutDtype << "' is NOT a valid value.";
-            m_errMsg = oss.str();
-            return false;
-        }
-        hSettings->SetVideoOutDataType((ImDataType)i32OutDtype);
-        // read 'out_framerate_num'
-        strAttrName = "out_framerate_num";
-        if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_number())
-        {
-            ostringstream oss; oss << "Task json must has a '" << strAttrName << "' attribute of 'number' type!";
-            m_errMsg = oss.str();
-            return false;
-        }
-        const int32_t i32OutFrameRateNum = jnTask[strAttrName].get<json::number>();
-        if (i32OutFrameRateNum < 0)
-        {
-            ostringstream oss; oss << "INVALID task json attribute '" << strAttrName << "'! '" << i32OutFrameRateNum << "' is NOT a valid value.";
-            m_errMsg = oss.str();
-            return false;
-        }
-        strAttrName = "out_framerate_den";
-        if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_number())
-        {
-            ostringstream oss; oss << "Task json must has a '" << strAttrName << "' attribute of 'number' type!";
-            m_errMsg = oss.str();
-            return false;
-        }
-        const int32_t i32OutFrameRateDen = jnTask[strAttrName].get<json::number>();
-        if (i32OutFrameRateDen < 0)
-        {
-            ostringstream oss; oss << "INVALID task json attribute '" << strAttrName << "'! '" << i32OutFrameRateDen << "' is NOT a valid value.";
-            m_errMsg = oss.str();
-            return false;
-        }
-        MediaCore::Ratio tFrameRate;
-        if (i32OutFrameRateNum == 0 || i32OutFrameRateDen == 0)
-            tFrameRate = m_pVidstm->realFrameRate;
-        else
-            tFrameRate = MediaCore::Ratio(i32OutFrameRateNum, i32OutFrameRateDen);
-        hSettings->SetVideoOutFrameRate(tFrameRate);
         m_hSettings = hSettings;
         // create VideoClip instance
         strAttrName = "clip_start_offset";
@@ -353,6 +252,7 @@ public:
 
     void operator() () override
     {
+        m_pLogger->Log(INFO) << "Start background task 'Vidstab' for '" << m_strSrcUrl << "'." << endl;
         if (!m_bInited)
         {
             ostringstream oss; oss << "Background task 'Vidstab' with name '" << m_name << "' is NOT initialized!";
@@ -366,13 +266,6 @@ public:
         const auto tFrameRate = m_hSettings->VideoOutFrameRate();
         if (!m_bVidstabDetectFinished)
         {
-            if (!SetupVidstabDetectFilterGraph())
-            {
-                m_pLogger->Log(Error) << "'SetupVidstabDetectFilterGraph()' FAILED!" << endl;
-                m_bFailed = true; SetState(DONE);
-                return;
-            }
-
             int64_t i64FrmIdx = 0;
             const int64_t i64ClipDur = m_hVclip->Duration();
             SelfFreeAVFramePtr hFgOutfrmPtr = AllocSelfFreeAVFramePtr();
@@ -380,25 +273,47 @@ public:
             m_fProgress = 0.f;
             while (!IsCancelled())
             {
-                const int64_t i64ReadPos = round((double)i64FrmIdx*1000*tFrameRate.den/tFrameRate.num);
-                vector<MediaCore::CorrelativeFrame> aFrames;
-                ImGui::ImMat mOut;
-                bool bEof = false;
-                m_hVclip->ReadVideoFrame(i64ReadPos, aFrames, mOut, bEof);
-                ImMatWrapper_AVFrame tAvfrmWrapper(mOut, true);
                 int fferr;
-                if (!mOut.empty())
+                SelfFreeAVFramePtr hFgInfrmPtr;
+                const int64_t i64ReadPos = round((double)i64FrmIdx*1000*tFrameRate.den/tFrameRate.num);
+                bool bEof = false;
+                auto hVfrm = m_hVclip->ReadSourceFrame(i64ReadPos, bEof, true);
+                ImMatWrapper_AVFrame tAvfrmWrapper;
+                if (hVfrm)
                 {
-                    SelfFreeAVFramePtr hFgInfrmPtr;
-                    if (mOut.device != IM_DD_CPU)
+                    auto tNativeData = hVfrm->GetNativeData();
+                    if (tNativeData.eType == MediaCore::MediaReader::VideoFrame::NativeData::AVFRAME)
+                        hFgInfrmPtr = CloneSelfFreeAVFramePtr((AVFrame*)tNativeData.pData);
+                    else if (tNativeData.eType == MediaCore::MediaReader::VideoFrame::NativeData::AVFRAME_HOLDER)
+                        hFgInfrmPtr = *((SelfFreeAVFramePtr*)tNativeData.pData);
+                    else if (tNativeData.eType == MediaCore::MediaReader::VideoFrame::NativeData::MAT)
                     {
-                        hFgInfrmPtr = AllocSelfFreeAVFramePtr();
-                        tMat2AvfrmCvter.ConvertImage(mOut, hFgInfrmPtr.get(), i64FrmIdx);
+                        const auto& vmat = *((ImGui::ImMat*)tNativeData.pData);
+                        if (vmat.device != IM_DD_CPU)
+                        {
+                            hFgInfrmPtr = AllocSelfFreeAVFramePtr();
+                            tMat2AvfrmCvter.ConvertImage(vmat, hFgInfrmPtr.get(), i64FrmIdx);
+                        }
+                        else
+                        {
+                            tAvfrmWrapper.SetMat(vmat);
+                            hFgInfrmPtr = tAvfrmWrapper.GetWrapper(i64FrmIdx);
+                        }
                     }
-                    else
+                }
+                if (hFgInfrmPtr)
+                {
+                    if (m_bFirstRun)
                     {
-                        hFgInfrmPtr = tAvfrmWrapper.GetWrapper(i64FrmIdx);
+                        if (!SetupVidstabDetectFilterGraph(hFgInfrmPtr.get()))
+                        {
+                            m_pLogger->Log(Error) << "'SetupVidstabDetectFilterGraph()' FAILED!" << endl;
+                            m_bFailed = true; SetState(DONE);
+                            return;
+                        }
+                        m_bFirstRun = false;
                     }
+
                     fferr = av_buffersrc_add_frame(m_pBufsrcCtx, hFgInfrmPtr.get());
                     if (fferr < 0)
                     {
@@ -429,6 +344,7 @@ public:
                     break;
             }
         }
+        m_pLogger->Log(INFO) << "Quit background task 'Vidstab' for '" << m_strSrcUrl << "'." << endl;
     }
 
     string GetError() const override
@@ -442,7 +358,7 @@ public:
     }
 
 private:
-    bool SetupVidstabDetectFilterGraph()
+    bool SetupVidstabDetectFilterGraph(const AVFrame* pInAvfrm)
     {
         const AVFilter *buffersink = avfilter_get_by_name("buffersink");
         const AVFilter *buffersrc  = avfilter_get_by_name("buffer");
@@ -456,11 +372,12 @@ private:
 
         int fferr;
         ostringstream oss;
-        m_eFgInputPixfmt = ConvertColorFormatToPixelFormat(m_hSettings->VideoOutColorFormat(), m_hSettings->VideoOutDataType());
+        // m_eFgInputPixfmt = ConvertColorFormatToPixelFormat(m_hSettings->VideoOutColorFormat(), m_hSettings->VideoOutDataType());
+        m_eFgInputPixfmt = (AVPixelFormat)pInAvfrm->format;
         const auto tFrameRate = m_hSettings->VideoOutFrameRate();
-        oss << m_hSettings->VideoOutWidth() << ":" << m_hSettings->VideoOutHeight() << ":pix_fmt=" << (int)m_eFgInputPixfmt << ":sar=1"
+        oss << pInAvfrm->width << ":" << pInAvfrm->height << ":pix_fmt=" << (int)m_eFgInputPixfmt << ":sar=1"
                 << ":time_base=" << tFrameRate.den << "/" << tFrameRate.num << ":frame_rate=" << tFrameRate.num << "/" << tFrameRate.den;
-        string bufsrcArg = oss.str(); oss.str("");
+        string bufsrcArg = oss.str();
         m_pBufsrcCtx = nullptr;
         fferr = avfilter_graph_create_filter(&m_pBufsrcCtx, buffersrc, "buffer_source", bufsrcArg.c_str(), nullptr, m_pFilterGraph);
         if (fferr < 0)
@@ -501,7 +418,19 @@ private:
         filtInOutPtr->next        = nullptr;
         m_filterInputs = filtInOutPtr;
 
-        oss << "vidstabdetect=result=" << m_strTrfPath << ":shakiness=" << m_u8Shakiness << ":accuracy=" << m_u8Accuracy << ":setpsize=" << m_u16StepSize
+        const int iOutW = (int)m_hSettings->VideoOutWidth();
+        const int iOutH = (int)m_hSettings->VideoOutHeight();
+        oss.str("");
+        if (pInAvfrm->width != iOutW || pInAvfrm->height != iOutH)
+        {
+            string strInterpAlgo = iOutW*iOutH >= pInAvfrm->width*pInAvfrm->height ? "bicubic" : "area";
+            oss << "scale=w=" << iOutW << ":h=" << iOutH << ":flags=" << strInterpAlgo << ",";
+        }
+        if ((AVPixelFormat)pInAvfrm->format != AV_PIX_FMT_YUV420P)
+        {
+            oss << "format=yuv420p,";
+        }
+        oss << "vidstabdetect=result=" << m_strTrfPath << ":shakiness=" << (int)m_u8Shakiness << ":accuracy=" << (int)m_u8Accuracy << ":stepsize=" << (int)m_u16StepSize
                 << ":mincontrast=" << m_fMinContrast;
         string filterArgs = oss.str();
         fferr = avfilter_graph_parse_ptr(m_pFilterGraph, filterArgs.c_str(), &m_filterInputs, &m_filterOutputs, nullptr);
@@ -547,6 +476,7 @@ private:
     MediaCore::SharedSettings::Holder m_hSettings;
     bool m_bIsImageSeq{false};
     bool m_bUseSrcAttr;
+    bool m_bFirstRun{true};
     uint8_t m_u8Shakiness{5};       // 1-10, a value of 1 means little shakiness, a value of 10 means strong shakiness.
     uint8_t m_u8Accuracy{15};       // 1-15. A value of 1 means low accuracy, a value of 15 means high accuracy.
     uint16_t m_u16StepSize{6};      // The region around minimum is scanned with 1 pixel resolution.
@@ -562,7 +492,7 @@ static const auto _BGTASK_VIDSTAB_DELETER = [] (BackgroundTask* p) {
     delete ptr;
 };
 
-BackgroundTask::Holder CreateBgtaskVidstab(const json::value& jnTask)
+BackgroundTask::Holder CreateBgtask_Vidstab(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings)
 {
     string strTaskName;
     if (jnTask.contains("name"))
@@ -573,7 +503,7 @@ BackgroundTask::Holder CreateBgtaskVidstab(const json::value& jnTask)
         strTaskName = oss.str();
     }
     auto p = new BgtaskVidstab(strTaskName);
-    if (!p->Initialize(jnTask))
+    if (!p->Initialize(jnTask, hSettings))
     {
         Log(Error) << "FAILED to create new 'Vidstab' background task! Error is '" << p->GetError() << "'." << endl;
         delete p; 

@@ -6,6 +6,7 @@
 #include <list>
 #include <vector>
 #include <imgui_json.h>
+#include <ThreadUtils.h>
 #include <Logger.h>
 #include "BackgroundTask.h"
 
@@ -15,7 +16,7 @@ class Project
 {
 public:
     using Holder = std::shared_ptr<Project>;
-    static Holder CreateInstance();
+    static Holder CreateInstance(SysUtils::ThreadPoolExecutor::Holder hBgtaskExctor);
     static std::string GetDefaultProjectBaseDir();
 
     static uint8_t VER_MAJOR;
@@ -28,6 +29,7 @@ public:
         PARSE_FAILED,
         FILE_INVALID,
         NOT_OPENED,
+        NOT_READY,
         ALREADY_EXISTS,
         MKDIR_FAILED,
         TL_INVALID,
@@ -46,12 +48,13 @@ public:
     bool IsOpened() const { return m_bOpened; }
     void SetContentJson(const imgui_json::value& jnProjContent) { m_jnProjContent = jnProjContent; }
     const imgui_json::value& GetProjectContentJson() const { return m_jnProjContent; }
-    const std::list<BackgroundTask::Holder> GetBackgroundTaskList() const { return m_aBgtasks; }
+    Project::ErrorCode EnqueueBackgroundTask(BackgroundTask::Holder hTask);
+    std::list<BackgroundTask::Holder> GetBackgroundTaskList();
 
     void SetLogLevel(Logger::Level l) { m_pLogger->SetShowLevels(l); }
 
 protected:
-    Project() {}
+    Project(SysUtils::ThreadPoolExecutor::Holder hBgtaskExctor) : m_hBgtaskExctor(hBgtaskExctor) {}
 
 private:
     Logger::ALogger* m_pLogger;
@@ -63,5 +66,7 @@ private:
     imgui_json::value m_jnProjContent;
     std::recursive_mutex m_mtxApiLock;
     std::list<BackgroundTask::Holder> m_aBgtasks;
+    std::mutex m_mtxBgtaskLock;
+    SysUtils::ThreadPoolExecutor::Holder m_hBgtaskExctor;
 };
 }

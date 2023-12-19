@@ -30,6 +30,7 @@
 #include "AudioRender.h"
 #include "SubtitleTrack.h"
 #include "UI.h"
+#include "MecProject.h"
 #include "Event.h"
 #include "EventStackFilter.h"
 #include "MediaPlayer.h"
@@ -307,15 +308,15 @@ namespace MediaTimeline
 #define MEDIA_EVENT                         0x00000800
 #define MEDIA_CUSTOM                        0x40000000
 
-#define IS_DUMMY(t)     ((t) & MEDIA_DUMMY)
-#define IS_VIDEO(t)     ((t) & MEDIA_VIDEO)
+#define IS_DUMMY(t)     (((t) & MEDIA_DUMMY) != 0)
+#define IS_VIDEO(t)     (((t) & MEDIA_VIDEO) != 0)
 #define IS_IMAGE(t)     ((t) == MEDIA_SUBTYPE_VIDEO_IMAGE)
 #define IS_IMAGESEQ(t)  ((t) == MEDIA_SUBTYPE_VIDEO_IMAGE_SEQUENCE)
-#define IS_AUDIO(t)     ((t) & MEDIA_AUDIO)
+#define IS_AUDIO(t)     (((t) & MEDIA_AUDIO) != 0)
 #define IS_MIDI(t)      ((t) == MEDIA_SUBTYPE_AUDIO_MIDI)
-#define IS_TEXT(t)      ((t) & MEDIA_TEXT)
+#define IS_TEXT(t)      (((t) & MEDIA_TEXT) != 0)
 #define IS_SUBTITLE(t)  ((t) == MEDIA_SUBTYPE_TEXT_SUBTITLE)
-#define IS_EVENT(t)     ((t) & MEDIA_EVENT)
+#define IS_EVENT(t)     (((t) & MEDIA_EVENT) != 0)
 #define IS_SAME_TYPE(t1, t2) ((t1) & (t2) & 0xFFFFFF00)
 
 static inline uint32_t EstimateMediaType(std::string file_suffix)
@@ -1132,6 +1133,15 @@ struct TimeLine
     AudioAttribute mAudioAttribute;         // timeline audio attribute, need save
 
     BluePrint::BluePrintUI m_BP_UI;         // for node catalog
+
+    // MEC project handling
+    MEC::Project::Holder mhProject;
+    bool IsProjectDirReady() const
+    {
+        if (!mhProject || !mhProject->IsOpened())
+            return false;
+        return SysUtils::IsDirectory(mhProject->GetProjectDir());
+    }
 
     // sutitle Setting
     std::string mFontName;
