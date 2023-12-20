@@ -69,12 +69,13 @@ struct BoxBlurNode final : Node
         if (receiver.m_ID == m_IterationIn.m_ID) m_IterationIn.SetValue(m_iteration);
     }
 
-    void DrawSettingLayout(ImGuiContext * ctx) override
+    bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
-        Node::DrawSettingLayout(ctx);
+        auto changed = Node::DrawSettingLayout(ctx);
         ImGui::Separator();
-        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        changed |= Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        return changed;
     }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origi, ImGui::ImCurveEdit::Curve * key, bool embedded) override

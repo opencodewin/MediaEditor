@@ -63,12 +63,13 @@ struct AlmNode final : Node
         if (receiver.m_ID == m_GammaIn.m_ID) m_GammaIn.SetValue(m_gamma);
     }
 
-    void DrawSettingLayout(ImGuiContext * ctx) override
+    bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
-        Node::DrawSettingLayout(ctx);
+        auto changed = Node::DrawSettingLayout(ctx);
         ImGui::Separator();
-        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        changed |= Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        return changed;
     }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve* pCurve, bool embedded) override

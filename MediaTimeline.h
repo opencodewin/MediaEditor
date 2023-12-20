@@ -128,6 +128,7 @@
 #define ICON_FILTER_EDITOR  u8"\ueb03"
 #define ICON_DELETE_CLIPS   u8"\ue16f"
 #define ICON_MASK           u8"\ueb63"
+#define ICON_VIDEO_ATTRIBUTE ICON_MD_FORMAT_SHAPES
 
 #define ICON_FONT_BOLD      u8"\ue238"
 #define ICON_FONT_ITALIC    u8"\ue23f"

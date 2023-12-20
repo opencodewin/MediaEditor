@@ -274,12 +274,13 @@ struct AudioAechoNode final : Node
         return m_Exit;
     }
 
-    void DrawSettingLayout(ImGuiContext *ctx) override
+    bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
-        Node::DrawSettingLayout(ctx);
+        auto changed = Node::DrawSettingLayout(ctx);
         ImGui::Separator();
-        Node::DrawDataTypeSetting("Mat Type:", m_pcmDataType);
+        changed |= Node::DrawDataTypeSetting("Mat Type:", m_pcmDataType);
+        return changed;
     }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override

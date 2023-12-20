@@ -793,11 +793,11 @@ struct MediaSourceNode final : Node
         return {};
     }
     
-    void DrawSettingLayout(ImGuiContext * ctx) override
+    bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         const char *filters = "Media Files(*.mp4 *.mov *.mkv *.webm *.mxf *.avi){.mp4,.mov,.mkv,.webm,.mxf,.avi,.MP4,.MOV,.MKV,.MXF,.WEBM,.AVI},.*";
         // Draw Setting
-        Node::DrawSettingLayout(ctx);
+        auto changed = Node::DrawSettingLayout(ctx);
         ImGui::Separator();
         ImVec2 minSize = ImVec2(400, 300);
 		ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
@@ -815,10 +815,10 @@ struct MediaSourceNode final : Node
         ImGui::TextUnformatted(m_file_name.c_str());
 
         ImGui::Separator();
-        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        changed |= Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
         ImGui::Separator();
-        ImGui::RadioButton("GPU",  (int *)&m_device, 0); ImGui::SameLine();
-        ImGui::RadioButton("CPU",   (int *)&m_device, -1);
+        changed |= ImGui::RadioButton("GPU",  (int *)&m_device, 0); ImGui::SameLine();
+        changed |= ImGui::RadioButton("CPU",   (int *)&m_device, -1);
 
         if (ImGuiFileDialog::Instance()->Display("##NodeMediaSourceDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
         {
@@ -829,12 +829,14 @@ struct MediaSourceNode final : Node
                 m_file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
                 CloseMedia();
                 OpenMedia();
+                changed = true;
             }
             // close
             ImGuiFileDialog::Instance()->Close();
         }
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
             io.ConfigViewportsNoDecoration = false;
+        return changed;
     }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override

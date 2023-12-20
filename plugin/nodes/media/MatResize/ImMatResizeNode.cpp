@@ -146,21 +146,21 @@ struct MatResizeNode final : Node
         return changed;
     }
 
-    void DrawSettingLayout(ImGuiContext * ctx) override
+    bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
-        Node::DrawSettingLayout(ctx);
+        auto changed = Node::DrawSettingLayout(ctx);
         ImGui::Separator();
         ImGui::Dummy(ImVec2(200, 20));
         ImGui::PushItemWidth(200);
 
-        ImGui::RadioButton("Nearest",       (int *)&m_interpolation_mode, IM_INTERPOLATE_NEAREST); ImGui::SameLine();
-        ImGui::RadioButton("Bilinear",      (int *)&m_interpolation_mode, IM_INTERPOLATE_BILINEAR); ImGui::SameLine();
-        ImGui::RadioButton("Bicubic",       (int *)&m_interpolation_mode, IM_INTERPOLATE_BICUBIC); ImGui::SameLine();
-        ImGui::RadioButton("Area",          (int *)&m_interpolation_mode, IM_INTERPOLATE_AREA);
+        changed |= ImGui::RadioButton("Nearest",       (int *)&m_interpolation_mode, IM_INTERPOLATE_NEAREST); ImGui::SameLine();
+        changed |= ImGui::RadioButton("Bilinear",      (int *)&m_interpolation_mode, IM_INTERPOLATE_BILINEAR); ImGui::SameLine();
+        changed |= ImGui::RadioButton("Bicubic",       (int *)&m_interpolation_mode, IM_INTERPOLATE_BICUBIC); ImGui::SameLine();
+        changed |= ImGui::RadioButton("Area",          (int *)&m_interpolation_mode, IM_INTERPOLATE_AREA);
         ImGui::PopItemWidth();
-        ImGui::Separator();
-        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        changed |= Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        return changed;
     }
 
     int Load(const imgui_json::value& value) override
