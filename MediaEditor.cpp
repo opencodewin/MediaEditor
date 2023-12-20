@@ -8220,7 +8220,7 @@ static void ShowBgtaskTab(ImDrawList *draw_list, ImRect title_rect)
     const auto aBgtasks = g_hProject->GetBackgroundTaskList();
     ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_GRAY), "Background Task Count: ");
     const auto szBgtaskCnt = aBgtasks.size();
-    ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGREEN), "%lu", szBgtaskCnt);
+    ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGREEN), "%zu", szBgtaskCnt);
     ImGui::Dummy({0, 6});
     ImGui::BeginChild("##BgTaskList", ImVec2(0, 0), ImGuiChildFlags_Border);
     for (const auto& hTask : aBgtasks)
