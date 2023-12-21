@@ -642,6 +642,7 @@ struct CustomShaderNode final : Node
             if (ImGui::Button("Compile"))
             {
                 Compile_shader();
+                changed = true;
             }
         }
         ImGui::PopItemWidth();
