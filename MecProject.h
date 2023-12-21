@@ -8,6 +8,7 @@
 #include <imgui_json.h>
 #include <ThreadUtils.h>
 #include <Logger.h>
+#include <HwaccelManager.h>
 #include "BackgroundTask.h"
 
 namespace MEC
@@ -50,11 +51,13 @@ public:
     const imgui_json::value& GetProjectContentJson() const { return m_jnProjContent; }
     Project::ErrorCode EnqueueBackgroundTask(BackgroundTask::Holder hTask);
     std::list<BackgroundTask::Holder> GetBackgroundTaskList();
+    void SetHwaccelManager(MediaCore::HwaccelManager::Holder hHwMgr) { m_hHwMgr = hHwMgr; }
+    MediaCore::HwaccelManager::Holder GetHwaccelManager() const { return m_hHwMgr; }
 
     void SetLogLevel(Logger::Level l) { m_pLogger->SetShowLevels(l); }
 
 protected:
-    Project(SysUtils::ThreadPoolExecutor::Holder hBgtaskExctor) : m_hBgtaskExctor(hBgtaskExctor) {}
+    Project(SysUtils::ThreadPoolExecutor::Holder hBgtaskExctor);
 
 private:
     Logger::ALogger* m_pLogger;
@@ -68,5 +71,6 @@ private:
     std::list<BackgroundTask::Holder> m_aBgtasks;
     std::mutex m_mtxBgtaskLock;
     SysUtils::ThreadPoolExecutor::Holder m_hBgtaskExctor;
+    MediaCore::HwaccelManager::Holder m_hHwMgr;
 };
 }

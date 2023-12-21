@@ -14,6 +14,12 @@ string Project::GetDefaultProjectBaseDir()
     return SysUtils::JoinPath(userVideoDir, "MecProject");
 }
 
+Project::Project(SysUtils::ThreadPoolExecutor::Holder hBgtaskExctor)
+    : m_hBgtaskExctor(hBgtaskExctor)
+{
+    m_pLogger = GetLogger("MecProject");
+}
+
 Project::ErrorCode Project::CreateNew(const string& name, const string& baseDir)
 {
     lock_guard<recursive_mutex> _lk(m_mtxApiLock);
@@ -76,6 +82,37 @@ Project::ErrorCode Project::Load(const std::string& projFilePath)
         m_jnProjContent = std::move(jnProj["proj_content"]);
         m_projName = jnProj["proj_name"].get<imgui_json::string>();
         m_projDir = SysUtils::ExtractDirectoryPath(projFilePath);
+        attrName = "bg_tasks";
+        if (jnProj.contains(attrName) && jnProj[attrName].is_array())
+        {
+            auto hDummySettings = MediaCore::SharedSettings::CreateInstance();
+            hDummySettings->SetHwaccelManager(m_hHwMgr);
+            const auto& aTaskSavePaths = jnProj[attrName].get<imgui_json::array>();
+            for (const auto& jnItem : aTaskSavePaths)
+            {
+                if (jnItem.is_string())
+                {
+                    const string strTaskJsonPath = jnItem.get<imgui_json::string>();
+                    const auto tLoadRes = imgui_json::value::load(jnItem.get<imgui_json::string>());
+                    if (tLoadRes.second)
+                    {
+                        auto hTask = BackgroundTask::CreateBackgroundTask(tLoadRes.first, hDummySettings);
+                        if (hTask)
+                            m_aBgtasks.push_back(hTask);
+                        else
+                            m_pLogger->Log(Error) << "FAILED to parse background task from json '" << strTaskJsonPath << "'!" << endl;
+                    }
+                    else
+                    {
+                        m_pLogger->Log(WARN) << "FAILED to load background task json from '" << strTaskJsonPath << "'." << endl;
+                    }
+                }
+                else
+                {
+                    m_pLogger->Log(WARN) << "INVALID 'bg_tasks' item in project '" << projFilePath << "'! Non-string item is found." << endl;
+                }
+            }
+        }
     }
     else
     {
@@ -98,6 +135,13 @@ Project::ErrorCode Project::Save()
     jnProj["mec_proj_version"] = imgui_json::number(m_projVer);
     jnProj["proj_name"] = imgui_json::string(m_projName);
     jnProj["proj_content"] = m_jnProjContent;
+    imgui_json::array aTaskSavePaths;
+    for (auto& hTask : m_aBgtasks)
+    {
+        const auto strTaskSavePath = hTask->Save();
+        aTaskSavePaths.push_back(strTaskSavePath);
+    }
+    jnProj["bg_tasks"] = aTaskSavePaths;
     if (!jnProj.save(m_projFilePath))
     {
         m_pLogger->Log(Error) << "FAILED to save project json file at '" << m_projFilePath << "'!" << endl;

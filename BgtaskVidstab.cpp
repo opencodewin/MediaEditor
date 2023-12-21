@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <sstream>
 #include <ios>
+#include <iomanip>
 #include <cassert>
 #include <TimeUtils.h>
 #include <FileSystemUtils.h>
@@ -46,23 +47,50 @@ public:
     bool Initialize(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings)
     {
         string strAttrName;
-        // read 'work_dir'
-        strAttrName = "work_dir";
-        if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_string())
+        // read 'task_dir'
+        strAttrName = "task_dir";
+        if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_string())
         {
-            ostringstream oss; oss << "Task json must has a '" << strAttrName << "' attribute of 'string' type!";
-            m_errMsg = oss.str();
-            return false;
+            m_strTaskDir = jnTask[strAttrName].get<json::string>();
+            if (!SysUtils::IsDirectory(m_strTaskDir))
+            {
+                ostringstream oss; oss << "INVALID task json attribute '" << strAttrName << "'! '" << m_strTaskDir << "' is NOT a DIRECTORY.";
+                m_errMsg = oss.str();
+                return false;
+            }
+            strAttrName = "task_hash";
+            if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_number())
+            {
+                ostringstream oss; oss << "Task json must has a '" << strAttrName << "' attribute of 'string' type!";
+                m_errMsg = oss.str();
+                return false;
+            }
+            m_szHash = (size_t)jnTask[strAttrName].get<json::number>();
         }
-        string strAttrValue = jnTask[strAttrName].get<json::string>();
-        if (!SysUtils::IsDirectory(strAttrValue))
+        else
         {
-            ostringstream oss; oss << "INVALID task json attribute '" << strAttrName << "'! '" << strAttrValue << "' is NOT a DIRECTORY.";
-            m_errMsg = oss.str();
-            return false;
+            strAttrName = "project_dir";
+            if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_string())
+            {
+                ostringstream oss; oss << "Task json must has a '" << strAttrName << "' attribute of 'string' type!";
+                m_errMsg = oss.str();
+                return false;
+            }
+            string strAttrValue = jnTask[strAttrName].get<json::string>();
+            if (!SysUtils::IsDirectory(strAttrValue))
+            {
+                ostringstream oss; oss << "INVALID task json attribute '" << strAttrName << "'! '" << strAttrValue << "' is NOT a DIRECTORY.";
+                m_errMsg = oss.str();
+                return false;
+            }
+            m_szHash = SysUtils::GetTickHash();
+            ostringstream oss; oss << m_name << "-" << setw(16) << setfill('0') << hex << m_szHash;
+            const auto strWorkDirName = oss.str();
+            m_strTaskDir = SysUtils::JoinPath(strAttrValue, strWorkDirName);
+            if (!SysUtils::IsDirectory(m_strTaskDir))
+                SysUtils::CreateDirectory(m_strTaskDir, true);
         }
-        m_strWorkDir = strAttrValue;
-        m_strTrfPath = SysUtils::JoinPath(m_strWorkDir, "transforms.trf");
+        m_strTrfPath = SysUtils::JoinPath(m_strTaskDir, "transforms.trf");
         // read 'source_url'
         strAttrName = "source_url";
         if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_string())
@@ -204,7 +232,31 @@ public:
             m_errMsg = oss.str();
             return false;
         }
-        m_hSettings = hSettings;
+        // create SharedSettings
+        strAttrName = "media_settings";
+        if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_object())
+        {
+            m_hSettings = MediaCore::SharedSettings::CreateInstanceFromJson(jnTask[strAttrName]);
+            if (!m_hSettings)
+            {
+                m_errMsg = "FAILED to create SharedSettings instance from json!";
+                return false;
+            }
+            MediaCore::HwaccelManager::Holder hHwMgr;
+            if (hSettings)
+                hHwMgr = hSettings->GetHwaccelManager();
+            m_hSettings->SetHwaccelManager(hHwMgr ? hHwMgr : MediaCore::HwaccelManager::GetDefaultInstance());
+        }
+        else
+        {
+            if (hSettings)
+                m_hSettings = hSettings;
+            else
+            {
+                m_errMsg = "Argument 'SharedSettings' is null!";
+                return false;
+            }
+        }
         // create VideoClip instance
         strAttrName = "clip_start_offset";
         if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_number())
@@ -224,7 +276,7 @@ public:
         const int64_t i64ClipLength = jnTask[strAttrName].get<json::number>();
         const int64_t i64SrcDuration = static_cast<int64_t>(m_pVidstm->duration*1000);
         const int64_t i64ClipEndOffset = i64SrcDuration-i64ClipStartOffset-i64ClipLength;
-        MediaCore::VideoClip::Holder hVclip = MediaCore::VideoClip::CreateVideoInstance(m_i64ClipId, hParser, hSettings,
+        MediaCore::VideoClip::Holder hVclip = MediaCore::VideoClip::CreateVideoInstance(m_i64ClipId, hParser, m_hSettings,
                 0, i64ClipLength, i64ClipStartOffset, i64ClipEndOffset, 0, true);
         if (!hVclip)
         {
@@ -235,14 +287,52 @@ public:
         }
         m_hVclip = hVclip;
 
+        strAttrName = "is_vidstab_detect_done";
+        if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_boolean())
+            m_bVidstabDetectFinished = jnTask[strAttrName].get<json::boolean>();
+        else
+            m_bVidstabDetectFinished = false;
+        strAttrName = "is_task_failed";
+        if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_boolean())
+            m_bFailed = jnTask[strAttrName].get<json::boolean>();
+        else
+            m_bFailed = false;
+        if (m_bFailed)
+        {
+            strAttrName = "error_message";
+            if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_string())
+                m_errMsg = jnTask[strAttrName].get<json::string>();
+            SetState(DONE);
+        }
+
         m_bInited = true;
         return true;
     }
 
     void DrawContent() override
     {
+        ImGui::TextUnformatted("State: "); ImGui::SameLine(0, 10);
+        switch (m_eState)
+        {
+        case WAITING:
+            ImGui::TextColored(ImColor(0.8f, 0.8f, 0.1f), "Waiting");
+            break;
+        case PROCESSING:
+            ImGui::TextColored(ImColor(0.3f, 0.3f, 0.85f), "Processing");
+            break;
+        case DONE:
+            if (m_bCancel)
+                ImGui::TextColored(ImColor(0.8f, 0.8f, 0.8f), "Cancelled");
+            else if (m_bFailed)
+                ImGui::TextColored(ImColor(0.85f, 0.3f, 0.3f), "FAILED");
+            else
+                ImGui::TextColored(ImColor(0.3f, 0.85f, 0.3f), "Done");
+            break;
+        default:
+            ImGui::TextColored(ImColor(0.7f, 0.3f, 0.3f), "Unknown");
+        }
         ImGui::TextUnformatted("Progress: "); ImGui::SameLine(0, 10);
-        ImGui::Text("%.02f", m_fProgress);
+        ImGui::Text("%.02f%%", m_fProgress*100);
     }
 
     void DrawContentCompact() override
@@ -250,14 +340,85 @@ public:
 
     }
 
-    void operator() () override
+    bool SaveAsJson(json::value& jnTask) override
+    {
+        jnTask = json::value();
+        jnTask["type"] = "Vidstab";
+        jnTask["name"] = m_name;
+        jnTask["task_hash"] = json::number(m_szHash);
+        jnTask["task_dir"] = m_strTaskDir;
+        jnTask["source_url"] = m_strSrcUrl;
+        jnTask["is_image_seq"] = m_bIsImageSeq;
+        jnTask["clip_id"] = json::number(m_i64ClipId);
+        json::value jnSettings;
+        if (!m_hSettings->SaveAsJson(jnSettings))
+        {
+            m_errMsg = "FAILED to save 'SharedSettings' as json!";
+            return false;
+        }
+        jnTask["media_settings"] = jnSettings;
+        auto hParser = m_hVclip->GetMediaParser();
+        if (m_bIsImageSeq)
+        {
+            const auto& tFrameRate = m_pVidstm->realFrameRate;
+            auto hFileIter = hParser->GetImageSequenceIterator();
+            jnTask["frame_rate_num"] = json::number(tFrameRate.num);
+            jnTask["frame_rate_den"] = json::number(tFrameRate.den);
+            bool bIsRegexPattern;
+            const auto strFileFilterRegex = hFileIter->GetFilterPattern(bIsRegexPattern);
+            jnTask["file_filter_regex"] = strFileFilterRegex;
+            jnTask["case_sensitive"] = hFileIter->IsCaseSensitive();
+            jnTask["include_sub_dir"] = hFileIter->IsRecursive();
+        }
+        jnTask["clip_start_offset"] = json::number(m_hVclip->StartOffset());
+        jnTask["clip_length"] = json::number(m_hVclip->Duration());
+        jnTask["is_vidstab_detect_done"] = m_bVidstabDetectFinished;
+        jnTask["is_task_failed"] = m_bFailed;
+        jnTask["error_message"] = m_errMsg;
+        return true;
+    }
+
+    string Save(const string& _strSavePath) override
+    {
+        json::value jnTask;
+        if (!SaveAsJson(jnTask))
+        {
+            m_pLogger->Log(Error) << "FAILED to save '" << m_name << "' as json!" << endl;
+            return "";
+        }
+        const auto strSavePath = _strSavePath.empty() ? SysUtils::JoinPath(m_strTaskDir, "task.json") : _strSavePath;
+        if (!jnTask.save(strSavePath))
+        {
+            m_pLogger->Log(Error) << "FAILED to save task json of '" << m_name << "' at location '" << strSavePath << "'!" << endl;
+            return "";
+        }
+        return strSavePath;
+    }
+
+    string GetTaskDir() const override
+    {
+        return m_strTaskDir;
+    }
+
+    string GetError() const override
+    {
+        return m_errMsg;
+    }
+
+    void SetLogLevel(Logger::Level l) override
+    {
+        m_pLogger->SetShowLevels(l);
+    }
+
+protected:
+    void _TaskProc () override
     {
         m_pLogger->Log(INFO) << "Start background task 'Vidstab' for '" << m_strSrcUrl << "'." << endl;
         if (!m_bInited)
         {
             ostringstream oss; oss << "Background task 'Vidstab' with name '" << m_name << "' is NOT initialized!";
             m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
-            m_bFailed = true; SetState(DONE);
+            m_bFailed = true;
             return;
         }
 
@@ -308,7 +469,7 @@ public:
                         if (!SetupVidstabDetectFilterGraph(hFgInfrmPtr.get()))
                         {
                             m_pLogger->Log(Error) << "'SetupVidstabDetectFilterGraph()' FAILED!" << endl;
-                            m_bFailed = true; SetState(DONE);
+                            m_bFailed = true;
                             return;
                         }
                         m_bFirstRun = false;
@@ -320,7 +481,7 @@ public:
                         ostringstream oss; oss << "Background task 'Vidstab' FAILED when invoking 'av_buffersrc_add_frame()' at frame #" << (i64FrmIdx-1)
                                 << ". fferr=" << fferr << ".";
                         m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
-                        m_bFailed = true; SetState(DONE);
+                        m_bFailed = true;
                         return;
                     }
                     av_frame_unref(hFgOutfrmPtr.get());
@@ -332,7 +493,7 @@ public:
                             ostringstream oss; oss << "Background task 'Vidstab' FAILED when invoking 'av_buff5ersink_get_frame()' at frame #" << (i64FrmIdx-1)
                                     << ". fferr=" << fferr << ".";
                             m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
-                            m_bFailed = true; SetState(DONE);
+                            m_bFailed = true;
                             return;
                         }
                     }
@@ -345,16 +506,6 @@ public:
             }
         }
         m_pLogger->Log(INFO) << "Quit background task 'Vidstab' for '" << m_strSrcUrl << "'." << endl;
-    }
-
-    string GetError() const override
-    {
-        return m_errMsg;
-    }
-
-    void SetLogLevel(Logger::Level l) override
-    {
-        m_pLogger->SetShowLevels(l);
     }
 
 private:
@@ -372,7 +523,6 @@ private:
 
         int fferr;
         ostringstream oss;
-        // m_eFgInputPixfmt = ConvertColorFormatToPixelFormat(m_hSettings->VideoOutColorFormat(), m_hSettings->VideoOutDataType());
         m_eFgInputPixfmt = (AVPixelFormat)pInAvfrm->format;
         const auto tFrameRate = m_hSettings->VideoOutFrameRate();
         oss << pInAvfrm->width << ":" << pInAvfrm->height << ":pix_fmt=" << (int)m_eFgInputPixfmt << ":sar=1"
@@ -458,10 +608,11 @@ private:
 
 private:
     string m_name;
+    size_t m_szHash;
     string m_errMsg;
     ALogger* m_pLogger;
     bool m_bInited{false};
-    string m_strWorkDir;
+    string m_strTaskDir;
     AVFilterGraph* m_pFilterGraph{nullptr};
     AVFilterContext* m_pBufsrcCtx;
     AVFilterContext* m_pBufsinkCtx;
@@ -495,13 +646,11 @@ static const auto _BGTASK_VIDSTAB_DELETER = [] (BackgroundTask* p) {
 BackgroundTask::Holder CreateBgtask_Vidstab(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings)
 {
     string strTaskName;
-    if (jnTask.contains("name"))
+    string strAttrName = "name";
+    if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_string())
         strTaskName = jnTask["name"].get<json::string>();
     else
-    {
-        ostringstream oss; oss << "BgtskVidstab-" << hex << SysUtils::GetTickHash();
-        strTaskName = oss.str();
-    }
+        strTaskName = "BgtskVidstab";
     auto p = new BgtaskVidstab(strTaskName);
     if (!p->Initialize(jnTask, hSettings))
     {
@@ -509,6 +658,7 @@ BackgroundTask::Holder CreateBgtask_Vidstab(const json::value& jnTask, MediaCore
         delete p; 
         return nullptr;
     }
+    p->Save("");
     return BackgroundTask::Holder(p, _BGTASK_VIDSTAB_DELETER);
 }
 }

@@ -12,10 +12,12 @@ namespace MEC
     {
         using Holder = std::shared_ptr<BackgroundTask>;
         static Holder CreateBackgroundTask(const imgui_json::value& jnTask, MediaCore::SharedSettings::Holder hSettings);
-        static bool DrawBackgroudTaskCreationUi(const std::string& strTaskType, Holder& hTask);
 
         virtual void DrawContent() = 0;
         virtual void DrawContentCompact() = 0;
+        virtual std::string GetTaskDir() const = 0;
+        virtual bool SaveAsJson(imgui_json::value& jnTask) = 0;
+        virtual std::string Save(const std::string& strSavePath = "") = 0;
 
         virtual std::string GetError() const = 0;
         virtual void SetLogLevel(Logger::Level l) = 0;

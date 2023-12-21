@@ -10565,7 +10565,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 {
                     imgui_json::value jnTask;
                     jnTask["type"] = "Vidstab";
-                    jnTask["work_dir"] = timeline->mhProject->GetProjectDir();
+                    jnTask["project_dir"] = timeline->mhProject->GetProjectDir();
                     jnTask["source_url"] = hParser->GetUrl();
                     jnTask["is_image_seq"] = IS_IMAGESEQ(pClip->mType);
                     jnTask["clip_id"] = imgui_json::number(pClip->mID);

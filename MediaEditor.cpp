@@ -8226,6 +8226,7 @@ static void ShowBgtaskTab(ImDrawList *draw_list, ImRect title_rect)
     for (const auto& hTask : aBgtasks)
     {
         hTask->DrawContent();
+        ImGui::Separator();
     }
     ImGui::EndChild();
 }
