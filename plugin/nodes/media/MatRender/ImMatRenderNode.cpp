@@ -214,15 +214,20 @@ struct MatRenderNode final : Node
         return m_Exit;
     }
 
-    void DrawSettingLayout(ImGuiContext * ctx) override
+    bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
-        Node::DrawSettingLayout(ctx);
+        auto changed = Node::DrawSettingLayout(ctx);
+        ImGui::Separator();
+
+        changed |= ImGui::Checkbox(ICON_IGFD_BOOKMARK " Bookmark", &m_isShowBookmark);
+        ImGui::SameLine(0);
+        changed |= ImGui::Checkbox(ICON_IGFD_HIDDEN_FILE " ShowHide", &m_isShowHiddenFiles);
         ImGui::Separator();
 
         // Draw custom layout
-        ImGui::InputInt("Preview Width", &m_preview_width);
-        ImGui::InputInt("Preview Height", &m_preview_height);
+        changed|= ImGui::InputInt("Preview Width", &m_preview_width);
+        changed |= ImGui::InputInt("Preview Height", &m_preview_height);
         ImGui::Separator();
 
         // open file dialog
@@ -257,15 +262,22 @@ struct MatRenderNode final : Node
             {
                 m_save_file_path = ImGuiFileDialog::Instance()->GetFilePathName();
                 file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
+                changed = true;
             }
             // close
             ImGuiFileDialog::Instance()->Close();
         }
         ImGui::SameLine(0);
         ImGui::TextUnformatted(file_name.c_str());
-        m_bookmark = ImGuiFileDialog::Instance()->SerializeBookmarks();
+        auto bookmark = ImGuiFileDialog::Instance()->SerializeBookmarks();
+        if (m_bookmark != bookmark)
+        {
+            m_bookmark = bookmark;
+            changed = true;
+        }
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
             io.ConfigViewportsNoDecoration = false;
+        return changed;
     }
 
     void DrawMenuLayout(ImGuiContext * ctx) override

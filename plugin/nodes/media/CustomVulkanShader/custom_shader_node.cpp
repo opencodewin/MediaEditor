@@ -16,6 +16,26 @@
 #include <cmath>
 #include <map>
 
+#if IMGUI_ICONS
+#define ICON_BUILD  ICON_MD_SETTINGS
+#define ICON_UNDO   ICON_MD_UNDO
+#define ICON_REDO   ICON_MD_REDO
+#define ICON_COPY   ICON_MD_CONTENT_COPY
+#define ICON_CUT    ICON_MD_CONTENT_CUT
+#define ICON_PASTE  ICON_MD_CONTENT_PASTE
+#define ICON_DELETE ICON_MD_DELETE
+#define ICON_RUN    ICON_MD_BUG_REPORT
+#else
+#define ICON_BUILD  "Compile"
+#define ICON_UNDO   "Undo"
+#define ICON_REDO   "Redo"
+#define ICON_COPY   "Copy"
+#define ICON_CUT    "Cut"
+#define ICON_PASTE  "Paste"
+#define ICON_DELETE "Delete"
+#define ICON_RUN    "Run"
+#endif
+
 #define NODE_VERSION    0x01040000
 typedef struct _Node_Param
 {
@@ -311,11 +331,15 @@ struct CustomShaderNode final : Node
             m_editor.SetErrorMarkers(markers);
             m_compile_log = "Compile Succeed!!!";
             m_compile_succeed = true;
+            if (m_filter) { delete m_filter; m_filter = nullptr; }
+            m_Blueprint->StepToEnd(this);
         }
     }
 
-    void DrawShaderEditor()
-    {        
+    bool DrawShaderEditor()
+    {
+        bool changed = false;
+        ImGui::PushID(m_ID);
         auto cpos = m_editor.GetCursorPosition();
         auto window_width = ImGui::GetContentRegionAvail().x;
         auto window_height = ImGui::GetWindowSize().y;
@@ -342,52 +366,62 @@ struct CustomShaderNode final : Node
             ImGui::PopStyleColor();
         }
 
-        if (ImGui::Button("Compile"))
+        if (ImGui::Button(ICON_BUILD "##custom_shader"))
         {
             Compile_shader();
-        }
+            changed = true;
+        } ImGui::ShowTooltipOnHover("Compile");
         ImGui::SameLine();
-        if (ImGui::Button("Reset"))
+        if (ImGui::Button(ICON_RESET "##custom_shader"))
         {
             m_program_filter = m_program_filter_default;
             m_editor.SetText(m_program_filter);
-        }
+        } ImGui::ShowTooltipOnHover("Reset");
         ImGui::SameLine(); ImGui::Spacing();ImGui::SameLine();
-        if (ImGui::Button("Undo"))
+        if (ImGui::Button(ICON_UNDO"##custom_shader"))
         {
             if (m_editor.CanUndo())
                 m_editor.Undo();
-        }
+        } ImGui::ShowTooltipOnHover("Undo");
         ImGui::SameLine();
-        if (ImGui::Button("Redo"))
+        if (ImGui::Button(ICON_REDO "##custom_shader"))
         {
             if (m_editor.CanRedo())
                 m_editor.Redo();
-        }
+        } ImGui::ShowTooltipOnHover("Redo");
         ImGui::SameLine(); ImGui::Spacing();ImGui::SameLine();
-        if (ImGui::Button("Copy"))
+        if (ImGui::Button(ICON_COPY "##custom_shader"))
         {
             if (m_editor.HasSelection())
                 m_editor.Copy();
-        }
+        } ImGui::ShowTooltipOnHover("Copy");
         ImGui::SameLine();
-        if (ImGui::Button("Cut"))
+        if (ImGui::Button(ICON_CUT "##custom_shader"))
         {
             if (m_editor.HasSelection())
                 m_editor.Cut();
-        }
+        } ImGui::ShowTooltipOnHover("Cut");
         ImGui::SameLine();
-        if (ImGui::Button("Delete"))
+        if (ImGui::Button(ICON_DELETE "##custom_shader"))
         {
             if (m_editor.HasSelection())
                 m_editor.Delete();
-        }
+        } ImGui::ShowTooltipOnHover("Delete");
         ImGui::SameLine();
-        if (ImGui::Button("Paste"))
+        if (ImGui::Button(ICON_PASTE "##custom_shader"))
         {
             if (ImGui::GetClipboardText() != nullptr)
                 m_editor.Paste();
-        }
+        } ImGui::ShowTooltipOnHover("Paste");
+        ImGui::SameLine();
+        bool bp_running = m_Blueprint ? m_Blueprint->IsExecuting() : true;
+        ImGui::BeginDisabled(bp_running || !m_compile_succeed);
+        if (ImGui::Button(ICON_RUN "##custom_shader"))
+        {
+            if (m_filter) { delete m_filter; m_filter = nullptr; }
+            m_Blueprint->StepToEnd(this);
+        } ImGui::ShowTooltipOnHover("Run");
+        ImGui::EndDisabled();
         ImGui::SameLine(); ImGui::Spacing();ImGui::SameLine();
         if (ImGui::Checkbox("Show Space", &m_show_space_tab))
         {
@@ -418,7 +452,7 @@ struct CustomShaderNode final : Node
 
         int _editor_style = m_editor_style;
         ImGui::SetNextItemWidth(80);
-        ImGui::Combo("Style", &_editor_style, "Dark\0Light\0Retro blue\0\0");
+        changed|= ImGui::Combo("Style", &_editor_style, "Dark\0Light\0Retro blue\0\0");
         if (_editor_style != m_editor_style)
         {
             m_editor_style = _editor_style;
@@ -431,11 +465,14 @@ struct CustomShaderNode final : Node
             TextEditor::ErrorMarkers markers;
             m_editor.SetErrorMarkers(markers);
             m_compile_succeed = false;
+            changed = true;
         }
         ImGui::PopStyleColor(3);
 
         m_editor.Render("VulkanShader");
         ImGui::EndChild();
+        ImGui::PopID();
+        return changed;
     }
 
     void DrawCompileLog()
@@ -445,8 +482,9 @@ struct CustomShaderNode final : Node
         ImGui::EndChild();
     }
 
-    void ParamSetting(Node_Param& param)
+    bool ParamSetting(Node_Param& param)
     {
+        bool changed = false;
         ImGui::PushItemWidth(200);
         ImGui::TextUnformatted("Param:"); ImGui::SameLine();
         std::string value = param.name;
@@ -484,26 +522,28 @@ struct CustomShaderNode final : Node
                 update_program();
                 m_compile_log.clear();
                 m_compile_succeed = false;
+                changed = true;
             }
         }
         ImGui::PopStyleColor();
         ImGui::SameLine();
         ImGui::TextUnformatted("Min:"); ImGui::SameLine();
-        ImGui::InputFloat(("##param_min_value" + param.name).c_str(), &param.min_value);
+        changed |= ImGui::InputFloat(("##param_min_value" + param.name).c_str(), &param.min_value);
         ImGui::SameLine();
         ImGui::TextUnformatted("Max:"); ImGui::SameLine();
-        ImGui::InputFloat(("##param_max_value" + param.name).c_str(), &param.max_value);
+        changed |= ImGui::InputFloat(("##param_max_value" + param.name).c_str(), &param.max_value);
         ImGui::PopItemWidth();
+        return changed;
     }
 
-    void DrawSettingLayout(ImGuiContext * ctx) override
+    bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
         ImGui::SetCurrentContext(ctx); // External Node must set context
 
-        Node::DrawSettingLayout(ctx);
+        auto changed = Node::DrawSettingLayout(ctx);
         ImGui::Separator();
-        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        changed |= Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
         ImGui::Separator();
 
         bool check = m_fp16;
@@ -515,12 +555,13 @@ struct CustomShaderNode final : Node
                 m_fp16 = check; 
                 m_compile_succeed = false;
                 if (m_filter) { delete m_filter; m_filter = nullptr; }
+                changed = true;
             }
         }
-        ImGui::SliderFloat("X Scale", &m_out_scale.x, 0.1, 4.0, "%.2f");
-        ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_x##CustomShader")) { m_out_scale.x = 1.0; }
-        ImGui::SliderFloat("Y Scale", &m_out_scale.y, 0.1, 4.0, "%.2f");
-        ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_y##CustomShader")) { m_out_scale.y = 1.0; }
+        changed |= ImGui::SliderFloat("X Scale", &m_out_scale.x, 0.1, 4.0, "%.2f");
+        ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_x##CustomShader")) { m_out_scale.x = 1.0; changed = true; }
+        changed |= ImGui::SliderFloat("Y Scale", &m_out_scale.y, 0.1, 4.0, "%.2f");
+        ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_y##CustomShader")) { m_out_scale.y = 1.0; changed = true; }
         ImGui::Separator();
         if (ImGui::Button( ICON_FK_PLUS " Add param"))
         {
@@ -529,13 +570,14 @@ struct CustomShaderNode final : Node
             update_program();
             m_compile_log.clear();
             m_compile_succeed = false;
+            changed = true;
         }
 
         int count = 0;
         for (auto iter = m_params.begin(); iter != m_params.end();)
         {
             ImGui::PushID(count);
-            ParamSetting(*iter);
+            changed |= ParamSetting(*iter);
             ImGui::SameLine();
             if (ImGui::Button(ICON_FK_TRASH_O "##delete_param"))
             {
@@ -543,6 +585,7 @@ struct CustomShaderNode final : Node
                 update_program();
                 m_compile_log.clear();
                 m_compile_succeed = false;
+                changed = true;
             }
             else
                 iter++;
@@ -551,10 +594,11 @@ struct CustomShaderNode final : Node
         }
         ImGui::Separator();
         // Draw editor and compile Log
-        DrawShaderEditor();
+        changed |= DrawShaderEditor();
         ImGui::Separator();
         ImGui::TextUnformatted("Logs:");
         DrawCompileLog();
+        return changed;
     }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
@@ -687,6 +731,7 @@ struct CustomShaderNode final : Node
     void Save(imgui_json::value& value, std::map<ID_TYPE, ID_TYPE> MapID) override
     {
         Node::Save(value, MapID);
+        m_program_filter = m_editor.GetText();
         value["mat_type"] = imgui_json::number(m_mat_data_type);
         value["fp16"] = imgui_json::boolean(m_fp16);
         value["show_space"] = imgui_json::boolean(m_show_space_tab);

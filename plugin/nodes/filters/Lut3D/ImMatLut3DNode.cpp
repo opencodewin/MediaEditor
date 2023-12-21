@@ -181,11 +181,11 @@ struct Lut3DNode final : Node
         return m_Exit;
     }
 
-    void DrawSettingLayout(ImGuiContext * ctx) override
+    bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
         int lut_mode = m_lut_mode;
-        Node::DrawSettingLayout(ctx);
+        auto changed = Node::DrawSettingLayout(ctx);
         ImGui::Separator();
         ImGui::RadioButton("SDR->HLG",  (int *)&lut_mode, SDR709_HDRHLG); ImGui::SameLine();
         ImGui::RadioButton("SDR->PQ",   (int *)&lut_mode, SDR709_HDRPQ); ImGui::SameLine();
@@ -199,12 +199,13 @@ struct Lut3DNode final : Node
         ImGui::RadioButton("Trilinear",     (int *)&m_interpolation_mode, IM_INTERPOLATE_TRILINEAR); ImGui::SameLine();
         ImGui::RadioButton("Teteahedral",   (int *)&m_interpolation_mode, IM_INTERPOLATE_TETRAHEDRAL);
         ImGui::Separator();
-        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        changed |= Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
         ImGui::Separator();
         if (m_lut_mode != lut_mode)
         {
             m_lut_mode = lut_mode;
             m_setting_changed = true;
+            changed |= m_setting_changed;
         }
         // open from file
         ImVec2 minSize = ImVec2(400, 300);
@@ -226,6 +227,7 @@ struct Lut3DNode final : Node
                 m_path = ImGuiFileDialog::Instance()->GetFilePathName();
                 m_file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
                 m_setting_changed = true;
+                changed |= m_setting_changed;
             }
             // close
             ImGuiFileDialog::Instance()->Close();
@@ -238,6 +240,7 @@ struct Lut3DNode final : Node
         ImGui::SameLine(0);
         ImGui::TextUnformatted(m_file_name.c_str());
         ImGui::EndDisabled();
+        return changed;
     }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override

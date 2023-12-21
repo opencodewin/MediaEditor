@@ -52,12 +52,13 @@ struct DeinterlaceNode final : Node
         return m_Exit;
     }
 
-    void DrawSettingLayout(ImGuiContext * ctx) override
+    bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
-        Node::DrawSettingLayout(ctx);
+        auto changed = Node::DrawSettingLayout(ctx);
         ImGui::Separator();
-        Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        changed |= Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        return changed;
     }
 
     int Load(const imgui_json::value& value) override

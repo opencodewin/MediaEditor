@@ -204,12 +204,13 @@ struct SDLAudioRenderNode final : Node
         return false;
     }
 
-    void DrawSettingLayout(ImGuiContext * ctx) override
+    bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
-        Node::DrawSettingLayout(ctx);
-        ImGui::RadioButton("Level", (int *)&m_view_type, 0); ImGui::SameLine();
-        ImGui::RadioButton("Wave", (int *)&m_view_type, 1); ImGui::SameLine();
+        auto changed = Node::DrawSettingLayout(ctx);
+        changed |= ImGui::RadioButton("Level", (int *)&m_view_type, 0); ImGui::SameLine();
+        changed |= ImGui::RadioButton("Wave", (int *)&m_view_type, 1);
+        return changed;
     }
 
     int Load(const imgui_json::value& value) override

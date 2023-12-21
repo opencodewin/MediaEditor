@@ -29,9 +29,10 @@ struct MatImageNode final : Node
 
     void OnStop(Context& context) override
     {
-        m_mutex.lock();
-        m_MatOut.SetValue(ImGui::ImMat());
-        m_mutex.unlock();
+        // keep last Mat
+        //m_mutex.lock();
+        //m_MatOut.SetValue(ImGui::ImMat());
+        //m_mutex.unlock();
     }
 
     static inline bool ValidateImagePath(const char* path) {
@@ -57,6 +58,7 @@ struct MatImageNode final : Node
             m_mat.flags |= IM_MAT_FLAGS_IMAGE_FRAME;
             stbi_image_free(data);
             m_mutex.unlock();
+            m_MatOut.SetValue(m_mat);
             return true;
         }
         return false;
@@ -68,16 +70,16 @@ struct MatImageNode final : Node
         return m_Exit;
     }
 
-    void DrawSettingLayout(ImGuiContext * ctx) override
+    bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
-        Node::DrawSettingLayout(ctx);
+        auto changed = Node::DrawSettingLayout(ctx);
         ImGui::Separator();
 
         // Draw Custom setting
-        ImGui::Checkbox(ICON_IGFD_BOOKMARK " Bookmark", &m_isShowBookmark);
+        changed |= ImGui::Checkbox(ICON_IGFD_BOOKMARK " Bookmark", &m_isShowBookmark);
         ImGui::SameLine(0);
-        ImGui::Checkbox(ICON_IGFD_HIDDEN_FILE " ShowHide", &m_isShowHiddenFiles);
+        changed |= ImGui::Checkbox(ICON_IGFD_HIDDEN_FILE " ShowHide", &m_isShowHiddenFiles);
         ImGui::SameLine(0);
         // file filter setting
         if (ImGui::InputText("Filters", (char*)m_filters.data(), m_filters.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
@@ -99,6 +101,7 @@ struct MatImageNode final : Node
         }, &m_filters))
         {
             m_filters.resize(strlen(m_filters.c_str()));
+            changed = true;
         }
         ImGui::Separator();
         // open file dialog
@@ -135,19 +138,26 @@ struct MatImageNode final : Node
                 {
                     if (m_textureID) { ImGui::ImDestroyTexture(m_textureID); m_textureID = 0; }
                 }
+                changed = true;
             }
             // close
             ImGuiFileDialog::Instance()->Close();
         }
         ImGui::SameLine(0);
         ImGui::TextUnformatted(file_name.c_str());
-        m_bookmark = ImGuiFileDialog::Instance()->SerializeBookmarks();
+        auto bookmark = ImGuiFileDialog::Instance()->SerializeBookmarks();
+        if (m_bookmark != bookmark)
+        {
+            m_bookmark = bookmark;
+            changed = true;
+        }
         ImGui::Separator();
         // Draw custom layout
         ImGui::InputInt("Preview Width", &m_preview_width);
         ImGui::InputInt("Preview Height", &m_preview_height);
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
             io.ConfigViewportsNoDecoration = false;
+        return changed;
     }
 
     bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
