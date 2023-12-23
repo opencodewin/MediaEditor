@@ -10885,7 +10885,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
  * Application Framework
  *
  ***************************************************************************************/
-static void MediaEditor_SetupContext(ImGuiContext* ctx, bool in_splash)
+static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_splash)
 {
     if (!ctx)
         return;

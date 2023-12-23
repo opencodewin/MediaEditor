@@ -152,7 +152,7 @@ const char* Dither_items[] = {
 
 
 // Application Framework Functions
-static void Potrace_SetupContext(ImGuiContext *ctx, bool in_splash)
+static void Potrace_SetupContext(ImGuiContext *ctx, void* handle, bool in_splash)
 {
 #ifdef USE_BOOKMARK
     ImGuiSettingsHandler bookmark_ini_handler;

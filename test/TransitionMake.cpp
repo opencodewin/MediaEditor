@@ -127,7 +127,7 @@ static bool binary_to_compressed_c(const char* filename, const char* symbol, voi
 }
 
 // Application Framework Functions
-static void TransitionMake_SetupContext(ImGuiContext* ctx, bool in_splash)
+static void TransitionMake_SetupContext(ImGuiContext* ctx, void* handle, bool in_splash)
 {
 #ifdef USE_BOOKMARK
     ImGuiSettingsHandler bookmark_ini_handler;
