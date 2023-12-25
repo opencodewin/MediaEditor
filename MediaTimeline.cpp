@@ -9534,7 +9534,6 @@ bool TimeLine::ConfigEncoder(const std::string& outputPath, VideoEncoderParams& 
         return false;
     }
     // Video
-    std::string vidEncImgFormat;
     if (!mEncoder->ConfigureVideoStream(
         vidEncParams.codecName, vidEncParams.imageFormat, vidEncParams.width, vidEncParams.height,
         vidEncParams.frameRate, vidEncParams.bitRate, &vidEncParams.extraOpts))
@@ -9545,7 +9544,6 @@ bool TimeLine::ConfigEncoder(const std::string& outputPath, VideoEncoderParams& 
     mEncMtvReader = mMtvReader->CloneAndConfigure(vidEncParams.width, vidEncParams.height, vidEncParams.frameRate);
 
     // Audio
-    std::string audEncSmpFormat;
     if (!mEncoder->ConfigureAudioStream(
         audEncParams.codecName, audEncParams.sampleFormat, audEncParams.channels,
         audEncParams.sampleRate, audEncParams.bitRate))

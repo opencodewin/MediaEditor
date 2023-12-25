@@ -36,12 +36,7 @@ public:
 
     ~BgtaskVidstab()
     {
-        if (m_filterOutputs)
-            avfilter_inout_free(&m_filterOutputs);
-        if (m_filterInputs)
-            avfilter_inout_free(&m_filterInputs);
-        m_pBufsrcCtx = nullptr;
-        m_pBufsinkCtx = nullptr;
+        ReleaseFilterGraph();
     }
 
     bool Initialize(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings)
@@ -292,12 +287,16 @@ public:
             m_bVidstabDetectFinished = jnTask[strAttrName].get<json::boolean>();
         else
             m_bVidstabDetectFinished = false;
+        strAttrName = "is_vidstab_transform_done";
+        if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_boolean())
+            m_bVidstabTransformFinished = jnTask[strAttrName].get<json::boolean>();
+        else
+            m_bVidstabTransformFinished = false;
+        bool bFailed = false;
         strAttrName = "is_task_failed";
         if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_boolean())
-            m_bFailed = jnTask[strAttrName].get<json::boolean>();
-        else
-            m_bFailed = false;
-        if (m_bFailed)
+            bFailed = jnTask[strAttrName].get<json::boolean>();
+        if (bFailed)
         {
             strAttrName = "error_message";
             if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_string())
@@ -305,6 +304,7 @@ public:
             SetState(DONE);
         }
 
+        m_strOutputPath = SysUtils::JoinPath(m_strTaskDir, "TaskOutput.mp4");
         m_bInited = true;
         return true;
     }
@@ -321,12 +321,13 @@ public:
             ImGui::TextColored(ImColor(0.3f, 0.3f, 0.85f), "Processing");
             break;
         case DONE:
-            if (m_bCancel)
-                ImGui::TextColored(ImColor(0.8f, 0.8f, 0.8f), "Cancelled");
-            else if (m_bFailed)
-                ImGui::TextColored(ImColor(0.85f, 0.3f, 0.3f), "FAILED");
-            else
-                ImGui::TextColored(ImColor(0.3f, 0.85f, 0.3f), "Done");
+            ImGui::TextColored(ImColor(0.3f, 0.85f, 0.3f), "Done");
+            break;
+        case FAILED:
+            ImGui::TextColored(ImColor(0.85f, 0.3f, 0.3f), "FAILED");
+            break;
+        case CANCELLED:
+            ImGui::TextColored(ImColor(0.8f, 0.8f, 0.8f), "Cancelled");
             break;
         default:
             ImGui::TextColored(ImColor(0.7f, 0.3f, 0.3f), "Unknown");
@@ -373,7 +374,8 @@ public:
         jnTask["clip_start_offset"] = json::number(m_hVclip->StartOffset());
         jnTask["clip_length"] = json::number(m_hVclip->Duration());
         jnTask["is_vidstab_detect_done"] = m_bVidstabDetectFinished;
-        jnTask["is_task_failed"] = m_bFailed;
+        jnTask["is_vidstab_transform_done"] = m_bVidstabTransformFinished;
+        jnTask["is_task_failed"] = IsFailed();
         jnTask["error_message"] = m_errMsg;
         return true;
     }
@@ -411,27 +413,27 @@ public:
     }
 
 protected:
-    void _TaskProc () override
+    bool _TaskProc () override
     {
         m_pLogger->Log(INFO) << "Start background task 'Vidstab' for '" << m_strSrcUrl << "'." << endl;
         if (!m_bInited)
         {
             ostringstream oss; oss << "Background task 'Vidstab' with name '" << m_name << "' is NOT initialized!";
             m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
-            m_bFailed = true;
-            return;
+            return false;
         }
 
+        m_fProgress = 0.f;
+        float fStageProgress = 0.f, fStageShare = 0.5f, fAccumShares = 0.f;
+        bool bFilterGraphInited = false;
+        int64_t i64FrmIdx = 0;
+        const int64_t i64ClipDur = m_hVclip->Duration();
         ImMatToAVFrameConverter tMat2AvfrmCvter;
         tMat2AvfrmCvter.SetOutPixelFormat(m_eFgInputPixfmt);
         const auto tFrameRate = m_hSettings->VideoOutFrameRate();
         if (!m_bVidstabDetectFinished)
         {
-            int64_t i64FrmIdx = 0;
-            const int64_t i64ClipDur = m_hVclip->Duration();
             SelfFreeAVFramePtr hFgOutfrmPtr = AllocSelfFreeAVFramePtr();
-            float fStageProgress = 0.f, fStageShare = 0.5f, fAccumShares = 0.f;
-            m_fProgress = 0.f;
             while (!IsCancelled())
             {
                 int fferr;
@@ -443,11 +445,11 @@ protected:
                 if (hVfrm)
                 {
                     auto tNativeData = hVfrm->GetNativeData();
-                    if (tNativeData.eType == MediaCore::MediaReader::VideoFrame::NativeData::AVFRAME)
+                    if (tNativeData.eType == MediaCore::VideoFrame::NativeData::AVFRAME)
                         hFgInfrmPtr = CloneSelfFreeAVFramePtr((AVFrame*)tNativeData.pData);
-                    else if (tNativeData.eType == MediaCore::MediaReader::VideoFrame::NativeData::AVFRAME_HOLDER)
+                    else if (tNativeData.eType == MediaCore::VideoFrame::NativeData::AVFRAME_HOLDER)
                         hFgInfrmPtr = *((SelfFreeAVFramePtr*)tNativeData.pData);
-                    else if (tNativeData.eType == MediaCore::MediaReader::VideoFrame::NativeData::MAT)
+                    else if (tNativeData.eType == MediaCore::VideoFrame::NativeData::MAT)
                     {
                         const auto& vmat = *((ImGui::ImMat*)tNativeData.pData);
                         if (vmat.device != IM_DD_CPU)
@@ -464,25 +466,24 @@ protected:
                 }
                 if (hFgInfrmPtr)
                 {
-                    if (m_bFirstRun)
+                    hFgInfrmPtr->pts = i64FrmIdx;
+                    if (!bFilterGraphInited)
                     {
                         if (!SetupVidstabDetectFilterGraph(hFgInfrmPtr.get()))
                         {
                             m_pLogger->Log(Error) << "'SetupVidstabDetectFilterGraph()' FAILED!" << endl;
-                            m_bFailed = true;
-                            return;
+                            return false;
                         }
-                        m_bFirstRun = false;
+                        bFilterGraphInited = true;
                     }
 
                     fferr = av_buffersrc_add_frame(m_pBufsrcCtx, hFgInfrmPtr.get());
                     if (fferr < 0)
                     {
-                        ostringstream oss; oss << "Background task 'Vidstab' FAILED when invoking 'av_buffersrc_add_frame()' at frame #" << (i64FrmIdx-1)
+                        ostringstream oss; oss << "Background task 'Vidstab-detect' FAILED when invoking 'av_buffersrc_add_frame()' at frame #" << (i64FrmIdx-1)
                                 << ". fferr=" << fferr << ".";
                         m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
-                        m_bFailed = true;
-                        return;
+                        return false;
                     }
                     av_frame_unref(hFgOutfrmPtr.get());
                     fferr = av_buffersink_get_frame(m_pBufsinkCtx, hFgOutfrmPtr.get());
@@ -490,22 +491,145 @@ protected:
                     {
                         if (fferr < 0)
                         {
-                            ostringstream oss; oss << "Background task 'Vidstab' FAILED when invoking 'av_buff5ersink_get_frame()' at frame #" << (i64FrmIdx-1)
+                            ostringstream oss; oss << "Background task 'Vidstab-detect' FAILED when invoking 'av_buff5ersink_get_frame()' at frame #" << (i64FrmIdx-1)
                                     << ". fferr=" << fferr << ".";
                             m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
-                            m_bFailed = true;
-                            return;
+                            return false;
                         }
                     }
+                    i64FrmIdx++;
                 }
-                i64FrmIdx++;
                 float fStageProgress = (float)((double)i64ReadPos/i64ClipDur);
                 m_fProgress = fAccumShares+(fStageProgress*fStageShare);
                 if (bEof)
                     break;
             }
+            m_bVidstabDetectFinished = true;
+            ReleaseFilterGraph();
         }
+        fAccumShares += fStageShare;
+        m_fProgress = fAccumShares;
+
+        fStageProgress = 0.f; fStageShare = 0.5f;
+        i64FrmIdx = 0;
+        m_hVclip->SeekTo(0);
+        bFilterGraphInited = false;
+        bool bEncoderInited = false;
+        if (!m_bVidstabTransformFinished)
+        {
+            SelfFreeAVFramePtr hFgOutfrmPtr = AllocSelfFreeAVFramePtr();
+            while (!IsCancelled())
+            {
+                int fferr;
+                SelfFreeAVFramePtr hFgInfrmPtr;
+                const int64_t i64ReadPos = round((double)i64FrmIdx*1000*tFrameRate.den/tFrameRate.num);
+                bool bEof = false;
+                auto hVfrm = m_hVclip->ReadSourceFrame(i64ReadPos, bEof, true);
+                ImMatWrapper_AVFrame tAvfrmWrapper;
+                if (hVfrm)
+                {
+                    auto tNativeData = hVfrm->GetNativeData();
+                    if (tNativeData.eType == MediaCore::VideoFrame::NativeData::AVFRAME)
+                        hFgInfrmPtr = CloneSelfFreeAVFramePtr((AVFrame*)tNativeData.pData);
+                    else if (tNativeData.eType == MediaCore::VideoFrame::NativeData::AVFRAME_HOLDER)
+                        hFgInfrmPtr = *((SelfFreeAVFramePtr*)tNativeData.pData);
+                    else if (tNativeData.eType == MediaCore::VideoFrame::NativeData::MAT)
+                    {
+                        const auto& vmat = *((ImGui::ImMat*)tNativeData.pData);
+                        if (vmat.device != IM_DD_CPU)
+                        {
+                            hFgInfrmPtr = AllocSelfFreeAVFramePtr();
+                            tMat2AvfrmCvter.ConvertImage(vmat, hFgInfrmPtr.get(), i64FrmIdx);
+                        }
+                        else
+                        {
+                            tAvfrmWrapper.SetMat(vmat);
+                            hFgInfrmPtr = tAvfrmWrapper.GetWrapper(i64FrmIdx);
+                        }
+                    }
+                }
+                if (hFgInfrmPtr)
+                {
+                    hFgInfrmPtr->pts = i64FrmIdx;
+                    hFgInfrmPtr->pict_type = AV_PICTURE_TYPE_NONE;
+                    if (!bFilterGraphInited)
+                    {
+                        if (!SetupVidstabTransformFilterGraph(hFgInfrmPtr.get()))
+                        {
+                            m_pLogger->Log(Error) << "'SetupVidstabTransformFilterGraph()' FAILED! Error is '" << m_errMsg << "'." << endl;
+                            return false;
+                        }
+                        bFilterGraphInited = true;
+                    }
+
+                    fferr = av_buffersrc_add_frame(m_pBufsrcCtx, hFgInfrmPtr.get());
+                    if (fferr < 0)
+                    {
+                        ostringstream oss; oss << "Background task 'Vidstab-transform' FAILED when invoking 'av_buffersrc_add_frame()' at frame #" << (i64FrmIdx-1)
+                                << ". fferr=" << fferr << ".";
+                        m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
+                        return false;
+                    }
+                    av_frame_unref(hFgOutfrmPtr.get());
+                    fferr = av_buffersink_get_frame(m_pBufsinkCtx, hFgOutfrmPtr.get());
+                    if (fferr != AVERROR(EAGAIN))
+                    {
+                        if (fferr < 0)
+                        {
+                            ostringstream oss; oss << "Background task 'Vidstab-transform' FAILED when invoking 'av_buff5ersink_get_frame()' at frame #" << (i64FrmIdx-1)
+                                    << ". fferr=" << fferr << ".";
+                            m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
+                            return false;
+                        }
+                        if (!bEncoderInited)
+                        {
+                            // setup MediaEncoder
+                            if (!SetupEncoder(hFgOutfrmPtr.get()))
+                            {
+                                m_pLogger->Log(Error) << "'SetupEncoder()' FAILED!" << endl;
+                                return false;
+                            }
+                            bEncoderInited = true;
+                        }
+                        auto hVfrm = FFUtils::CreateVideoFrameFromAVFrame(CloneSelfFreeAVFramePtr(hFgOutfrmPtr.get()), i64ReadPos);
+                        if (!m_hEncoder->EncodeVideoFrame(hVfrm))
+                        {
+                            ostringstream oss; oss << "Background task 'Vidstab-transform' FAILED to encode video frame! pos=" << i64ReadPos;
+                            m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
+                            return false;
+                        }
+                    }
+                    i64FrmIdx++;
+                }
+                float fStageProgress = (float)((double)i64ReadPos/i64ClipDur);
+                m_fProgress = fAccumShares+(fStageProgress*fStageShare);
+                if (bEof)
+                    break;
+            }
+            if (bEncoderInited)
+            {
+                if (!m_hEncoder->FinishEncoding())
+                {
+                    ostringstream oss; oss << "FAILED to 'Finish' MediaEncoder! Error is '" << m_hEncoder->GetError() << "'.";
+                    m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
+                    return false;
+                }
+                m_hEncoder->Close();
+            }
+            m_bVidstabTransformFinished = true;
+        }
+        fAccumShares += fStageShare;
+        m_fProgress = fAccumShares;
+
         m_pLogger->Log(INFO) << "Quit background task 'Vidstab' for '" << m_strSrcUrl << "'." << endl;
+        return true;
+    }
+
+    bool _AfterTaskProc() override
+    {
+        ReleaseFilterGraph();
+        ReleaseEncoder();
+        return true;
     }
 
 private:
@@ -586,10 +710,11 @@ private:
         fferr = avfilter_graph_parse_ptr(m_pFilterGraph, filterArgs.c_str(), &m_filterInputs, &m_filterOutputs, nullptr);
         if (fferr < 0)
         {
-            oss << "FAILED to invoke 'avfilter_graph_parse_ptr'! fferr=" << fferr << ".";
+            oss.str(""); oss << "FAILED to invoke 'avfilter_graph_parse_ptr'! fferr=" << fferr << ". Arguments are \"" << filterArgs << "\".";
             m_errMsg = oss.str();
             return false;
         }
+        m_pLogger->Log(INFO) << "Setup filter-graph with arguments: '" << filterArgs << "'." << endl;
 
         fferr = avfilter_graph_config(m_pFilterGraph, nullptr);
         if (fferr < 0)
@@ -604,6 +729,178 @@ private:
         if (m_filterInputs)
             avfilter_inout_free(&m_filterInputs);
         return true;
+    }
+
+    bool SetupVidstabTransformFilterGraph(const AVFrame* pInAvfrm)
+    {
+        const AVFilter *buffersink = avfilter_get_by_name("buffersink");
+        const AVFilter *buffersrc  = avfilter_get_by_name("buffer");
+
+        m_pFilterGraph = avfilter_graph_alloc();
+        if (!m_pFilterGraph)
+        {
+            m_errMsg = "FAILED to allocate new 'AVFilterGraph'!";
+            return false;
+        }
+
+        int fferr;
+        ostringstream oss;
+        m_eFgInputPixfmt = (AVPixelFormat)pInAvfrm->format;
+        const auto tFrameRate = m_hSettings->VideoOutFrameRate();
+        oss << pInAvfrm->width << ":" << pInAvfrm->height << ":pix_fmt=" << (int)m_eFgInputPixfmt << ":sar=1"
+                << ":time_base=" << tFrameRate.den << "/" << tFrameRate.num << ":frame_rate=" << tFrameRate.num << "/" << tFrameRate.den;
+        string bufsrcArg = oss.str();
+        m_pBufsrcCtx = nullptr;
+        fferr = avfilter_graph_create_filter(&m_pBufsrcCtx, buffersrc, "buffer_source", bufsrcArg.c_str(), nullptr, m_pFilterGraph);
+        if (fferr < 0)
+        {
+            oss << "FAILED when invoking 'avfilter_graph_create_filter' for INPUT 'buffer_source'! fferr=" << fferr << ".";
+            m_errMsg = oss.str();
+            return false;
+        }
+        AVFilterInOut* filtInOutPtr = avfilter_inout_alloc();
+        if (!filtInOutPtr)
+        {
+            m_errMsg = "FAILED to allocate 'AVFilterInOut' instance!";
+            return false;
+        }
+        filtInOutPtr->name       = av_strdup("in");
+        filtInOutPtr->filter_ctx = m_pBufsrcCtx;
+        filtInOutPtr->pad_idx    = 0;
+        filtInOutPtr->next       = nullptr;
+        m_filterOutputs = filtInOutPtr;
+
+        m_pBufsinkCtx = nullptr;
+        fferr = avfilter_graph_create_filter(&m_pBufsinkCtx, buffersink, "buffer_sink", nullptr, nullptr, m_pFilterGraph);
+        if (fferr < 0)
+        {
+            oss << "FAILED when invoking 'avfilter_graph_create_filter' for OUTPUT 'out'! fferr=" << fferr << ".";
+            m_errMsg = oss.str();
+            return false;
+        }
+        filtInOutPtr = avfilter_inout_alloc();
+        if (!filtInOutPtr)
+        {
+            m_errMsg = "FAILED to allocate 'AVFilterInOut' instance!";
+            return false;
+        }
+        filtInOutPtr->name        = av_strdup("out");
+        filtInOutPtr->filter_ctx  = m_pBufsinkCtx;
+        filtInOutPtr->pad_idx     = 0;
+        filtInOutPtr->next        = nullptr;
+        m_filterInputs = filtInOutPtr;
+
+        const int iOutW = (int)m_hSettings->VideoOutWidth();
+        const int iOutH = (int)m_hSettings->VideoOutHeight();
+        oss.str("");
+        if (pInAvfrm->width != iOutW || pInAvfrm->height != iOutH)
+        {
+            string strInterpAlgo = iOutW*iOutH >= pInAvfrm->width*pInAvfrm->height ? "bicubic" : "area";
+            oss << "scale=w=" << iOutW << ":h=" << iOutH << ":flags=" << strInterpAlgo << ",";
+        }
+        // avoid pixel format change
+        // if ((AVPixelFormat)pInAvfrm->format != AV_PIX_FMT_YUV420P)
+        // {
+        //     oss << "format=yuv420p,";
+        // }
+        string strOptAlgo = "gauss";
+        if (m_u8OptAlgo == 1) strOptAlgo = "avg";
+        string strCropMode = "keep";
+        if (m_u8CropMode == 1) strCropMode = "black";
+        string strInterpMode = "bilinear";
+        if (m_u8InterpMode == 0) strInterpMode = "no";
+        else if (m_u8InterpMode == 1) strInterpMode = "linear";
+        else if (m_u8InterpMode == 3) strInterpMode = "bicubic";
+        oss << "vidstabtransform=input=" << m_strTrfPath << ":smoothing=" << m_u32Smoothing << ":optalgo=" << strOptAlgo << ":maxshift=" << m_i32MaxShift
+                << ":maxangle=" << m_fMaxAngle << ":crop=" << strCropMode << ":invert=" << (m_bInvertTrans?1:0) << ":relative=" << (m_bRelative?1:0)
+                << ":zoom=" << m_fPresetZoom << ":optzoom=" << (int)m_u8OptZoom << ":zoomspeed=" << m_fZoomSpeed << ":interpol=" << strInterpMode;
+        string filterArgs = oss.str();
+        fferr = avfilter_graph_parse_ptr(m_pFilterGraph, filterArgs.c_str(), &m_filterInputs, &m_filterOutputs, nullptr);
+        if (fferr < 0)
+        {
+            oss.str(""); oss << "FAILED to invoke 'avfilter_graph_parse_ptr'! fferr=" << fferr << ". Arguments are \"" << filterArgs << "\".";
+            m_errMsg = oss.str();
+            return false;
+        }
+        m_pLogger->Log(INFO) << "Setup filter-graph with arguments: '" << filterArgs << "'." << endl;
+
+        fferr = avfilter_graph_config(m_pFilterGraph, nullptr);
+        if (fferr < 0)
+        {
+            oss << "FAILED to invoke 'avfilter_graph_config'! fferr=" << fferr << ".";
+            m_errMsg = oss.str();
+            return false;
+        }
+
+        if (m_filterOutputs)
+            avfilter_inout_free(&m_filterOutputs);
+        if (m_filterInputs)
+            avfilter_inout_free(&m_filterInputs);
+        return true;
+    }
+
+    void ReleaseFilterGraph()
+    {
+        if (m_filterOutputs)
+        {
+            avfilter_inout_free(&m_filterOutputs);
+            m_filterOutputs = nullptr;
+        }
+        if (m_filterInputs)
+        {
+            avfilter_inout_free(&m_filterInputs);
+            m_filterInputs = nullptr;
+        }
+        m_pBufsrcCtx = nullptr;
+        m_pBufsinkCtx = nullptr;
+        if (m_pFilterGraph)
+        {
+            avfilter_graph_free(&m_pFilterGraph);
+            m_pFilterGraph = nullptr;
+        }
+    }
+
+    bool SetupEncoder(const AVFrame* pInAvfrm)
+    {
+        auto hEncoder = MediaCore::MediaEncoder::CreateInstance();
+        if (!hEncoder->Open(m_strOutputPath))
+        {
+            ostringstream oss; oss << "FAILED to open MediaEncoder at location '" << m_strOutputPath << "'! Error is '" << hEncoder->GetError() << "'.";
+            m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
+            return false;
+        }
+        auto strInputPixfmt = string(av_get_pix_fmt_name((AVPixelFormat)pInAvfrm->format));
+        vector<MediaCore::MediaEncoder::Option> aExtraOpts = {
+            { "profile",                MediaCore::Value("high") },
+            { "aspect",                 MediaCore::Value(MediaCore::Ratio(1,1)) },
+            { "colorspace",             MediaCore::Value(1) },
+            { "color_trc",              MediaCore::Value(1) },
+            { "color_primaries",        MediaCore::Value(1) },
+        };
+        if (!hEncoder->ConfigureVideoStream("h264", strInputPixfmt, pInAvfrm->width, pInAvfrm->height, m_hSettings->VideoOutFrameRate(), 20*1000*1000, &aExtraOpts))
+        {
+            ostringstream oss; oss << "FAILED to configure MediaEncoder VIDEO stream! Error is '" << hEncoder->GetError() << "'.";
+            m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
+            return false;
+        }
+        if (!hEncoder->Start())
+        {
+            ostringstream oss; oss << "FAILED to 'Start' MediaEncoder! Error is '" << hEncoder->GetError() << "'.";
+            m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
+            return false;
+        }
+        m_hEncoder = hEncoder;
+        return true;
+    }
+
+    void ReleaseEncoder()
+    {
+        if (m_hEncoder)
+        {
+            if (!m_hEncoder->Close())
+                m_pLogger->Log(Error) << "In bg-task '" << m_name << "', FAILED to close the encoder! Error is '" << m_hEncoder->GetError() << "'." << endl;
+            m_hEncoder = nullptr;
+        }
     }
 
 private:
@@ -627,15 +924,29 @@ private:
     MediaCore::SharedSettings::Holder m_hSettings;
     bool m_bIsImageSeq{false};
     bool m_bUseSrcAttr;
-    bool m_bFirstRun{true};
-    uint8_t m_u8Shakiness{5};       // 1-10, a value of 1 means little shakiness, a value of 10 means strong shakiness.
-    uint8_t m_u8Accuracy{15};       // 1-15. A value of 1 means low accuracy, a value of 15 means high accuracy.
-    uint16_t m_u16StepSize{6};      // The region around minimum is scanned with 1 pixel resolution.
-    float m_fMinContrast{0.3f};     // 0-1, below this value a local measurement field is discarded.
+    // vidstab detect parameters
+    uint8_t m_u8Shakiness{7};       // 1-10, a value of 1 means little shakiness, a value of 10 means strong shakiness.
+    uint8_t m_u8Accuracy{10};       // 1-15. A value of 1 means low accuracy, a value of 15 means high accuracy.
+    uint16_t m_u16StepSize{12};      // The region around minimum is scanned with 1 pixel resolution.
+    float m_fMinContrast{0.1f};     // 0-1, below this value a local measurement field is discarded.
     bool m_bVidstabDetectFinished{false};
+    // vidstab transform parameters
+    uint32_t m_u32Smoothing{20};    // (value*2+1) frames are used for lowpass filtering the camera movements.
+    uint8_t m_u8OptAlgo{0};         // 0: gauss, 1: avg. This is the camera path optimization algorithm.
+    int32_t m_i32MaxShift{-1};      // Maximum limit for the pixel pan distance, -1 means no limit.
+    float m_fMaxAngle{-1};          // Maximum limit for the camera rotation angle in radians(degree*PI/180), -1 means no limit.
+    uint8_t m_u8CropMode{1};        // 0: keep, 1: black. Specify how to deal with borders that may be visible due to movement compensation.
+    bool m_bInvertTrans{false};     // Invert transforms if set to 'true'.
+    bool m_bRelative{true};        // Consider transforms as relative to previous frame if set to 'true'.
+    float m_fPresetZoom{0.f};       // Set percentage to zoom. A positive value will result in a zoom-in effect, a negative value in a zoom-out effect.
+    uint8_t m_u8OptZoom{1};         // Set optimal zooming to avoid borders. 0: disabled, 1: optimal static zoom value, 2: optimal adaptive zoom value.
+    float m_fZoomSpeed{0.25f};      // Set percent to zoom maximally each frame (enabled when optzoom is set to 2). Range is from 0 to 5.
+    uint8_t m_u8InterpMode{2};      // 0: nearest, 1: linear, 2: bilinear, 3: bicubic.
+    bool m_bVidstabTransformFinished{false};
+    // output settings
     MediaCore::MediaEncoder::Holder m_hEncoder;
+    string m_strOutputPath;
     float m_fProgress{0.f};
-    bool m_bFailed{false};
 };
 
 static const auto _BGTASK_VIDSTAB_DELETER = [] (BackgroundTask* p) {
