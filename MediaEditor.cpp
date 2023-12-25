@@ -5614,7 +5614,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         }
         if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_event"))
         {
-            ImGui::OpenPopup("Delete Event?");
+            msgbox_event.Open();
         }
         ImGui::ShowTooltipOnHover("Delete Event");
         ImGui::PopStyleColor(3);
@@ -5946,7 +5946,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     ImGui::SameLine();
                     if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_node"))
                     {
-                        ImGui::OpenPopup("Delete Node?");
+                        msgbox_node.Open();
                     }
                     ImGui::ShowTooltipOnHover("Delete Node");
                     if (tree_open && !need_redraw)
