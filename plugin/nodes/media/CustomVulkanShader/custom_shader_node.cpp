@@ -17,7 +17,8 @@
 #include <map>
 
 #if IMGUI_ICONS
-#define ICON_BUILD  ICON_MD_SETTINGS
+#define ICON_BUILD  ICON_MD_CONSTRUCTION
+#define ICON_NEW    ICON_MD_NOTE_ADD
 #define ICON_UNDO   ICON_MD_UNDO
 #define ICON_REDO   ICON_MD_REDO
 #define ICON_COPY   ICON_MD_CONTENT_COPY
@@ -25,6 +26,8 @@
 #define ICON_PASTE  ICON_MD_CONTENT_PASTE
 #define ICON_DELETE ICON_MD_DELETE
 #define ICON_RUN    ICON_MD_BUG_REPORT
+#define ICON_LOAD   ICON_FA_FOLDER_OPEN
+#define ICON_EXPORT ICON_IGFD_SAVE
 #else
 #define ICON_BUILD  "Compile"
 #define ICON_UNDO   "Undo"
@@ -34,6 +37,8 @@
 #define ICON_PASTE  "Paste"
 #define ICON_DELETE "Delete"
 #define ICON_RUN    "Run"
+#define ICON_LOAD   "Load"
+#define ICON_EXPORT "Export"
 #endif
 
 #define NODE_VERSION    0x01040000
@@ -338,6 +343,8 @@ struct CustomShaderNode final : Node
 
     bool DrawShaderEditor()
     {
+        static string filters = ".comp";
+        ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal;
         bool changed = false;
         ImGui::PushID(m_ID);
         auto cpos = m_editor.GetCursorPosition();
@@ -366,17 +373,20 @@ struct CustomShaderNode final : Node
             ImGui::PopStyleColor();
         }
 
-        if (ImGui::Button(ICON_BUILD "##custom_shader"))
+        if (ImGui::Button(ICON_BUILD "##custom_shader", ImVec2(64, 0)))
         {
             Compile_shader();
             changed = true;
         } ImGui::ShowTooltipOnHover("Compile");
         ImGui::SameLine();
-        if (ImGui::Button(ICON_RESET "##custom_shader"))
+        bool bp_running = m_Blueprint ? m_Blueprint->IsExecuting() : true;
+        ImGui::BeginDisabled(bp_running || !m_compile_succeed);
+        if (ImGui::Button(ICON_RUN "##custom_shader"))
         {
-            m_program_filter = m_program_filter_default;
-            m_editor.SetText(m_program_filter);
-        } ImGui::ShowTooltipOnHover("Reset");
+            if (m_filter) { delete m_filter; m_filter = nullptr; }
+            m_Blueprint->StepToEnd(this);
+        } ImGui::ShowTooltipOnHover("Run");
+        ImGui::EndDisabled();
         ImGui::SameLine(); ImGui::Spacing();ImGui::SameLine();
         if (ImGui::Button(ICON_UNDO"##custom_shader"))
         {
@@ -413,15 +423,28 @@ struct CustomShaderNode final : Node
             if (ImGui::GetClipboardText() != nullptr)
                 m_editor.Paste();
         } ImGui::ShowTooltipOnHover("Paste");
-        ImGui::SameLine();
-        bool bp_running = m_Blueprint ? m_Blueprint->IsExecuting() : true;
-        ImGui::BeginDisabled(bp_running || !m_compile_succeed);
-        if (ImGui::Button(ICON_RUN "##custom_shader"))
+        ImGui::SameLine(); ImGui::Spacing();ImGui::SameLine();
+        if (ImGui::Button(ICON_NEW "##custom_shader"))
         {
-            if (m_filter) { delete m_filter; m_filter = nullptr; }
-            m_Blueprint->StepToEnd(this);
-        } ImGui::ShowTooltipOnHover("Run");
-        ImGui::EndDisabled();
+            m_program_filter = m_program_filter_default;
+            m_editor.SetText(m_program_filter);
+        } ImGui::ShowTooltipOnHover("New");
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_LOAD "##custom_shader"))
+        {
+            ImGuiFileDialog::Instance()->OpenDialog("##CustomShader_FileDlg", ICON_IGFD_FOLDER_OPEN " Choose File", 
+                                                    filters.c_str(), 
+                                                    ".", 1,
+                                                    IGFDUserDatas("Load Source"), vflags);
+        } ImGui::ShowTooltipOnHover("Load");
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_EXPORT "##custom_shader"))
+        {
+            ImGuiFileDialog::Instance()->OpenDialog("##CustomShader_FileDlg", ICON_IGFD_FOLDER_OPEN " Choose File", 
+                                                    filters.c_str(), 
+                                                    ".", 1,
+                                                    IGFDUserDatas("Save Source"), vflags);// TODO::Dicky save source code file
+        } ImGui::ShowTooltipOnHover("Export");
         ImGui::SameLine(); ImGui::Spacing();ImGui::SameLine();
         if (ImGui::Checkbox("Show Space", &m_show_space_tab))
         {
@@ -472,6 +495,39 @@ struct CustomShaderNode final : Node
         m_editor.Render("VulkanShader");
         ImGui::EndChild();
         ImGui::PopID();
+        ImVec2 minSize = ImVec2(600, 800);
+        ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
+        if (ImGuiFileDialog::Instance()->Display("##CustomShader_FileDlg", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
+        {
+            if (ImGuiFileDialog::Instance()->IsOk())
+            {
+                auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
+                auto file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
+                auto file_suffix = ImGuiFileDialog::Instance()->GetCurrentFileSuffix();
+                auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
+                if (userDatas.compare("Load Source") == 0)
+                {
+                    std::ifstream is(file_path);
+                    if (is.is_open())
+                    {
+                        m_program_filter.clear();
+                        m_program_filter = std::string((std::istreambuf_iterator<char>(is)), std::istreambuf_iterator<char>());
+                        is.close();
+                        m_editor.SetText(m_program_filter);
+                        m_compile_succeed = false;
+                    }
+                }
+                else if (userDatas.compare("Save Source") == 0)
+                {
+                    if (file_suffix.empty()) file_path += ".comp";
+                    std::ofstream os;
+                    os.open(file_path, std::ios::out);
+                    os << m_program_filter << std::endl;
+                    os.close();
+                }
+            }
+            ImGuiFileDialog::Instance()->Close();
+        }
         return changed;
     }
 
@@ -642,6 +698,7 @@ struct CustomShaderNode final : Node
             if (ImGui::Button("Compile"))
             {
                 Compile_shader();
+                changed = true;
             }
         }
         ImGui::PopItemWidth();
@@ -695,7 +752,6 @@ struct CustomShaderNode final : Node
             if (val.is_string()) 
             {
                 m_program_filter = val.get<imgui_json::string>();
-                //m_program_filter_default = m_program_filter;
             }
         }
         if (value.contains("out_scale"))
