@@ -128,7 +128,7 @@
 #define ICON_FILTER_EDITOR  u8"\ueb03"
 #define ICON_DELETE_CLIPS   u8"\ue16f"
 #define ICON_MASK           u8"\ueb63"
-#define ICON_VIDEO_ATTRIBUTE ICON_MD_FORMAT_SHAPES
+#define ICON_CLIP_ATTRIBUTE ICON_MD_FORMAT_SHAPES
 
 #define ICON_FONT_BOLD      u8"\ue238"
 #define ICON_FONT_ITALIC    u8"\ue23f"
@@ -752,6 +752,7 @@ struct BaseEditingClip
     int64_t mCurrentTime        {-1};
     ImVec2 mViewWndSize         {0, 0};
     bool bSeeking               {false};
+    bool bEditingAttribute      {false};                // editing clip attribute mode, unique UI layout
 
     int64_t firstTime = 0;
     int64_t lastTime = 0;
