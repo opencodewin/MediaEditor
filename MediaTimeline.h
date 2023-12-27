@@ -770,6 +770,7 @@ struct BaseEditingClip
     virtual void CalcDisplayParams(int64_t viewWndDur) = 0;
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Save() = 0;
+    virtual bool GetFrame(ImGui::ImMat& frame, MediaCore::CorrelativeFrame::Phase phase) { return false; }
     virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) = 0;
 };
@@ -784,6 +785,8 @@ struct EditingVideoClip : BaseEditingClip
 
     // for image clip
     ImTextureID mImgTexture     {0};
+    // for attribute editor
+    ImTextureID mTransformOutputTexture {0};
 
     MediaCore::VideoFilter* mFilter {nullptr};
     BluePrint::BluePrintUI* mFilterBp {nullptr};
@@ -803,6 +806,7 @@ public:
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
+    bool GetFrame(ImGui::ImMat& frame, MediaCore::CorrelativeFrame::Phase phase) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
     void SelectEditingMask(MEC::Event::Holder hEvent, int64_t nodeId, int maskIndex, ImGui::MaskCreator::Holder hMaskCreator = nullptr);
     void UnselectEditingMask();

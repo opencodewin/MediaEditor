@@ -7,7 +7,7 @@
 #include <warpAffine_vulkan.h>
 #include <warpPerspective_vulkan.h>
 
-#define NODE_VERSION    0x01000000
+#define NODE_VERSION    0x01000100
 
 namespace BluePrint
 {
@@ -33,25 +33,6 @@ struct MatWarpAffineNode final : Node
         m_mutex.lock();
         m_MatOut.SetValue(ImGui::ImMat());
         m_mutex.unlock();
-    }
-
-    void calculate_matrix(int w, int h, int dw, int dh, float x_offset, float y_offset, float x_scale, float y_scale)
-    {
-        float _angle = m_angle / 180.f * M_PI;
-        float _x_scale = 1.f / (x_scale + FLT_EPSILON);
-        float _y_scale = 1.f / (y_scale + FLT_EPSILON);
-        float alpha_00 = std::cos(_angle) * _x_scale;
-        float alpha_11 = std::cos(_angle) * _y_scale;
-        float beta_01 = std::sin(_angle) * _x_scale;
-        float beta_10 = std::sin(_angle) * _y_scale;
-        float x_diff = dw - w;
-        float y_diff = dh - h;
-        float _x_offset = x_offset * (dw + w * x_scale) / 2 + x_diff / 2;
-        float _y_offset = y_offset * (dh + h * y_scale) / 2 + y_diff / 2;
-        int center_x = w / 2 + _x_offset;
-        int center_y = h / 2 + _y_offset;
-        m_matrix.at<float>(0, 0) =  alpha_00;    m_matrix.at<float>(1, 0) = beta_01;      m_matrix.at<float>(2, 0) = (1 - alpha_00) * center_x - beta_01 * center_y - _x_offset;
-        m_matrix.at<float>(0, 1) = -beta_10;     m_matrix.at<float>(1, 1) = alpha_11;     m_matrix.at<float>(2, 1) = beta_10 * center_x + (1 - alpha_11) * center_y - _y_offset;
     }
 
     FlowPin Execute(Context& context, FlowPin& entryPoint, bool threading = false) override
@@ -81,7 +62,7 @@ struct MatWarpAffineNode final : Node
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
             im_RGB.w = mat_in.w * m_scale;
             im_RGB.h = mat_in.h * m_scale;
-            calculate_matrix(mat_in.w, mat_in.h, im_RGB.w, im_RGB.h, m_offset_x, m_offset_y, m_scale_x, m_scale_y);
+            m_matrix = ImGui::getAffineTransform(mat_in.w, mat_in.h, im_RGB.w, im_RGB.h, m_offset_x, m_offset_y, m_scale_x, m_scale_y, m_angle);
             float _l = m_crop_l, _t = m_crop_t, _r = m_crop_r, _b = m_crop_b;
             if (m_crop_r + m_crop_l > 1.f) { _l = 1.f - m_crop_r; _r = 1.f - m_crop_l; }
             if (m_crop_b + m_crop_t > 1.f) { _t = 1.f - m_crop_b; _b = 1.f - m_crop_t; }
@@ -123,35 +104,35 @@ struct MatWarpAffineNode final : Node
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat("scale", &_scale, 0.f, 4.f, "%.1f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##WarpAffine")) { _scale = 0.f; changed = true; }
-        ImGui::ShowTooltipOnHover("Reset");
+        if (!embedded) ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("angle", &_angle, -360.f, 360.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_angle##WarpAffine")) { _angle = 0.f; changed = true; }
-        ImGui::ShowTooltipOnHover("Reset");
+        if (!embedded) ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("scale x", &_scale_x, 0.1f, 8.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale_x##WarpAffine")) { _scale_x = 1.f; changed = true; }
-        ImGui::ShowTooltipOnHover("Reset");
+        if (!embedded) ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("scale y", &_scale_y, 0.1f, 8.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale_y##WarpAffine")) { _scale_y = 1.f; changed = true; }
-        ImGui::ShowTooltipOnHover("Reset");
+        if (!embedded) ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("offet x", &_offset_x, -1.f, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_offset_x##WarpAffine")) { _offset_x = 0.f; changed = true; }
-        ImGui::ShowTooltipOnHover("Reset");
+        if (!embedded) ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("offet y", &_offset_y, -1.f, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_offset_y##WarpAffine")) { _offset_y = 0.f; changed = true; }
-        ImGui::ShowTooltipOnHover("Reset");
+        if (!embedded) ImGui::ShowTooltipOnHover("Reset");
 
         ImGui::SliderFloat("crop L", &_crop_l, 0.f, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_crop_l##WarpAffine")) { _crop_l = 0.f; changed = true; }
-        ImGui::ShowTooltipOnHover("Reset");
+        if (!embedded) ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("crop T", &_crop_t, 0.f, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_crop_t##WarpAffine")) { _crop_t = 0.f; changed = true; }
-        ImGui::ShowTooltipOnHover("Reset");
+        if (!embedded) ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("crop R", &_crop_r, 0.f, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_crop_r##WarpAffine")) { _crop_r = 0.f; changed = true; }
-        ImGui::ShowTooltipOnHover("Reset");
+        if (!embedded) ImGui::ShowTooltipOnHover("Reset");
         ImGui::SliderFloat("crop B", &_crop_b, 0.f, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_crop_b##WarpAffine")) { _crop_b = 0.f; changed = true; }
-        ImGui::ShowTooltipOnHover("Reset");
+        if (!embedded) ImGui::ShowTooltipOnHover("Reset");
 
         ImGui::RadioButton("Nearest",   (int *)&_mode, IM_INTERPOLATE_NEAREST); ImGui::SameLine();
         ImGui::RadioButton("Bilinear",  (int *)&_mode, IM_INTERPOLATE_BILINEAR); ImGui::SameLine();
@@ -288,6 +269,10 @@ struct MatWarpAffineNode final : Node
 
     span<Pin*> GetInputPins() override { return m_InputPins; }
     span<Pin*> GetOutputPins() override { return m_OutputPins; }
+    Pin* GetAutoLinkInputFlowPin() override { return &m_Enter; }
+    Pin* GetAutoLinkOutputFlowPin() override { return &m_Exit; }
+    vector<Pin*> GetAutoLinkInputDataPin() override { return {&m_MatIn}; }
+    vector<Pin*> GetAutoLinkOutputDataPin() override { return {&m_MatOut}; }
 
     FlowPin   m_Enter   = { this, "Enter" };
     FlowPin   m_IReset  = { this, "Reset In" };

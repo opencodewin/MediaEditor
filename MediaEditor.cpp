@@ -6052,6 +6052,104 @@ static bool DrawVideoClipTimelineWindow(bool& show_BP, EditingVideoClip * editin
     return mouse_hold;
 }
 
+static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVideoClip * editing_clip)
+{
+    bool ret = false;
+    ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 sub_window_size = ImGui::GetWindowSize();
+    ImGui::ImMat in_frame;
+    auto frame_ret = editing_clip->GetFrame(in_frame, MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM);
+    int64_t output_timestamp = in_frame.time_stamp * 1000;
+    if (frame_ret && 
+        (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != output_timestamp || !editing_clip->mTransformOutputTexture))
+    {
+        ImGui::ImMatToTexture(in_frame, editing_clip->mTransformOutputTexture);
+    }
+    ImVec2 videoPos = sub_window_pos + ImVec2(16, 16);
+    ImVec2 videoSize = sub_window_size - ImVec2(32, 32);
+    float offset_x = 0, offset_y = 0;
+    float tf_x = 0, tf_y = 0;
+    if (editing_clip->mTransformOutputTexture)
+    {
+        ShowVideoWindow(draw_list, editing_clip->mTransformOutputTexture, videoPos, videoSize, "Attribute", 1.5f, offset_x, offset_y, tf_x, tf_y, true, false);
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
+    }
+    // draw grad
+    draw_list->AddLine(sub_window_pos + ImVec2(sub_window_size.x / 2, 0), sub_window_pos + ImVec2(sub_window_size.x / 2, sub_window_size.y), IM_COL32(64,64,64,128));
+    draw_list->AddLine(sub_window_pos + ImVec2(0, sub_window_size.y / 2), sub_window_pos + ImVec2(sub_window_size.x, sub_window_size.y / 2), IM_COL32(64,64,64,128));
+    auto attribute = editing_clip->mAttribute;
+    auto clip = (VideoClip*)editing_clip->GetClip();
+    if (!frame_ret || !attribute || !clip)
+        return ret;
+    auto attribute_keypoint = attribute->GetKeyPoint();
+
+    // Crop Margin Left
+    int curve_margin_l_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginL") : -1;
+    bool has_curve_margin_l = attribute_keypoint ? curve_margin_l_index != -1 : false;
+    float margin_l = has_curve_margin_l ? attribute_keypoint->GetValueByDim(curve_margin_l_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginLScale();
+    
+    // Crop Margin Top
+    int curve_margin_t_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginT") : -1;
+    bool has_curve_margin_t = attribute_keypoint ? curve_margin_t_index != -1 : false;
+    float margin_t = has_curve_margin_t ? attribute_keypoint->GetValueByDim(curve_margin_t_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginTScale();
+
+    // Crop Margin Right
+    int curve_margin_r_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginR") : -1;
+    bool has_curve_margin_r = attribute_keypoint ? curve_margin_r_index != -1 : false;
+    float margin_r = has_curve_margin_r ? attribute_keypoint->GetValueByDim(curve_margin_r_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginRScale();
+
+    // Crop Margin Bottom
+    int curve_margin_b_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginB") : -1;
+    bool has_curve_margin_b = attribute_keypoint ? curve_margin_b_index != -1 : false;
+    float margin_b = has_curve_margin_b ? attribute_keypoint->GetValueByDim(curve_margin_b_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginBScale();
+
+    // Position offset H
+    int curve_position_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetH") : -1;
+    bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
+    float position_h = has_curve_position_h ? attribute_keypoint->GetValueByDim(curve_position_h_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetHScale();
+
+    // Position offset V
+    int curve_position_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetV") : -1;
+    bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
+    float position_v = has_curve_position_v ? attribute_keypoint->GetValueByDim(curve_position_v_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetVScale();
+
+    bool keep_aspect_ratio = clip->mKeepAspectRatio;
+    int curve_scale_index = -1;
+    int curve_scale_h_index = -1;
+    int curve_scale_v_index = -1;
+    bool has_curve_scale = false;
+    bool has_curve_scale_h = false;
+    bool has_curve_scale_v = false;
+    float scale_h = 1.0;
+    float scale_v = 1.0;
+    if (keep_aspect_ratio)
+    {
+        curve_scale_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("Scale") : -1;
+        has_curve_scale = attribute_keypoint ? curve_scale_index != -1 : false;
+        scale_h = scale_v = has_curve_scale ? attribute_keypoint->GetValueByDim(curve_scale_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
+    }
+    else
+    {
+        // Scale H
+        curve_scale_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleH") : -1;
+        has_curve_scale_h = attribute_keypoint ? curve_scale_h_index != -1 : false;
+        scale_h = has_curve_scale_h ? attribute_keypoint->GetValueByDim(curve_scale_h_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleH();
+        // Scale V
+        curve_scale_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") : -1;
+        has_curve_scale_v = attribute_keypoint ? curve_scale_v_index != -1 : false;
+        scale_v = has_curve_scale_v ? attribute_keypoint->GetValueByDim(curve_scale_v_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleV();
+    }
+
+    // Rotate angle
+    int curve_angle_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("RotateAngle") : -1;
+    bool has_curve_angle = attribute_keypoint ? curve_angle_index != -1 : false;
+    float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetRotationAngle();
+
+    // calculate frame vertex
+
+    return ret;
+}
+
 static void ShowVideoClipWindow(ImDrawList *draw_list, ImRect title_rect, EditingVideoClip* editing)
 {
     /*                1. with preview(2 Splitters)                                                   2. without preview(1 Splitter)
@@ -6161,7 +6259,12 @@ static void ShowVideoClipWindow(ImDrawList *draw_list, ImRect title_rect, Editin
             ImVec2 sub_window_size = ImGui::GetWindowSize();
             ImVec2 timeline_pos = sub_window_pos + ImVec2(0, sub_window_size.y - timeline_height - 8);
             ImVec2 timeline_size = ImVec2(sub_window_size.x, timeline_height);
-            
+            ImVec2 editor_size = ImVec2(sub_window_size.x, sub_window_size.y - timeline_height - 4);
+            if (ImGui::BeginChild("attribute_editor", editor_size, false))
+            {
+                mouse_hold |= DrawVideoClipAttributeEditorWindow(draw_list, editing);
+            }
+            ImGui::EndChild();
             ImGui::SetCursorScreenPos(timeline_pos);
             if (ImGui::BeginChild("attribute_timeline", timeline_size, false))
             {

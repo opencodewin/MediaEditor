@@ -3335,6 +3335,8 @@ EditingVideoClip::~EditingVideoClip()
     mFilter = nullptr;
     mFilterBp = nullptr;
     mFilterKp = nullptr;
+    if (mImgTexture) { ImGui::ImDestroyTexture(mImgTexture); mImgTexture = nullptr; }
+    if (mTransformOutputTexture) { ImGui::ImDestroyTexture(mTransformOutputTexture); mTransformOutputTexture = nullptr; }
 }
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
@@ -3422,6 +3424,30 @@ bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_fr
             ret = false;
     }
     in_out_frame.first = frame_org;
+    return ret;
+}
+
+bool EditingVideoClip::GetFrame(ImGui::ImMat& frame, MediaCore::CorrelativeFrame::Phase phase)
+{
+    int ret = true;
+    TimeLine * timeline = (TimeLine *)mHandle;
+    if (!timeline)
+        return false;
+    auto frames = timeline->GetPreviewFrame();
+    if (frames.empty())
+    {
+        ret = false;
+    }
+    else
+    {
+        auto iter_out = std::find_if(frames.begin(), frames.end(), [&] (auto& cf) {
+            return cf.clipId == mID && cf.phase == phase;
+        });
+        if (iter_out != frames.end())
+            frame = iter_out->frame;
+        else
+            ret = false;
+    }
     return ret;
 }
 

@@ -7,7 +7,7 @@
 #include <warpAffine_vulkan.h>
 #include <warpPerspective_vulkan.h>
 
-#define NODE_VERSION    0x01000000
+#define NODE_VERSION    0x01000100
 
 namespace BluePrint
 {
@@ -201,6 +201,10 @@ struct MatWarpPerspectiveNode final : Node
 
     span<Pin*> GetInputPins() override { return m_InputPins; }
     span<Pin*> GetOutputPins() override { return m_OutputPins; }
+    Pin* GetAutoLinkInputFlowPin() override { return &m_Enter; }
+    Pin* GetAutoLinkOutputFlowPin() override { return &m_Exit; }
+    vector<Pin*> GetAutoLinkInputDataPin() override { return {&m_MatIn}; }
+    vector<Pin*> GetAutoLinkOutputDataPin() override { return {&m_MatOut}; }
 
     FlowPin   m_Enter   = { this, "Enter" };
     FlowPin   m_IReset  = { this, "Reset In" };
