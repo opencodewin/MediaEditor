@@ -427,6 +427,7 @@ struct MediaEditorSettings
     // clip filter editor layout
     float video_clip_timeline_height {0.5}; // video clip filter view timelime height
     float video_clip_timeline_width {0.5};  // video clip filter view timeline width
+    float video_clip_attribute_height {0.5};  // video clip filter view attribute height, attribute mode only
 
     // clip filter editor layout
     float audio_clip_timeline_height {0.5}; // audio clip filter view timelime height
@@ -5213,7 +5214,19 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 }
             }
         };
-        if (attribute && ImGui::TreeNodeEx("Video Attribute", ImGuiTreeNodeFlags_DefaultOpen))
+        
+        bool attrib_tree_open = false;
+        if (attribute)
+        {
+            auto tree_pos = ImGui::GetCursorScreenPos();
+            attrib_tree_open = ImGui::TreeNodeEx("Video Attribute", ImGuiTreeNodeFlags_DefaultOpen);
+            int iReserveWidth = is_video_clip ? 80 : 40;
+            ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - iReserveWidth, tree_pos.y));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+            ImGui::CheckButton(ICON_CLIP_ATTRIBUTE "##video_attribute", &editing->bEditingAttribute, ImVec4(0.0, 0.5, 0.0, 1.0));
+            ImGui::PopStyleColor();
+        }
+        if (attrib_tree_open)
         {
             if (editing_clip->bAttributeScrolling)
             {
@@ -5528,6 +5541,8 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
 
     ImGui::Separator();
     ImGui::PopStyleColor();
+    if (editing->bEditingAttribute)
+        return;
     // event editing
     auto event_list = editing_clip->mEventStack->GetEventList();
     if (event_list.empty())
@@ -5614,7 +5629,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         }
         if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_event"))
         {
-            ImGui::OpenPopup("Delete Event?");
+            msgbox_event.Open();
         }
         ImGui::ShowTooltipOnHover("Delete Event");
         ImGui::PopStyleColor(3);
@@ -5946,7 +5961,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     ImGui::SameLine();
                     if (ImGui::Button(ICON_DELETE "##event_list_editor_delete_node"))
                     {
-                        ImGui::OpenPopup("Delete Node?");
+                        msgbox_node.Open();
                     }
                     ImGui::ShowTooltipOnHover("Delete Node");
                     if (tree_open && !need_redraw)
@@ -6032,9 +6047,107 @@ static bool DrawVideoClipTimelineWindow(bool& show_BP, EditingVideoClip * editin
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
     bool timeline_changed = false;
-    auto mouse_hold = DrawClipTimeLine(timeline, editing_clip, timeline->mCurrentTime, 30, 50, show_BP, timeline_changed);
+    auto mouse_hold = DrawClipTimeLine(timeline, editing_clip, timeline->mCurrentTime, 30, editing_clip->bEditingAttribute ? 40 : 50, show_BP, timeline_changed);
     if (!g_project_loading) project_changed |= timeline_changed;
     return mouse_hold;
+}
+
+static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVideoClip * editing_clip)
+{
+    bool ret = false;
+    ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+    ImVec2 sub_window_size = ImGui::GetWindowSize();
+    ImGui::ImMat in_frame;
+    auto frame_ret = editing_clip->GetFrame(in_frame, MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM);
+    int64_t output_timestamp = in_frame.time_stamp * 1000;
+    if (frame_ret && 
+        (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != output_timestamp || !editing_clip->mTransformOutputTexture))
+    {
+        ImGui::ImMatToTexture(in_frame, editing_clip->mTransformOutputTexture);
+    }
+    ImVec2 videoPos = sub_window_pos + ImVec2(16, 16);
+    ImVec2 videoSize = sub_window_size - ImVec2(32, 32);
+    float offset_x = 0, offset_y = 0;
+    float tf_x = 0, tf_y = 0;
+    if (editing_clip->mTransformOutputTexture)
+    {
+        ShowVideoWindow(draw_list, editing_clip->mTransformOutputTexture, videoPos, videoSize, "Attribute", 1.5f, offset_x, offset_y, tf_x, tf_y, true, false);
+        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
+    }
+    // draw grad
+    draw_list->AddLine(sub_window_pos + ImVec2(sub_window_size.x / 2, 0), sub_window_pos + ImVec2(sub_window_size.x / 2, sub_window_size.y), IM_COL32(64,64,64,128));
+    draw_list->AddLine(sub_window_pos + ImVec2(0, sub_window_size.y / 2), sub_window_pos + ImVec2(sub_window_size.x, sub_window_size.y / 2), IM_COL32(64,64,64,128));
+    auto attribute = editing_clip->mAttribute;
+    auto clip = (VideoClip*)editing_clip->GetClip();
+    if (!frame_ret || !attribute || !clip)
+        return ret;
+    auto attribute_keypoint = attribute->GetKeyPoint();
+
+    // Crop Margin Left
+    int curve_margin_l_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginL") : -1;
+    bool has_curve_margin_l = attribute_keypoint ? curve_margin_l_index != -1 : false;
+    float margin_l = has_curve_margin_l ? attribute_keypoint->GetValueByDim(curve_margin_l_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginLScale();
+    
+    // Crop Margin Top
+    int curve_margin_t_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginT") : -1;
+    bool has_curve_margin_t = attribute_keypoint ? curve_margin_t_index != -1 : false;
+    float margin_t = has_curve_margin_t ? attribute_keypoint->GetValueByDim(curve_margin_t_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginTScale();
+
+    // Crop Margin Right
+    int curve_margin_r_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginR") : -1;
+    bool has_curve_margin_r = attribute_keypoint ? curve_margin_r_index != -1 : false;
+    float margin_r = has_curve_margin_r ? attribute_keypoint->GetValueByDim(curve_margin_r_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginRScale();
+
+    // Crop Margin Bottom
+    int curve_margin_b_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginB") : -1;
+    bool has_curve_margin_b = attribute_keypoint ? curve_margin_b_index != -1 : false;
+    float margin_b = has_curve_margin_b ? attribute_keypoint->GetValueByDim(curve_margin_b_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginBScale();
+
+    // Position offset H
+    int curve_position_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetH") : -1;
+    bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
+    float position_h = has_curve_position_h ? attribute_keypoint->GetValueByDim(curve_position_h_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetHScale();
+
+    // Position offset V
+    int curve_position_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetV") : -1;
+    bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
+    float position_v = has_curve_position_v ? attribute_keypoint->GetValueByDim(curve_position_v_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetVScale();
+
+    bool keep_aspect_ratio = clip->mKeepAspectRatio;
+    int curve_scale_index = -1;
+    int curve_scale_h_index = -1;
+    int curve_scale_v_index = -1;
+    bool has_curve_scale = false;
+    bool has_curve_scale_h = false;
+    bool has_curve_scale_v = false;
+    float scale_h = 1.0;
+    float scale_v = 1.0;
+    if (keep_aspect_ratio)
+    {
+        curve_scale_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("Scale") : -1;
+        has_curve_scale = attribute_keypoint ? curve_scale_index != -1 : false;
+        scale_h = scale_v = has_curve_scale ? attribute_keypoint->GetValueByDim(curve_scale_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
+    }
+    else
+    {
+        // Scale H
+        curve_scale_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleH") : -1;
+        has_curve_scale_h = attribute_keypoint ? curve_scale_h_index != -1 : false;
+        scale_h = has_curve_scale_h ? attribute_keypoint->GetValueByDim(curve_scale_h_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleH();
+        // Scale V
+        curve_scale_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") : -1;
+        has_curve_scale_v = attribute_keypoint ? curve_scale_v_index != -1 : false;
+        scale_v = has_curve_scale_v ? attribute_keypoint->GetValueByDim(curve_scale_v_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleV();
+    }
+
+    // Rotate angle
+    int curve_angle_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("RotateAngle") : -1;
+    bool has_curve_angle = attribute_keypoint ? curve_angle_index != -1 : false;
+    float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetRotationAngle();
+
+    // calculate frame vertex
+
+    return ret;
 }
 
 static void ShowVideoClipWindow(ImDrawList *draw_list, ImRect title_rect, EditingVideoClip* editing)
@@ -6074,24 +6187,24 @@ static void ShowVideoClipWindow(ImDrawList *draw_list, ImRect title_rect, Editin
     ┃              [ event ]                     ║      > filter edit    ┃      ┃               .                 ║                                  ┃
     ┃              [ curve ]                     ║        .              ┃      ┃               .                 ║                                  ┃
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛      ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-                    5. with blueprint edit no preview (2 Splitters)                           
-    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓ 
-    ┃    []--[]--                                                        ┃ 
-    ┃             \                                                      ┃ 
-    ┃               \- []                                                ┃ 
-    ┃                                                                    ┃ 
-    ┃                                                                    ┃ 
-    ┃                                                                    ┃ 
-    ┃                                                                    ┃ 
-    ┃                                                                    ┃ 
-    ┣════════════════════════════════════════════╦═══════════════════════┫ 
-    ┃           |<  <  []  >  >|                 ║  > event              ┃ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢   |> filter           ┃ 
-    ┃             timeline                       ║    > filter edit      ┃ 
-    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢       .               ┃ 
-    ┃              [ event ]                     ║       .               ┃ 
-    ┃              [ curve ]                     ║                       ┃ 
-    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛ 
+                    5. with blueprint edit no preview (2 Splitters)                             6. mask / attribute editor (2 Splitters)                  
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓      ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃    []--[]--                                                        ┃      ┃                                            ║                       ┃  
+    ┃             \                                                      ┃      ┃                                            ║       preview         ┃ 
+    ┃               \- []                                                ┃      ┃                                            ║          org          ┃
+    ┃                                                                    ┃      ┃                                            ║                       ┃
+    ┃                                                                    ┃      ┃                                            ╟━━━━━━━━━━━━━━━━━━━━━━━┫
+    ┃                                                                    ┃      ┃                                            ║    |<  <  []  >  >|   ┃
+    ┃                                                                    ┃      ┃                                            ╬═══════════════════════┫
+    ┃                                                                    ┃      ┃                                            ║  > attrib             ┃ 
+    ┣════════════════════════════════════════════╦═══════════════════════┫      ┃                                            ║   |> top              ┃
+    ┃           |<  <  []  >  >|                 ║  > event              ┃      ┃                                            ║   |> left             ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢   |> filter           ┃      ┃                                            ║   |> bottom           ┃
+    ┃             timeline                       ║    > filter edit      ┃      ┃                                            ║   |> right            ┃
+    ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╢       .               ┃      ┃                                            ║   ...                 ┃ 
+    ┃              [ event ]                     ║       .               ┃      ┣════════════════════════════════════════════╢   ...                 ┃
+    ┃              [ curve ]                     ║                       ┃      ┃             timeline                       ║                       ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛      ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━━┛
     */
 
     // draw page title
@@ -6132,8 +6245,56 @@ static void ShowVideoClipWindow(ImDrawList *draw_list, ImRect title_rect, Editin
     int preview_count = 0;
     if (MonitorIndexVideoFilterOrg == -1) preview_count ++;
     if (MonitorIndexVideoFiltered == -1)  preview_count ++;
-
-    if (!show_blueprint)
+    if (editing->bEditingAttribute)
+    {
+        // 2 Splitters, vertically first, then horizontal(chart 6)
+        float timeline_width = window_size.x * g_media_editor_settings.video_clip_timeline_width;
+        float event_list_width = window_size.x - timeline_width;
+        is_splitter_hold |= ImGui::Splitter(true, 4.0f, &timeline_width, &event_list_width, window_size.x * 0.5, event_min_width/*window_size.x * 0.2*/);
+        g_media_editor_settings.video_clip_timeline_width = timeline_width / window_size.x;
+        if (ImGui::BeginChild("video_timeline&editor", ImVec2(timeline_width - 4, window_size.y), false))
+        {
+            float timeline_height = 12 + 24 + 64 + 24 + 40 + 30 + 4;
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            ImVec2 timeline_pos = sub_window_pos + ImVec2(0, sub_window_size.y - timeline_height - 8);
+            ImVec2 timeline_size = ImVec2(sub_window_size.x, timeline_height);
+            ImVec2 editor_size = ImVec2(sub_window_size.x, sub_window_size.y - timeline_height - 4);
+            if (ImGui::BeginChild("attribute_editor", editor_size, false))
+            {
+                mouse_hold |= DrawVideoClipAttributeEditorWindow(draw_list, editing);
+            }
+            ImGui::EndChild();
+            ImGui::SetCursorScreenPos(timeline_pos);
+            if (ImGui::BeginChild("attribute_timeline", timeline_size, false))
+            {
+                DrawVideoClipTimelineWindow(show_blueprint, editing);
+            }
+            ImGui::EndChild();
+        }
+        ImGui::EndChild();
+        ImGui::SameLine();
+        if (ImGui::BeginChild("video_event_list&clip_preview", ImVec2(event_list_width - 8, window_size.y), false))
+        {
+            float event_height = window_size.y * g_media_editor_settings.video_clip_attribute_height;
+            float preview_height = window_size.y - event_height;
+            is_splitter_hold |= ImGui::Splitter(false, 4.0f, &preview_height, &event_height, window_size.y * 0.3, window_size.y * 0.3);
+            g_media_editor_settings.video_clip_attribute_height = event_height / window_size.y;
+            if (ImGui::BeginChild("clip_preview", ImVec2(event_list_width - 8, preview_height - 4), false))
+            {
+                DrawVideoClipPreviewWindow(draw_list, editing);
+            }
+            ImGui::EndChild();
+            ImGui::Dummy(ImVec2(0, 4));
+            if (ImGui::BeginChild("video_event_list", ImVec2(event_list_width - 8, event_height - 8), false))
+            {
+                DrawClipEventWindow(draw_list, editing);
+            }
+            ImGui::EndChild();
+        }
+        ImGui::EndChild();
+    }
+    else if (!show_blueprint)
     {
         if (preview_count == 0)
         {
@@ -10945,6 +11106,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
         else if (sscanf(line, "ShowHelpTips=%d", &val_int) == 1) { setting->ShowHelpTooltips = val_int == 1; }
         else if (sscanf(line, "VideoClipTimelineHeight=%f", &val_float) == 1) { setting->video_clip_timeline_height = val_float; }
         else if (sscanf(line, "VideoClipTimelineWidth=%f", &val_float) == 1) { setting->video_clip_timeline_width = val_float; }
+        else if (sscanf(line, "VideoClipAttributeHeight=%f", &val_float) == 1) { setting->video_clip_attribute_height = val_float; }
         else if (sscanf(line, "AudioClipTimelineHeight=%f", &val_float) == 1) { setting->audio_clip_timeline_height = val_float; }
         else if (sscanf(line, "AudioClipTimelineWidth=%f", &val_float) == 1) { setting->audio_clip_timeline_width = val_float; }
         else if (sscanf(line, "ExpandScope=%d", &val_int) == 1) { setting->ExpandScope = val_int == 1; }
@@ -11073,6 +11235,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
         out_buf->appendf("ShowHelpTips=%d\n", g_media_editor_settings.ShowHelpTooltips ? 1 : 0);
         out_buf->appendf("VideoClipTimelineHeight=%f\n", g_media_editor_settings.video_clip_timeline_height);
         out_buf->appendf("VideoClipTimelineWidth=%f\n", g_media_editor_settings.video_clip_timeline_width);
+        out_buf->appendf("VideoClipAttributeHeight=%f\n", g_media_editor_settings.video_clip_attribute_height);
         out_buf->appendf("AudioClipTimelineHeight=%f\n", g_media_editor_settings.audio_clip_timeline_height);
         out_buf->appendf("AudioClipTimelineWidth=%f\n", g_media_editor_settings.audio_clip_timeline_width);
         out_buf->appendf("ExpandScope=%d\n", g_media_editor_settings.ExpandScope ? 1 : 0);

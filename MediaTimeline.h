@@ -128,7 +128,7 @@
 #define ICON_FILTER_EDITOR  u8"\ueb03"
 #define ICON_DELETE_CLIPS   u8"\ue16f"
 #define ICON_MASK           u8"\ueb63"
-#define ICON_VIDEO_ATTRIBUTE ICON_MD_FORMAT_SHAPES
+#define ICON_CLIP_ATTRIBUTE ICON_MD_FORMAT_SHAPES
 
 #define ICON_FONT_BOLD      u8"\ue238"
 #define ICON_FONT_ITALIC    u8"\ue23f"
@@ -752,6 +752,7 @@ struct BaseEditingClip
     int64_t mCurrentTime        {-1};
     ImVec2 mViewWndSize         {0, 0};
     bool bSeeking               {false};
+    bool bEditingAttribute      {false};                // editing clip attribute mode, unique UI layout
 
     int64_t firstTime = 0;
     int64_t lastTime = 0;
@@ -769,6 +770,7 @@ struct BaseEditingClip
     virtual void CalcDisplayParams(int64_t viewWndDur) = 0;
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Save() = 0;
+    virtual bool GetFrame(ImGui::ImMat& frame, MediaCore::CorrelativeFrame::Phase phase) { return false; }
     virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) = 0;
 };
@@ -783,6 +785,8 @@ struct EditingVideoClip : BaseEditingClip
 
     // for image clip
     ImTextureID mImgTexture     {0};
+    // for attribute editor
+    ImTextureID mTransformOutputTexture {0};
 
     MediaCore::VideoFilter* mFilter {nullptr};
     BluePrint::BluePrintUI* mFilterBp {nullptr};
@@ -802,6 +806,7 @@ public:
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
     bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
+    bool GetFrame(ImGui::ImMat& frame, MediaCore::CorrelativeFrame::Phase phase) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
     void SelectEditingMask(MEC::Event::Holder hEvent, int64_t nodeId, int maskIndex, ImGui::MaskCreator::Holder hMaskCreator = nullptr);
     void UnselectEditingMask();
