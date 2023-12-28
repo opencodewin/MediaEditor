@@ -27,6 +27,7 @@ public:
     {
         OK = 0,
         FAILED,
+        INVALID_ARG,
         PARSE_FAILED,
         FILE_INVALID,
         NOT_OPENED,
@@ -51,6 +52,7 @@ public:
     const imgui_json::value& GetProjectContentJson() const { return m_jnProjContent; }
     Project::ErrorCode EnqueueBackgroundTask(BackgroundTask::Holder hTask);
     std::list<BackgroundTask::Holder> GetBackgroundTaskList();
+    Project::ErrorCode RemoveBackgroundTask(BackgroundTask::Holder hTask, bool bRemoveTaskDir = true);
     void SetHwaccelManager(MediaCore::HwaccelManager::Holder hHwMgr) { m_hHwMgr = hHwMgr; }
     MediaCore::HwaccelManager::Holder GetHwaccelManager() const { return m_hHwMgr; }
 

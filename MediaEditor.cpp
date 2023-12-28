@@ -8223,10 +8223,14 @@ static void ShowBgtaskTab(ImDrawList *draw_list, ImRect title_rect)
     ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGREEN), "%zu", szBgtaskCnt);
     ImGui::Dummy({0, 6});
     ImGui::BeginChild("##BgTaskList", ImVec2(0, 0), ImGuiChildFlags_Border);
+    auto v2TaskViewSize = ImGui::GetContentRegionAvail();
+    v2TaskViewSize.y = 0;
     for (const auto& hTask : aBgtasks)
     {
-        hTask->DrawContent();
+        const bool bRemoveTask = hTask->DrawContent(v2TaskViewSize);
         ImGui::Separator();
+        if (bRemoveTask)
+            g_hProject->RemoveBackgroundTask(hTask);
     }
     ImGui::EndChild();
 }

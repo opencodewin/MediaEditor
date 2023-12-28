@@ -13,7 +13,10 @@ namespace MEC
         using Holder = std::shared_ptr<BackgroundTask>;
         static Holder CreateBackgroundTask(const imgui_json::value& jnTask, MediaCore::SharedSettings::Holder hSettings);
 
-        virtual void DrawContent() = 0;
+        virtual bool Pause() = 0;
+        virtual bool IsPaused() const = 0;
+        virtual bool Resume() = 0;
+        virtual bool DrawContent(const ImVec2& v2ViewSize) = 0;
         virtual void DrawContentCompact() = 0;
         virtual std::string GetTaskDir() const = 0;
         virtual bool SaveAsJson(imgui_json::value& jnTask) = 0;

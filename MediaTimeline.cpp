@@ -10545,17 +10545,143 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             },
             [timeline] (Clip* pClip, bool& bCloseDlg) {
                 auto hParser = pClip->mMediaParser;
-                ImGui::TextColored(ImColor(IM_COL32_WHITE), "Source File: ");
-                ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "%s", SysUtils::ExtractFileName(hParser->GetUrl()).c_str());
+                ImColor tTagColor(KNOWNIMGUICOLOR_LIGHTGRAY);
+                ImColor tTextColor(KNOWNIMGUICOLOR_LIGHTGREEN);
+                ImGui::TextColored(tTagColor, "Source File: ");
+                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", SysUtils::ExtractFileName(hParser->GetUrl()).c_str());
                 ImGui::ShowTooltipOnHover("Path: '%s'", hParser->GetUrl().c_str());
-                ImGui::TextColored(ImColor(IM_COL32_WHITE), "Start Offset: ");
-                ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "%s", ImGuiHelper::MillisecToString(pClip->StartOffset()).c_str());
-                ImGui::TextColored(ImColor(IM_COL32_WHITE), "End Offset: ");
-                ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "%s", ImGuiHelper::MillisecToString(pClip->EndOffset()).c_str());
-                ImGui::TextColored(ImColor(IM_COL32_WHITE), "Duration: ");
-                ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "%s", ImGuiHelper::MillisecToString(pClip->Length()).c_str());
-                ImGui::TextColored(ImColor(IM_COL32_WHITE), "Work Dir: ");
-                ImGui::SameLine(0, 10); ImGui::TextColored(ImColor(KNOWNIMGUICOLOR_LIGHTGRAY), "%s", timeline->mhProject->GetProjectDir().c_str());
+                ImGui::TextColored(tTagColor, "Duration: ");
+                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", ImGuiHelper::MillisecToString(pClip->Length()).c_str());
+                ImGui::SameLine(0, 25); ImGui::TextColored(tTagColor, "Start Offset: ");
+                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", ImGuiHelper::MillisecToString(pClip->StartOffset()).c_str());
+                ImGui::SameLine(0, 25); ImGui::TextColored(tTagColor, "End Offset: ");
+                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", ImGuiHelper::MillisecToString(pClip->EndOffset()).c_str());
+                ImGui::TextColored(tTagColor, "Work Dir: ");
+                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", timeline->mhProject->GetProjectDir().c_str());
+
+                static int m_vidstabParam_iShakiness = 5;
+                static int m_vidstabParam_iAccuracy = 15;
+                static int m_vidstabParam_iStepsize = 6;
+                static float m_vidstabParam_fMincontrast = 0.3f;
+                static int m_vidstabParam_iSmoothing = 10;
+                static int m_vidstabParam_iOptalgo = 0;
+                static bool m_vidstabParam_bMaxshiftNolimit = true;
+                static int m_vidstabParam_iMaxshift = 0;
+                static bool m_vidstabParam_bMaxangleNolimit = true;
+                static float m_vidstabParam_fMaxangle = 0;
+                static int m_vidstabParam_iCropmode = 0;
+                static bool m_vidstabParam_bRelative = true;
+                static float m_vidstabParam_fFixedZoom = 0;
+                static int m_vidstabParam_iAutoZoomMode = 0;
+                static const char* s_vidstabParam_aAutoZoomModes[] = { "Disable", "Static", "Adaptive" };
+                static float m_vidstabParam_fAutoZoomSpeed = 0.25f;
+                static int m_vidstabParam_iInterpolationMode = 2;
+                static const char* s_vidstabParam_aInterpolations[] = { "Nearest", "Linear", "Bilinear", "Bicubic" };
+                tTagColor = ImColor(KNOWNIMGUICOLOR_LIGHTBLUE);
+                const auto v2TagTextPadding = ImGui::GetStyle().FramePadding;
+                const auto fTextHeight = ImGui::CalcTextSize("A").y;
+                ImGui::Spacing(); ImGui::Spacing();
+                ImGui::BeginGroup();
+                if (ImGui::Button("Reset params##VidstabParamResetParams"))
+                {
+                    m_vidstabParam_iShakiness = 5;
+                    m_vidstabParam_iAccuracy = 15;
+                    m_vidstabParam_iStepsize = 6;
+                    m_vidstabParam_fMincontrast = 0.3f;
+                    m_vidstabParam_iSmoothing = 10;
+                    m_vidstabParam_iOptalgo = 0;
+                    m_vidstabParam_bMaxshiftNolimit = true;
+                    m_vidstabParam_iMaxshift = 0;
+                    m_vidstabParam_bMaxangleNolimit = true;
+                    m_vidstabParam_fMaxangle = 0;
+                    m_vidstabParam_iCropmode = 0;
+                    m_vidstabParam_bRelative = true;
+                    m_vidstabParam_fFixedZoom = 0;
+                    m_vidstabParam_iAutoZoomMode = 0;
+                    m_vidstabParam_fAutoZoomSpeed = 0.25f;
+                    m_vidstabParam_iInterpolationMode = 2;
+                }
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Shakiness:");
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Accuracy:");
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Step size:");
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Min contrast:");
+                ImGui::EndGroup(); ImGui::SameLine();
+                ImGui::BeginGroup();
+                ImGui::Dummy({0, fTextHeight+v2TagTextPadding.y*2.f});
+                ImGui::PushItemWidth(60);
+                ImGui::SliderInt("##VidstabParamShakiness", &m_vidstabParam_iShakiness, 0, 10, "%d", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::SliderInt("##VidstabParamAccuracy", &m_vidstabParam_iAccuracy, 1, 15, "%d", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::SliderInt("##VidstabParamStepsize", &m_vidstabParam_iStepsize, 1, 32, "%d", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::SliderFloat("##VidstabParamMincontrast", &m_vidstabParam_fMincontrast, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::PopItemWidth();
+                ImGui::EndGroup(); ImGui::SameLine(0, 40);
+                ImGui::BeginGroup();
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Smoothing:");
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Opt algo:");
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Max shift:");
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Max angle:");
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Crop mode:");
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Frame relative:");
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Fixed zoom:");
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Auto zoom:");
+                ImGui::BeginDisabled(m_vidstabParam_iAutoZoomMode != 2);
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Auto zoom speed:");
+                ImGui::EndDisabled();
+                ImGui::TextColoredWithPadding(tTagColor, v2TagTextPadding, "Interpolation:");
+                ImGui::EndGroup(); ImGui::SameLine();
+                ImGui::BeginGroup();
+                ImGui::PushItemWidth(80);
+                ImGui::PushItemWidth(140);
+                ImGui::SliderInt("##VidstabParamSmoothing", &m_vidstabParam_iSmoothing, 0, 300, "%d", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::PopItemWidth();
+                ImGui::RadioButton("Gauss##VidstabParamOptalgo", &m_vidstabParam_iOptalgo, 0); ImGui::SameLine();
+                ImGui::RadioButton("Avg##VidstabParamOptalgo", &m_vidstabParam_iOptalgo, 1);
+                ImGui::BeginDisabled(m_vidstabParam_bMaxshiftNolimit);
+                ImGui::SliderInt("##VidstabParamMaxshift", &m_vidstabParam_iMaxshift, 0, 500, "%d"); ImGui::SameLine();
+                ImGui::EndDisabled();
+                ImGui::Checkbox("No limit##VidstabParamMaxshift", &m_vidstabParam_bMaxshiftNolimit);
+                ImGui::BeginDisabled(m_vidstabParam_bMaxangleNolimit);
+                ImGui::SliderFloat("##VidstabParamMaxangle", &m_vidstabParam_fMaxangle, 0, 180, "%.2f", ImGuiSliderFlags_AlwaysClamp); ImGui::SameLine();
+                ImGui::EndDisabled();
+                ImGui::Checkbox("No limit##VidstabParamMaxangle", &m_vidstabParam_bMaxangleNolimit);
+                ImGui::RadioButton("Keep##VidstabParamCropmode", &m_vidstabParam_iCropmode, 0); ImGui::SameLine();
+                ImGui::RadioButton("Black##VidstabParamCropmode", &m_vidstabParam_iCropmode, 1);
+                ImGui::Checkbox("##VidstabParamRelative", &m_vidstabParam_bRelative);
+                ImGui::PushItemWidth(140);
+                ImGui::InputFloat("##VidstabParamFixedZoom", &m_vidstabParam_fFixedZoom, 0.1f, 5.f, "%.1f");
+                if (ImGui::BeginCombo("##VidstabParamAutoZoomMode", s_vidstabParam_aAutoZoomModes[m_vidstabParam_iAutoZoomMode]))
+                {
+                    const int iOptCnt = sizeof(s_vidstabParam_aAutoZoomModes)/sizeof(s_vidstabParam_aAutoZoomModes[0]);
+                    for (auto i = 0; i < iOptCnt; i++)
+                    {
+                        const bool bIsSelected = i == m_vidstabParam_iAutoZoomMode;
+                        if (ImGui::Selectable(s_vidstabParam_aAutoZoomModes[i], bIsSelected))
+                            m_vidstabParam_iAutoZoomMode = i;
+                        if (bIsSelected)
+                            ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::BeginDisabled(m_vidstabParam_iAutoZoomMode != 2);
+                ImGui::SliderFloat("##VidstabParamAutoZoomSpeed", &m_vidstabParam_fAutoZoomSpeed, 0.f, 5.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::EndDisabled();
+                if (ImGui::BeginCombo("##VidstabParamInterpolation", s_vidstabParam_aInterpolations[m_vidstabParam_iInterpolationMode]))
+                {
+                    const int iOptCnt = sizeof(s_vidstabParam_aInterpolations)/sizeof(s_vidstabParam_aInterpolations[0]);
+                    for (auto i = 0; i < iOptCnt; i++)
+                    {
+                        const bool bIsSelected = i == m_vidstabParam_iInterpolationMode;
+                        if (ImGui::Selectable(s_vidstabParam_aInterpolations[i], bIsSelected))
+                            m_vidstabParam_iInterpolationMode = i;
+                        if (bIsSelected)
+                            ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::PopItemWidth();
+                ImGui::PopItemWidth();
+                ImGui::EndGroup(); ImGui::SameLine();
+                ImGui::Dummy({0, 0});
 
                 bCloseDlg = false;
                 MEC::BackgroundTask::Holder hTask;
@@ -10569,6 +10695,22 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                     jnTask["clip_id"] = imgui_json::number(pClip->mID);
                     jnTask["clip_start_offset"] = imgui_json::number(pClip->StartOffset());
                     jnTask["clip_length"] = imgui_json::number(pClip->Length());
+                    jnTask["use_src_attr"] = true;
+                    // send vidstab params
+                    jnTask["vidstab_arg_shakiness"] = imgui_json::number(m_vidstabParam_iShakiness);
+                    jnTask["vidstab_arg_accuracy"] = imgui_json::number(m_vidstabParam_iAccuracy);
+                    jnTask["vidstab_arg_stepsize"] = imgui_json::number(m_vidstabParam_iStepsize);
+                    jnTask["vidstab_arg_mincontrast"] = imgui_json::number(m_vidstabParam_fMincontrast);
+                    jnTask["vidstab_arg_smoothing"] = imgui_json::number(m_vidstabParam_iSmoothing);
+                    jnTask["vidstab_arg_optalgo"] = imgui_json::number(m_vidstabParam_iOptalgo);
+                    jnTask["vidstab_arg_maxshift"] = m_vidstabParam_bMaxshiftNolimit ? imgui_json::number(-1) : imgui_json::number(m_vidstabParam_iMaxshift);
+                    jnTask["vidstab_arg_maxangle"] = m_vidstabParam_bMaxangleNolimit ? imgui_json::number(-1) : imgui_json::number(m_vidstabParam_fMaxangle);
+                    jnTask["vidstab_arg_crop"] = imgui_json::number(m_vidstabParam_iCropmode);
+                    jnTask["vidstab_arg_relative"] = m_vidstabParam_bRelative;
+                    jnTask["vidstab_arg_zoom"] = m_vidstabParam_fFixedZoom;
+                    jnTask["vidstab_arg_optzoom"] = imgui_json::number(m_vidstabParam_iAutoZoomMode);
+                    jnTask["vidstab_arg_zoomspeed"] = imgui_json::number(m_vidstabParam_fAutoZoomSpeed);
+                    jnTask["vidstab_arg_interp"] = imgui_json::number(m_vidstabParam_iInterpolationMode);
                     auto hSettings = timeline->mhMediaSettings->Clone();
                     hTask = MEC::BackgroundTask::CreateBackgroundTask(jnTask, hSettings);
                     bCloseDlg = true;

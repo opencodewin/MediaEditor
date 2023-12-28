@@ -98,7 +98,12 @@ Project::ErrorCode Project::Load(const std::string& projFilePath)
                     {
                         auto hTask = BackgroundTask::CreateBackgroundTask(tLoadRes.first, hDummySettings);
                         if (hTask)
+                        {
+                            hTask->Pause();
+                            if (m_hBgtaskExctor)
+                                m_hBgtaskExctor->EnqueueTask(hTask);
                             m_aBgtasks.push_back(hTask);
+                        }
                         else
                             m_pLogger->Log(Error) << "FAILED to parse background task from json '" << strTaskJsonPath << "'!" << endl;
                     }
@@ -191,8 +196,7 @@ Project::ErrorCode Project::EnqueueBackgroundTask(BackgroundTask::Holder hTask)
         m_pLogger->Log(Error) << "Current MEC::Project instance has NOT been set with background task executor!" << endl;
         return NOT_READY;
     }
-    SysUtils::AsyncTask::Holder hAsyncTask(hTask);
-    if (!m_hBgtaskExctor->EnqueueTask(hAsyncTask))
+    if (!m_hBgtaskExctor->EnqueueTask(hTask))
     {
         m_pLogger->Log(Error) << "Enqueue background task FAILED!" << endl;
         return FAILED;
@@ -206,6 +210,25 @@ list<BackgroundTask::Holder> Project::GetBackgroundTaskList()
 {
     lock_guard<mutex> _lk(m_mtxBgtaskLock);
     return list<BackgroundTask::Holder>(m_aBgtasks);
+}
+
+Project::ErrorCode Project::RemoveBackgroundTask(BackgroundTask::Holder hTask, bool bRemoveTaskDir)
+{
+    lock_guard<recursive_mutex> _lk(m_mtxApiLock);
+    if (!m_bOpened)
+        return NOT_OPENED;
+    lock_guard<mutex> _lk2(m_mtxBgtaskLock);
+    auto itRem = find(m_aBgtasks.begin(), m_aBgtasks.end(), hTask);
+    if (itRem == m_aBgtasks.end())
+        return INVALID_ARG;
+    m_aBgtasks.erase(itRem);
+    if (bRemoveTaskDir)
+    {
+        const auto strTaskDir = hTask->GetTaskDir();
+        if (!strTaskDir.empty())
+            SysUtils::DeleteDirectory(strTaskDir);
+    }
+    return OK;
 }
 
 uint8_t Project::VER_MAJOR = 1;
