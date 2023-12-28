@@ -504,7 +504,7 @@ public:
             m_strVidencPixfmt = jnTask[strAttrName].get<json::string>();
         else
             m_strVidencPixfmt.clear();
-        strAttrName == "videnc_bitrate";
+        strAttrName = "videnc_bitrate";
         if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_number())
             m_u64VidencBitrate = (uint64_t)jnTask[strAttrName].get<json::number>();
         else

@@ -1347,7 +1347,7 @@ struct TimeLine
             const ImRect &titleRect, const ImRect &clippingTitleRect, const ImRect &legendRect, const ImRect &clippingRect, const ImRect &legendClippingRect,
             int64_t mouse_time, bool is_moving, bool enable_select, bool is_updated, std::list<imgui_json::value>* pActionList);
     
-    std::vector<MediaCore::CorrelativeFrame> GetPreviewFrame();
+    std::vector<MediaCore::CorrelativeFrame> GetPreviewFrame(bool blocking = false);
     float GetAudioLevel(int channel);
     void SetAudioLevel(int channel, float level);
 

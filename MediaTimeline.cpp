@@ -3433,7 +3433,7 @@ bool EditingVideoClip::GetFrame(ImGui::ImMat& frame, MediaCore::CorrelativeFrame
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return false;
-    auto frames = timeline->GetPreviewFrame();
+    auto frames = timeline->GetPreviewFrame(true);
     if (frames.empty())
     {
         ret = false;
@@ -6763,7 +6763,7 @@ void TimeLine::RefreshTrackView(const std::unordered_set<int64_t>& trackIds)
     mIsPreviewNeedUpdate = true;
 }
 
-std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
+std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame(bool blocking)
 {
     int64_t auddataPos, previewPos;
     if (!bSeeking)
@@ -6844,7 +6844,7 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame()
 
     std::vector<MediaCore::CorrelativeFrame> frames;
     const bool needPreciseFrame = !(bSeeking || mIsPreviewPlaying);
-    mMtvReader->ReadVideoFrameByIdxEx(mFrameIndex, frames, true, needPreciseFrame);
+    mMtvReader->ReadVideoFrameByIdxEx(mFrameIndex, frames, !blocking, needPreciseFrame);
     mCurrentTime = mMtvReader->FrameIndexToMillsec(mFrameIndex);
     if (mIsPreviewPlaying && !ImGui::IsMouseDragging(ImGuiMouseButton_Left)) UpdateCurrent();
     return frames;
