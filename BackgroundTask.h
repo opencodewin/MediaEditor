@@ -5,6 +5,7 @@
 #include <ThreadUtils.h>
 #include <Logger.h>
 #include <SharedSettings.h>
+#include <MediaParser.h>
 
 namespace MEC
 {
@@ -12,6 +13,13 @@ namespace MEC
     {
         using Holder = std::shared_ptr<BackgroundTask>;
         static Holder CreateBackgroundTask(const imgui_json::value& jnTask, MediaCore::SharedSettings::Holder hSettings);
+
+        struct Callbacks
+        {
+            virtual bool OnAddMediaItem(MediaCore::MediaParser::Holder hParser) = 0;
+            virtual bool OnCheckMediaItemImported(const std::string& strPath) = 0;
+        };
+        virtual void SetCallbacks(Callbacks* pCb) = 0;
 
         virtual bool Pause() = 0;
         virtual bool IsPaused() const = 0;
@@ -24,6 +32,5 @@ namespace MEC
 
         virtual std::string GetError() const = 0;
         virtual void SetLogLevel(Logger::Level l) = 0;
-
     };
 }

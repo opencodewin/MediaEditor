@@ -1646,6 +1646,7 @@ static void NewTimeline()
     timeline = new TimeLine(g_plugin_path);
     if (timeline)
     {
+        g_hProject->SetTimelineHandle(timeline);
         g_media_editor_settings.SyncSettingsFromTimeline(timeline);
         timeline->mhProject = g_hProject;
         timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
@@ -1762,6 +1763,7 @@ static void LoadProjectThread(std::string path, bool in_splash)
             
             MediaItem* item = new MediaItem(name, path, type, timeline);
             if (id != -1) item->mID = id;
+            item->Initialize();
             timeline->media_items.push_back(item);
             g_project_loading_percentage += percentage;
         }
@@ -1917,6 +1919,7 @@ static bool InsertMedia(const std::string path)
         if (iter == timeline->media_items.end() && type != MEDIA_UNKNOWN)
         {
             MediaItem * item = new MediaItem(name, path, type, timeline);
+            item->Initialize();
             timeline->media_items.push_back(item);
             project_need_save = true;
             return project_need_save;
@@ -1939,7 +1942,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
         return false;
     auto old_name = item->mName;
     auto old_path = item->mPath;
-    item->UpdateItem(name, path, timeline);
+    item->ChangeSource(name, path);
     if (item->mValid)
     {
         // need update timeline clip which is using current Media
@@ -2162,6 +2165,7 @@ static void ShowMediaPlayWindow(bool &show)
                 auto file_suffix = ImGuiHelper::path_filename_suffix(path);
                 auto type = EstimateMediaType(file_suffix);
                 MediaItem * item = new MediaItem(name, path, type, timeline);
+                item->Initialize();
                 timeline->media_items.push_back(item);
             }
         }

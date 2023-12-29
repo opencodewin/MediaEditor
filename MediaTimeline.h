@@ -394,17 +394,21 @@ struct MediaItem
     int64_t mID;                            // media ID
     std::string mName;
     std::string mPath;
+    void* mHandle;
     bool mValid {false};                    // Media source is valid
     bool mSelected {false};                 // Media source is selected by double clicked
     int64_t mSrcLength  {0};                // whole Media end in ms
-    MediaCore::Overview::Holder mMediaOverview;
     uint32_t mMediaType {MEDIA_UNKNOWN};
+    MediaCore::MediaParser::Holder mhParser;
+    MediaCore::Overview::Holder mMediaOverview;
     RenderUtils::TextureManager::Holder mTxMgr;
     std::vector<RenderUtils::ManagedTexture::Holder> mMediaThumbnail;
     std::vector<ImTextureID> mWaveformTextures;
     MediaItem(const std::string& name, const std::string& path, uint32_t type, void* handle);
+    MediaItem(MediaCore::MediaParser::Holder hParser, void* handle);
     ~MediaItem();
-    void UpdateItem(const std::string& name, const std::string& path, void* handle);
+    bool Initialize();
+    bool ChangeSource(const std::string& name, const std::string& path);
     void ReleaseItem();
     void UpdateThumbnail();
 };
@@ -1148,6 +1152,9 @@ struct TimeLine
             return false;
         return SysUtils::IsDirectory(mhProject->GetProjectDir());
     }
+
+    bool AddMediaItem(MediaCore::MediaParser::Holder hParser);
+    bool CheckMediaItemImported(const std::string& strPath);
 
     // sutitle Setting
     std::string mFontName;

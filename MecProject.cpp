@@ -2,6 +2,7 @@
 #include "imgui_helper.h"
 #include "FileSystemUtils.h"
 #include "MecProject.h"
+#include "MediaTimeline.h"
 
 using namespace std;
 using namespace Logger;
@@ -99,9 +100,11 @@ Project::ErrorCode Project::Load(const std::string& projFilePath)
                         auto hTask = BackgroundTask::CreateBackgroundTask(tLoadRes.first, hDummySettings);
                         if (hTask)
                         {
+                            hTask->SetCallbacks(this);
                             hTask->Pause();
                             if (m_hBgtaskExctor)
-                                m_hBgtaskExctor->EnqueueTask(hTask);
+                                if (!m_hBgtaskExctor->EnqueueTask(hTask))
+                                    m_pLogger->Log(Error) << "FAILED to enqueue background task from json '" << strTaskJsonPath << "'!" << endl;
                             m_aBgtasks.push_back(hTask);
                         }
                         else
@@ -183,6 +186,7 @@ Project::ErrorCode Project::Close(bool bSaveBeforeClose)
     m_projFilePath.clear();
     m_projVer = 0;
     m_bOpened = false;
+    m_pTlHandle = nullptr;
     return OK;
 }
 
@@ -201,6 +205,7 @@ Project::ErrorCode Project::EnqueueBackgroundTask(BackgroundTask::Holder hTask)
         m_pLogger->Log(Error) << "Enqueue background task FAILED!" << endl;
         return FAILED;
     }
+    hTask->SetCallbacks(this);
     lock_guard<mutex> _lk2(m_mtxBgtaskLock);
     m_aBgtasks.push_back(hTask);
     return OK;
@@ -229,6 +234,22 @@ Project::ErrorCode Project::RemoveBackgroundTask(BackgroundTask::Holder hTask, b
             SysUtils::DeleteDirectory(strTaskDir);
     }
     return OK;
+}
+
+bool Project::OnAddMediaItem(MediaCore::MediaParser::Holder hParser)
+{
+    if (!m_pTlHandle)
+        return false;
+    MediaTimeline::TimeLine* pTl = (MediaTimeline::TimeLine*)m_pTlHandle;
+    return pTl->AddMediaItem(hParser);
+}
+
+bool Project::OnCheckMediaItemImported(const string& strPath)
+{
+    if (!m_pTlHandle)
+        return false;
+    MediaTimeline::TimeLine* pTl = (MediaTimeline::TimeLine*)m_pTlHandle;
+    return pTl->CheckMediaItemImported(strPath);
 }
 
 uint8_t Project::VER_MAJOR = 1;

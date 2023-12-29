@@ -581,6 +581,11 @@ public:
         return true;
     }
 
+    void SetCallbacks(Callbacks* pCb) override
+    {
+        m_pCb = pCb;
+    }
+
     bool CanPause()
     {
         return m_eState == PROCESSING;
@@ -623,10 +628,31 @@ public:
         ImGui::PopFont();
         auto v2AvailSize = ImGui::GetContentRegionAvail();
         auto v2CurrPos = ImGui::GetCursorPos();
-        ImGui::SetCursorPos(v2CurrPos+ImVec2(v2AvailSize.x-30*2, 0));
+        ImGui::SetCursorPos(v2CurrPos+ImVec2(v2AvailSize.x-30*3, 0));
+        oss.str(""); oss << ICON_BANK << strTaskNameWithHash;
+        strLabel = oss.str();
+        const bool bTaskOutputImported = m_pCb ? m_pCb->OnCheckMediaItemImported(m_strOutputPath) : false;
+        bool bDisableThisWidget = !(m_pCb && m_bVidstabTransformFinished) || bTaskOutputImported;
+        ImGui::BeginDisabled(bDisableThisWidget);
+        if (ImGui::Button(strLabel.c_str()))
+        {
+            auto hParser = MediaCore::MediaParser::CreateInstance();
+            if (hParser->Open(m_strOutputPath))
+            {
+                if (!m_pCb->OnAddMediaItem(hParser))
+                    m_pLogger->Log(Error) << "FAILED to import task output '" << m_strOutputPath << "' as 'MediaItem'." << endl;
+            }
+            else
+                m_pLogger->Log(Error) << "FAILED to open 'MediaParser' on '" << m_strOutputPath << "'! Error is '" << hParser->GetError() << "'." << endl;
+        } ImGui::SameLine();
+        ImGui::ShowTooltipOnHover(bDisableThisWidget
+                ? (bTaskOutputImported ? "Output is already imported." : "Output is not ready.")
+                : "Import the output into media bank.");
+        ImGui::EndDisabled();
         oss.str(""); oss << (IsPaused() ? ICON_PLAY_FORWARD : ICON_PAUSE) << strTaskNameWithHash;
         strLabel = oss.str();
-        ImGui::BeginDisabled(!CanPause());
+        bDisableThisWidget = !CanPause();
+        ImGui::BeginDisabled(bDisableThisWidget);
         if (ImGui::Button(strLabel.c_str()))
         {
             if (m_bPause)
@@ -634,15 +660,22 @@ public:
             else
                 Pause();
         } ImGui::SameLine();
+        ImGui::ShowTooltipOnHover(bDisableThisWidget
+                ? (m_eState == WAITING ? "Task hasn't started yet." : "Task is already stopped.")
+                : (m_bPause ? "Resume task" : "Pause task"));
         ImGui::EndDisabled();
         oss.str(""); oss << ICON_DELETE << strTaskNameWithHash;
         strLabel = oss.str();
         oss.str(""); oss << ICON_TRASH << " Task Deletion" << strTaskNameWithHash;
         const auto strDelLabel = oss.str();
+        bDisableThisWidget = bTaskOutputImported;
+        ImGui::BeginDisabled(bDisableThisWidget);
         if (ImGui::Button(strLabel.c_str()))
         {
             ImGui::OpenPopup(strDelLabel.c_str());
         }
+        ImGui::ShowTooltipOnHover(bDisableThisWidget ? "Can not delete this task while output is imported." : "Delete this task.");
+        ImGui::EndDisabled();
         const ImColor tTagClr(KNOWNIMGUICOLOR_LIGHTGRAY);
         ImGui::TextColoredWithPadding(tTagClr, v2TextPadding, "State: "); ImGui::SameLine(0, 10);
         switch (m_eState)
@@ -1326,6 +1359,7 @@ private:
     size_t m_szHash;
     string m_errMsg;
     ALogger* m_pLogger;
+    Callbacks* m_pCb{nullptr};
     bool m_bInited{false};
     string m_strTaskDir;
     AVFilterGraph* m_pFilterGraph{nullptr};

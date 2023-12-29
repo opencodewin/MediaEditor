@@ -174,12 +174,25 @@ namespace MediaTimeline
  * MediaItem Struct Member Functions
  ***********************************************************************************************************/
 MediaItem::MediaItem(const std::string& name, const std::string& path, uint32_t type, void* handle)
+    : mName(name), mPath(path), mMediaType(type), mHandle(handle)
 {
-    TimeLine * timeline = (TimeLine *)handle;
+    TimeLine* timeline = (TimeLine*)handle;
     mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
-    mMediaType = type;
     mTxMgr = timeline->mTxMgr;
-    UpdateItem(name, path, handle);
+}
+
+MediaItem::MediaItem(MediaCore::MediaParser::Holder hParser, void* handle)
+    : mHandle(handle), mhParser(hParser)
+{
+    TimeLine* timeline = (TimeLine*)handle;
+    mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
+    auto pVidstm = hParser->HasVideo() ? hParser->GetBestVideoStream() : nullptr;
+    mMediaType = hParser->HasVideo() ? (hParser->IsImageSequence() ? MEDIA_SUBTYPE_VIDEO_IMAGE_SEQUENCE
+            : (pVidstm->isImage ? MEDIA_SUBTYPE_VIDEO_IMAGE : MEDIA_VIDEO))
+            : (hParser->HasAudio() ? MEDIA_AUDIO : MEDIA_UNKNOWN);
+    mTxMgr = timeline->mTxMgr;
+    mPath = hParser->GetUrl();
+    mName = ImGuiHelper::path_filename(mPath);
 }
 
 MediaItem::~MediaItem()
@@ -190,48 +203,52 @@ MediaItem::~MediaItem()
     mMediaThumbnail.clear();
 }
 
-void MediaItem::UpdateItem(const std::string& name, const std::string& path, void* handle)
+bool MediaItem::ChangeSource(const std::string& name, const std::string& path)
 {
-    TimeLine * timeline = (TimeLine *)handle;
     ReleaseItem();
     mName = name;
     mPath = path;
-    mMediaOverview = MediaCore::Overview::CreateInstance();
-    if (timeline)
+    return Initialize();
+}
+
+bool MediaItem::Initialize()
+{
+    mValid = false;
+    if (mPath.empty() || !ImGuiHelper::file_exists(mPath))
+        return false;
+
+    TimeLine* timeline = (TimeLine*)mHandle;
+
+    if (IS_TEXT(mMediaType))
     {
-        mMediaOverview->EnableHwAccel(timeline->mHardwareCodec);
+        mValid = true;
     }
-    if (!path.empty())
+    else
     {
-        if (IS_TEXT(mMediaType))
+        if (!mhParser)
         {
-            if (ImGuiHelper::file_exists(mPath))
-                mValid = true;
-        }
-        else
-        {
-            RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
-            if (mTxMgr->GetTexturePoolAttributes(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
-                mMediaOverview->SetSnapshotSize(txSize.x, txSize.y);
-            else
-                mMediaOverview->SetSnapshotResizeFactor(0.05, 0.05);
+            mhParser = MediaCore::MediaParser::CreateInstance();
             if (IS_IMAGESEQ(mMediaType))
-            {
-                auto hParser = MediaCore::MediaParser::CreateInstance();
-                hParser->OpenImageSequence({25, 1}, path, ".+_([[:digit:]]{1,})\\.png", false, true);
-                mMediaOverview->Open(hParser, 64);
-            }
+                mhParser->OpenImageSequence({25, 1}, mPath, ".+_([[:digit:]]{1,})\\.png", false, true);
             else
-            {
-                mMediaOverview->Open(path, 64);
-            }
-            if (mMediaOverview->IsOpened())
-            {
-                mSrcLength = mMediaOverview->GetMediaInfo()->duration * 1000;
-                mValid = true;
-            }
+                mhParser->Open(mPath);
+            if (!mhParser->IsOpened())
+                return false;
         }
+
+        mMediaOverview = MediaCore::Overview::CreateInstance();
+        mMediaOverview->EnableHwAccel(timeline->mHardwareCodec);
+        RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
+        if (mTxMgr->GetTexturePoolAttributes(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
+            mMediaOverview->SetSnapshotSize(txSize.x, txSize.y);
+        else
+            mMediaOverview->SetSnapshotResizeFactor(0.05, 0.05);
+        if (!mMediaOverview->Open(mhParser, 64))
+            return false;
+        mSrcLength = mMediaOverview->GetMediaInfo()->duration * 1000;
+        mValid = true;
     }
+    return true;
 }
 
 void MediaItem::ReleaseItem()
@@ -5996,6 +6013,41 @@ TimeLine::~TimeLine()
     mMtaReader = nullptr;
 
     if (mMediaPlayer) { delete mMediaPlayer;  mMediaPlayer = nullptr; }
+}
+
+bool TimeLine::AddMediaItem(MediaCore::MediaParser::Holder hParser)
+{
+    MediaItem* pNewMitem = new MediaItem(hParser, this);
+    // check media is already in bank
+    auto iter = std::find_if(media_items.begin(), media_items.end(), [pNewMitem] (const MediaItem* pExistMitem)
+    {
+        return  pNewMitem->mName == pExistMitem->mName &&
+                pNewMitem->mPath == pExistMitem->mPath &&
+                pNewMitem->mMediaType == pExistMitem->mMediaType;
+    });
+    if (iter != media_items.end())
+    {
+        // ignore duplicated MediaItem
+        delete pNewMitem;
+        return true;
+    }
+    if (!pNewMitem->Initialize())
+    {
+        delete pNewMitem;
+        return false;
+    }
+    media_items.push_back(pNewMitem);
+    return true;
+}
+
+bool TimeLine::CheckMediaItemImported(const std::string& strPath)
+{
+    // check media is already in bank
+    auto iter = std::find_if(media_items.begin(), media_items.end(), [strPath] (const MediaItem* pExistMitem)
+    {
+        return  strPath == pExistMitem->mPath;
+    });
+    return iter != media_items.end();
 }
 
 int64_t TimeLine::AlignTime(int64_t time, int mode)
@@ -12706,6 +12758,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 MediaItem * item = new MediaItem(name, path, type, timeline);
                 if (item)
                 {
+                    item->Initialize();
                     timeline->media_items.push_back(item);
                     insert_item_into_timeline(item, track);
                 }

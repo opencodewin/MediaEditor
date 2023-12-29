@@ -13,7 +13,7 @@
 
 namespace MEC
 {
-class Project
+class Project : public BackgroundTask::Callbacks
 {
 public:
     using Holder = std::shared_ptr<Project>;
@@ -56,6 +56,10 @@ public:
     void SetHwaccelManager(MediaCore::HwaccelManager::Holder hHwMgr) { m_hHwMgr = hHwMgr; }
     MediaCore::HwaccelManager::Holder GetHwaccelManager() const { return m_hHwMgr; }
 
+    bool OnAddMediaItem(MediaCore::MediaParser::Holder hParser) override;
+    bool OnCheckMediaItemImported(const std::string& strPath) override;
+
+    void SetTimelineHandle(void* pHandle) { m_pTlHandle = pHandle; }
     void SetLogLevel(Logger::Level l) { m_pLogger->SetShowLevels(l); }
 
 protected:
@@ -74,5 +78,8 @@ private:
     std::mutex m_mtxBgtaskLock;
     SysUtils::ThreadPoolExecutor::Holder m_hBgtaskExctor;
     MediaCore::HwaccelManager::Holder m_hHwMgr;
+
+    // this ugly reference to the TimeLine instance should be removed after global TimeLine pointer is opted out
+    void* m_pTlHandle{nullptr};
 };
 }
