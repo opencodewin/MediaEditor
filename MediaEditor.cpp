@@ -2786,8 +2786,8 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
     }
 
     ImVec2 contain_size = ImGui::GetWindowSize() - ImVec2(4, 4);
-    ImVec2 bank_window_size = contain_size - ImVec2(20, 0);
-    if (show_player) bank_window_size = ImVec2(contain_size.x, contain_size.y  * 2 / 3) - ImVec2(20, 0);
+    ImVec2 bank_window_size = contain_size - ImVec2(24, 0);
+    if (show_player) bank_window_size = ImVec2(contain_size.x, contain_size.y  * 2 / 3) - ImVec2(24, 0);
     ImGuiWindowFlags bank_window_flags = ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar | 
                                             ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
     ImGuiWindowFlags child_window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings;
@@ -5353,7 +5353,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
                 float position_h = has_curve_position_h ? attribute_keypoint->GetValueByDim(curve_position_h_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetHScale();
                 ImGui::BeginDisabled(has_curve_position_h);
-                if (ImGui::SliderFloat("Position H", &position_h, -1.f, 1.f))
+                if (ImGui::SliderFloat("Position H", &position_h, -1.f, 1.f, "%.2f"))
                 {
                     attribute->SetPositionOffsetH(position_h);
                     Reflush();
@@ -5377,7 +5377,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
                 float position_v = has_curve_position_v ? attribute_keypoint->GetValueByDim(curve_position_v_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetVScale();
                 ImGui::BeginDisabled(has_curve_position_v);
-                if (ImGui::SliderFloat("Position V", &position_v, -1.f, 1.f))
+                if (ImGui::SliderFloat("Position V", &position_v, -1.f, 1.f, "%.2f"))
                 {
                     attribute->SetPositionOffsetV(position_v);
                     Reflush();
@@ -5433,7 +5433,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     bool has_curve_scale = attribute_keypoint ? curve_scale_index != -1 : false;
                     float scale = has_curve_scale ? attribute_keypoint->GetValueByDim(curve_scale_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
                     ImGui::BeginDisabled(has_curve_scale);
-                    if (ImGui::SliderFloat("Scale", &scale, 0, 8.f, "%.1f"))
+                    if (ImGui::SliderFloat("Scale", &scale, 0, 8.f, "%.2f"))
                     {
                         attribute->SetScaleH(scale);
                         attribute->SetScaleV(scale);
@@ -5460,7 +5460,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     bool has_curve_scale_h = attribute_keypoint ? curve_scale_h_index != -1 : false;
                     float scale_h = has_curve_scale_h ? attribute_keypoint->GetValueByDim(curve_scale_h_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleH();
                     ImGui::BeginDisabled(has_curve_scale_h);
-                    if (ImGui::SliderFloat("Scale H", &scale_h, 0, 8.f, "%.1f"))
+                    if (ImGui::SliderFloat("Scale H", &scale_h, 0, 8.f, "%.2f"))
                     {
                         attribute->SetScaleH(scale_h);
                         Reflush();
@@ -5484,7 +5484,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     bool has_curve_scale_v = attribute_keypoint ? curve_scale_v_index != -1 : false;
                     float scale_v = has_curve_scale_v ? attribute_keypoint->GetValueByDim(curve_scale_v_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleV();
                     ImGui::BeginDisabled(has_curve_scale_v);
-                    if (ImGui::SliderFloat("Scale V", &scale_v, 0, 8.f, "%.1f"))
+                    if (ImGui::SliderFloat("Scale V", &scale_v, 0, 8.f, "%.2f"))
                     {
                         attribute->SetScaleV(scale_v);
                         Reflush();
@@ -6056,6 +6056,46 @@ static bool DrawVideoClipTimelineWindow(bool& show_BP, EditingVideoClip * editin
     return mouse_hold;
 }
 
+static std::vector<ImRect> CalculateHandleRect(ImVec2 v_pos, ImVec2 v_size, float ml, float mt, float mr, float mb, float oh, float ov, float sh, float sv, float angle)
+{
+    float r_angle = ImDegToRad(angle);
+    std::vector<ImVec2> pt = {  {-0.5f, -0.5f}, { 0.0f, -0.5f}, { 0.5f, -0.5f}, 
+                                {-0.5f,  0.0f}, { 0.0f,  0.0f}, { 0.5f,  0.0f},
+                                {-0.5f,  0.5f}, { 0.0f,  0.5f}, { 0.5f,  0.5f} };
+    for (int i  = 0; i < pt.size(); i++)
+    {
+        auto& p = pt[i];
+        if ( i == 0 || i == 2 || i == 6 || i == 8)
+        {
+            if (i == 0 || i == 2) p += ImVec2(0, mt);
+            if (i == 6 || i == 8) p -= ImVec2(0, mb);
+            if (i == 0 || i == 6) p += ImVec2(ml, 0);
+            if (i == 2 || i == 8) p -= ImVec2(mr, 0);
+            p.x *= sh;
+            p.y *= sv;
+            ImVec2 dp;
+            dp.x = p.x * v_size.x * cos(r_angle) - p.y * v_size.y * sin(r_angle);
+            dp.y = p.x * v_size.x * sin(r_angle) + p.y * v_size.y * cos(r_angle);
+            dp += ImVec2((oh * sh + oh) * 0.5 * v_size.x, (ov * sv + ov) * 0.5 * v_size.y);
+            dp.x += v_size.x * 0.5;
+            dp.y += v_size.y * 0.5;
+            p = dp;
+        }
+    }
+    pt[1] = ImVec2((pt[0].x + pt[2].x) / 2, (pt[0].y + pt[2].y) / 2);
+    pt[3] = ImVec2((pt[0].x + pt[6].x) / 2, (pt[0].y + pt[6].y) / 2);
+    pt[4] = ImVec2((pt[0].x + pt[8].x) / 2, (pt[0].y + pt[8].y) / 2);
+    pt[5] = ImVec2((pt[2].x + pt[8].x) / 2, (pt[2].y + pt[8].y) / 2);
+    pt[7] = ImVec2((pt[6].x + pt[8].x) / 2, (pt[6].y + pt[8].y) / 2);
+    std::vector<ImRect> result;
+    for (auto p : pt)
+    {
+        ImRect rect = ImRect(v_pos + p - ImVec2(8, 8), v_pos + p + ImVec2(8, 8));
+        result.push_back(rect);
+    }
+    return result;
+}
+
 static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVideoClip * editing_clip)
 {
     bool ret = false;
@@ -6068,6 +6108,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
         (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != output_timestamp || !editing_clip->mTransformOutputTexture))
     {
         ImGui::ImMatToTexture(in_frame, editing_clip->mTransformOutputTexture);
+        timeline->mLastFrameTime = output_timestamp;
     }
     ImVec2 videoPos = sub_window_pos + ImVec2(16, 16);
     ImVec2 videoSize = sub_window_size - ImVec2(32, 32);
@@ -6083,7 +6124,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
     draw_list->AddLine(sub_window_pos + ImVec2(0, sub_window_size.y / 2), sub_window_pos + ImVec2(sub_window_size.x, sub_window_size.y / 2), IM_COL32(64,64,64,128));
     auto attribute = editing_clip->mAttribute;
     auto clip = (VideoClip*)editing_clip->GetClip();
-    if (!frame_ret || !attribute || !clip)
+    if (!attribute || !clip)
         return ret;
     auto attribute_keypoint = attribute->GetKeyPoint();
 
@@ -6148,9 +6189,19 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
     int curve_angle_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("RotateAngle") : -1;
     bool has_curve_angle = attribute_keypoint ? curve_angle_index != -1 : false;
     float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetRotationAngle();
-
     // calculate frame vertex
+    ImVec2 v_pos = ImVec2(offset_x, offset_y);
+    ImVec2 v_size = ImVec2(tf_x - offset_x, tf_y - offset_y);
+    draw_list->PushClipRect(v_pos - ImVec2(16, 16), v_pos + v_size + ImVec2(32, 32));
+    auto handles = CalculateHandleRect(v_pos, v_size, margin_l, margin_t, margin_r, margin_b, position_h, position_v, scale_h, scale_v, angle);
 
+    // draw handle
+    for (auto r : handles)
+    {
+        draw_list->AddCircle(r.GetCenter(), 6, IM_COL32_WHITE);
+    }
+
+    draw_list->PopClipRect();
     return ret;
 }
 

@@ -207,6 +207,10 @@ struct MatResizeNode final : Node
 
     span<Pin*> GetInputPins() override { return m_InputPins; }
     span<Pin*> GetOutputPins() override { return m_OutputPins; }
+    Pin* GetAutoLinkInputFlowPin() override { return &m_Enter; }
+    Pin* GetAutoLinkOutputFlowPin() override { return &m_Exit; }
+    vector<Pin*> GetAutoLinkInputDataPin() override { return {&m_MatIn}; }
+    vector<Pin*> GetAutoLinkOutputDataPin() override { return {&m_MatOut}; }
 
     FlowPin   m_Enter   = { this, "Enter" };
     FlowPin   m_IReset  = { this, "Reset In" };
@@ -217,8 +221,6 @@ struct MatResizeNode final : Node
 
     Pin* m_InputPins[3] = { &m_Enter, &m_IReset, &m_MatIn };
     Pin* m_OutputPins[3] = { &m_Exit, &m_OReset, &m_MatOut };
-    Pin* GetAutoLinkInputFlowPin() override { return &m_Enter; }
-    Pin* GetAutoLinkOutputFlowPin() override { return &m_Exit; }
 
 private:
 #if IMGUI_VULKAN_SHADER
