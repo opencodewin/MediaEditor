@@ -5512,7 +5512,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_angle = attribute_keypoint ? curve_angle_index != -1 : false;
                 float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetRotationAngle();
                 ImGui::BeginDisabled(has_curve_angle);
-                if (ImGui::SliderFloat("Rotate Angle", &angle, -360.f, 360.f, "%.0f"))
+                if (ImGui::SliderFloat("Rotate Angle", &angle, -360.f, 360.f, "%.1f"))
                 {
                     attribute->SetRotationAngle(angle);
                     Reflush();
@@ -6226,19 +6226,17 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
     // calculate frame vertex
     ImVec2 v_pos = ImVec2(offset_x, offset_y);
     ImVec2 v_size = ImVec2(tf_x - offset_x, tf_y - offset_y);
-    draw_list->PushClipRect(v_pos - ImVec2(16, 16), v_pos + v_size + ImVec2(32, 32));
+    ImRect v_rect(v_pos, v_pos + v_size);
     auto handles = CalculateHandleRect(v_pos, v_size, margin_l, margin_t, margin_r, margin_b, position_h, position_v, scale_h, scale_v, angle);
     auto handles_no_crop = CalculateHandleRect(v_pos, v_size, 0, 0, 0, 0, position_h, position_v, scale_h, scale_v, angle);
+    auto handles_no_scale = CalculateHandleRect(v_pos, v_size, 0, 0, 0, 0, position_h, position_v, 1.0, 1.0, angle);
+
     // reflush timeline
     auto Reflush = [&]()
     {
         timeline->RefreshTrackView({trackId});
         project_changed = true;
     };
-
-    static ImVec2 drag_position(NAN, NAN);
-    static ImVec2 drag_border(NAN, NAN);
-    static float drag_angle = NAN;
 
     // draw handle
     auto IS_LT = [](const int p) { return p == 0; };
@@ -6260,11 +6258,14 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
     dst_poly.push_back(handles[6].GetCenter());
     static int drag_part = HT_NONE;
     int hoverd_part = HT_NONE;
+
+    draw_list->PushClipRect(v_pos - ImVec2(16, 16), v_pos + v_size + ImVec2(32, 32));
+    // draw handle points
     for (int i = 0; i < handles.size(); i++)
     {
         if (IS_VP(i))
         {
-            if (drag_part == i || handles[i].Contains(ImGui::GetMousePos()))
+            if (drag_part == i || (handles[i].Contains(ImGui::GetMousePos()) && v_rect.Contains(ImGui::GetMousePos())))
             {
                 draw_list->AddCircle(handles[i].GetCenter(), 8, IM_COL32(192, 192, 32, 255), 0, 2);
                 hoverd_part = i == 0 ? HT_TOP_LEFT : i == 2 ? HT_TOP_RIGHT : i == 6 ? HT_BOTTOM_LEFT : HT_BOTTOM_RIGHT;
@@ -6274,7 +6275,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
         }
         if (IS_CP(i))
         {
-            if (drag_part == i || handles[i].Contains(ImGui::GetMousePos()))
+            if (drag_part == i || (handles[i].Contains(ImGui::GetMousePos()) && v_rect.Contains(ImGui::GetMousePos())))
             {
                 draw_list->AddCircle(handles[i].GetCenter(), 6, IM_COL32(32, 192, 32, 255), 0, 2);
                 hoverd_part = i == 1 ? HT_TOP : i == 7 ? HT_BOTTOM : i == 3 ? HT_LEFT : HT_RIGHT;
@@ -6288,7 +6289,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
         }
         if (IS_CC(i))
         {
-            if ((handles[i].Contains(ImGui::GetMousePos()) && drag_part == HT_NONE) || drag_part == i)
+            if ((v_rect.Contains(ImGui::GetMousePos()) && handles[i].Contains(ImGui::GetMousePos()) && drag_part == HT_NONE) || drag_part == i)
             {
                 draw_list->AddCircle(handles[i].GetCenter(), 7, IM_COL32(192, 32, 32, 255), 0, 2);
                 hoverd_part = HT_ROTATE_CENTER;
@@ -6297,7 +6298,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
                 draw_list->AddCircle(handles[i].GetCenter(), 5, IM_COL32(192, 64, 64, 192));
         }
     }
-    if (hoverd_part == HT_NONE && CheckPointInsidePolygon(ImGui::GetMousePos(), dst_poly))
+    if (hoverd_part == HT_NONE && CheckPointInsidePolygon(ImGui::GetMousePos(), dst_poly) && v_rect.Contains(ImGui::GetMousePos()))
     {
         hoverd_part = HT_AREA;
     }
@@ -6306,7 +6307,23 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
         hoverd_part = drag_part;
     }
     draw_list->PopClipRect();
-    // change mouse cursor
+
+    draw_list->PushClipRect(v_pos, v_pos + v_size);
+    // draw handle points
+    draw_list->AddLine(handles[HT_TOP_LEFT].GetCenter(), handles[HT_TOP].GetCenter(), IM_COL32(192, 192, 64, 128));
+    draw_list->AddLine(handles[HT_TOP].GetCenter(), handles[HT_TOP_RIGHT].GetCenter(), IM_COL32(192, 192, 64, 128));
+    draw_list->AddLine(handles[HT_LEFT].GetCenter(), handles[HT_CENTER].GetCenter(), IM_COL32(192, 192, 64, 128));
+    draw_list->AddLine(handles[HT_CENTER].GetCenter(), handles[HT_RIGHT].GetCenter(), IM_COL32(192, 192, 64, 128));
+    draw_list->AddLine(handles[HT_BOTTOM_LEFT].GetCenter(), handles[HT_BOTTOM].GetCenter(), IM_COL32(192, 192, 64, 128));
+    draw_list->AddLine(handles[HT_BOTTOM].GetCenter(), handles[HT_BOTTOM_RIGHT].GetCenter(), IM_COL32(192, 192, 64, 128));
+    draw_list->AddLine(handles[HT_TOP_LEFT].GetCenter(), handles[HT_LEFT].GetCenter(), IM_COL32(192, 192, 64, 128));
+    draw_list->AddLine(handles[HT_LEFT].GetCenter(), handles[HT_BOTTOM_LEFT].GetCenter(), IM_COL32(192, 192, 64, 128));
+    draw_list->AddLine(handles[HT_TOP].GetCenter(), handles[HT_CENTER].GetCenter(), IM_COL32(192, 192, 64, 128));
+    draw_list->AddLine(handles[HT_CENTER].GetCenter(), handles[HT_BOTTOM].GetCenter(), IM_COL32(192, 192, 64, 128));
+    draw_list->AddLine(handles[HT_TOP_RIGHT].GetCenter(), handles[HT_RIGHT].GetCenter(), IM_COL32(192, 192, 64, 128));
+    draw_list->AddLine(handles[HT_RIGHT].GetCenter(), handles[HT_BOTTOM_RIGHT].GetCenter(), IM_COL32(192, 192, 64, 128));
+
+    // draw mouse cursor
     switch (hoverd_part)
     {
         case HT_ROTATE_CENTER: ImGui::RenderMouseCursor(ICON_ROTATE, ImVec2(8, 8), 1.f, angle); break;
@@ -6332,17 +6349,25 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
         auto distance = new_point.distance(p2) / size / (scale + FLT_EPSILON);
         return 1.0 - ImClamp(distance, 0.0f, 1.0f);
     };
+
     // handle mouse down and drag
+    static ImVec2 drag_position(NAN, NAN);
+    static ImVec2 drag_border(NAN, NAN);
+    static float drag_angle = NAN;
+
     if (hoverd_part != HT_NONE && (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0)))
     {
         float r_angle = ImDegToRad(angle);
         drag_part = hoverd_part;
+
+        if (std::isnan(drag_border.x) || std::isnan(drag_border.y)) drag_border = handles[drag_part].GetCenter();
+        if (std::isnan(drag_position.x) || std::isnan(drag_position.y)) drag_position = ImVec2(position_h, position_v);
+        if (std::isnan(drag_angle)) drag_angle = angle;
+
         switch (drag_part)
         {
             case HT_AREA:
             {
-                if (std::isnan(drag_position.x)) drag_position.x = position_h;
-                if (std::isnan(drag_position.y)) drag_position.y = position_v;
                 float x_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).x / v_size.x;
                 float y_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).y / v_size.y;
                 x_offset = 2.0 * x_offset / (1.0 + scale_h);
@@ -6356,9 +6381,20 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
                 Reflush();
             }
             break;
+            case HT_ROTATE_CENTER:
+            {
+                float x_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).x;
+                float y_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).y;
+                float d_angle = atan2(y_offset, x_offset);
+                angle = drag_angle + ImRadToDeg(d_angle);
+                angle = ImClamp(angle, -360.f, 360.f);
+                attribute->SetRotationAngle(angle);
+                Reflush();
+                draw_list->AddLine(handles[HT_ROTATE_CENTER].GetCenter(), ImGui::GetMousePos(), IM_COL32(192, 64, 64, 192), 2);
+            }
+            break;
             case HT_TOP:
             {
-                if (std::isnan(drag_border.x) || std::isnan(drag_border.y)) drag_border = handles[HT_TOP].GetCenter();
                 ImVec2 top = handles_no_crop[HT_TOP].GetCenter();
                 ImVec2 bottom = handles_no_crop[HT_BOTTOM].GetCenter();
                 margin_t = margin_adj(drag_border, top, bottom, v_size.y, scale_v);
@@ -6368,7 +6404,6 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
             break;
             case HT_BOTTOM:
             {
-                if (std::isnan(drag_border.x) || std::isnan(drag_border.y)) drag_border = handles[HT_BOTTOM].GetCenter();
                 ImVec2 top = handles_no_crop[HT_TOP].GetCenter();
                 ImVec2 bottom = handles_no_crop[HT_BOTTOM].GetCenter();
                 margin_b = margin_adj(drag_border, bottom, top, v_size.y, scale_v);
@@ -6378,7 +6413,6 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
             break;
             case HT_LEFT:
             {
-                if (std::isnan(drag_border.x) || std::isnan(drag_border.y)) drag_border = handles[HT_LEFT].GetCenter();
                 ImVec2 left = handles_no_crop[HT_LEFT].GetCenter();
                 ImVec2 right = handles_no_crop[HT_RIGHT].GetCenter();
                 margin_l = margin_adj(drag_border, left, right, v_size.x, scale_h);
@@ -6388,7 +6422,6 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
             break;
             case HT_RIGHT:
             {
-                if (std::isnan(drag_border.x) || std::isnan(drag_border.y)) drag_border = handles[HT_RIGHT].GetCenter();
                 ImVec2 left = handles_no_crop[HT_LEFT].GetCenter();
                 ImVec2 right = handles_no_crop[HT_RIGHT].GetCenter();
                 margin_r = margin_adj(drag_border, right, left, v_size.x, scale_h);
@@ -6396,21 +6429,11 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
                 Reflush();
             }
             break;
-            case HT_ROTATE_CENTER:
-            {
-                if (std::isnan(drag_angle)) drag_angle = angle;
-                float x_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).x;
-                float y_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).y;
-                float d_angle = atan2(y_offset, x_offset);
-                angle = drag_angle + ImRadToDeg(d_angle);
-                angle = ImClamp(angle, -360.f, 360.f);
-                attribute->SetRotationAngle(angle);
-                Reflush();
-            }
-            break;
             default : break;
         }
     }
+
+    draw_list->PopClipRect();
 
     // handle mouse release
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
