@@ -1234,6 +1234,7 @@ struct TimeLine
     bool bCompare = false;                  // project saved
     bool bFilterOutputPreview = true;       // project saved
     bool bTransitionOutputPreview = true;   // project saved
+    bool bAttributeOutputPreview = true;    // project saved
     bool bSelectLinked = true;              // project saved
     bool bMovingAttract = true;             // project saved
 

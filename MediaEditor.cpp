@@ -4672,27 +4672,6 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
     }
     ImGui::ShowTooltipOnHover("To End");
 
-/*
-    if (attribute)
-    {
-        ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 2 - 64, PanelButtonY));
-        if (ImGui::RotateCheckButton(timeline->bAttributeOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bAttributeOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), 0, button_size))
-        {
-            timeline->UpdatePreview();
-        }
-        ImGui::ShowTooltipOnHover(timeline->bAttributeOutputPreview ? "Attribute Output" : "Preview Output");
-    }
-    else
-    {
-        ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 2 - 64, PanelButtonY));
-        if (ImGui::RotateCheckButton(timeline->bFilterOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bFilterOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), 0, button_size))
-        {
-            timeline->UpdatePreview();
-        }
-        ImGui::ShowTooltipOnHover(timeline->bFilterOutputPreview ? "Filter Output" : "Preview Output");
-    }
-*/
-
     ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 2 - 64, PanelButtonY));
     if (ImGui::RotateCheckButton(timeline->bFilterOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bFilterOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), 0, button_size))
     {
@@ -6160,7 +6139,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
     ImGui::ImMat in_frame;
-    auto frame_ret = editing_clip->GetFrame(in_frame, MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM);
+    auto frame_ret = editing_clip->GetFrame(in_frame, timeline->bAttributeOutputPreview ? MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING : MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM);
     int64_t output_timestamp = in_frame.time_stamp * 1000;
     if (frame_ret && 
         (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != output_timestamp || !editing_clip->mTransformOutputTexture))
@@ -6473,7 +6452,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
                     float y_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).y;
                     float d_angle = atan2(y_offset, x_offset) - drag_angle_start;
                     angle = drag_angle + ImRadToDeg(d_angle);
-                    angle = ImClamp(angle, -360.f, 360.f);
+                    angle = fmod(angle, 360.f);
                     attribute->SetRotationAngle(angle);
                     Reflush();
                     draw_list->AddLine(handles[HT_ROTATE_CENTER], ImGui::GetMousePos(), IM_COL32(64, 192, 64, 192), 2);
