@@ -5077,7 +5077,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 attribute_keypoint->SetMax(ImVec4(1, 1, 1, editing_clip->Length()), true);
             }
         }
-         // reflush timeline
+        // reflush timeline
         auto Reflush = [&]()
         {
             timeline->RefreshTrackView({trackId});
@@ -5516,7 +5516,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_angle = attribute_keypoint ? curve_angle_index != -1 : false;
                 float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetRotationAngle();
                 ImGui::BeginDisabled(has_curve_angle);
-                if (ImGui::SliderFloat("Rotate Angle", &angle, -360.f, 360.f, "%.0f"))
+                if (ImGui::SliderFloat("Rotate Angle", &angle, -360.f, 360.f, "%.1f"))
                 {
                     attribute->SetRotationAngle(angle);
                     Reflush();
@@ -6056,8 +6056,51 @@ static bool DrawVideoClipTimelineWindow(bool& show_BP, EditingVideoClip * editin
     return mouse_hold;
 }
 
-static std::vector<ImRect> CalculateHandleRect(ImVec2 v_pos, ImVec2 v_size, float ml, float mt, float mr, float mb, float oh, float ov, float sh, float sv, float angle)
+/***************************************************************************************
+ * Attrobute utils
+ ***************************************************************************************/
+enum HANDLE_TYPE : int
 {
+    HT_NONE = -1,
+    HT_TOP_LEFT = 0,
+    HT_TOP,
+    HT_TOP_RIGHT,
+    HT_LEFT,
+    HT_CENTER,
+    HT_RIGHT,
+    HT_BOTTOM_LEFT,
+    HT_BOTTOM,
+    HT_BOTTOM_RIGHT,
+    HT_ROTATE_CENTER,
+    HT_AREA,
+};
+
+#define IS_TOP(p) (p == HT_TOP_LEFT || p == HT_TOP || p == HT_TOP_RIGHT)
+#define IS_BOTTOM(p) (p == HT_BOTTOM_LEFT || p == HT_BOTTOM || p == HT_BOTTOM_RIGHT)
+#define IS_LEFT(p) (p == HT_TOP_LEFT || p == HT_LEFT || p == HT_BOTTOM_LEFT)
+#define IS_RIGHT(p) (p == HT_TOP_RIGHT || p == HT_RIGHT || p == HT_BOTTOM_RIGHT)
+#define IS_C(p) (p == HT_CENTER)
+#define IS_CC(p) (p == HT_ROTATE_CENTER)
+#define IS_VP(p) (p == HT_TOP_LEFT || p == HT_TOP_RIGHT || p == HT_BOTTOM_LEFT || p == HT_BOTTOM_RIGHT)
+#define IS_CP(p) (p == HT_TOP || p == HT_BOTTOM || p == HT_LEFT || p == HT_RIGHT)
+
+static std::vector<ImVec2> CalculateHandlePoint(ImVec2 v_pos, ImVec2 v_size, float ml, float mt, float mr, float mb, float oh, float ov, float sh, float sv, float angle)
+{
+    /****************************************************************************
+     *  0 ------------------------------- 1 ------------------------------- 2
+     *  |                                 |                                 |
+     *  |                                 |                                 |
+     *  |                                 |                                 |
+     *  |                                 |                                 |
+     *  |                                 |                                 |
+     *  3 ------------------------------ 4/9 ------------------------------ 5
+     *  |                                 |                                 |
+     *  |                                 |                                 |
+     *  |                                 |                                 |
+     *  |                                 |                                 |
+     *  |                                 |                                 |
+     *  6 ------------------------------- 7 ------------------------------- 8
+     */
     float r_angle = ImDegToRad(angle);
     std::vector<ImVec2> pt = {  {-0.5f, -0.5f}, { 0.0f, -0.5f}, { 0.5f, -0.5f}, 
                                 {-0.5f,  0.0f}, { 0.0f,  0.0f}, { 0.5f,  0.0f},
@@ -6065,35 +6108,32 @@ static std::vector<ImRect> CalculateHandleRect(ImVec2 v_pos, ImVec2 v_size, floa
     for (int i  = 0; i < pt.size(); i++)
     {
         auto& p = pt[i];
-        if ( i == 0 || i == 2 || i == 6 || i == 8)
+        if (IS_VP(i))
         {
-            if (i == 0 || i == 2) p += ImVec2(0, mt);
-            if (i == 6 || i == 8) p -= ImVec2(0, mb);
-            if (i == 0 || i == 6) p += ImVec2(ml, 0);
-            if (i == 2 || i == 8) p -= ImVec2(mr, 0);
+            if (IS_TOP(i)) p += ImVec2(0, mt);
+            if (IS_BOTTOM(i)) p -= ImVec2(0, mb);
+            if (IS_LEFT(i)) p += ImVec2(ml, 0);
+            if (IS_RIGHT(i)) p -= ImVec2(mr, 0);
             p.x *= sh;
             p.y *= sv;
             ImVec2 dp;
             dp.x = p.x * v_size.x * cos(r_angle) - p.y * v_size.y * sin(r_angle);
             dp.y = p.x * v_size.x * sin(r_angle) + p.y * v_size.y * cos(r_angle);
             dp += ImVec2((oh * sh + oh) * 0.5 * v_size.x, (ov * sv + ov) * 0.5 * v_size.y);
-            dp.x += v_size.x * 0.5;
-            dp.y += v_size.y * 0.5;
+            dp += ImVec2(v_size.x * 0.5, v_size.y * 0.5);
             p = dp;
         }
     }
-    pt[1] = ImVec2((pt[0].x + pt[2].x) / 2, (pt[0].y + pt[2].y) / 2);
-    pt[3] = ImVec2((pt[0].x + pt[6].x) / 2, (pt[0].y + pt[6].y) / 2);
-    pt[4] = ImVec2((pt[0].x + pt[8].x) / 2, (pt[0].y + pt[8].y) / 2);
-    pt[5] = ImVec2((pt[2].x + pt[8].x) / 2, (pt[2].y + pt[8].y) / 2);
-    pt[7] = ImVec2((pt[6].x + pt[8].x) / 2, (pt[6].y + pt[8].y) / 2);
-    std::vector<ImRect> result;
-    for (auto p : pt)
-    {
-        ImRect rect = ImRect(v_pos + p - ImVec2(8, 8), v_pos + p + ImVec2(8, 8));
-        result.push_back(rect);
-    }
-    return result;
+    pt[HT_TOP] = (pt[HT_TOP_LEFT] + pt[HT_TOP_RIGHT]) / 2;
+    pt[HT_LEFT] = (pt[HT_TOP_LEFT] + pt[HT_BOTTOM_LEFT]) / 2;
+    pt[HT_CENTER] = (pt[HT_TOP_LEFT] + pt[HT_BOTTOM_RIGHT]) / 2;
+    pt[HT_RIGHT] = (pt[HT_TOP_RIGHT] + pt[HT_BOTTOM_RIGHT]) / 2;
+    pt[HT_BOTTOM] = (pt[HT_BOTTOM_LEFT] + pt[HT_BOTTOM_RIGHT]) / 2;
+    for (auto& p : pt) p+= v_pos;
+    ImVec2 center = ImVec2(v_size.x * 0.5, v_size.y * 0.5);
+    center += ImVec2((oh * sh + oh) * 0.5 * v_size.x, (ov * sv + ov) * 0.5 * v_size.y);
+    pt.push_back(v_pos + center);
+    return pt;
 }
 
 static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVideoClip * editing_clip)
@@ -6110,6 +6150,9 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
         ImGui::ImMatToTexture(in_frame, editing_clip->mTransformOutputTexture);
         timeline->mLastFrameTime = output_timestamp;
     }
+    int64_t trackId = -1;
+    auto track = timeline->FindTrackByClipID(editing_clip->mID);
+    if (track) trackId = track->mID;
     ImVec2 videoPos = sub_window_pos + ImVec2(16, 16);
     ImVec2 videoSize = sub_window_size - ImVec2(32, 32);
     float offset_x = 0, offset_y = 0;
@@ -6192,16 +6235,259 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
     // calculate frame vertex
     ImVec2 v_pos = ImVec2(offset_x, offset_y);
     ImVec2 v_size = ImVec2(tf_x - offset_x, tf_y - offset_y);
-    draw_list->PushClipRect(v_pos - ImVec2(16, 16), v_pos + v_size + ImVec2(32, 32));
-    auto handles = CalculateHandleRect(v_pos, v_size, margin_l, margin_t, margin_r, margin_b, position_h, position_v, scale_h, scale_v, angle);
+    ImRect v_rect(v_pos, v_pos + v_size);
+    auto handles = CalculateHandlePoint(v_pos, v_size, margin_l, margin_t, margin_r, margin_b, position_h, position_v, scale_h, scale_v, angle);
+    auto handles_no_crop = CalculateHandlePoint(v_pos, v_size, 0, 0, 0, 0, position_h, position_v, scale_h, scale_v, angle);
+    auto handles_no_scale = CalculateHandlePoint(v_pos, v_size, 0, 0, 0, 0, position_h, position_v, 1.0, 1.0, angle);
 
-    // draw handle
-    for (auto r : handles)
+    // reflush timeline
+    auto Reflush = [&]()
     {
-        draw_list->AddCircle(r.GetCenter(), 6, IM_COL32_WHITE);
+        timeline->RefreshTrackView({trackId});
+        project_changed = true;
+    };
+    auto draw_grad = [](ImDrawList *draw_list, std::vector<ImVec2>& h, ImU32 color)
+    {
+        draw_list->AddLine(h[HT_TOP_LEFT],  h[HT_TOP],          color);
+        draw_list->AddLine(h[HT_TOP],       h[HT_TOP_RIGHT],    color);
+        draw_list->AddLine(h[HT_LEFT],      h[HT_CENTER],       color);
+        draw_list->AddLine(h[HT_CENTER],    h[HT_RIGHT],        color);
+        draw_list->AddLine(h[HT_BOTTOM_LEFT], h[HT_BOTTOM],     color);
+        draw_list->AddLine(h[HT_BOTTOM],    h[HT_BOTTOM_RIGHT], color);
+        draw_list->AddLine(h[HT_TOP_LEFT],  h[HT_LEFT],         color);
+        draw_list->AddLine(h[HT_LEFT],      h[HT_BOTTOM_LEFT],  color);
+        draw_list->AddLine(h[HT_TOP],       h[HT_CENTER],       color);
+        draw_list->AddLine(h[HT_CENTER],    h[HT_BOTTOM],       color);
+        draw_list->AddLine(h[HT_TOP_RIGHT], h[HT_RIGHT],        color);
+        draw_list->AddLine(h[HT_RIGHT],     h[HT_BOTTOM_RIGHT], color);
+    };
+
+    std::vector<ImVec2> dst_poly;
+    dst_poly.push_back(handles[0]);
+    dst_poly.push_back(handles[2]);
+    dst_poly.push_back(handles[8]);
+    dst_poly.push_back(handles[6]);
+    static int drag_part = HT_NONE;
+    int hoverd_part = HT_NONE;
+
+    draw_list->PushClipRect(v_pos - ImVec2(16, 16), v_pos + v_size + ImVec2(32, 32));
+    // draw handle points
+    for (int i = 0; i < handles.size(); i++)
+    {
+        ImRect handle_rect(handles[i] - ImVec2(8, 8), handles[i] + ImVec2(8, 8));
+        if (IS_VP(i))
+        {
+            if (drag_part == i || (handle_rect.Contains(ImGui::GetMousePos()) && v_rect.Contains(ImGui::GetMousePos())))
+            {
+                draw_list->AddCircle(handle_rect.GetCenter(), 8, IM_COL32(192, 192, 32, 255), 0, 2);
+                hoverd_part = i == 0 ? HT_TOP_LEFT : i == 2 ? HT_TOP_RIGHT : i == 6 ? HT_BOTTOM_LEFT : HT_BOTTOM_RIGHT;
+            }
+            else
+                draw_list->AddCircle(handle_rect.GetCenter(), 6, IM_COL32(192, 192, 64, 192));
+        }
+        if (IS_CP(i))
+        {
+            if (drag_part == i || (handle_rect.Contains(ImGui::GetMousePos()) && v_rect.Contains(ImGui::GetMousePos())))
+            {
+                draw_list->AddCircle(handle_rect.GetCenter(), 6, IM_COL32(32, 192, 32, 255), 0, 2);
+                hoverd_part = i == 1 ? HT_TOP : i == 7 ? HT_BOTTOM : i == 3 ? HT_LEFT : HT_RIGHT;
+            }
+            else
+                draw_list->AddCircle(handle_rect.GetCenter(), 4, IM_COL32(64, 192, 64, 192));
+        }
+        if (IS_C(i))
+        {
+            draw_list->AddCircle(handle_rect.GetCenter(), 4, IM_COL32(192, 192, 192, 192));
+        }
+        if (IS_CC(i))
+        {
+            if ((v_rect.Contains(ImGui::GetMousePos()) && handle_rect.Contains(ImGui::GetMousePos()) && drag_part == HT_NONE) || drag_part == i)
+            {
+                draw_list->AddCircle(handle_rect.GetCenter(), 7, IM_COL32(192, 32, 32, 255), 0, 2);
+                hoverd_part = HT_ROTATE_CENTER;
+            }
+            else
+                draw_list->AddCircle(handle_rect.GetCenter(), 5, IM_COL32(192, 64, 64, 192));
+        }
+    }
+    if (hoverd_part == HT_NONE && CheckPointInsidePolygon(ImGui::GetMousePos(), dst_poly) && v_rect.Contains(ImGui::GetMousePos()))
+    {
+        hoverd_part = HT_AREA;
+    }
+    if (drag_part != HT_NONE && hoverd_part != drag_part)
+    {
+        hoverd_part = drag_part;
+    }
+    draw_list->PopClipRect();
+
+    draw_list->PushClipRect(v_pos, v_pos + v_size);
+    // draw handle points
+    draw_grad(draw_list, handles, IM_COL32(192, 192, 64, 128));
+
+    // draw mouse cursor
+    switch (hoverd_part)
+    {
+        case HT_ROTATE_CENTER: ImGui::RenderMouseCursor(ICON_ROTATE, ImVec2(8, 8), 1.f, angle); break;
+        case HT_TOP:
+        case HT_BOTTOM: ImGui::RenderMouseCursor(ICON_FA_ARROWS_UP_DOWN, ImVec2(4, 8), 1.f, angle); break;
+        case HT_LEFT: 
+        case HT_RIGHT: ImGui::RenderMouseCursor(ICON_FA_ARROWS_LEFT_RIGHT, ImVec2(8, 8), 1.f, angle); break;
+        case HT_TOP_LEFT:
+        case HT_BOTTOM_RIGHT: ImGui::RenderMouseCursor(ICON_FA_ARROWS_UP_DOWN, ImVec2(4, 8), 1.f, angle - 45); break;
+        case HT_TOP_RIGHT:
+        case HT_BOTTOM_LEFT: ImGui::RenderMouseCursor(ICON_FA_ARROWS_LEFT_RIGHT, ImVec2(8, 8), 1.f, angle - 45); break;
+        case HT_AREA: ImGui::RenderMouseCursor(ICON_FA_UP_DOWN_LEFT_RIGHT, ImVec2(8, 8), 1.f, angle); break;
+        case HT_NONE:
+        default : break;
+    }
+    
+    auto margin_adj = [&](ImVec2& p, ImVec2& p1, ImVec2& p2, float size, float scale)
+    {
+        ImVec2 offset = p + ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0);
+        ImVec2 new_point = offset.project(p1, p2);
+        new_point.x = ImClamp(new_point.x, fmin(p1.x, p2.x), fmax(p1.x, p2.x));
+        new_point.y = ImClamp(new_point.y, fmin(p1.y, p2.y), fmax(p1.y, p2.y));
+        auto distance = new_point.distance(p2) / size / (scale + FLT_EPSILON);
+        return 1.0 - ImClamp(distance, 0.0f, 1.0f);
+    };
+    auto handle_adj = [&](int p_index, int p1_index, int p2_index)
+    {
+        auto handles_dst = handles;
+        auto p1 = handles[p_index];
+        ImVec2 offset = p1 + ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0);
+        handles_dst[p_index] = offset;
+        auto p_h = handles[p1_index];
+        auto p_v = handles[p2_index];
+        ImVec2 new_point_h = offset.project(p1, p_h);
+        ImVec2 new_point_v = offset.project(p1, p_v);
+        handles_dst[p1_index] += new_point_v - p1;
+        handles_dst[p2_index] += new_point_h - p1;
+        
+        handles_dst[HT_TOP] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_TOP_RIGHT]) / 2;
+        handles_dst[HT_LEFT] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_BOTTOM_LEFT]) / 2;
+        handles_dst[HT_CENTER] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
+        handles_dst[HT_RIGHT] = (handles_dst[HT_TOP_RIGHT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
+        handles_dst[HT_BOTTOM] = (handles_dst[HT_BOTTOM_LEFT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
+        return handles_dst;
+    };
+
+    // handle mouse down and drag
+    static ImVec2 drag_position(NAN, NAN);
+    static ImVec2 drag_border(NAN, NAN);
+    static float drag_angle = NAN;
+
+    if (hoverd_part != HT_NONE && (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0)))
+    {
+        float r_angle = ImDegToRad(angle);
+        drag_part = hoverd_part;
+
+        if (std::isnan(drag_border.x) || std::isnan(drag_border.y)) drag_border = handles[drag_part];
+        if (std::isnan(drag_position.x) || std::isnan(drag_position.y)) drag_position = ImVec2(position_h, position_v);
+        if (std::isnan(drag_angle)) drag_angle = angle;
+
+        switch (drag_part)
+        {
+            case HT_AREA:
+            {
+                float x_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).x / v_size.x;
+                float y_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).y / v_size.y;
+                x_offset = 2.0 * x_offset / (1.0 + scale_h);
+                y_offset = 2.0 * y_offset / (1.0 + scale_v);
+                position_h = drag_position.x + x_offset;
+                position_h = ImClamp(position_h, -1.0f, 1.0f);
+                position_v = drag_position.y + y_offset;
+                position_v = ImClamp(position_v, -1.0f, 1.0f);
+                attribute->SetPositionOffsetH(position_h);
+                attribute->SetPositionOffsetV(position_v);
+                Reflush();
+            }
+            break;
+            case HT_ROTATE_CENTER:
+            {
+                float x_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).x;
+                float y_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).y;
+                float d_angle = atan2(y_offset, x_offset);
+                angle = drag_angle + ImRadToDeg(d_angle);
+                angle = ImClamp(angle, -360.f, 360.f);
+                attribute->SetRotationAngle(angle);
+                Reflush();
+                draw_list->AddLine(handles[HT_ROTATE_CENTER], ImGui::GetMousePos(), IM_COL32(192, 64, 64, 192), 2);
+            }
+            break;
+            case HT_TOP:
+            {
+                ImVec2 top = handles_no_crop[HT_TOP];
+                ImVec2 bottom = handles_no_crop[HT_BOTTOM];
+                margin_t = margin_adj(drag_border, top, bottom, v_size.y, scale_v);
+                attribute->SetCropMarginT(margin_t);
+                Reflush();
+            }
+            break;
+            case HT_BOTTOM:
+            {
+                ImVec2 top = handles_no_crop[HT_TOP];
+                ImVec2 bottom = handles_no_crop[HT_BOTTOM];
+                margin_b = margin_adj(drag_border, bottom, top, v_size.y, scale_v);
+                attribute->SetCropMarginB(margin_b);
+                Reflush();
+            }
+            break;
+            case HT_LEFT:
+            {
+                ImVec2 left = handles_no_crop[HT_LEFT];
+                ImVec2 right = handles_no_crop[HT_RIGHT];
+                margin_l = margin_adj(drag_border, left, right, v_size.x, scale_h);
+                attribute->SetCropMarginL(margin_l);
+                Reflush();
+            }
+            break;
+            case HT_RIGHT:
+            {
+                ImVec2 left = handles_no_crop[HT_LEFT];
+                ImVec2 right = handles_no_crop[HT_RIGHT];
+                margin_r = margin_adj(drag_border, right, left, v_size.x, scale_h);
+                attribute->SetCropMarginR(margin_r);
+                Reflush();
+            }
+            break;
+            case HT_TOP_LEFT:
+            {
+                auto handles_dst = handle_adj(HT_TOP_LEFT, HT_TOP_RIGHT, HT_BOTTOM_LEFT);
+                draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
+            }
+            break;
+            case HT_TOP_RIGHT:
+            {
+                auto handles_dst = handle_adj(HT_TOP_RIGHT, HT_TOP_LEFT, HT_BOTTOM_RIGHT);
+                draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
+            }
+            break;
+            case HT_BOTTOM_LEFT:
+            {
+                auto handles_dst = handle_adj(HT_BOTTOM_LEFT, HT_BOTTOM_RIGHT, HT_TOP_LEFT);
+                draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
+            }
+            break;
+            case HT_BOTTOM_RIGHT:
+            {
+                auto handles_dst = handle_adj(HT_BOTTOM_RIGHT, HT_BOTTOM_LEFT, HT_TOP_RIGHT);
+                draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
+            }
+            break;
+            default : break;
+        }
     }
 
     draw_list->PopClipRect();
+
+    // handle mouse release
+    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    {
+        drag_part = HT_NONE;
+        drag_position = ImVec2(NAN, NAN);
+        drag_border = ImVec2(NAN, NAN);
+        drag_angle = NAN;
+    }
     return ret;
 }
 

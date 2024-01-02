@@ -5976,6 +5976,7 @@ TimeLine::~TimeLine()
     
     m_BP_UI.Finalize();
 
+    for (auto item : mEditingItems) delete item;
     for (auto track : m_Tracks) delete track;
     for (auto clip : m_Clips) delete clip;
     for (auto overlap : m_Overlaps)  delete overlap;
@@ -5987,12 +5988,6 @@ TimeLine::~TimeLine()
     if (mVideoTransitionInputFirstTexture) { ImGui::ImDestroyTexture(mVideoTransitionInputFirstTexture); mVideoTransitionInputFirstTexture = nullptr; }
     if (mVideoTransitionInputSecondTexture) { ImGui::ImDestroyTexture(mVideoTransitionInputSecondTexture); mVideoTransitionInputSecondTexture = nullptr; }
     if (mVideoTransitionOutputTexture) { ImGui::ImDestroyTexture(mVideoTransitionOutputTexture); mVideoTransitionOutputTexture = nullptr;  }
-
-    for (auto item : mEditingItems)
-    {
-        delete item;
-    }
-    mEditingItems.clear();
 
     if (mAudioRender)
     {
