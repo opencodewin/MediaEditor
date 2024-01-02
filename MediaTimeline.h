@@ -115,6 +115,7 @@
 #define ICON_CLIP_START     u8"\uf090"
 #define ICON_CLIP_END       u8"\uf08b"
 #define ICON_RETURN_DEFAULT u8"\ue4e0"
+#define ICON_RETURN_ALL     u8"\uec20"
 #define ICON_NODE           u8"\uf542"
 #define ICON_WATCH          u8"\ue8f4"
 #define ICON_UNWATCH        u8"\ue8f5"

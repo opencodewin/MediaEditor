@@ -5228,6 +5228,20 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - iReserveWidth, tree_pos.y));
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
             ImGui::CheckButton(ICON_CLIP_ATTRIBUTE "##video_attribute", &editing->bEditingAttribute, ImVec4(0.0, 0.5, 0.0, 1.0));
+            ImGui::SameLine();
+            if (ImGui::Button(ICON_RETURN_ALL "##video_attribute_reset_all"))
+            {
+                attribute->SetCropMarginL(0.f);
+                attribute->SetCropMarginR(0.f);
+                attribute->SetCropMarginT(0.f);
+                attribute->SetCropMarginB(0.f);
+                attribute->SetPositionOffsetH(0.f);
+                attribute->SetPositionOffsetV(0.f);
+                attribute->SetScaleH(1.f);
+                attribute->SetScaleV(1.f);
+                attribute->SetRotationAngle(0.f);
+                Reflush();
+            }
             ImGui::PopStyleColor();
         }
         if (attrib_tree_open)
@@ -5419,6 +5433,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     {
                         if (attribute_keypoint) attribute_keypoint->DeleteCurve("ScaleH");
                         if (attribute_keypoint) attribute_keypoint->DeleteCurve("ScaleV");
+                        float scale = (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
+                        attribute->SetScaleH(scale);
+                        attribute->SetScaleV(scale);
+                        Reflush();
                     }
                     else
                     {
@@ -6159,7 +6177,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
     float tf_x = 0, tf_y = 0;
     if (editing_clip->mTransformOutputTexture)
     {
-        ShowVideoWindow(draw_list, editing_clip->mTransformOutputTexture, videoPos, videoSize, "Attribute", 1.5f, offset_x, offset_y, tf_x, tf_y, true, false);
+        ShowVideoWindow(draw_list, editing_clip->mTransformOutputTexture, videoPos, videoSize, "", 1.5f, offset_x, offset_y, tf_x, tf_y, true, false);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
     }
     // draw grad
@@ -6238,7 +6256,6 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
     ImRect v_rect(v_pos, v_pos + v_size);
     auto handles = CalculateHandlePoint(v_pos, v_size, margin_l, margin_t, margin_r, margin_b, position_h, position_v, scale_h, scale_v, angle);
     auto handles_no_crop = CalculateHandlePoint(v_pos, v_size, 0, 0, 0, 0, position_h, position_v, scale_h, scale_v, angle);
-    auto handles_no_scale = CalculateHandlePoint(v_pos, v_size, 0, 0, 0, 0, position_h, position_v, 1.0, 1.0, angle);
 
     // reflush timeline
     auto Reflush = [&]()
@@ -6350,41 +6367,87 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
         auto distance = new_point.distance(p2) / size / (scale + FLT_EPSILON);
         return 1.0 - ImClamp(distance, 0.0f, 1.0f);
     };
-    auto handle_adj = [&](int p_index, int p1_index, int p2_index)
-    {
-        auto handles_dst = handles;
-        auto p1 = handles[p_index];
-        ImVec2 offset = p1 + ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0);
-        handles_dst[p_index] = offset;
-        auto p_h = handles[p1_index];
-        auto p_v = handles[p2_index];
-        ImVec2 new_point_h = offset.project(p1, p_h);
-        ImVec2 new_point_v = offset.project(p1, p_v);
-        handles_dst[p1_index] += new_point_v - p1;
-        handles_dst[p2_index] += new_point_h - p1;
-        
-        handles_dst[HT_TOP] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_TOP_RIGHT]) / 2;
-        handles_dst[HT_LEFT] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_BOTTOM_LEFT]) / 2;
-        handles_dst[HT_CENTER] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
-        handles_dst[HT_RIGHT] = (handles_dst[HT_TOP_RIGHT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
-        handles_dst[HT_BOTTOM] = (handles_dst[HT_BOTTOM_LEFT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
-        return handles_dst;
-    };
 
     // handle mouse down and drag
     static ImVec2 drag_position(NAN, NAN);
     static ImVec2 drag_border(NAN, NAN);
+    static ImVec2 drag_scale(NAN, NAN);
+    static std::vector<ImVec2> drag_handles;
     static float drag_angle = NAN;
+    static float drag_angle_start = NAN;
 
     if (hoverd_part != HT_NONE && (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0)))
     {
+        ret = true;
         float r_angle = ImDegToRad(angle);
         drag_part = hoverd_part;
 
         if (std::isnan(drag_border.x) || std::isnan(drag_border.y)) drag_border = handles[drag_part];
         if (std::isnan(drag_position.x) || std::isnan(drag_position.y)) drag_position = ImVec2(position_h, position_v);
+        if (std::isnan(drag_scale.x) || std::isnan(drag_scale.y)) drag_scale = ImVec2(scale_h, scale_v);
         if (std::isnan(drag_angle)) drag_angle = angle;
+        if (std::isnan(drag_angle_start) && ImGui::GetMouseDragDelta().length() > 32) drag_angle_start = atan2(ImGui::GetMouseDragDelta().y, ImGui::GetMouseDragDelta().x);
+        if (drag_handles.empty()) drag_handles = handles;
 
+        auto handle_adj = [&](int p_index, int p1_index, int p2_index, int p3_index)
+        {
+            auto handles_dst = drag_handles;
+            auto p = drag_handles[p_index];
+            ImVec2 offset = p + ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0);
+            auto p_h = drag_handles[p1_index];
+            auto p_v = drag_handles[p2_index];
+            auto p_i = drag_handles[p3_index];
+            if (keep_aspect_ratio)
+                offset = offset.project(p, p_i);
+            ImVec2 new_point_ih = offset.project(p_v, p_i);
+            ImVec2 new_point_iv = offset.project(p_h, p_i);
+
+            if (p_v.x < p_i.x) new_point_ih.x = ImClamp(new_point_ih.x, -FLT_MAX, p_i.x);
+            else new_point_ih.x = ImClamp(new_point_ih.x, p_i.x, FLT_MAX);
+            if (p_v.y < p_i.y) new_point_ih.y = ImClamp(new_point_ih.y, -FLT_MAX, p_i.y);
+            else new_point_ih.y = ImClamp(new_point_ih.y, p_i.y, FLT_MAX);
+            if (p_h.x < p_i.x) new_point_iv.x = ImClamp(new_point_iv.x, -FLT_MAX, p_i.x);
+            else new_point_iv.x = ImClamp(new_point_iv.x, p_i.x, FLT_MAX);
+            if (p_h.y < p_i.y) new_point_iv.y = ImClamp(new_point_iv.y, -FLT_MAX, p_i.y);
+            else new_point_iv.y = ImClamp(new_point_iv.y, p_i.y, FLT_MAX);
+
+            offset.x = new_point_ih.x + new_point_iv.x - p_i.x;
+            offset.y = new_point_ih.y + new_point_iv.y - p_i.y;
+
+            handles_dst[p_index] = offset;
+            handles_dst[p1_index] = new_point_iv;
+            handles_dst[p2_index] = new_point_ih;
+
+            handles_dst[HT_TOP] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_TOP_RIGHT]) / 2;
+            handles_dst[HT_LEFT] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_BOTTOM_LEFT]) / 2;
+            handles_dst[HT_CENTER] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
+            handles_dst[HT_RIGHT] = (handles_dst[HT_TOP_RIGHT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
+            handles_dst[HT_BOTTOM] = (handles_dst[HT_BOTTOM_LEFT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
+            return handles_dst;
+        };
+        auto scale_adj = [&](const std::vector<ImVec2>& handles_dst)
+        {
+            ImVec2 scale;
+            auto old_w = (drag_handles[HT_TOP_RIGHT] - drag_handles[HT_TOP_LEFT]).length();
+            auto new_w = (handles_dst[HT_TOP_RIGHT] - handles_dst[HT_TOP_LEFT]).length();
+            auto new_scale_h = new_w / (old_w + FLT_EPSILON);
+            scale.x = ImClamp(drag_scale.x * new_scale_h, 0.001f, 8.0f);
+            auto old_h = (drag_handles[HT_BOTTOM_RIGHT] - drag_handles[HT_TOP_RIGHT]).length();
+            auto new_h = (handles_dst[HT_BOTTOM_RIGHT] - handles_dst[HT_TOP_RIGHT]).length();
+            auto new_scale_v = new_h / (old_h + FLT_EPSILON);
+            scale.y = ImClamp(drag_scale.y * new_scale_v, 0.001f, 8.0f);
+            return scale;
+        };
+        auto position_adj = [&](const std::vector<ImVec2>& handles_dst, const ImVec2& scale)
+        {
+            auto handles_no_offset = CalculateHandlePoint(v_pos, v_size, margin_l, margin_t, margin_r, margin_b, 0, 0, scale.x, scale.y, angle);
+            auto offset = (handles_dst[drag_part] - handles_no_offset[drag_part]) / v_size;
+            offset.x = 2 * offset.x / (1.0 + scale_h);
+            offset.y = 2 * offset.y / (1.0 + scale_v);
+            offset.x = ImClamp(offset.x, -1.0f, 1.0f);
+            offset.y = ImClamp(offset.y, -1.0f, 1.0f);
+            return offset;
+        };
         switch (drag_part)
         {
             case HT_AREA:
@@ -6404,14 +6467,19 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
             break;
             case HT_ROTATE_CENTER:
             {
-                float x_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).x;
-                float y_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).y;
-                float d_angle = atan2(y_offset, x_offset);
-                angle = drag_angle + ImRadToDeg(d_angle);
-                angle = ImClamp(angle, -360.f, 360.f);
-                attribute->SetRotationAngle(angle);
-                Reflush();
-                draw_list->AddLine(handles[HT_ROTATE_CENTER], ImGui::GetMousePos(), IM_COL32(192, 64, 64, 192), 2);
+                if (!std::isnan(drag_angle_start))
+                {
+                    float x_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).x;
+                    float y_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).y;
+                    float d_angle = atan2(y_offset, x_offset) - drag_angle_start;
+                    angle = drag_angle + ImRadToDeg(d_angle);
+                    angle = ImClamp(angle, -360.f, 360.f);
+                    attribute->SetRotationAngle(angle);
+                    Reflush();
+                    draw_list->AddLine(handles[HT_ROTATE_CENTER], ImGui::GetMousePos(), IM_COL32(64, 192, 64, 192), 2);
+                }
+                else
+                    draw_list->AddLine(handles[HT_ROTATE_CENTER], ImGui::GetMousePos(), IM_COL32(192, 64, 64, 192), 2);
             }
             break;
             case HT_TOP:
@@ -6452,26 +6520,70 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
             break;
             case HT_TOP_LEFT:
             {
-                auto handles_dst = handle_adj(HT_TOP_LEFT, HT_TOP_RIGHT, HT_BOTTOM_LEFT);
-                draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
+                auto handles_dst = handle_adj(HT_TOP_LEFT, HT_TOP_RIGHT, HT_BOTTOM_LEFT, HT_BOTTOM_RIGHT);
+                auto new_scale = scale_adj(handles_dst);
+                scale_h = new_scale.x;
+                scale_v = new_scale.y;
+                attribute->SetScaleH(scale_h);
+                attribute->SetScaleV(scale_v);
+                auto offset = position_adj(handles_dst, new_scale);
+                position_h = offset.x;
+                position_v = offset.y;
+                attribute->SetPositionOffsetH(position_h);
+                attribute->SetPositionOffsetV(position_v);
+                Reflush();
+                //draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
             }
             break;
             case HT_TOP_RIGHT:
             {
-                auto handles_dst = handle_adj(HT_TOP_RIGHT, HT_TOP_LEFT, HT_BOTTOM_RIGHT);
-                draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
+                auto handles_dst = handle_adj(HT_TOP_RIGHT, HT_TOP_LEFT, HT_BOTTOM_RIGHT, HT_BOTTOM_LEFT);
+                auto new_scale = scale_adj(handles_dst);
+                scale_h = new_scale.x;
+                scale_v = new_scale.y;
+                attribute->SetScaleH(scale_h);
+                attribute->SetScaleV(scale_v);
+                auto offset = position_adj(handles_dst, new_scale);
+                position_h = offset.x;
+                position_v = offset.y;
+                attribute->SetPositionOffsetH(position_h);
+                attribute->SetPositionOffsetV(position_v);
+                Reflush();
+                //draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
             }
             break;
             case HT_BOTTOM_LEFT:
             {
-                auto handles_dst = handle_adj(HT_BOTTOM_LEFT, HT_BOTTOM_RIGHT, HT_TOP_LEFT);
-                draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
+                auto handles_dst = handle_adj(HT_BOTTOM_LEFT, HT_BOTTOM_RIGHT, HT_TOP_LEFT, HT_TOP_RIGHT);
+                auto new_scale = scale_adj(handles_dst);
+                scale_h = new_scale.x;
+                scale_v = new_scale.y;
+                attribute->SetScaleH(scale_h);
+                attribute->SetScaleV(scale_v);
+                auto offset = position_adj(handles_dst, new_scale);
+                position_h = offset.x;
+                position_v = offset.y;
+                attribute->SetPositionOffsetH(position_h);
+                attribute->SetPositionOffsetV(position_v);
+                Reflush();
+                //draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
             }
             break;
             case HT_BOTTOM_RIGHT:
             {
-                auto handles_dst = handle_adj(HT_BOTTOM_RIGHT, HT_BOTTOM_LEFT, HT_TOP_RIGHT);
-                draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
+                auto handles_dst = handle_adj(HT_BOTTOM_RIGHT, HT_BOTTOM_LEFT, HT_TOP_RIGHT, HT_TOP_LEFT);
+                auto new_scale = scale_adj(handles_dst);
+                scale_h = new_scale.x;
+                scale_v = new_scale.y;
+                attribute->SetScaleH(scale_h);
+                attribute->SetScaleV(scale_v);
+                auto offset = position_adj(handles_dst, new_scale);
+                position_h = offset.x;
+                position_v = offset.y;
+                attribute->SetPositionOffsetH(position_h);
+                attribute->SetPositionOffsetV(position_v);
+                Reflush();
+                //draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
             }
             break;
             default : break;
@@ -6483,10 +6595,14 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
     // handle mouse release
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
+        ret = false;
         drag_part = HT_NONE;
         drag_position = ImVec2(NAN, NAN);
         drag_border = ImVec2(NAN, NAN);
+        drag_scale = ImVec2(NAN, NAN);
+        drag_handles.clear();
         drag_angle = NAN;
+        drag_angle_start = NAN;
     }
     return ret;
 }
