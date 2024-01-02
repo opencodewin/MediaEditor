@@ -750,12 +750,6 @@ void Clip::Load(Clip * clip, const imgui_json::value& value)
         if (val.is_object()) clip->mAttributeJson = val;
     }
 
-    if (value.contains("AttributeExpanded"))
-    {
-        auto& val = value["AttributeExpanded"];
-        if (val.is_boolean()) clip->bAttributeExpanded = val.get<imgui_json::boolean>();
-    }
-
     // load event track
     const imgui_json::array* eventTrackArray = nullptr;
     if (imgui_json::GetPtrTo(value, "EventTracks", eventTrackArray))
@@ -791,8 +785,6 @@ void Clip::Save(imgui_json::value& value)
     {
         value["FilterJson"] = mFilterJson;
     }
-
-    value["AttributeExpanded"] = bAttributeExpanded;
 
     // save event track
     imgui_json::value event_tracks;
@@ -13801,11 +13793,11 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             {
                 ImGui::SetCursorPos({0, 0});
                 auto   attribute_current = ImGui::GetCursorScreenPos();
-                ImVec2 attribute_size = ImVec2(event_track_size.x, trackHeight + (clip->bAttributeExpanded ? curveHeight : 0));
+                ImVec2 attribute_size = ImVec2(event_track_size.x, trackHeight + curveHeight);
                 ImRect attribute_area = ImRect(attribute_current, attribute_current + attribute_size);
                 ImVec2 attribute_title_size = ImVec2(event_track_size.x, trackHeight);
                 ImRect attribute_title_area = ImRect(attribute_current, attribute_current + attribute_title_size);
-                ImVec2 attribute_curve_size = ImVec2(event_track_size.x, clip->bAttributeExpanded ? curveHeight : 0);
+                ImVec2 attribute_curve_size = ImVec2(event_track_size.x, curveHeight);
                 ImRect attribute_curve_area = attribute_area; attribute_curve_area.Min.y += trackHeight;
                 bool is_attribute_title_hovered = attribute_title_area.Contains(io.MousePos);
                 drawList->AddRectFilled(attribute_title_area.Min, attribute_title_area.Max, IM_COL32(64, 128, 64, 255));
@@ -13834,17 +13826,13 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 }
                 ImGui::SetCursorScreenPos(attribute_current);
                 ImGui::InvisibleButton("##attribute_track", attribute_size);
-                if (is_attribute_title_hovered && event_editable && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                {
-                    clip->bAttributeExpanded = !clip->bAttributeExpanded;
-                }
                 if (is_attribute_title_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                 {
                     // attribute selected, clear event select
                     for (auto event : clip->mEventStack->GetEventList())  event->SetStatus(EVENT_SELECTED_BIT, 0);
                     clip->bAttributeScrolling = true;
                 }
-                if (clip->bAttributeExpanded)
+
                 {
                     ImGui::SetCursorScreenPos(attribute_curve_area.Min);
                     drawList->AddRectFilled(attribute_curve_area.Min, attribute_curve_area.Max, IM_COL32_BLACK);

@@ -503,7 +503,6 @@ struct Clip
 
     imgui_json::value           mFilterJson;        // clip filter blue print, project saved
     imgui_json::value           mAttributeJson;     // clip attribute, project saved
-    bool                        bAttributeExpanded {false}; // clip attribute curve expanded, project saved
     bool                        bAttributeScrolling {false}; // need scrolling UI to attribute setting
 
     MEC::EventStack*            mEventStack {nullptr};// clip event stack,
