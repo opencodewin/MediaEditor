@@ -175,9 +175,10 @@ struct CustomShaderNode final : Node
 
     void OnStop(Context& context) override
     {
-        m_mutex.lock();
-        m_MatOut.SetValue(ImGui::ImMat());
-        m_mutex.unlock();
+        // keep last Mat
+        //m_mutex.lock();
+        //m_MatOut.SetValue(ImGui::ImMat());
+        //m_mutex.unlock();
     }
 
     FlowPin Execute(Context& context, FlowPin& entryPoint, bool threading = false) override
