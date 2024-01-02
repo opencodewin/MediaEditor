@@ -6145,7 +6145,6 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
         (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != output_timestamp || !editing_clip->mTransformOutputTexture))
     {
         ImGui::ImMatToTexture(in_frame, editing_clip->mTransformOutputTexture);
-        timeline->mLastFrameTime = output_timestamp;
     }
     int64_t trackId = -1;
     auto track = timeline->FindTrackByClipID(editing_clip->mID);
