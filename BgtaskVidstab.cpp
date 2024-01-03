@@ -929,6 +929,8 @@ protected:
                         m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
                         return false;
                     }
+                    i64FrmIdx++;
+
                     av_frame_unref(hFgOutfrmPtr.get());
                     fferr = av_buffersink_get_frame(m_pBufsinkCtx, hFgOutfrmPtr.get());
                     if (fferr != AVERROR(EAGAIN))
@@ -941,7 +943,6 @@ protected:
                             return false;
                         }
                     }
-                    i64FrmIdx++;
                 }
                 float fStageProgress = (float)((double)i64ReadPos/i64ClipDur);
                 m_fProgress = fAccumShares+(fStageProgress*fStageShare);
@@ -1121,7 +1122,7 @@ private:
         filtInOutPtr->filter_ctx = m_pBufsrcCtx;
         filtInOutPtr->pad_idx    = 0;
         filtInOutPtr->next       = nullptr;
-        m_filterOutputs = filtInOutPtr;
+        m_pFilterOutputs = filtInOutPtr;
 
         m_pBufsinkCtx = nullptr;
         fferr = avfilter_graph_create_filter(&m_pBufsinkCtx, buffersink, "buffer_sink", nullptr, nullptr, m_pFilterGraph);
@@ -1141,7 +1142,7 @@ private:
         filtInOutPtr->filter_ctx  = m_pBufsinkCtx;
         filtInOutPtr->pad_idx     = 0;
         filtInOutPtr->next        = nullptr;
-        m_filterInputs = filtInOutPtr;
+        m_pFilterInputs = filtInOutPtr;
 
         const int iOutW = (int)m_hSettings->VideoOutWidth();
         const int iOutH = (int)m_hSettings->VideoOutHeight();
@@ -1158,7 +1159,7 @@ private:
         oss << "vidstabdetect=result=" << m_strTrfPath << ":shakiness=" << (int)m_u8Shakiness << ":accuracy=" << (int)m_u8Accuracy << ":stepsize=" << (int)m_u16StepSize
                 << ":mincontrast=" << m_fMinContrast;
         string filterArgs = oss.str();
-        fferr = avfilter_graph_parse_ptr(m_pFilterGraph, filterArgs.c_str(), &m_filterInputs, &m_filterOutputs, nullptr);
+        fferr = avfilter_graph_parse_ptr(m_pFilterGraph, filterArgs.c_str(), &m_pFilterInputs, &m_pFilterOutputs, nullptr);
         if (fferr < 0)
         {
             oss.str(""); oss << "FAILED to invoke 'avfilter_graph_parse_ptr'! fferr=" << fferr << ". Arguments are \"" << filterArgs << "\".";
@@ -1175,10 +1176,10 @@ private:
             return false;
         }
 
-        if (m_filterOutputs)
-            avfilter_inout_free(&m_filterOutputs);
-        if (m_filterInputs)
-            avfilter_inout_free(&m_filterInputs);
+        if (m_pFilterOutputs)
+            avfilter_inout_free(&m_pFilterOutputs);
+        if (m_pFilterInputs)
+            avfilter_inout_free(&m_pFilterInputs);
         return true;
     }
 
@@ -1219,7 +1220,7 @@ private:
         filtInOutPtr->filter_ctx = m_pBufsrcCtx;
         filtInOutPtr->pad_idx    = 0;
         filtInOutPtr->next       = nullptr;
-        m_filterOutputs = filtInOutPtr;
+        m_pFilterOutputs = filtInOutPtr;
 
         m_pBufsinkCtx = nullptr;
         fferr = avfilter_graph_create_filter(&m_pBufsinkCtx, buffersink, "buffer_sink", nullptr, nullptr, m_pFilterGraph);
@@ -1239,7 +1240,7 @@ private:
         filtInOutPtr->filter_ctx  = m_pBufsinkCtx;
         filtInOutPtr->pad_idx     = 0;
         filtInOutPtr->next        = nullptr;
-        m_filterInputs = filtInOutPtr;
+        m_pFilterInputs = filtInOutPtr;
 
         const int iOutW = (int)m_hSettings->VideoOutWidth();
         const int iOutH = (int)m_hSettings->VideoOutHeight();
@@ -1266,7 +1267,7 @@ private:
                 << ":maxangle=" << m_fMaxAngle << ":crop=" << strCropMode << ":invert=" << (m_bInvertTrans?1:0) << ":relative=" << (m_bRelative?1:0)
                 << ":zoom=" << m_fPresetZoom << ":optzoom=" << (int)m_u8OptZoom << ":zoomspeed=" << m_fZoomSpeed << ":interpol=" << strInterpMode;
         string filterArgs = oss.str();
-        fferr = avfilter_graph_parse_ptr(m_pFilterGraph, filterArgs.c_str(), &m_filterInputs, &m_filterOutputs, nullptr);
+        fferr = avfilter_graph_parse_ptr(m_pFilterGraph, filterArgs.c_str(), &m_pFilterInputs, &m_pFilterOutputs, nullptr);
         if (fferr < 0)
         {
             oss.str(""); oss << "FAILED to invoke 'avfilter_graph_parse_ptr'! fferr=" << fferr << ". Arguments are \"" << filterArgs << "\".";
@@ -1283,24 +1284,24 @@ private:
             return false;
         }
 
-        if (m_filterOutputs)
-            avfilter_inout_free(&m_filterOutputs);
-        if (m_filterInputs)
-            avfilter_inout_free(&m_filterInputs);
+        if (m_pFilterOutputs)
+            avfilter_inout_free(&m_pFilterOutputs);
+        if (m_pFilterInputs)
+            avfilter_inout_free(&m_pFilterInputs);
         return true;
     }
 
     void ReleaseFilterGraph()
     {
-        if (m_filterOutputs)
+        if (m_pFilterOutputs)
         {
-            avfilter_inout_free(&m_filterOutputs);
-            m_filterOutputs = nullptr;
+            avfilter_inout_free(&m_pFilterOutputs);
+            m_pFilterOutputs = nullptr;
         }
-        if (m_filterInputs)
+        if (m_pFilterInputs)
         {
-            avfilter_inout_free(&m_filterInputs);
-            m_filterInputs = nullptr;
+            avfilter_inout_free(&m_pFilterInputs);
+            m_pFilterInputs = nullptr;
         }
         m_pBufsrcCtx = nullptr;
         m_pBufsinkCtx = nullptr;
@@ -1365,8 +1366,8 @@ private:
     AVFilterGraph* m_pFilterGraph{nullptr};
     AVFilterContext* m_pBufsrcCtx;
     AVFilterContext* m_pBufsinkCtx;
-    AVFilterInOut* m_filterOutputs{nullptr};
-    AVFilterInOut* m_filterInputs{nullptr};
+    AVFilterInOut* m_pFilterOutputs{nullptr};
+    AVFilterInOut* m_pFilterInputs{nullptr};
     AVPixelFormat m_eFgInputPixfmt;
     string m_strTrfPath;
     string m_strSrcUrl;
