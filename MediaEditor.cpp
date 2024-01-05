@@ -33,6 +33,7 @@
 #endif
 #include <FileSystemUtils.h>
 #include <ThreadUtils.h>
+#include <MatUtilsImVecHelper.h>
 #include "MecProject.h"
 #include "MediaTimeline.h"
 #include "EventStackFilter.h"
@@ -713,7 +714,7 @@ static bool UIPageChanged()
         Logger::Log(Logger::DEBUG) << "[Changed page] leaving editing page!!!" << std::endl;
         LastEditingWindowIndex = -1;
         timeline->Seek(timeline->mCurrentTime);
-        timeline->UpdatePreview();
+        timeline->RefreshPreview();
     }
 
     if (LastMainWindowIndex == MAIN_PAGE_MIXING && MainWindowIndex != MAIN_PAGE_MIXING)
@@ -760,7 +761,7 @@ static bool UIPageChanged()
         MainWindowIndex = MAIN_PAGE_PREVIEW;
         LastEditingWindowIndex = -1;
         timeline->Seek(timeline->mCurrentTime);
-        timeline->UpdatePreview();
+        timeline->RefreshPreview();
     }
 
     if (MainWindowIndex == MAIN_PAGE_MIXING && LastMainWindowIndex != MAIN_PAGE_MIXING)
@@ -899,7 +900,7 @@ static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size, std::s
     ShowVideoWindow(ImGui::GetWindowDrawList(), texture, pos, size, title, title_size, offset_x, offset_y, tf_x, tf_y, true, out_border, uvMin, uvMax);
 }
 
-static void CalculateVideoScope(ImGui::ImMat& mat)
+static void CalculateVideoScope(const ImGui::ImMat& mat)
 {
 #if IMGUI_VULKAN_SHADER
     if (m_histogram && (scope_flags & SCOPE_VIDEO_HISTOGRAM | need_update_scope)) m_histogram->scope(mat, mat_histogram, 256, g_media_editor_settings.HistogramScale, g_media_editor_settings.HistogramLog);
@@ -2030,7 +2031,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
             item->mPath = old_path;
         }
         // update preview
-        timeline->UpdatePreview();
+        timeline->RefreshPreview();
     }
     else
     {
@@ -2420,7 +2421,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                 auto hTx = (*item)->mMediaThumbnail[0];
                 auto tid = hTx->TextureID();
                 auto roiRect = hTx->GetDisplayRoi();
-                ImGui::Image(tid, ImVec2(icon_size.x, icon_size.y / aspectRatio), roiRect.lt, roiRect.rb);
+                ImGui::Image(tid, ImVec2(icon_size.x, icon_size.y / aspectRatio), MatUtils::ToImVec2(roiRect.leftTop), MatUtils::ToImVec2(roiRect.rightBottom()));
             }
             ImGui::EndDragDropSource();
         }
@@ -2478,7 +2479,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
         if (hTx)
         {
             auto roiRect = hTx->GetDisplayRoi();
-            ShowVideoWindow(hTx->TextureID(), icon_pos + ImVec2(4, 16), icon_size - ImVec2(4, 32), "", 0.f, false, roiRect.lt, roiRect.rb);
+            ShowVideoWindow(hTx->TextureID(), icon_pos + ImVec2(4, 16), icon_size - ImVec2(4, 32), "", 0.f, false, MatUtils::ToImVec2(roiRect.leftTop), MatUtils::ToImVec2(roiRect.rightBottom()));
         }
         else
         {
@@ -4117,9 +4118,9 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             {
                 ShowVideoWindow(timeline->mEncodingPreviewTexture, preview_pos, preview_size);
             }
-            else if (timeline->mMainPreviewTexture)
+            else if (timeline->mhPreviewTx->TextureID())
             {
-                ShowVideoWindow(timeline->mMainPreviewTexture, preview_pos, preview_size);
+                ShowVideoWindow(timeline->mhPreviewTx->TextureID(), preview_pos, preview_size);
             }
             else
             {
@@ -4471,20 +4472,11 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
     ImVec2 PreviewSize;
     PreviewPos = window_pos + ImVec2(8, 8);
     PreviewSize = window_size - ImVec2(16 + (audio_bar ? 64 : 0), 16 + bar_height);
-    auto frames = timeline->GetPreviewFrame();
-    ImGui::ImMat frame;
-    if (!frames.empty())
-        frame = frames[0].frame;
-    if ((timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(frame.time_stamp * 1000) || need_update_scope || force_update))
-    {
-        if (!frame.empty())
-        {
-            CalculateVideoScope(frame);
-            ImGui::ImMatToTexture(frame, timeline->mMainPreviewTexture);
-            timeline->mLastFrameTime = frame.time_stamp * 1000;
-            timeline->mIsPreviewNeedUpdate = false;
-        }
-    }
+    if (force_update)
+        timeline->mIsPreviewNeedUpdate = true;
+    bool bTxUpdated = timeline->UpdatePreviewTexture();
+    if ((bTxUpdated || need_update_scope) && !timeline->mPreviewMat.empty())
+        CalculateVideoScope(timeline->mPreviewMat);
 
     if (start >= 0 && end >= 0)
     {
@@ -4500,21 +4492,22 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
         }
     }
 
-    if (!control_only)
+    auto tidMainPreview = timeline->mhPreviewTx ? timeline->mhPreviewTx->TextureID() : 0;
+    if (tidMainPreview && !control_only)
     {
         float pos_x = 0, pos_y = 0;
         float offset_x = 0, offset_y = 0;
         float tf_x = 0, tf_y = 0;
         ImVec2 scale_range = ImVec2(2.0 / timeline->mPreviewScale, 8.0 / timeline->mPreviewScale);
         static float texture_zoom = scale_range.x;
-        ShowVideoWindow(draw_list, timeline->mMainPreviewTexture, PreviewPos, PreviewSize, title, title_size, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
-        if (!out_of_border && ImGui::IsItemHovered() && timeline->bPreviewZoom && timeline->mMainPreviewTexture)
+        ShowVideoWindow(draw_list, tidMainPreview, PreviewPos, PreviewSize, title, title_size, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
+        if (!out_of_border && ImGui::IsItemHovered() && timeline->bPreviewZoom)
         {
             ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
             ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
             float region_sz = 480.0f / texture_zoom;
-            float image_width = ImGui::ImGetTextureWidth(timeline->mMainPreviewTexture);
-            float image_height = ImGui::ImGetTextureHeight(timeline->mMainPreviewTexture);
+            float image_width = ImGui::ImGetTextureWidth(tidMainPreview);
+            float image_height = ImGui::ImGetTextureHeight(tidMainPreview);
             float scale_w = image_width / (tf_x - offset_x);
             float scale_h = image_height / (tf_y - offset_y);
             pos_x = (io.MousePos.x - offset_x) * scale_w;
@@ -4532,7 +4525,7 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
                 ImGui::SameLine(); ImGui::Text("(%.2fx)", texture_zoom);
                 ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
                 ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
-                ImGui::Image(timeline->mMainPreviewTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                ImGui::Image(tidMainPreview, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
                 ImGui::EndTooltip();
             }
             if (io.MouseWheel < -FLT_EPSILON)
@@ -4564,9 +4557,9 @@ static void ShowMediaPreviewWindow(ImDrawList *draw_list, std::string title, flo
  * Media Preview window
  *
  ***************************************************************************************/
-static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* editing_clip, bool vertical = false)
+static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVidEditingClip, bool vertical = false)
 {
-    auto clip = editing_clip->GetClip();
+    auto clip = pVidEditingClip->GetClip();
     auto start = clip->Start();
     auto end = clip->End();
 
@@ -4598,7 +4591,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 3, PanelButtonY));
     if (ImGui::Button(ICON_TO_START "##preview_tostart", button_size))
     {
-        if (timeline && editing_clip)
+        if (timeline && pVidEditingClip)
         {
             timeline->Seek(start);
         }
@@ -4608,7 +4601,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 2, PanelButtonY));
     if (ImGui::Button(ICON_STEP_BACKWARD "##preview_step_backward", button_size))
     {
-        if (timeline && editing_clip)
+        if (timeline && pVidEditingClip)
         {
             if (timeline->mCurrentTime > start)
                 timeline->Step(false);
@@ -4622,7 +4615,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX - b_size / 2 - button_gap * 1, PanelButtonY));
     if (ImGui::RotateCheckButton(ICON_PLAY_BACKWARD "##preview_reverse", &isBackwardPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 180, button_size))
     {
-        if (timeline && editing_clip)
+        if (timeline && pVidEditingClip)
         {
             if (timeline->mCurrentTime > start)
                 timeline->Play(true, false);
@@ -4642,7 +4635,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2 + b_gap + button_gap * 0, PanelButtonY));
     if (ImGui::RotateCheckButton(ICON_PLAY_FORWARD "##preview_play", &isForwordPlaying, ImVec4(0.5, 0.5, 0.0, 1.0), 0, button_size))
     {
-        if (timeline && editing_clip)
+        if (timeline && pVidEditingClip)
         {
             if (timeline->mCurrentTime < end)
                 timeline->Play(true, true);
@@ -4653,7 +4646,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2 + b_gap + button_gap * 1, PanelButtonY));
     if (ImGui::Button(ICON_STEP_FORWARD "##preview_step_forward", button_size))
     {
-        if (timeline && editing_clip)
+        if (timeline && pVidEditingClip)
         {
             if (timeline->mCurrentTime < end)
                 timeline->Step(true);
@@ -4664,7 +4657,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + b_size / 2 + b_gap + button_gap * 2, PanelButtonY));
     if (ImGui::Button(ICON_TO_END "##preview_toend", button_size))
     {
-        if (timeline && editing_clip)
+        if (timeline && pVidEditingClip)
         {
             if (timeline->mCurrentTime < end)
                 timeline->Seek(end - 40);
@@ -4673,11 +4666,10 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
     ImGui::ShowTooltipOnHover("To End");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 2 - 64, PanelButtonY));
-    if (ImGui::RotateCheckButton(timeline->bFilterOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &timeline->bFilterOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), 0, button_size))
-    {
-        timeline->UpdatePreview();
-    }
-    ImGui::ShowTooltipOnHover(timeline->bFilterOutputPreview ? "Filter Output" : "Preview Output");
+    bool bOutputPreview = pVidEditingClip->meOutputFramePhase == MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING;
+    if (ImGui::RotateCheckButton(bOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_filter_output_preview", &bOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive), 0, button_size))
+        pVidEditingClip->meOutputFramePhase = bOutputPreview ? MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING : MediaCore::CorrelativeFrame::PHASE_AFTER_FILTER;
+    ImGui::ShowTooltipOnHover(bOutputPreview ? "Filter Output" : "Preview Output");
 
     ImGui::SetCursorScreenPos(ImVec2(PanelBarPos.x + PanelBarSize.x - button_gap * 1 - 64, PanelButtonY));
     ImGui::RotateCheckButton(ICON_COMPARE "##video_filter_compare", &timeline->bCompare, ImVec4(0.5, 0.5, 0.0, 1.0), 0, button_size);
@@ -4717,7 +4709,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
     ImRect OutVideoRect(OutputVideoPos, OutputVideoPos + OutputVideoSize);
 
     ImVec2 VideoZoomPos = window_pos + ImVec2(window_size.x - 740.f, window_size.y - PanelBarSize.y + 4);
-    if (editing_clip)
+    if (pVidEditingClip)
     {
         ImVec2 scale_range = ImVec2(0.5 / timeline->mPreviewScale, 4.0 / timeline->mPreviewScale);
         static float texture_zoom = scale_range.x;
@@ -4736,19 +4728,11 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
         }
         
         std::pair<ImGui::ImMat, ImGui::ImMat> pair;
-        bool ret = false;
-        bool is_preview_image = timeline->bFilterOutputPreview;
-        ret = editing_clip->GetFrame(pair, timeline->bFilterOutputPreview);
+        bool bTxUpdated = pVidEditingClip->UpdatePreviewTexture();
         int64_t output_timestamp = pair.second.time_stamp * 1000;
-        if (ret && 
-            (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != output_timestamp || need_update_scope))
-        {
-            CalculateVideoScope(pair.second);
-            ImGui::ImMatToTexture(pair.first, timeline->mVideoFilterInputTexture);
-            ImGui::ImMatToTexture(pair.second, timeline->mVideoFilterOutputTexture);
-            timeline->mLastFrameTime = output_timestamp;
-            timeline->mIsPreviewNeedUpdate = false;
-        }
+        const auto& secondMat = bOutputPreview ? timeline->mPreviewMat : pVidEditingClip->mFilterOutputMat;
+        if ((bTxUpdated || need_update_scope) && !secondMat.empty())
+            CalculateVideoScope(secondMat);
 
         if (timeline->mIsPreviewPlaying)
         {
@@ -4782,12 +4766,13 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
         if (MonitorIndexVideoFilterOrg == -1)
         {
             // filter input texture area
-            ShowVideoWindow(draw_list, timeline->mVideoFilterInputTexture, InputVideoPos, InputVideoSize, "Original", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
+            auto tidFilterInput = pVidEditingClip->mhFilterInputTx->TextureID();
+            ShowVideoWindow(draw_list, tidFilterInput, InputVideoPos, InputVideoSize, "Original", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
-            if (!out_of_border && timeline->mVideoFilterInputTexture && ImGui::IsItemHovered())
+            if (!out_of_border && tidFilterInput && ImGui::IsItemHovered())
             {
-                float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
-                float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
+                float image_width = ImGui::ImGetTextureWidth(tidFilterInput);
+                float image_height = ImGui::ImGetTextureHeight(tidFilterInput);
                 float scale_w = image_width / (tf_x - offset_x);
                 float scale_h = image_height / (tf_y - offset_y);
                 pos_x = (io.MousePos.x - offset_x) * scale_w;
@@ -4796,7 +4781,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
                 {
                     ImGui::SetMouseCursor(ImGuiMouseCursor_Straw);
                     draw_list->AddRect(io.MousePos - ImVec2(2, 2), io.MousePos + ImVec2(2, 2), IM_COL32(255,0, 0,255));
-                    auto pixel = ImGui::ImGetTexturePixel(timeline->mVideoFilterInputTexture, pos_x, pos_y);
+                    auto pixel = ImGui::ImGetTexturePixel(tidFilterInput, pos_x, pos_y);
                     if (ImGui::BeginTooltip())
                     {
                         ImGui::ColorButton("##straw_color", ImVec4(pixel.r, pixel.g, pixel.b, pixel.a), 0, ImVec2(64,64));
@@ -4819,24 +4804,25 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
         if (MonitorIndexVideoFiltered == -1)
         {
             // filter output texture area
-            ShowVideoWindow(draw_list, timeline->mVideoFilterOutputTexture, OutputVideoPos, OutputVideoSize, is_preview_image ? "Preview Output" : "Filter Output", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
+            auto tidFilterOutput = bOutputPreview ? timeline->mhPreviewTx->TextureID() : pVidEditingClip->mhFilterOutputTx->TextureID();
+            ShowVideoWindow(draw_list, tidFilterOutput, OutputVideoPos, OutputVideoSize, bOutputPreview ? "Preview Output" : "Filter Output", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
-            if (!out_of_border && timeline->mVideoFilterOutputTexture)
+            if (!out_of_border && tidFilterOutput)
             {
-                bool bInMaskEventRange = timeline->mCurrentTime >= start+editing_clip->mMaskEventStart && timeline->mCurrentTime < start+editing_clip->mMaskEventEnd;
-                if (editing_clip->mhMaskCreator && bInMaskEventRange)
+                bool bInMaskEventRange = timeline->mCurrentTime >= start+pVidEditingClip->mMaskEventStart && timeline->mCurrentTime < start+pVidEditingClip->mMaskEventEnd;
+                if (pVidEditingClip->mhMaskCreator && bInMaskEventRange)
                 {
-                    int64_t i64Tick = timeline->mCurrentTime-(start+editing_clip->mMaskEventStart);
-                    if (editing_clip->mhMaskCreator->DrawContent({offset_x, offset_y}, {tf_x-offset_x, tf_y-offset_y}, true, i64Tick))
+                    int64_t i64Tick = timeline->mCurrentTime-(start+pVidEditingClip->mMaskEventStart);
+                    if (pVidEditingClip->mhMaskCreator->DrawContent({offset_x, offset_y}, {tf_x-offset_x, tf_y-offset_y}, true, i64Tick))
                     {
-                        auto pTrack = timeline->FindTrackByClipID(editing_clip->mID);
+                        auto pTrack = timeline->FindTrackByClipID(pVidEditingClip->mID);
                         timeline->RefreshTrackView({ pTrack->mID });
                     }
                 }
                 else if (ImGui::IsItemHovered())
                 {
-                    float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
-                    float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
+                    float image_width = ImGui::ImGetTextureWidth(tidFilterOutput);
+                    float image_height = ImGui::ImGetTextureHeight(tidFilterOutput);
                     float scale_w = image_width / (tf_x - offset_x);
                     float scale_h = image_height / (tf_y - offset_y);
                     pos_x = (io.MousePos.x - offset_x) * scale_w;
@@ -4847,10 +4833,11 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
         }
         if (timeline->bCompare && draw_compare)
         {
-            if (timeline->mVideoFilterInputTexture)
+            auto tidFilterInput = pVidEditingClip->mhFilterInputTx->TextureID();
+            if (tidFilterInput)
             {
-                float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterInputTexture);
-                float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterInputTexture);
+                float image_width = ImGui::ImGetTextureWidth(tidFilterInput);
+                float image_height = ImGui::ImGetTextureHeight(tidFilterInput);
                 float region_x = pos_x - region_sz * 0.5f;
                 float region_y = pos_y - region_sz * 0.5f;
                 if (region_x < 0.0f) { region_x = 0.0f; }
@@ -4865,14 +4852,15 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
                     ImGui::SameLine(); ImGui::Text("(%.2fx)", texture_zoom);
                     ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
                     ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
-                    ImGui::Image(timeline->mVideoFilterInputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                    ImGui::Image(tidFilterInput, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
                     ImGui::EndTooltip();
                 }
             }
-            if (timeline->mVideoFilterOutputTexture)
+            auto tidFilterOutput = bOutputPreview ? timeline->mhPreviewTx->TextureID() : pVidEditingClip->mhFilterOutputTx->TextureID();
+            if (tidFilterOutput)
             {
-                float image_width = ImGui::ImGetTextureWidth(timeline->mVideoFilterOutputTexture);
-                float image_height = ImGui::ImGetTextureHeight(timeline->mVideoFilterOutputTexture);
+                float image_width = ImGui::ImGetTextureWidth(tidFilterOutput);
+                float image_height = ImGui::ImGetTextureHeight(tidFilterOutput);
                 float region_x = pos_x - region_sz * 0.5f;
                 float region_y = pos_y - region_sz * 0.5f;
                 if (region_x < 0.0f) { region_x = 0.0f; }
@@ -4885,7 +4873,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* edit
                     ImGui::SameLine();
                     ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
                     ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
-                    ImGui::Image(timeline->mVideoFilterOutputTexture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                    ImGui::Image(tidFilterOutput, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
                     ImGui::EndTooltip();
                 }
             }
@@ -6133,69 +6121,63 @@ static std::vector<ImVec2> CalculateHandlePoint(ImVec2 v_pos, ImVec2 v_size, flo
     return pt;
 }
 
-static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVideoClip * editing_clip)
+static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVideoClip* pVidEditingClip)
 {
-    bool ret = false;
+    bool bIsMouseDown = false;
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    ImGui::ImMat in_frame;
-    auto frame_ret = editing_clip->GetFrame(in_frame, timeline->bAttributeOutputPreview ? MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING : MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM);
-    int64_t output_timestamp = in_frame.time_stamp * 1000;
-    if (frame_ret && 
-        (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != output_timestamp || !editing_clip->mTransformOutputTexture))
-    {
-        ImGui::ImMatToTexture(in_frame, editing_clip->mTransformOutputTexture);
-    }
+    pVidEditingClip->UpdatePreviewTexture();
     int64_t trackId = -1;
-    auto track = timeline->FindTrackByClipID(editing_clip->mID);
+    auto track = timeline->FindTrackByClipID(pVidEditingClip->mID);
     if (track) trackId = track->mID;
     ImVec2 videoPos = sub_window_pos + ImVec2(16, 16);
     ImVec2 videoSize = sub_window_size - ImVec2(32, 32);
     float offset_x = 0, offset_y = 0;
     float tf_x = 0, tf_y = 0;
-    if (editing_clip->mTransformOutputTexture)
+    auto tidPreview = pVidEditingClip->meAttrOutFramePhase == MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING ? timeline->mhPreviewTx->TextureID() : pVidEditingClip->mhTransformOutputTx->TextureID();
+    if (tidPreview)
     {
-        ShowVideoWindow(draw_list, editing_clip->mTransformOutputTexture, videoPos, videoSize, "", 1.5f, offset_x, offset_y, tf_x, tf_y, true, false);
+        ShowVideoWindow(draw_list, tidPreview, videoPos, videoSize, "", 1.5f, offset_x, offset_y, tf_x, tf_y, true, false);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
     }
     // draw grad
     draw_list->AddLine(sub_window_pos + ImVec2(sub_window_size.x / 2, 0), sub_window_pos + ImVec2(sub_window_size.x / 2, sub_window_size.y), IM_COL32(64,64,64,128));
     draw_list->AddLine(sub_window_pos + ImVec2(0, sub_window_size.y / 2), sub_window_pos + ImVec2(sub_window_size.x, sub_window_size.y / 2), IM_COL32(64,64,64,128));
-    auto attribute = editing_clip->mAttribute;
-    auto clip = (VideoClip*)editing_clip->GetClip();
+    auto attribute = pVidEditingClip->mAttribute;
+    auto clip = (VideoClip*)pVidEditingClip->GetClip();
     if (!attribute || !clip)
-        return ret;
+        return bIsMouseDown;
     auto attribute_keypoint = attribute->GetKeyPoint();
 
     // Crop Margin Left
     int curve_margin_l_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginL") : -1;
     bool has_curve_margin_l = attribute_keypoint ? curve_margin_l_index != -1 : false;
-    float margin_l = has_curve_margin_l ? attribute_keypoint->GetValueByDim(curve_margin_l_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginLScale();
+    float margin_l = has_curve_margin_l ? attribute_keypoint->GetValueByDim(curve_margin_l_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginLScale();
     
     // Crop Margin Top
     int curve_margin_t_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginT") : -1;
     bool has_curve_margin_t = attribute_keypoint ? curve_margin_t_index != -1 : false;
-    float margin_t = has_curve_margin_t ? attribute_keypoint->GetValueByDim(curve_margin_t_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginTScale();
+    float margin_t = has_curve_margin_t ? attribute_keypoint->GetValueByDim(curve_margin_t_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginTScale();
 
     // Crop Margin Right
     int curve_margin_r_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginR") : -1;
     bool has_curve_margin_r = attribute_keypoint ? curve_margin_r_index != -1 : false;
-    float margin_r = has_curve_margin_r ? attribute_keypoint->GetValueByDim(curve_margin_r_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginRScale();
+    float margin_r = has_curve_margin_r ? attribute_keypoint->GetValueByDim(curve_margin_r_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginRScale();
 
     // Crop Margin Bottom
     int curve_margin_b_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginB") : -1;
     bool has_curve_margin_b = attribute_keypoint ? curve_margin_b_index != -1 : false;
-    float margin_b = has_curve_margin_b ? attribute_keypoint->GetValueByDim(curve_margin_b_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginBScale();
+    float margin_b = has_curve_margin_b ? attribute_keypoint->GetValueByDim(curve_margin_b_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginBScale();
 
     // Position offset H
     int curve_position_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetH") : -1;
     bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
-    float position_h = has_curve_position_h ? attribute_keypoint->GetValueByDim(curve_position_h_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetHScale();
+    float position_h = has_curve_position_h ? attribute_keypoint->GetValueByDim(curve_position_h_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetHScale();
 
     // Position offset V
     int curve_position_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetV") : -1;
     bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
-    float position_v = has_curve_position_v ? attribute_keypoint->GetValueByDim(curve_position_v_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetVScale();
+    float position_v = has_curve_position_v ? attribute_keypoint->GetValueByDim(curve_position_v_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetVScale();
 
     bool keep_aspect_ratio = clip->mKeepAspectRatio;
     int curve_scale_index = -1;
@@ -6210,24 +6192,24 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
     {
         curve_scale_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("Scale") : -1;
         has_curve_scale = attribute_keypoint ? curve_scale_index != -1 : false;
-        scale_h = scale_v = has_curve_scale ? attribute_keypoint->GetValueByDim(curve_scale_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
+        scale_h = scale_v = has_curve_scale ? attribute_keypoint->GetValueByDim(curve_scale_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
     }
     else
     {
         // Scale H
         curve_scale_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleH") : -1;
         has_curve_scale_h = attribute_keypoint ? curve_scale_h_index != -1 : false;
-        scale_h = has_curve_scale_h ? attribute_keypoint->GetValueByDim(curve_scale_h_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleH();
+        scale_h = has_curve_scale_h ? attribute_keypoint->GetValueByDim(curve_scale_h_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleH();
         // Scale V
         curve_scale_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") : -1;
         has_curve_scale_v = attribute_keypoint ? curve_scale_v_index != -1 : false;
-        scale_v = has_curve_scale_v ? attribute_keypoint->GetValueByDim(curve_scale_v_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleV();
+        scale_v = has_curve_scale_v ? attribute_keypoint->GetValueByDim(curve_scale_v_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleV();
     }
 
     // Rotate angle
     int curve_angle_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("RotateAngle") : -1;
     bool has_curve_angle = attribute_keypoint ? curve_angle_index != -1 : false;
-    float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, editing_clip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetRotationAngle();
+    float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetRotationAngle();
     // calculate frame vertex
     ImVec2 v_pos = ImVec2(offset_x, offset_y);
     ImVec2 v_size = ImVec2(tf_x - offset_x, tf_y - offset_y);
@@ -6356,7 +6338,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
 
     if (hoverd_part != HT_NONE && (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0)))
     {
-        ret = true;
+        bIsMouseDown = true;
         float r_angle = ImDegToRad(angle);
         drag_part = hoverd_part;
 
@@ -6573,7 +6555,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
     // handle mouse release
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
-        ret = false;
+        bIsMouseDown = false;
         drag_part = HT_NONE;
         drag_position = ImVec2(NAN, NAN);
         drag_border = ImVec2(NAN, NAN);
@@ -6582,7 +6564,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList *draw_list, EditingVid
         drag_angle = NAN;
         drag_angle_start = NAN;
     }
-    return ret;
+    return bIsMouseDown;
 }
 
 static void ShowVideoClipWindow(ImDrawList *draw_list, ImRect title_rect, EditingVideoClip* editing)
@@ -7040,7 +7022,7 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list, EditingVideo
     ImGui::SetCursorScreenPos(ImVec2(PanelCenterX + 16 + 8 + (32 + 8) * 4, PanelButtonY + 6));
     if (ImGui::CheckButton(timeline->bTransitionOutputPreview ? ICON_MEDIA_PREVIEW : ICON_TRANS "##video_transition_output_preview", &timeline->bTransitionOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)))
     {
-        timeline->UpdatePreview();
+        timeline->RefreshPreview();
     }
     ImGui::ShowTooltipOnHover(timeline->bTransitionOutputPreview ? "Transition Output" : "Preview Output");
 
@@ -7283,7 +7265,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                                                         nullptr, // clippingRect
                                                         &_changed
                                                         );
-                if (_changed) timeline->UpdatePreview();
+                if (_changed) timeline->RefreshPreview();
             }
             // draw cursor line after curve draw
             if (timeline && editing)
@@ -7316,7 +7298,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                     {
                         auto entry_node = blueprint->FindEntryPointNode();
                         if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
-                        timeline->UpdatePreview();
+                        timeline->RefreshPreview();
                     }
                 }
             }
@@ -7405,20 +7387,20 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                         if (ImGui::DragFloat("##curve_video_transition_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             transition->mKeyPoints.SetCurveMinByDim(i, curve_min, ImGui::ImCurveEdit::DIM_X);
-                            timeline->UpdatePreview();
+                            timeline->RefreshPreview();
                         } ImGui::ShowTooltipOnHover("Min");
                         ImGui::SameLine(0, 8);
                         if (ImGui::DragFloat("##curve_video_transition_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
                         {
                             transition->mKeyPoints.SetCurveMaxByDim(i, curve_max, ImGui::ImCurveEdit::DIM_X);
-                            timeline->UpdatePreview();
+                            timeline->RefreshPreview();
                         } ImGui::ShowTooltipOnHover("Max");
                         ImGui::SameLine(0, 8);
                         float curve_default = transition->mKeyPoints.GetCurveDefaultByDim(i, ImGui::ImCurveEdit::DIM_X);
                         if (ImGui::DragFloat("##curve_video_transition_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                         {
                             transition->mKeyPoints.SetCurveDefaultByDim(i, curve_default, ImGui::ImCurveEdit::DIM_X);
-                            timeline->UpdatePreview();
+                            timeline->RefreshPreview();
                         } ImGui::ShowTooltipOnHover("Default");
                         ImGui::PopItemWidth();
 
@@ -7446,7 +7428,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                             {
                                 auto entry_node = blueprint->FindEntryPointNode();
                                 if (entry_node) entry_node->DeleteOutputPin(pin_name);
-                                timeline->UpdatePreview();
+                                timeline->RefreshPreview();
                             }
                             transition->mKeyPoints.DeleteCurve(i);
                             break_loop = true;
@@ -7458,7 +7440,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                             {
                                 transition->mKeyPoints.SetCurvePointDefault(i, p);
                             }
-                            timeline->UpdatePreview();
+                            timeline->RefreshPreview();
                         } ImGui::ShowTooltipOnHover("Reset");
 
                         if (!break_loop)
@@ -7477,20 +7459,20 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                                 if (ImGui::DragTimeMS("##curve_video_transition_point_time", &point.t, transition->mKeyPoints.GetMax().w / 1000.f, transition->mKeyPoints.GetMin().w, transition->mKeyPoints.GetMax().w, 2))
                                 {
                                     transition->mKeyPoints.EditPoint(i, p, point.val, point.type);
-                                    timeline->UpdatePreview();
+                                    timeline->RefreshPreview();
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
                                 if (ImGui::DragFloat("##curve_video_transition_point_x", &point.x, 0.01f, curve_min, curve_max, "%.2f"))
                                 {
                                     transition->mKeyPoints.EditPoint(i, p, point.val, point.type);
-                                    timeline->UpdatePreview();
+                                    timeline->RefreshPreview();
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_video_transition_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
                                     transition->mKeyPoints.EditPoint(i, p, point.val, point.type);
-                                    timeline->UpdatePreview();
+                                    timeline->RefreshPreview();
                                 }
                                 ImGui::PopItemWidth();
                                 ImGui::PopID();
@@ -7528,7 +7510,7 @@ static void ShowVideoTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                             curve.m_id = node->m_ID;
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &curve, false))
                             {
-                                timeline->UpdatePreview();
+                                timeline->RefreshPreview();
                                 blueprint->Blueprint_UpdateNode(node->m_ID);
                             }
                             if (!curve.name.empty())
@@ -7993,7 +7975,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                                                         nullptr, // clippingRect
                                                         &_changed
                                                         );
-                if (_changed) timeline->UpdatePreview();
+                if (_changed) timeline->RefreshPreview();
             }
             // draw cursor line after curve draw
             if (timeline && editing)
@@ -8035,7 +8017,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                     {
                         auto entry_node = blueprint->FindEntryPointNode();
                         if (entry_node) entry_node->InsertOutputPin(BluePrint::PinType::Float, name);
-                        timeline->UpdatePreview();
+                        timeline->RefreshPreview();
                     }
                 }
             }
@@ -8124,20 +8106,20 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                         if (ImGui::DragFloat("##curve_audio_transition_min", &curve_min, 0.1f, -FLT_MAX, curve_max, "%.1f"))
                         {
                             transition->mKeyPoints.SetCurveMinByDim(i, curve_min, ImGui::ImCurveEdit::DIM_X);
-                            timeline->UpdatePreview();
+                            timeline->RefreshPreview();
                         } ImGui::ShowTooltipOnHover("Min");
                         ImGui::SameLine(0, 8);
                         if (ImGui::DragFloat("##curve_audio_transition_max", &curve_max, 0.1f, curve_min, FLT_MAX, "%.1f"))
                         {
                             transition->mKeyPoints.SetCurveMaxByDim(i, curve_max, ImGui::ImCurveEdit::DIM_X);
-                            timeline->UpdatePreview();
+                            timeline->RefreshPreview();
                         } ImGui::ShowTooltipOnHover("Max");
                         ImGui::SameLine(0, 8);
                         float curve_default = transition->mKeyPoints.GetCurveDefaultByDim(i, ImGui::ImCurveEdit::DIM_X);
                         if (ImGui::DragFloat("##curve_audio_transition_default", &curve_default, 0.1f, curve_min, curve_max, "%.1f"))
                         {
                             transition->mKeyPoints.SetCurveDefaultByDim(i, curve_default, ImGui::ImCurveEdit::DIM_X);
-                            timeline->UpdatePreview();
+                            timeline->RefreshPreview();
                         } ImGui::ShowTooltipOnHover("Default");
                         ImGui::PopItemWidth();
                         
@@ -8165,7 +8147,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                             {
                                 auto entry_node = blueprint->FindEntryPointNode();
                                 if (entry_node) entry_node->DeleteOutputPin(pin_name);
-                                timeline->UpdatePreview();
+                                timeline->RefreshPreview();
                             }
                             transition->mKeyPoints.DeleteCurve(i);
                             break_loop = true;
@@ -8177,7 +8159,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                             {
                                 transition->mKeyPoints.SetCurvePointDefault(i, p);
                             }
-                            timeline->UpdatePreview();
+                            timeline->RefreshPreview();
                         } ImGui::ShowTooltipOnHover("Reset");
 
                         if (!break_loop)
@@ -8196,7 +8178,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                                 if (ImGui::DragTimeMS("##curve_audio_transition_point_time", &point.t, transition->mKeyPoints.GetMax().w / 1000.f, transition->mKeyPoints.GetMin().w, transition->mKeyPoints.GetMax().w, 2))
                                 {
                                     transition->mKeyPoints.EditPoint(i, p, point.val, point.type);
-                                    timeline->UpdatePreview();
+                                    timeline->RefreshPreview();
                                 }
                                 ImGui::EndDisabled();
                                 ImGui::SameLine();
@@ -8204,13 +8186,13 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                                 if (ImGui::DragFloat("##curve_audio_transition_point_x", &point.x, speed, curve_min, curve_max, "%.2f"))
                                 {
                                     transition->mKeyPoints.EditPoint(i, p, point.val, point.type);
-                                    timeline->UpdatePreview();
+                                    timeline->RefreshPreview();
                                 }
                                 ImGui::SameLine();
                                 if (ImGui::Combo("##curve_audio_transition_type", (int*)&point.type, curve_type_list, curve_type_count))
                                 {
                                     transition->mKeyPoints.EditPoint(i, p, point.val, point.type);
-                                    timeline->UpdatePreview();
+                                    timeline->RefreshPreview();
                                 }
                                 ImGui::PopItemWidth();
                                 ImGui::PopID();
@@ -8248,7 +8230,7 @@ static void ShowAudioTransitionWindow(ImDrawList *draw_list, ImRect title_rect, 
                             curve.m_id = node->m_ID;
                             if (node->DrawCustomLayout(ImGui::GetCurrentContext(), 1.0, ImVec2(0, 0), &curve, false))
                             {
-                                timeline->UpdatePreview();
+                                timeline->RefreshPreview();
                                 blueprint->Blueprint_UpdateNode(node->m_ID);
                             }
                             if (!curve.name.empty())
@@ -10045,7 +10027,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect, Editi
                                                         );
                 current_time += editing_clip->Start();
                 if ((int64_t)current_time != timeline->mCurrentTime) { timeline->Seek(current_time); }
-                if (_changed && editing_clip->mClipHolder) { editing_clip->mClipHolder->SetKeyPoints(editing_clip->mAttributeKeyPoints); timeline->UpdatePreview(); }
+                if (_changed && editing_clip->mClipHolder) { editing_clip->mClipHolder->SetKeyPoints(editing_clip->mAttributeKeyPoints); timeline->RefreshPreview(); }
                 changed |= _changed;
             }
             else if (StyleWindowIndex == 1 && editing_track)
@@ -10066,7 +10048,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect, Editi
                 if ((int64_t)current_time != timeline->mCurrentTime) { timeline->Seek(current_time); }
                 if (_changed)
                 {
-                    timeline->UpdatePreview();
+                    timeline->RefreshPreview();
                     editing_track->mMttReader->Refresh();
                     changed = true;
                 }
@@ -11270,7 +11252,7 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline, bool *expand, bool spread
     if (last_spread != spread)
     {
         if (expand && timeline)
-            timeline->UpdatePreview();
+            timeline->RefreshPreview();
         last_spread = spread;
         need_update_scope = true;
     }
@@ -12601,7 +12583,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::SetNextWindowPos(mon.MainPos);
             ImGui::SetNextWindowSize(mon.MainSize);
             if (ImGui::Begin(preview_window_lable.c_str(), nullptr, flags | ImGuiWindowFlags_FullScreen))
-                ShowVideoWindow(timeline->mMainPreviewTexture, mon.MainPos, mon.MainSize, "Preview", 3.f);
+                ShowVideoWindow(timeline->mhPreviewTx->TextureID(), mon.MainPos, mon.MainSize, "Preview", 3.f);
             ImGui::End();
         }
     }

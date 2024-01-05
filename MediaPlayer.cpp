@@ -273,7 +273,7 @@ bool MediaPlayer::Step(bool forward)
             frame->GetMat(vmat);
             if (!m_tx)
             {
-                RenderUtils::Vec2<int32_t> txSize(vmat.w, vmat.h);
+                MatUtils::Size2i txSize(vmat.w, vmat.h);
                 m_tx = m_txmgr->CreateManagedTextureFromMat(vmat, txSize);
             }
             else
@@ -317,7 +317,7 @@ ImTextureID MediaPlayer::GetFrame(float pos, bool blocking)
         {
             if (!m_tx)
             {
-                RenderUtils::Vec2<int32_t> txSize(vmat.w, vmat.h);
+                MatUtils::Size2i txSize(vmat.w, vmat.h);
                 m_tx = m_txmgr->CreateManagedTextureFromMat(vmat, txSize);
                 if (!m_tx)
                     Logger::Log(Logger::Error) << "FAILED to create ManagedTexture from ImMat! Error is '" << \

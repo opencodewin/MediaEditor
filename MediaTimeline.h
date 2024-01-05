@@ -294,6 +294,8 @@ namespace MediaTimeline
 #define DEFAULT_TEXT_TRACK_HEIGHT   20
 #define DEFAULT_EVENT_TRACK_HEIGHT  20
 
+#define PREVIEW_TEXTURE_POOL_NAME                           "PreviewTexturePool"
+#define ARBITRARY_SIZE_TEXTURE_POOL_NAME                    "ArbitrarySizeTexturePool"
 #define VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME           "VideoItemOverviewGridTexturePool"
 #define VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME           "VideoClipSnapshotGridTexturePool"
 #define EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME   "EditingVideoClipSnapshotGridTexturePool"
@@ -774,8 +776,6 @@ struct BaseEditingClip
     virtual void CalcDisplayParams(int64_t viewWndDur) = 0;
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Save() = 0;
-    virtual bool GetFrame(ImGui::ImMat& frame, MediaCore::CorrelativeFrame::Phase phase) { return false; }
-    virtual bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) = 0;
 };
 
@@ -790,7 +790,12 @@ struct EditingVideoClip : BaseEditingClip
     // for image clip
     ImTextureID mImgTexture     {0};
     // for attribute editor
-    ImTextureID mTransformOutputTexture {0};
+    RenderUtils::ManagedTexture::Holder mhTransformOutputTx;
+    RenderUtils::ManagedTexture::Holder mhFilterInputTx;
+    RenderUtils::ManagedTexture::Holder mhFilterOutputTx;
+    MediaCore::CorrelativeFrame::Phase meOutputFramePhase {MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING};
+    MediaCore::CorrelativeFrame::Phase meAttrOutFramePhase {MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING};
+    ImGui::ImMat mFilterOutputMat;
 
     MediaCore::VideoFilter* mFilter {nullptr};
     BluePrint::BluePrintUI* mFilterBp {nullptr};
@@ -809,8 +814,7 @@ public:
     void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
-    bool GetFrame(ImGui::ImMat& frame, MediaCore::CorrelativeFrame::Phase phase) override;
+    bool UpdatePreviewTexture();
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
     void SelectEditingMask(MEC::Event::Holder hEvent, int64_t nodeId, int maskIndex, ImGui::MaskCreator::Holder hMaskCreator = nullptr);
     void UnselectEditingMask();
@@ -835,7 +839,6 @@ public:
     void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
 };
 
@@ -849,7 +852,6 @@ public:
     void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
-    bool GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame = true) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
 public:
     void UpdateClip(Clip* clip);
@@ -1231,9 +1233,7 @@ struct TimeLine
     bool bPreviewing = false;               // indicate UI at Preview page 
     bool bLoop = false;                     // project saved
     bool bCompare = false;                  // project saved
-    bool bFilterOutputPreview = true;       // project saved
     bool bTransitionOutputPreview = true;   // project saved
-    bool bAttributeOutputPreview = true;    // project saved
     bool bSelectLinked = true;              // project saved
     bool bMovingAttract = true;             // project saved
 
@@ -1309,10 +1309,9 @@ struct TimeLine
     static int OnVideoEventStackFilterBpChanged(int type, std::string name, void* handle);
     static int OnAudioEventStackFilterBpChanged(int type, std::string name, void* handle);
 
-    ImTextureID mMainPreviewTexture {nullptr};  // main preview texture
-
-    ImTextureID mVideoFilterInputTexture {nullptr};  // clip video filter input texture
-    ImTextureID mVideoFilterOutputTexture {nullptr};  // clip video filter output texture
+    std::vector<MediaCore::CorrelativeFrame> maCurrFrames;
+    ImGui::ImMat mPreviewMat;
+    RenderUtils::ManagedTexture::Holder mhPreviewTx;
 
     ImTextureID mVideoTransitionInputFirstTexture {nullptr};    // clip video transition first input texture
     ImTextureID mVideoTransitionInputSecondTexture {nullptr};   // clip video transition second input texture
@@ -1356,6 +1355,7 @@ struct TimeLine
             int64_t mouse_time, bool is_moving, bool enable_select, bool is_updated, std::list<imgui_json::value>* pActionList);
     
     std::vector<MediaCore::CorrelativeFrame> GetPreviewFrame(bool blocking = false);
+    bool UpdatePreviewTexture(bool blocking = false);
     float GetAudioLevel(int channel);
     void SetAudioLevel(int channel, float level);
 
@@ -1367,7 +1367,7 @@ struct TimeLine
     void ToStart();
     void ToEnd();
     void UpdateCurrent();
-    void UpdatePreview(bool updateDuration = true);
+    void RefreshPreview(bool updateDuration = true);
     void RefreshTrackView(const std::unordered_set<int64_t>& trackIds);
     int64_t ValidDuration();
 
@@ -1411,7 +1411,7 @@ struct TimeLine
     void SyncDataLayer(bool forceRefresh = false);
     MediaCore::Snapshot::Generator::Holder GetSnapshotGenerator(int64_t mediaItemId);
     void ConfigSnapshotWindow(int64_t viewWndDur);
-    RenderUtils::Vec2<uint32_t> CalcPreviewSize(const RenderUtils::Vec2<uint32_t>& videoSize, float previewScale);
+    MatUtils::Size2i CalcPreviewSize(const MatUtils::Size2i& videoSize, float previewScale);
     void UpdateVideoSettings(MediaCore::SharedSettings::Holder hSettings, float previewScale);
     void UpdateAudioSettings(MediaCore::SharedSettings::Holder hSettings, MediaCore::AudioRender::PcmFormat pcmFormat);
 

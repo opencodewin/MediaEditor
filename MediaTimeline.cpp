@@ -26,8 +26,9 @@
 #include <iomanip>
 #include <vector>
 #include <utility>
+#include <ThreadUtils.h>
+#include <MatUtilsImVecHelper.h>
 #include "EventStackFilter.h"
-#include "ThreadUtils.h"
 #include "TextureManager.h"
 #include "MatUtils.h"
 #include "Logger.h"
@@ -238,7 +239,7 @@ bool MediaItem::Initialize()
 
         mMediaOverview = MediaCore::Overview::CreateInstance();
         mMediaOverview->EnableHwAccel(timeline->mHardwareCodec);
-        RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
+        MatUtils::Size2i txSize; ImDataType ssDtype;
         if (mTxMgr->GetTexturePoolAttributes(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
             mMediaOverview->SetSnapshotSize(txSize.x, txSize.y);
         else
@@ -528,7 +529,7 @@ bool EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                                                         nullptr, // clippingRect
                                                         &_changed
                                                         );
-                    if (_changed) { timeline->UpdatePreview(); changed |= _changed; }
+                    if (_changed) { timeline->RefreshPreview(); changed |= _changed; }
                 }
             }
             ImGui::EndChild();
@@ -2185,10 +2186,10 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             if (tid)
             {
                 auto roiRect = hTx->GetDisplayRoi();
-                auto roiSize = roiRect.Size();
-                RenderUtils::Vec2<float> uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
-                uvMin2 = roiRect.lt+roiSize*uvMin2; uvMax2 = roiRect.lt+roiSize*uvMax2;
-                drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, uvMin2, uvMax2);
+                auto roiSize = roiRect.size;
+                MatUtils::Point2f uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
+                uvMin2 = roiRect.leftTop+roiSize*uvMin2; uvMax2 = roiRect.leftTop+roiSize*uvMax2;
+                drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, MatUtils::ToImVec2(uvMin2), MatUtils::ToImVec2(uvMax2));
             }
             else
             {
@@ -3072,14 +3073,14 @@ int BluePrintVideoTransition::OnBluePrintChange(int type, std::string name, void
             type == BluePrint::BP_CB_NODE_INSERT)
         {
             // need update
-            if (timeline) timeline->UpdatePreview();
+            if (timeline) timeline->RefreshPreview();
             ret = BluePrint::BP_CBR_AutoLink;
         }
         else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
                 type == BluePrint::BP_CB_SETTING_CHANGED)
         {
             // need update
-            if (timeline) timeline->UpdatePreview();
+            if (timeline) timeline->RefreshPreview();
         }
     }
     if (timeline) timeline->mIsBluePrintChanged = true;
@@ -3169,7 +3170,7 @@ int BluePrintAudioTransition::OnBluePrintChange(int type, std::string name, void
             type == BluePrint::BP_CB_NODE_INSERT)
         {
             // need update
-            if (timeline) timeline->UpdatePreview();
+            if (timeline) timeline->RefreshPreview();
             ret = BluePrint::BP_CBR_AutoLink;
         }
         else if (type == BluePrint::BP_CB_PARAM_CHANGED ||
@@ -3296,7 +3297,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         }
 
         mSsGen->SetCacheFactor(1);
-        RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
+        MatUtils::Size2i txSize; ImDataType ssDtype;
         if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
         {
             mSsGen->SetSnapshotSize(txSize.x, txSize.y);
@@ -3308,6 +3309,11 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         }
         mSsViewer = mSsGen->CreateViewer((double)mStartOffset / 1000);
     }
+
+    // create ManagedTexture instances
+    mhTransformOutputTx = timeline->mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
+    mhFilterInputTx = timeline->mTxMgr->GetTextureFromPool(ARBITRARY_SIZE_TEXTURE_POOL_NAME);
+    mhFilterOutputTx = timeline->mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
 
     auto hClip = timeline->mMtvReader->GetClipById(vidclip->mID);
     IM_ASSERT(hClip);
@@ -3345,7 +3351,6 @@ EditingVideoClip::~EditingVideoClip()
     mFilterBp = nullptr;
     mFilterKp = nullptr;
     if (mImgTexture) { ImGui::ImDestroyTexture(mImgTexture); mImgTexture = nullptr; }
-    if (mTransformOutputTexture) { ImGui::ImDestroyTexture(mTransformOutputTexture); mTransformOutputTexture = nullptr; }
 }
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
@@ -3397,67 +3402,44 @@ void EditingVideoClip::Save()
         clip->mCropMarginB = mAttribute->GetCropMarginBScale();
     }
     // TODO::Dicky save clip event track?
-    timeline->UpdatePreview();
+    timeline->RefreshPreview();
 }
 
-bool EditingVideoClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame)
+bool EditingVideoClip::UpdatePreviewTexture()
 {
-    int ret = true;
-    TimeLine * timeline = (TimeLine *)mHandle;
-    if (!timeline)
+    if (!mHandle)
         return false;
-    auto frames = timeline->GetPreviewFrame();
-    ImGui::ImMat frame_org;
-    auto iter = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
-        return cf.clipId == mID && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
-    });
-    if (iter != frames.end())
-        frame_org = iter->frame;
-    else
-        ret = false;
-    if (preview_frame)
+    TimeLine* pTimeLine = (TimeLine*)mHandle;
+    bool bTxUpdated = pTimeLine->UpdatePreviewTexture(bTxUpdated);
+    const auto& aCurrFrames = pTimeLine->maCurrFrames;
+    if (bTxUpdated || !mhFilterInputTx->IsValid())
     {
-        if (!frames.empty())
-            in_out_frame.second = frames[0].frame;
-        else
-            ret = false;
+        auto iter = std::find_if(aCurrFrames.begin(), aCurrFrames.end(), [this] (const auto& cf) {
+            return cf.clipId == mID && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
+        });
+        if (iter != aCurrFrames.end() && !iter->frame.empty())
+            mhFilterInputTx->RenderMatToTexture(iter->frame);
     }
-    else
+    if (bTxUpdated || !mhFilterOutputTx->IsValid())
     {
-        auto iter_out = std::find_if(frames.begin(), frames.end(), [&] (auto& cf) {
+        auto iter = std::find_if(aCurrFrames.begin(), aCurrFrames.end(), [this] (const auto& cf) {
             return cf.clipId == mID && cf.phase == MediaCore::CorrelativeFrame::PHASE_AFTER_FILTER;
         });
-        if (iter_out != frames.end())
-            in_out_frame.second = iter_out->frame;
-        else
-            ret = false;
+        if (iter != aCurrFrames.end() && !iter->frame.empty())
+        {
+            mFilterOutputMat = iter->frame;
+            mhFilterOutputTx->RenderMatToTexture(iter->frame);
+        }
     }
-    in_out_frame.first = frame_org;
-    return ret;
-}
-
-bool EditingVideoClip::GetFrame(ImGui::ImMat& frame, MediaCore::CorrelativeFrame::Phase phase)
-{
-    int ret = true;
-    TimeLine * timeline = (TimeLine *)mHandle;
-    if (!timeline)
-        return false;
-    auto frames = timeline->GetPreviewFrame(true);
-    if (frames.empty())
+    if (bTxUpdated || !mhTransformOutputTx->IsValid())
     {
-        ret = false;
-    }
-    else
-    {
-        auto iter_out = std::find_if(frames.begin(), frames.end(), [&] (auto& cf) {
-            return (cf.clipId == mID && cf.phase == phase) || (cf.clipId == 0 && phase == MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING);
+        auto iter = std::find_if(aCurrFrames.begin(), aCurrFrames.end(), [this] (const auto& cf) {
+            return cf.clipId == mID && cf.phase == MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM;
         });
-        if (iter_out != frames.end())
-            frame = iter_out->frame;
-        else
-            ret = false;
+        if (iter != aCurrFrames.end() && !iter->frame.empty())
+            mhTransformOutputTx->RenderMatToTexture(iter->frame);
     }
-    return ret;
+    return bTxUpdated;
 }
 
 void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
@@ -3550,10 +3532,10 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
             if (tid)
             {
                 auto roiRect = hTx->GetDisplayRoi();
-                auto roiSize = roiRect.Size();
-                RenderUtils::Vec2<float> uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
-                uvMin2 = roiRect.lt+roiSize*uvMin2; uvMax2 = roiRect.lt+roiSize*uvMax2;
-                drawList->AddImage(tid, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, uvMin2, uvMax2);
+                auto roiSize = roiRect.size;
+                MatUtils::Point2f uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
+                uvMin2 = roiRect.leftTop+roiSize*uvMin2; uvMax2 = roiRect.leftTop+roiSize*uvMax2;
+                drawList->AddImage(tid, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, MatUtils::ToImVec2(uvMin2), MatUtils::ToImVec2(uvMax2));
             }
             else
             {
@@ -3692,11 +3674,6 @@ void EditingAudioClip::Save()
             clip->mFilterJson = pEsf->SaveAsJson();
         }
     }
-}
-
-bool EditingAudioClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame)
-{
-    return false;
 }
 
 void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
@@ -3854,11 +3831,6 @@ void EditingTextClip::UpdateClip(Clip* clip)
 void EditingTextClip::Save()
 {
 
-}
-
-bool EditingTextClip::GetFrame(std::pair<ImGui::ImMat, ImGui::ImMat>& in_out_frame, bool preview_frame)
-{
-    return false;
 }
 
 void EditingTextClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
@@ -4098,7 +4070,7 @@ EditingVideoOverlap::EditingVideoOverlap(int64_t id, void* handle)
             if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
             mSsGen1->SetCacheFactor(1.0);
-            RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
+            MatUtils::Size2i txSize; ImDataType ssDtype;
             if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
             {
                 mSsGen1->SetSnapshotSize(txSize.x, txSize.y);
@@ -4128,7 +4100,7 @@ EditingVideoOverlap::EditingVideoOverlap(int64_t id, void* handle)
             if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
             mSsGen2->SetCacheFactor(1.0);
-            RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
+            MatUtils::Size2i txSize; ImDataType ssDtype;
             if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
             {
                 mSsGen2->SetSnapshotSize(txSize.x, txSize.y);
@@ -4274,10 +4246,10 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             if (tid)
             {
                 auto roiRect = hTx->GetDisplayRoi();
-                auto roiSize = roiRect.Size();
-                RenderUtils::Vec2<float> uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
-                uvMin2 = roiRect.lt+roiSize*uvMin2; uvMax2 = roiRect.lt+roiSize*uvMax2;
-                drawList->AddImage(tid, imgLeftTop, imgLeftTop + snapDispSize, uvMin2, uvMax2);
+                auto roiSize = roiRect.size;
+                MatUtils::Point2f uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
+                uvMin2 = roiRect.leftTop+roiSize*uvMin2; uvMax2 = roiRect.leftTop+roiSize*uvMax2;
+                drawList->AddImage(tid, imgLeftTop, imgLeftTop + snapDispSize, MatUtils::ToImVec2(uvMin2), MatUtils::ToImVec2(uvMax2));
             }
             else
             {
@@ -4333,10 +4305,10 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             if (tid)
             {
                 auto roiRect = hTx->GetDisplayRoi();
-                auto roiSize = roiRect.Size();
-                RenderUtils::Vec2<float> uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
-                uvMin2 = roiRect.lt+roiSize*uvMin2; uvMax2 = roiRect.lt+roiSize*uvMax2;
-                drawList->AddImage(tid, img2LeftTop, img2LeftTop + snapDispSize, uvMin2, uvMax2);
+                auto roiSize = roiRect.size;
+                MatUtils::Point2f uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
+                uvMin2 = roiRect.leftTop+roiSize*uvMin2; uvMax2 = roiRect.leftTop+roiSize*uvMax2;
+                drawList->AddImage(tid, img2LeftTop, img2LeftTop + snapDispSize, MatUtils::ToImVec2(uvMin2), MatUtils::ToImVec2(uvMax2));
             }
             else
             {
@@ -4459,7 +4431,7 @@ void EditingVideoOverlap::Save()
         ovlp->mTransitionBP = mTransition->mBp->m_Document->Serialize();
         ovlp->mTransitionKeyPoints = mTransition->mKeyPoints;
     }
-    timeline->UpdatePreview();
+    timeline->RefreshPreview();
 }
 }// namespace MediaTimeline
 
@@ -5694,8 +5666,8 @@ EditingItem::EditingItem(uint32_t media_type, BaseEditingClip * clip)
             auto roi = hTx->GetDisplayRoi();
             auto texture = hTx->TextureID();
             ImVec2 size(ImGui::ImGetTextureWidth(texture), ImGui::ImGetTextureHeight(texture));
-            ImVec2 offset = roi.lt * size;
-            ImVec2 texture_size = (roi.rb - roi.lt) * size;
+            ImVec2 offset = MatUtils::ToImVec2(roi.leftTop) * size;
+            ImVec2 texture_size = MatUtils::ToImVec2(roi.size) * size;
             ImGui::ImTextureToMat(texture, thumbnail_mat, offset, texture_size);
             if (!thumbnail_mat.empty()) ImMatToTexture(thumbnail_mat, mTexture);
         }
@@ -5754,8 +5726,8 @@ EditingItem::EditingItem(uint32_t media_type, BaseEditingOverlap * overlap)
             auto roi = hTx->GetDisplayRoi();
             auto texture = hTx->TextureID();
             ImVec2 size(ImGui::ImGetTextureWidth(texture), ImGui::ImGetTextureHeight(texture));
-            ImVec2 offset = roi.lt * size;
-            ImVec2 texture_size = (roi.rb - roi.lt) * size;
+            ImVec2 offset = MatUtils::ToImVec2(roi.leftTop) * size;
+            ImVec2 texture_size = MatUtils::ToImVec2(roi.size) * size;
             ImGui::ImTextureToMat(texture, first_mat, offset, texture_size);
             first_mat.draw_rectangle(ImPoint(0, 0), ImPoint(first_mat.w - 1, first_mat.h - 1), ImPixel(1, 1, 1, 1));
         }
@@ -5765,8 +5737,8 @@ EditingItem::EditingItem(uint32_t media_type, BaseEditingOverlap * overlap)
             auto roi = hTx->GetDisplayRoi();
             auto texture = hTx->TextureID();
             ImVec2 size(ImGui::ImGetTextureWidth(texture), ImGui::ImGetTextureHeight(texture));
-            ImVec2 offset = roi.lt * size;
-            ImVec2 texture_size = (roi.rb - roi.lt) * size;
+            ImVec2 offset = MatUtils::ToImVec2(roi.leftTop) * size;
+            ImVec2 texture_size = MatUtils::ToImVec2(roi.size) * size;
             ImGui::ImTextureToMat(texture, second_mat, offset, texture_size);
             second_mat.draw_rectangle(ImPoint(0, 0), ImPoint(second_mat.w - 1, second_mat.h - 1), ImPixel(1, 1, 1, 1));
         }
@@ -5908,16 +5880,20 @@ TimeLine::TimeLine(std::string plugin_path)
     std::srand(std::time(0)); // init std::rand
 
     mTxMgr = RenderUtils::TextureManager::GetDefaultInstance();
-    RenderUtils::Vec2<int32_t> snapshotGridTextureSize;
+    if (!mTxMgr->CreateTexturePool(PREVIEW_TEXTURE_POOL_NAME, {1920, 1080}, IM_DT_INT8, 0))
+        Logger::Log(Logger::Error) << "FAILED to create texture pool '" << PREVIEW_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+    if (!mTxMgr->CreateTexturePool(ARBITRARY_SIZE_TEXTURE_POOL_NAME, {0, 0}, IM_DT_INT8, 0))
+        Logger::Log(Logger::Error) << "FAILED to create texture pool '" << ARBITRARY_SIZE_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+    MatUtils::Size2i snapshotGridTextureSize;
     snapshotGridTextureSize = {64*16/9, 64};
     if (!mTxMgr->CreateGridTexturePool(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
-        Logger::Log(Logger::WARN) << "FAILED to create grid texture pool '" << VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
     snapshotGridTextureSize = {DEFAULT_VIDEO_TRACK_HEIGHT*16/9, DEFAULT_VIDEO_TRACK_HEIGHT};
     if (!mTxMgr->CreateGridTexturePool(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
-        Logger::Log(Logger::WARN) << "FAILED to create grid texture pool '" << VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
     snapshotGridTextureSize = {50*16/9, 50};
     if (!mTxMgr->CreateGridTexturePool(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
-        Logger::Log(Logger::WARN) << "FAILED to create grid texture pool '" << EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
 
     mhMediaSettings = MediaCore::SharedSettings::CreateInstance();
     mhMediaSettings->SetHwaccelManager(MediaCore::HwaccelManager::GetDefaultInstance());
@@ -5954,13 +5930,13 @@ TimeLine::TimeLine(std::string plugin_path)
     mAudioAttribute.channel_data.resize(mhMediaSettings->AudioOutChannels());
     memcpy(&mAudioAttribute.mBandCfg, &DEFAULT_BAND_CFG, sizeof(mAudioAttribute.mBandCfg));
 
+    mhPreviewTx = mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
     mRecordIter = mHistoryRecords.begin();
     mMediaPlayer = new MEC::MediaPlayer(mTxMgr);
 }
 
 TimeLine::~TimeLine()
 {    
-    if (mMainPreviewTexture) { ImGui::ImDestroyTexture(mMainPreviewTexture); mMainPreviewTexture = nullptr; }
     if (mEncodingPreviewTexture) { ImGui::ImDestroyTexture(mEncodingPreviewTexture); mEncodingPreviewTexture = nullptr; }
     mAudioAttribute.channel_data.clear();
 
@@ -5973,9 +5949,6 @@ TimeLine::~TimeLine()
     for (auto clip : m_Clips) delete clip;
     for (auto overlap : m_Overlaps)  delete overlap;
     for (auto item : media_items) delete item;
-
-    if (mVideoFilterInputTexture) { ImGui::ImDestroyTexture(mVideoFilterInputTexture); mVideoFilterInputTexture = nullptr; }
-    if (mVideoFilterOutputTexture) { ImGui::ImDestroyTexture(mVideoFilterOutputTexture); mVideoFilterOutputTexture = nullptr;  }
 
     if (mVideoTransitionInputFirstTexture) { ImGui::ImDestroyTexture(mVideoTransitionInputFirstTexture); mVideoTransitionInputFirstTexture = nullptr; }
     if (mVideoTransitionInputSecondTexture) { ImGui::ImDestroyTexture(mVideoTransitionInputSecondTexture); mVideoTransitionInputSecondTexture = nullptr; }
@@ -6259,7 +6232,7 @@ int64_t TimeLine::DeleteTrack(int index, std::list<imgui_json::value>* pActionLi
         mark_in = mark_out = -1;
     }
 
-    UpdatePreview();
+    RefreshPreview();
     return trackId;
 }
 
@@ -6497,7 +6470,7 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
             vclip->SyncFilterWithDataLayer(hVidClip);
             vclip->SyncAttributesWithDataLayer(hVidClip);
         }
-        UpdatePreview();
+        RefreshPreview();
     }
     else if (IS_AUDIO(t->mType))
     {
@@ -6790,7 +6763,7 @@ void TimeLine::UpdateCurrent()
     if (firstTime < 0) firstTime = 0;
 }
 
-void TimeLine::UpdatePreview(bool updateDuration)
+void TimeLine::RefreshPreview(bool updateDuration)
 {
     mMtvReader->Refresh(updateDuration);
     mIsPreviewNeedUpdate = true;
@@ -6887,6 +6860,25 @@ std::vector<MediaCore::CorrelativeFrame> TimeLine::GetPreviewFrame(bool blocking
     mCurrentTime = mMtvReader->FrameIndexToMillsec(mFrameIndex);
     if (mIsPreviewPlaying && !ImGui::IsMouseDragging(ImGuiMouseButton_Left)) UpdateCurrent();
     return frames;
+}
+
+bool TimeLine::UpdatePreviewTexture(bool blocking)
+{
+    bool bTxUpdated = false;
+    maCurrFrames = GetPreviewFrame(blocking);
+    if (maCurrFrames.empty() || maCurrFrames[0].frame.empty())
+        return bTxUpdated;
+    const auto& mainPreviewMat = maCurrFrames[0].frame;
+    const auto i64Timestamp = (int64_t)(mainPreviewMat.time_stamp*1000);
+    if (mIsPreviewNeedUpdate || mLastFrameTime == -1 || mLastFrameTime != i64Timestamp || !mhPreviewTx->IsValid())
+    {
+        mPreviewMat = mainPreviewMat;
+        mhPreviewTx->RenderMatToTexture(mainPreviewMat);
+        mLastFrameTime = i64Timestamp;
+        mIsPreviewNeedUpdate = false;
+        bTxUpdated = true;
+    }
+    return bTxUpdated;
 }
 
 float TimeLine::GetAudioLevel(int channel)
@@ -7893,20 +7885,10 @@ int TimeLine::Load(const imgui_json::value& value)
         auto& val = value["Compare"];
         if (val.is_boolean()) bCompare = val.get<imgui_json::boolean>();
     }
-    if (value.contains("FilterOutPreview"))
-    {
-        auto& val = value["FilterOutPreview"];
-        if (val.is_boolean()) bFilterOutputPreview = val.get<imgui_json::boolean>();
-    }
     if (value.contains("TransitionOutPreview"))
     {
         auto& val = value["TransitionOutPreview"];
         if (val.is_boolean()) bTransitionOutputPreview = val.get<imgui_json::boolean>();
-    }
-    if (value.contains("AttributeOutPreview"))
-    {
-        auto& val = value["AttributeOutPreview"];
-        if (val.is_boolean()) bAttributeOutputPreview = val.get<imgui_json::boolean>();
     }
     if (value.contains("SelectLinked"))
     {
@@ -7974,10 +7956,12 @@ int TimeLine::Load(const imgui_json::value& value)
         throw std::runtime_error("UNSUPPORTED audio render format!");
     mhMediaSettings->SetAudioOutDataType(pcmDataType);
     mhPreviewSettings->SyncVideoSettingsFrom(mhMediaSettings.get());
-    auto previewSize = CalcPreviewSize({mhMediaSettings->VideoOutWidth(), mhMediaSettings->VideoOutHeight()}, mPreviewScale);
+    auto previewSize = CalcPreviewSize({(int32_t)mhMediaSettings->VideoOutWidth(), (int32_t)mhMediaSettings->VideoOutHeight()}, mPreviewScale);
     mhPreviewSettings->SetVideoOutWidth(previewSize.x);
     mhPreviewSettings->SetVideoOutHeight(previewSize.y);
     mhPreviewSettings->SyncAudioSettingsFrom(mhMediaSettings.get());
+    mTxMgr->SetTexturePoolAttributes(PREVIEW_TEXTURE_POOL_NAME, previewSize, IM_DT_INT8);
+    mhPreviewTx = mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
     mAudioRender->CloseDevice();
     mPcmStream.Flush();
     if (!mAudioRender->OpenDevice(mhPreviewSettings->AudioOutSampleRate(), mhPreviewSettings->AudioOutChannels(), mAudioRenderFormat, &mPcmStream))
@@ -8514,8 +8498,6 @@ void TimeLine::Save(imgui_json::value& value)
     value["PreviewForward"] = imgui_json::boolean(mIsPreviewForward);
     value["Loop"] = imgui_json::boolean(bLoop);
     value["Compare"] = imgui_json::boolean(bCompare);
-    value["FilterOutPreview"] = imgui_json::boolean(bFilterOutputPreview);
-    value["AttributeOutPreview"] = imgui_json::boolean(bAttributeOutputPreview);
     value["TransitionOutPreview"] = imgui_json::boolean(bTransitionOutputPreview);
     value["SelectLinked"] = imgui_json::boolean(bSelectLinked);
     value["MovingAttract"] = imgui_json::boolean(bMovingAttract);
@@ -8625,7 +8607,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         bool updateDuration = true;
         if (action.contains("update_duration"))
             updateDuration = action["update_duration"].get<imgui_json::boolean>();
-        UpdatePreview(updateDuration);
+        RefreshPreview(updateDuration);
     }
     else if (actionName == "REMOVE_CLIP")
     {
@@ -8636,7 +8618,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         bool updateDuration = true;
         if (action.contains("update_duration"))
             updateDuration = action["update_duration"].get<imgui_json::boolean>();
-        UpdatePreview(updateDuration);
+        RefreshPreview(updateDuration);
     }
     else if (actionName == "MOVE_CLIP")
     {
@@ -8658,7 +8640,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         {
             dstVidTrack->MoveClip(clipId, newStart);
         }
-        UpdatePreview();
+        RefreshPreview();
     }
     else if (actionName == "CROP_CLIP")
     {
@@ -8675,7 +8657,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         bool updateDuration = true;
         if (action.contains("update_duration"))
             updateDuration = action["update_duration"].get<imgui_json::boolean>();
-        UpdatePreview(updateDuration);
+        RefreshPreview(updateDuration);
     }
     else if (actionName == "CUT_CLIP")
     {
@@ -8718,7 +8700,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         pUiClip->SyncFilterWithDataLayer(hNewClip);
         pUiClip->SyncAttributesWithDataLayer(hNewClip);
         hVidTrk->InsertClip(hNewClip);
-        UpdatePreview(false);
+        RefreshPreview(false);
     }
     else if (actionName == "ADD_TRACK")
     {
@@ -8738,7 +8720,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
             int64_t trackId1 = action["track_id1"].get<imgui_json::number>();
             int64_t trackId2 = action["track_id2"].get<imgui_json::number>();
             mMtvReader->ChangeTrackViewOrder(trackId1, trackId2);
-            UpdatePreview();
+            RefreshPreview();
         }
     }
     else if (actionName == "HIDE_TRACK")
@@ -8746,7 +8728,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         int64_t trackId = action["track_id"].get<imgui_json::number>();
         bool visible = action["visible"].get<imgui_json::boolean>();
         mMtvReader->SetTrackVisible(trackId, visible);
-        UpdatePreview();
+        RefreshPreview();
     }
     else if (actionName == "ADD_EVENT" || actionName == "DELETE_EVENT" || actionName == "MOVE_EVENT" || actionName == "CROP_EVENT")
     {
@@ -8913,7 +8895,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
             clip->mID, clip->mMediaParser, mMtvReader->GetSharedSettings(),
             clip->Start(), clip->Length());
         vidTrack->InsertClip(imgClip);
-        UpdatePreview();
+        RefreshPreview();
     }
     else if (actionName == "REMOVE_CLIP")
     {
@@ -8921,7 +8903,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         MediaCore::VideoTrack::Holder vidTrack = mMtvReader->GetTrackById(trackId);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
         vidTrack->RemoveClipById(clipId);
-        UpdatePreview();
+        RefreshPreview();
     }
     else if (actionName == "MOVE_CLIP")
     {
@@ -8943,7 +8925,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         {
             dstVidTrack->MoveClip(clipId, newStart);
         }
-        UpdatePreview();
+        RefreshPreview();
     }
     else if (actionName == "CROP_CLIP")
     {
@@ -8953,7 +8935,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         int64_t newStart = action["new_start"].get<imgui_json::number>();
         int64_t newEnd = action["new_end"].get<imgui_json::number>();
         vidTrack->ChangeClipRange(clipId, newStart, newEnd);
-        UpdatePreview();
+        RefreshPreview();
     }
     else if (actionName == "CUT_CLIP")
     {
@@ -8992,7 +8974,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         pUiClip->SyncFilterWithDataLayer(hNewClip);
         pUiClip->SyncAttributesWithDataLayer(hNewClip);
         hVidTrk->InsertClip(hNewClip);
-        UpdatePreview(false);
+        RefreshPreview(false);
     }
     else if (actionName == "ADD_TRACK")
     {
@@ -9223,7 +9205,7 @@ void TimeLine::SyncDataLayer(bool forceRefresh)
         }
     }
     if (needUpdatePreview || forceRefresh)
-        UpdatePreview();
+        RefreshPreview();
     if (needRefreshAudio || forceRefresh)
         mMtaReader->Refresh();
 
@@ -9260,7 +9242,7 @@ MediaCore::Snapshot::Generator::Holder TimeLine::GetSnapshotGenerator(int64_t me
         Logger::Log(Logger::Error) << hSsGen->GetError() << std::endl;
         return nullptr;
     }
-    RenderUtils::Vec2<int32_t> txSize; ImDataType ssDtype;
+    MatUtils::Size2i txSize; ImDataType ssDtype;
     if (mTxMgr->GetTexturePoolAttributes(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
     {
         hSsGen->SetSnapshotSize(txSize.x, txSize.y);
@@ -9317,24 +9299,24 @@ void TimeLine::ConfigSnapshotWindow(int64_t viewWndDur)
     mSnapShotWidth = DEFAULT_VIDEO_TRACK_HEIGHT * (float)timelineAspectRatio.num / (float)timelineAspectRatio.den;
 }
 
-RenderUtils::Vec2<uint32_t> TimeLine::CalcPreviewSize(const RenderUtils::Vec2<uint32_t>& videoSize, float previewScale)
+MatUtils::Size2i TimeLine::CalcPreviewSize(const MatUtils::Size2i& videoSize, float previewScale)
 {
-    if (previewScale <= 0.0001 || previewScale >= 4)
+    if (previewScale <= 0.01 || previewScale >= 4)
     {
         Logger::Log(Logger::WARN) << "INVALID preview scale " << previewScale << " !" << std::endl;
         return videoSize;
     }
-    auto previewWidth = (uint32_t)round((float)videoSize.x*previewScale);
-    previewWidth += previewWidth%2;
-    auto previewHeight = (uint32_t)round((float)videoSize.y*previewScale);
-    previewHeight += previewHeight%2;
+    auto previewWidth = (int32_t)round((float)videoSize.x*previewScale);
+    previewWidth += previewWidth&0x1;
+    auto previewHeight = (int32_t)round((float)videoSize.y*previewScale);
+    previewHeight += previewHeight&0x1;
     return {previewWidth, previewHeight};
 }
 
 void TimeLine::UpdateVideoSettings(MediaCore::SharedSettings::Holder hSettings, float previewScale)
 {
     auto hNewPreviewSettings = hSettings->Clone();
-    auto previewSize = CalcPreviewSize({hSettings->VideoOutWidth(), hSettings->VideoOutHeight()}, previewScale);
+    auto previewSize = CalcPreviewSize({(int32_t)hSettings->VideoOutWidth(), (int32_t)hSettings->VideoOutHeight()}, previewScale);
     hNewPreviewSettings->SetVideoOutWidth(previewSize.x);
     hNewPreviewSettings->SetVideoOutHeight(previewSize.y);
     if (!mMtvReader->UpdateSettings(hNewPreviewSettings))
@@ -9343,8 +9325,11 @@ void TimeLine::UpdateVideoSettings(MediaCore::SharedSettings::Holder hSettings, 
         throw std::runtime_error(oss.str());
     }
     mhMediaSettings->SyncVideoSettingsFrom(hSettings.get());
+    mhPreviewSettings = hNewPreviewSettings;
     mPreviewScale = previewScale;
-    UpdatePreview(false);
+    mTxMgr->SetTexturePoolAttributes(PREVIEW_TEXTURE_POOL_NAME, previewSize, IM_DT_INT8);
+    mhPreviewTx = mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
+    RefreshPreview(false);
 }
 
 void TimeLine::UpdateAudioSettings(MediaCore::SharedSettings::Holder hSettings, MediaCore::AudioRender::PcmFormat pcmFormat)
@@ -13389,15 +13374,15 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImGui::ShowTooltipOnHover("Next event");
         ImGui::EndDisabled();
     }
-    else
+    else if (is_video_clip)
     {
-        ImGui::SameLine();
-        if (ImGui::RotateCheckButton(main_timeline->bAttributeOutputPreview ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_attribute_output_preview", &main_timeline->bAttributeOutputPreview, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)))
-        {
-            main_timeline->UpdatePreview();
-            need_update = true;
-        }
-        ImGui::ShowTooltipOnHover(main_timeline->bAttributeOutputPreview ? "Attribute Output" : "Preview Output");
+        EditingVideoClip* pVidEditingClip = dynamic_cast<EditingVideoClip*>(editingClip);
+        ImGui::SameLine(); ImGui::BeginDisabled(!pVidEditingClip);
+        bool bShowPreviewFrame = pVidEditingClip ? pVidEditingClip->meAttrOutFramePhase == MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING : true;
+        if (ImGui::RotateCheckButton(bShowPreviewFrame ? ICON_MEDIA_PREVIEW : ICON_FILTER "##video_attribute_output_preview", &bShowPreviewFrame, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive)))
+            pVidEditingClip->meAttrOutFramePhase = bShowPreviewFrame ? MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING : MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM;
+        ImGui::EndDisabled();
+        ImGui::ShowTooltipOnHover(bShowPreviewFrame ? "Attribute Output" : "Preview Output");
     }
 
     ImGui::PopStyleColor(4);
@@ -13853,7 +13838,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                                                             CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
                                                             nullptr, // clippingRect
                                                             &_changed);
-                    if (_changed) main_timeline->UpdatePreview();
+                    if (_changed) main_timeline->RefreshPreview();
                 }
             }
             else
