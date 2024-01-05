@@ -278,7 +278,7 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
         {
             ImGui::Text("ImGUI Media Player");
             ImGui::Separator();
-            ImGui::Text("OpenCodeWin 2023");
+            ImGui::Text("OpenCodeWin 2023-2024");
             ImGui::Separator();
             int i = ImGui::GetCurrentWindow()->ContentSize.x;
             ImGui::Indent((i - 40.0f) * 0.5f);

@@ -1,5 +1,5 @@
 /*
-    Copyright (c) 2023 CodeWin
+    Copyright (c) 2023-2024 CodeWin
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -992,6 +992,7 @@ static bool MonitorButton(const char * label, ImVec2 pos, int& monitor_index, st
 static bool Show_Version(ImDrawList* draw_list, int32_t start_time)
 {
     bool title_finished = true;
+    ImGuiIO &io = ImGui::GetIO();
     int32_t current_time = ImGui::get_current_time_msec();  
     ImVec2 window_pos = ImGui::GetWindowPos();
     ImVec2 window_size = ImGui::GetWindowSize();
@@ -1040,6 +1041,14 @@ static bool Show_Version(ImDrawList* draw_list, int32_t start_time)
         float vyoft = yoft + mark_size.y + 8;
         ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(vxoft, vyoft), IM_COL32(255, 255, 255, title_alpha * 255), version_string.c_str());
         ImGui::SetWindowFontScale(1.0);
+        // backend info
+        if (io.BackendPlatformName && io.BackendRendererName)
+        {
+            float bxoft = xoft;
+            float byoft = yoft + mark_size.y + 32;
+            ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(bxoft, byoft), IM_COL32(192, 192, 192, title_alpha * 255), io.BackendPlatformName + 11);
+            ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(bxoft, byoft + 16), IM_COL32(192, 192, 192, title_alpha * 255), io.BackendRendererName + 11);
+        }
         // imgui version
         ImGui::GetVersion(ver_major, ver_minor, ver_patch, ver_build);
         version_string = "ImGui: " + std::to_string(ver_major) + "." + std::to_string(ver_minor) + "." + std::to_string(ver_patch) + "." + std::to_string(ver_build);
@@ -1071,7 +1080,7 @@ static bool Show_Version(ImDrawList* draw_list, int32_t start_time)
         ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(vxoft, vyoft), IM_COL32(255, 255, 255, title_alpha * 255), version_string.c_str());
 #endif
         // copyright
-        std::string copy_str = "Copyright(c) 2023 OpenCodeWin Team";
+        std::string copy_str = "Copyright(c) 2023-2024 OpenCodeWin Team";
         auto copy_size = ImGui::CalcTextSize(copy_str.c_str());
         ImGui::GetWindowDrawList()->AddText(window_pos + ImVec2(window_size.x - copy_size.x - 16, window_size.y - 32 - 24), IM_COL32(128, 128, 255, title_alpha * 255), copy_str.c_str());
         if (title_alpha < 1.0) title_finished = false;
