@@ -807,10 +807,16 @@ struct MediaSourceNode final : Node
         ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal;
         vflags |= ImGuiFileDialogFlags_ShowBookmark;
         if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose File"))
+        {
+            IGFD::FileDialogConfig config;
+            config.path = m_path.empty() ? "." : m_path;
+            config.countSelectionMax = 1;
+            config.userDatas = this;
+            config.flags = vflags;
             ImGuiFileDialog::Instance()->OpenDialog("##NodeMediaSourceDlgKey", "Choose File", 
                                                     filters, 
-                                                    m_path.empty() ? "." : m_path,
-                                                    1, this, vflags);
+                                                    config);
+        }
         ImGui::SameLine(0);
         ImGui::TextUnformatted(m_file_name.c_str());
 

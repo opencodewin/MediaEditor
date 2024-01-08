@@ -309,15 +309,17 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
         ImVec2 window_size = ImGui::GetWindowSize();
         if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Open File...", ImVec2(160, 32)))
         {
+            IGFD::FileDialogConfig config;
+            config.path = m_file_path.empty() ? "." : m_file_path;
+            config.countSelectionMax = 1;
+            config.userDatas = IGFDUserDatas("OpenImage");
+            config.flags = ImGuiFileDialogFlags_ShowBookmark |
+                        ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                        ImGuiFileDialogFlags_DisableCreateDirectoryButton |
+                        ImGuiFileDialogFlags_Modal;
             ImGuiFileDialog::Instance()->OpenDialog("##DitherFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose File",
                                                     image_filter.c_str(),
-                                                    m_file_path.empty() ? "." : m_file_path,
-                                                    1,
-                                                    IGFDUserDatas("OpenImage"),
-                                                    ImGuiFileDialogFlags_ShowBookmark |
-                                                    ImGuiFileDialogFlags_CaseInsensitiveExtention |
-                                                    ImGuiFileDialogFlags_DisableCreateDirectoryButton |
-                                                    ImGuiFileDialogFlags_Modal);
+                                                    config);
         }
         ImGui::ShowTooltipOnHover("File Path:%s", m_file_path.c_str());
         ImGui::Separator();
@@ -414,15 +416,16 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
             {
                 if (ImGui::MenuItem((std::string(ICON_FA_IMAGE) + " Save Texture to File").c_str()))
                 {
+                    IGFD::FileDialogConfig config;
+                    config.path = ".";
+                    config.countSelectionMax = 1;
+                    config.flags = ImGuiFileDialogFlags_ShowBookmark |
+                                ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                                ImGuiFileDialogFlags_ConfirmOverwrite |
+                                ImGuiFileDialogFlags_Modal;
                     ImGuiFileDialog::Instance()->OpenDialog(dialog_id.c_str(), ICON_IGFD_FOLDER_OPEN " Choose File", 
                                                             image_filter.c_str(),
-                                                            ".",
-                                                            1, 
-                                                            nullptr, 
-                                                            ImGuiFileDialogFlags_ShowBookmark |
-                                                            ImGuiFileDialogFlags_CaseInsensitiveExtention |
-                                                            ImGuiFileDialogFlags_ConfirmOverwrite |
-                                                            ImGuiFileDialogFlags_Modal);
+                                                            config);
                 }
                 ImGui::EndPopup();
             }

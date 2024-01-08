@@ -250,11 +250,17 @@ struct MatRenderNode final : Node
             ImGuiFileDialog::Instance()->SetLightStyle();
         else
             ImGuiFileDialog::Instance()->SetDarkStyle();
-                if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose Capture File Name..."))
+        if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose Capture File Name..."))
+        {
+            IGFD::FileDialogConfig config;
+            config.path = file_name.empty() ? "." : file_name;
+            config.countSelectionMax = 1;
+            config.userDatas = this;
+            config.flags = vflags;
             ImGuiFileDialog::Instance()->OpenDialog("##RenderChooseFileDlgKey", "Choose File", 
                                                     m_filters.c_str(), 
-                                                    file_name.empty() ? "." : file_name,
-                                                    1, this, vflags);
+                                                    config);
+        }
         if (ImGuiFileDialog::Instance()->Display("##RenderChooseFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
         {
 	        // action if OK

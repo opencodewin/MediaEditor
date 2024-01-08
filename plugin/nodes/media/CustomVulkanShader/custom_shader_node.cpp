@@ -433,18 +433,26 @@ struct CustomShaderNode final : Node
         ImGui::SameLine();
         if (ImGui::Button(ICON_LOAD "##custom_shader"))
         {
+            IGFD::FileDialogConfig config;
+            config.path = ".";
+            config.countSelectionMax = 1;
+            config.userDatas = IGFDUserDatas("Load Source");
+            config.flags = vflags;
             ImGuiFileDialog::Instance()->OpenDialog("##CustomShader_FileDlg", ICON_IGFD_FOLDER_OPEN " Choose File", 
                                                     filters.c_str(), 
-                                                    ".", 1,
-                                                    IGFDUserDatas("Load Source"), vflags);
+                                                    config);
         } ImGui::ShowTooltipOnHover("Load");
         ImGui::SameLine();
         if (ImGui::Button(ICON_EXPORT "##custom_shader"))
         {
+            IGFD::FileDialogConfig config;
+            config.path = ".";
+            config.countSelectionMax = 1;
+            config.userDatas = IGFDUserDatas("Save Source");
+            config.flags = vflags;
             ImGuiFileDialog::Instance()->OpenDialog("##CustomShader_FileDlg", ICON_IGFD_FOLDER_OPEN " Choose File", 
                                                     filters.c_str(), 
-                                                    ".", 1,
-                                                    IGFDUserDatas("Save Source"), vflags);// TODO::Dicky save source code file
+                                                    config);// TODO::Dicky save source code file
         } ImGui::ShowTooltipOnHover("Export");
         ImGui::SameLine(); ImGui::Spacing();ImGui::SameLine();
         if (ImGui::Checkbox("Show Space", &m_show_space_tab))

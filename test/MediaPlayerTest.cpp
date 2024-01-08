@@ -225,13 +225,13 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
         {
             //ImGui::ShowTooltipOnHover("Open Media File.");
             const char *filters = "视频文件(*.mp4 *.mov *.mkv *.webm *.avi){.mp4,.mov,.mkv,.webm,.avi,.MP4,.MOV,.MKV,WEBM,.AVI},.*";
+            IGFD::FileDialogConfig config;
+            config.path = ".";
+            config.countSelectionMax = 1;
+            config.flags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_Modal;
 			ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", ICON_IGFD_FOLDER_OPEN " 打开视频文件", 
                                                     filters, 
-                                                    "/mnt/data2/video/hd/", 
-                                                    1, 
-                                                    nullptr, 
-                                                    ImGuiFileDialogFlags_ShowBookmark |
-                                                    ImGuiFileDialogFlags_Modal);
+                                                    config);
         }
         ImGui::ShowTooltipOnHover("Open Media File.");
         // add play button

@@ -2382,15 +2382,20 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
     if (ImGui::Button(ICON_IGFD_ADD "##AddMedia", icon_size))
     {
         ret = true;
-        ImGuiFileDialog::Instance()->OpenDialogWithPane("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
-                                                        ffilters.c_str(), ".", 
-                                                        std::bind(&ImgSeuqPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
-                                                        200, 1, IGFDUserDatas("Media Source"),
-                                                        ImGuiFileDialogFlags_ShowBookmark | 
-                                                        ImGuiFileDialogFlags_CaseInsensitiveExtention | 
-                                                        ImGuiFileDialogFlags_DisableCreateDirectoryButton | 
-                                                        ImGuiFileDialogFlags_Modal | 
-                                                        ImGuiFileDialogFlags_AllowDirectorySelect);
+        IGFD::FileDialogConfig config;
+        config.path = ".";
+        config.countSelectionMax = 1;
+        config.sidePane = std::bind(&ImgSeuqPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+        config.sidePaneWidth = 200;
+        config.userDatas = IGFDUserDatas("Media Source");
+        config.flags = ImGuiFileDialogFlags_ShowBookmark | 
+                    ImGuiFileDialogFlags_CaseInsensitiveExtention | 
+                    ImGuiFileDialogFlags_DisableCreateDirectoryButton | 
+                    ImGuiFileDialogFlags_Modal | 
+                    ImGuiFileDialogFlags_AllowDirectorySelect;
+        ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
+                                                        ffilters.c_str(),
+                                                        config);
     }
     ImGui::SetWindowFontScale(1.0);
     ImGui::ShowTooltipOnHover("Add new media into bank");
@@ -2709,12 +2714,14 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             else if (IS_AUDIO((*item)->mMediaType)) filter = audio_filter;
             else if (IS_TEXT((*item)->mMediaType)) filter = text_filter;
             else filter = ".*";
+            IGFD::FileDialogConfig config;
+            config.path = ".";
+            config.countSelectionMax = 1;
+            config.userDatas = IGFDUserDatas((*item));
+            config.flags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
             ImGuiFileDialog::Instance()->OpenDialog("##MediaEditReloadDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
                                                     filter.c_str(),
-                                                    ".",
-                                                    1, 
-                                                    IGFDUserDatas((*item)), 
-                                                    ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal);
+                                                    config);
 
         }
         ImGui::ShowTooltipOnHover("Reload Media");
@@ -3065,8 +3072,9 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
         }
         else
         {
+            static std::string finder_path = ".";
             static std::string finder_filename = "";
-            ImVec2 finder_size = bank_window_size - ImVec2(0, 60);
+            ImVec2 finder_size = bank_window_size - ImVec2(8, 60);
             if (ImGui::BeginChild("##Media_finder_content", bank_window_size, false, child_window_flags))
             {
                 ImDrawList * draw_list = ImGui::GetWindowDrawList();
@@ -3076,24 +3084,28 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                 ImGui::SetCursorPos(ImVec2(0, 50));
                 ImGui::PushStyleColor(ImGuiCol_Separator, COL_MARK);
                 ImGui::Separator();
+                IGFD::FileDialogConfig config;
+                config.path = finder_path;
+                config.filePathName = finder_filename;
+                config.countSelectionMax = -1;
+                config.flags = ImGuiFileDialogFlags_NoDialog |
+                            ImGuiFileDialogFlags_NoButton |
+                            ImGuiFileDialogFlags_DontShowHiddenFiles |
+                            ImGuiFileDialogFlags_HideColumnDate |
+                            ImGuiFileDialogFlags_ShowBookmark |
+                            ImGuiFileDialogFlags_ReadOnlyFileNameField |
+                            ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                            ImGuiFileDialogFlags_AllowDirectorySelect |
+                            ImGuiFileDialogFlags_PathDecompositionShort;
                 embedded_filedialog.OpenDialog("##MediaEmbeddedFileDlgKey", "Select File",
                                                 abbr_ffilters.c_str(),
-                                                finder_filename,
-                                                -1,
-                                                nullptr, 
-                                                ImGuiFileDialogFlags_NoDialog |
-                                                ImGuiFileDialogFlags_NoButton |
-                                                ImGuiFileDialogFlags_DontShowHiddenFiles |
-                                                ImGuiFileDialogFlags_HideColumnDate |
-                                                ImGuiFileDialogFlags_ShowBookmark |
-                                                ImGuiFileDialogFlags_ReadOnlyFileNameField |
-                                                ImGuiFileDialogFlags_CaseInsensitiveExtention |
-                                                ImGuiFileDialogFlags_AllowDirectorySelect);
+                                                config);
 
                 if (embedded_filedialog.Display("##MediaEmbeddedFileDlgKey", ImGuiWindowFlags_NoCollapse, ImVec2(0,0), finder_size))
                 {
                     if (embedded_filedialog.IsOk())
                     {
+                        finder_path = embedded_filedialog.GetCurrentPath();
                         finder_filename = embedded_filedialog.GetFilePathName();
                         timeline->mMediaPlayer->Close();
                         timeline->mMediaPlayer->Open(finder_filename);
@@ -3726,14 +3738,16 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             ImGui::SameLine();
             if (ImGui::Button("...##output_path_browse"))
             {
+                IGFD::FileDialogConfig config;
+                config.path = timeline->mOutputPath.empty() ? "." : timeline->mOutputPath;
+                config.countSelectionMax = 1;
+                config.userDatas = IGFDUserDatas("OutputPath");
+                config.flags = ImGuiFileDialogFlags_ShowBookmark | 
+                            ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                            ImGuiFileDialogFlags_Modal;
                 ImGuiFileDialog::Instance()->OpenDialog("##MediaEditOutputPathDlgKey", ICON_IGFD_FOLDER_OPEN " Output Path", 
                                                         nullptr,
-                                                        timeline->mOutputPath.empty() ? "." : timeline->mOutputPath,
-                                                        1, 
-                                                        IGFDUserDatas("OutputPath"), 
-                                                        ImGuiFileDialogFlags_ShowBookmark | 
-                                                        ImGuiFileDialogFlags_CaseInsensitiveExtention |
-                                                        ImGuiFileDialogFlags_Modal);
+                                                        config);
             }
 
             // Format Setting
@@ -12241,12 +12255,14 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             // Open Project
             show_file_dialog = true;
             std::string project_path = g_media_editor_settings.project_path.empty() ? "." : ImGuiHelper::path_url(g_media_editor_settings.project_path);
+            IGFD::FileDialogConfig config;
+            config.path = project_path.c_str();
+            config.countSelectionMax = 1;
+            config.userDatas = IGFDUserDatas("ProjectOpen");
+            config.flags = fflags;
             ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Open Project File", 
                                                     pfilters.c_str(),
-                                                    project_path.c_str(),
-                                                    1, 
-                                                    IGFDUserDatas("ProjectOpen"), 
-                                                    fflags);
+                                                    config);
         }
         ImGui::ShowTooltipOnHover("Open Project ...");
         if (ImGui::Button(ICON_NEW_PROJECT "##NewProject", ImVec2(tool_icon_size, tool_icon_size)))
@@ -12260,12 +12276,14 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             else if (g_media_editor_settings.project_path.empty())
             {
                 show_file_dialog = true;
+                IGFD::FileDialogConfig config;
+                config.path = "Untitled.mep";
+                config.countSelectionMax = 1;
+                config.userDatas = IGFDUserDatas("ProjectSaveAndNew");
+                config.flags = pflags;
                 ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
                                                     pfilters.c_str(),
-                                                    "Untitled.mep",
-                                                    1, 
-                                                    IGFDUserDatas("ProjectSaveAndNew"), 
-                                                    pflags);
+                                                    config);
             }
             else
             {
@@ -12283,12 +12301,14 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             else
             {
                 show_file_dialog = true;
+                IGFD::FileDialogConfig config;
+                config.path = "Untitled.mep";
+                config.countSelectionMax = 1;
+                config.userDatas = IGFDUserDatas("ProjectSave");
+                config.flags = pflags;
                 ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
                                                     pfilters.c_str(),
-                                                    "Untitled.mep",
-                                                    1, 
-                                                    IGFDUserDatas("ProjectSave"), 
-                                                    pflags);
+                                                    config);
             }
         }
         ImGui::ShowTooltipOnHover("Save Project");
@@ -12297,12 +12317,14 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             // Save Project
             show_file_dialog = true;
             std::string project_path = g_media_editor_settings.project_path.empty() ? "Untitled.mep" : g_media_editor_settings.project_path;
+            IGFD::FileDialogConfig config;
+            config.path = project_path.c_str();
+            config.countSelectionMax = 1;
+            config.userDatas = IGFDUserDatas("ProjectSave");
+            config.flags = pflags;
             ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
                                                     pfilters.c_str(),
-                                                    project_path.c_str(),
-                                                    1, 
-                                                    IGFDUserDatas("ProjectSave"), 
-                                                    pflags);
+                                                    config);
         }
         ImGui::ShowTooltipOnHover("Save Project As...");
 
@@ -12659,12 +12681,14 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             if (quit_save_confirm || g_media_editor_settings.project_path.empty())
             {
                 show_file_dialog = true;
+                IGFD::FileDialogConfig config;
+                config.path = ".";
+                config.countSelectionMax = 1;
+                config.userDatas = IGFDUserDatas("ProjectSaveQuit");
+                config.flags = pflags;
                 ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
                                                         pfilters.c_str(),
-                                                        ".",
-                                                        1, 
-                                                        IGFDUserDatas("ProjectSaveQuit"), 
-                                                        pflags);
+                                                        config);
             }
             else if (g_hProject->IsOpened())
             {

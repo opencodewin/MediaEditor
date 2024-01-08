@@ -202,26 +202,44 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
 	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
     ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_ShowBookmark;
     if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose Source One File"))
-            ImGuiFileDialog::Instance()->OpenDialog("##MediaSourceDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Source One File", 
-                                                    filters, 
-                                                    g_source_1.empty() ? "." : g_source_1,
-                                                    1, IGFDUserDatas("Source 1"), vflags);
+    {
+        IGFD::FileDialogConfig config;
+        config.path = g_source_1.empty() ? "." : g_source_1;
+        config.flags = vflags;
+        config.countSelectionMax = 1;
+        config.UserDatas = IGFDUserDatas("Source 1")
+        ImGuiFileDialog::Instance()->OpenDialog("##MediaSourceDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Source One File", 
+                                                filters, 
+                                                config);
+    }
     ImGui::SameLine(0);
     ImGui::TextUnformatted(g_source_name_1.c_str());
 
     if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose Source Two File"))
-            ImGuiFileDialog::Instance()->OpenDialog("##MediaSourceDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Source Two File", 
-                                                    filters, 
-                                                    g_source_2.empty() ? "." : g_source_2,
-                                                    1, IGFDUserDatas("Source 2"), vflags);
+    {
+        IGFD::FileDialogConfig config;
+        config.path = g_source_2.empty() ? "." : g_source_2;
+        config.flags = vflags;
+        config.countSelectionMax = 1;
+        config.UserDatas = IGFDUserDatas("Source 2")
+        ImGuiFileDialog::Instance()->OpenDialog("##MediaSourceDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Source Two File", 
+                                                filters, 
+                                                config);
+    }
     ImGui::SameLine(0);
     ImGui::TextUnformatted(g_source_name_2.c_str());
 
     if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose Dist File"))
-            ImGuiFileDialog::Instance()->OpenDialog("##MediaDistDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Dist File", 
-                                                    dst_filters, 
-                                                    g_dist.empty() ? "." : g_dist,
-                                                    1, IGFDUserDatas("Dist"), vflags | ImGuiFileDialogFlags_ConfirmOverwrite);
+    {
+        IGFD::FileDialogConfig config;
+        config.path = g_dist.empty() ? "." : g_dist;
+        config.flags = vflags | ImGuiFileDialogFlags_ConfirmOverwrite;
+        config.countSelectionMax = 1;
+        config.UserDatas = IGFDUserDatas("Dist")
+        ImGuiFileDialog::Instance()->OpenDialog("##MediaDistDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Dist File", 
+                                                dst_filters, 
+                                                config);
+    }
     ImGui::SameLine(0);
     ImGui::TextUnformatted(g_dist_name.c_str());
 
