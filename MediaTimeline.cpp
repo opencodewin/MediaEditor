@@ -1991,6 +1991,11 @@ Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
                 auto& val = value["RotationAngle"];
                 if (val.is_number()) new_clip->mRotationAngle = val.get<imgui_json::number>();
             }
+            if (value.contains("Opacity"))
+            {
+                auto& val = value["Opacity"];
+                if (val.is_number()) new_clip->mfOpacity = val.get<imgui_json::number>();
+            }
             if (value.contains("PositionOffsetH"))
             {
                 auto& val = value["PositionOffsetH"];
@@ -2265,6 +2270,7 @@ void VideoClip::Save(imgui_json::value& value)
     value["KeepAspectRatio"] = imgui_json::boolean(mKeepAspectRatio);
 
     value["RotationAngle"] = imgui_json::number(mRotationAngle);
+    value["Opacity"] = imgui_json::number(mfOpacity);
 }
 
 void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool createNewIfNotExist)
@@ -2331,19 +2337,20 @@ void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool
 
 void VideoClip::SyncAttributesWithDataLayer(MediaCore::VideoClip::Holder hClip)
 {
-    auto attribute = hClip->GetTransformFilter();
-    if (attribute)
+    auto hTransformFilter = hClip->GetTransformFilter();
+    if (hTransformFilter)
     {
-        attribute->SetScaleType(mScaleType);
-        attribute->SetScaleH(mScaleH);
-        attribute->SetScaleV(mScaleV);
-        attribute->SetPositionOffsetH(mPositionOffsetH);
-        attribute->SetPositionOffsetV(mPositionOffsetV);
-        attribute->SetRotationAngle(mRotationAngle);
-        attribute->SetCropMarginL(mCropMarginL);
-        attribute->SetCropMarginT(mCropMarginT);
-        attribute->SetCropMarginR(mCropMarginR);
-        attribute->SetCropMarginB(mCropMarginB);
+        hTransformFilter->SetScaleType(mScaleType);
+        hTransformFilter->SetScaleH(mScaleH);
+        hTransformFilter->SetScaleV(mScaleV);
+        hTransformFilter->SetPositionOffsetH(mPositionOffsetH);
+        hTransformFilter->SetPositionOffsetV(mPositionOffsetV);
+        hTransformFilter->SetRotationAngle(mRotationAngle);
+        hTransformFilter->SetOpacity(mfOpacity);
+        hTransformFilter->SetCropMarginL(mCropMarginL);
+        hTransformFilter->SetCropMarginT(mCropMarginT);
+        hTransformFilter->SetCropMarginR(mCropMarginR);
+        hTransformFilter->SetCropMarginB(mCropMarginB);
     }
 }
 } // namespace MediaTimeline
@@ -3394,6 +3401,7 @@ void EditingVideoClip::Save()
         clip->mScaleH = mAttribute->GetScaleH();
         clip->mScaleV = mAttribute->GetScaleV();
         clip->mRotationAngle = mAttribute->GetRotationAngle();
+        clip->mfOpacity = mAttribute->GetOpacity();
         clip->mPositionOffsetH = mAttribute->GetPositionOffsetHScale();
         clip->mPositionOffsetV = mAttribute->GetPositionOffsetVScale();
         clip->mCropMarginL = mAttribute->GetCropMarginLScale();

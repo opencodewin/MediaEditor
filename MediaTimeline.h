@@ -585,6 +585,7 @@ struct VideoClip : Clip
     double mScaleV  {1.f};                              // clip attribute scale v, project saved
     bool mKeepAspectRatio {false};                      // clip attribute scale keep aspect ratio, project saved
     double mRotationAngle {0.f};                        // clip attribute rotate angle, project saved
+    float mfOpacity {1.f};                              // clip attribute opacity, project saved
     float mPositionOffsetH {0.f};                       // clip attribute position offset h, project saved
     float mPositionOffsetV {0.f};                       // clip attribute position offset v, project saved
     float mCropMarginL {0.f};                           // clip attribute crop margin left, project saved
