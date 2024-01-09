@@ -123,10 +123,16 @@ struct MatImageNode final : Node
         else
             ImGuiFileDialog::Instance()->SetDarkStyle();
         if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose File"))
+        {
+            IGFD::FileDialogConfig config;
+            config.path = m_path.empty() ? "." : m_path;
+            config.countSelectionMax = 1;
+            config.userDatas = this;
+            config.flags = vflags;
             ImGuiFileDialog::Instance()->OpenDialog("##NodeChooseFileDlgKey", "Choose File", 
                                                     m_filters.c_str(), 
-                                                    m_path.empty() ? "." : m_path,
-                                                    1, this, vflags);
+                                                    config);
+        }
         if (ImGuiFileDialog::Instance()->Display("##NodeChooseFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
         {
 	        // action if OK

@@ -215,10 +215,16 @@ struct Lut3DNode final : Node
         ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal;
         vflags |= ImGuiFileDialogFlags_DontShowHiddenFiles;
         if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose File ## "))
+        {
+            IGFD::FileDialogConfig config;
+            config.path = m_path.empty() ? "." : m_path;
+            config.countSelectionMax = 1;
+            config.userDatas = this;
+            config.flags = vflags;
             ImGuiFileDialog::Instance()->OpenDialog("##NodeChooseLutFileDlgKey", "Choose File", 
                                                     filters.c_str(), 
-                                                    m_path.empty() ? "." : m_path,
-                                                    1, this, vflags);
+                                                    config);
+        }
         if (ImGuiFileDialog::Instance()->Display("##NodeChooseLutFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
         {
 	        // action if OK
