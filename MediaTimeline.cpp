@@ -12501,6 +12501,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         {
             if (IS_IMAGE(item->mMediaType))
             {
+                clipRange = timeline->AlignClipRange({0, 10000});  // wyvern: Add new image clip with default length of 10 seconds
                 VideoClip* new_image_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Image", item->mMediaOverview, timeline);
                 timeline->m_Clips.push_back(new_image_clip);
                 new_image_clip->mType = item->mMediaType;
