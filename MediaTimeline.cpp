@@ -1782,21 +1782,11 @@ VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, M
         TimeLine * timeline = (TimeLine *)handle;
         mWidth = video_stream->width;
         mHeight = video_stream->height;
-        int _width = 0, _height = 0;
         std::vector<ImGui::ImMat> snap_images;
         if (mOverview->GetSnapshots(snap_images))
         {
             if (!snap_images.empty() && !snap_images[0].empty() && !mImgTexture && timeline && !timeline->m_in_threads)
-            {
                 ImMatToTexture(snap_images[0], mImgTexture);
-                _width = snap_images[0].w;
-                _height = snap_images[0].h;
-            }
-            if (mTrackHeight > 0 && _width > 0 && _height > 0)
-            {
-                mSnapHeight = mTrackHeight;
-                mSnapWidth = mTrackHeight * _width / _height;
-            }
         }
 
         mPath = info->url;
@@ -1874,22 +1864,12 @@ void VideoClip::UpdateClip(MediaCore::Overview::Holder overview)
             mType |= MEDIA_DUMMY;
             return;
         }
-        int _width = 0, _height = 0;
         std::vector<ImGui::ImMat> snap_images;
         if (mOverview->GetSnapshots(snap_images))
         {
             TimeLine * timeline = (TimeLine *)mHandle;
             if (!snap_images.empty() && !snap_images[0].empty() && !mImgTexture && timeline && !timeline->m_in_threads)
-            {
                 ImMatToTexture(snap_images[0], mImgTexture);
-                _width = snap_images[0].w;
-                _height = snap_images[0].h;
-            }
-            if (mTrackHeight > 0 && _width > 0 && _height > 0)
-            {
-                mSnapHeight = mTrackHeight;
-                mSnapWidth = mTrackHeight * _width / _height;
-            }
         }
 
         mPath = info->url;
@@ -2143,23 +2123,18 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         if (_width > 0 && _height > 0)
         {
             int trackHeight = rightBottom.y - leftTop.y;
-            int snapHeight = trackHeight;
-            int snapWidth = trackHeight * _width / _height;
             ImVec2 imgLeftTop = leftTop;
-            float snapDispWidth = snapWidth;
             while (imgLeftTop.x < rightBottom.x)
             {
+                float snapDispWidth = mSnapWidth;
                 ImVec2 uvMin{0, 0}, uvMax{1, 1};
-                if (snapDispWidth < snapWidth)
-                    uvMin.x = 1 - snapDispWidth / snapWidth;
                 if (imgLeftTop.x + snapDispWidth > rightBottom.x)
                 {
-                    uvMax.x = 1 - (imgLeftTop.x + snapDispWidth - rightBottom.x) / snapWidth;
+                    uvMax.x = 1 - (imgLeftTop.x + snapDispWidth - rightBottom.x) / mSnapWidth;
                     snapDispWidth = rightBottom.x - imgLeftTop.x;
                 }
                 drawList->AddImage(mImgTexture, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
                 imgLeftTop.x += snapDispWidth;
-                snapDispWidth = snapWidth;
             }
         }
     }
@@ -2215,21 +2190,11 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
     }
     else if (mOverview)
     {
-        int _width = 0, _height = 0;
         std::vector<ImGui::ImMat> snap_images;
         if (mOverview->GetSnapshots(snap_images))
         {
             if (!snap_images.empty() && !snap_images[0].empty())
-            {
                 ImMatToTexture(snap_images[0], mImgTexture);
-                _width = snap_images[0].w;
-                _height = snap_images[0].h;
-            }
-            if (mTrackHeight > 0 && _width > 0 && _height > 0)
-            {
-                mSnapHeight = mTrackHeight;
-                mSnapWidth = mTrackHeight * _width / _height;
-            }
         }
     }
 }
