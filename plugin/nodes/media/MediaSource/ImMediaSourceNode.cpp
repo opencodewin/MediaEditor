@@ -524,7 +524,9 @@ struct MediaSourceNode final : Node
             if (stream->m_frame->pict_type == AV_PICTURE_TYPE_I) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_FRAME_I;
             if (stream->m_frame->pict_type == AV_PICTURE_TYPE_P) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_FRAME_P;
             if (stream->m_frame->pict_type == AV_PICTURE_TYPE_B) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_FRAME_B;
-            if (stream->m_frame->flags & AV_FRAME_FLAG_INTERLACED) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_INTERLACED;
+            #if LIBAVUTIL_VERSION_MAJOR > 59 || defined(FF_API_INTERLACED_FRAME)
+                if (stream->m_frame->flags & AV_FRAME_FLAG_INTERLACED) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_INTERLACED;
+            #endif
 
 #if IMGUI_VULKAN_SHADER
             if (!stream->m_yuv2rgb)
