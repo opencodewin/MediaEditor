@@ -239,9 +239,9 @@ bool MediaItem::Initialize()
 
         mMediaOverview = MediaCore::Overview::CreateInstance();
         mMediaOverview->EnableHwAccel(timeline->mHardwareCodec);
-        MatUtils::Size2i txSize; ImDataType ssDtype;
-        if (mTxMgr->GetTexturePoolAttributes(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
-            mMediaOverview->SetSnapshotSize(txSize.x, txSize.y);
+        RenderUtils::TextureManager::TexturePoolAttributes tTxPoolAttrs;
+        if (mTxMgr->GetTexturePoolAttributes(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, tTxPoolAttrs))
+            mMediaOverview->SetSnapshotSize(tTxPoolAttrs.tTxSize.x, tTxPoolAttrs.tTxSize.y);
         else
             mMediaOverview->SetSnapshotResizeFactor(0.05, 0.05);
         if (!mMediaOverview->Open(mhParser, 64))
@@ -3269,10 +3269,10 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         }
 
         mSsGen->SetCacheFactor(1);
-        MatUtils::Size2i txSize; ImDataType ssDtype;
-        if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
+        RenderUtils::TextureManager::TexturePoolAttributes tTxPoolAttrs;
+        if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, tTxPoolAttrs))
         {
-            mSsGen->SetSnapshotSize(txSize.x, txSize.y);
+            mSsGen->SetSnapshotSize(tTxPoolAttrs.tTxSize.x, tTxPoolAttrs.tTxSize.y);
         }
         else
         {
@@ -4043,10 +4043,10 @@ EditingVideoOverlap::EditingVideoOverlap(int64_t id, void* handle)
             if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
             mSsGen1->SetCacheFactor(1.0);
-            MatUtils::Size2i txSize; ImDataType ssDtype;
-            if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
+            RenderUtils::TextureManager::TexturePoolAttributes tTxPoolAttrs;
+            if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, tTxPoolAttrs))
             {
-                mSsGen1->SetSnapshotSize(txSize.x, txSize.y);
+                mSsGen1->SetSnapshotSize(tTxPoolAttrs.tTxSize.x, tTxPoolAttrs.tTxSize.y);
             }
             else
             {
@@ -4073,10 +4073,10 @@ EditingVideoOverlap::EditingVideoOverlap(int64_t id, void* handle)
             if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
             mSsGen2->SetCacheFactor(1.0);
-            MatUtils::Size2i txSize; ImDataType ssDtype;
-            if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
+            RenderUtils::TextureManager::TexturePoolAttributes tTxPoolAttrs;
+            if (timeline->mTxMgr->GetTexturePoolAttributes(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, tTxPoolAttrs))
             {
-                mSsGen2->SetSnapshotSize(txSize.x, txSize.y);
+                mSsGen2->SetSnapshotSize(tTxPoolAttrs.tTxSize.x, tTxPoolAttrs.tTxSize.y);
             }
             else
             {
@@ -5861,6 +5861,13 @@ TimeLine::TimeLine(std::string plugin_path)
     snapshotGridTextureSize = {64*16/9, 64};
     if (!mTxMgr->CreateGridTexturePool(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
         Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+    else
+    {
+        RenderUtils::TextureManager::TexturePoolAttributes tTxPoolAttrs;
+        mTxMgr->GetTexturePoolAttributes(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, tTxPoolAttrs);
+        tTxPoolAttrs.bKeepAspectRatio = true;
+        mTxMgr->SetTexturePoolAttributes(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, tTxPoolAttrs);
+    }
     snapshotGridTextureSize = {DEFAULT_VIDEO_TRACK_HEIGHT*16/9, DEFAULT_VIDEO_TRACK_HEIGHT};
     if (!mTxMgr->CreateGridTexturePool(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
         Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
@@ -7933,7 +7940,10 @@ int TimeLine::Load(const imgui_json::value& value)
     mhPreviewSettings->SetVideoOutWidth(previewSize.x);
     mhPreviewSettings->SetVideoOutHeight(previewSize.y);
     mhPreviewSettings->SyncAudioSettingsFrom(mhMediaSettings.get());
-    mTxMgr->SetTexturePoolAttributes(PREVIEW_TEXTURE_POOL_NAME, previewSize, IM_DT_INT8);
+    RenderUtils::TextureManager::TexturePoolAttributes tTxPoolAttrs;
+    mTxMgr->GetTexturePoolAttributes(PREVIEW_TEXTURE_POOL_NAME, tTxPoolAttrs);
+    tTxPoolAttrs.tTxSize = previewSize;
+    mTxMgr->SetTexturePoolAttributes(PREVIEW_TEXTURE_POOL_NAME, tTxPoolAttrs);
     mhPreviewTx = mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
     mAudioRender->CloseDevice();
     mPcmStream.Flush();
@@ -9215,10 +9225,10 @@ MediaCore::Snapshot::Generator::Holder TimeLine::GetSnapshotGenerator(int64_t me
         Logger::Log(Logger::Error) << hSsGen->GetError() << std::endl;
         return nullptr;
     }
-    MatUtils::Size2i txSize; ImDataType ssDtype;
-    if (mTxMgr->GetTexturePoolAttributes(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, txSize, ssDtype))
+    RenderUtils::TextureManager::TexturePoolAttributes tTxPoolAttrs;
+    if (mTxMgr->GetTexturePoolAttributes(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, tTxPoolAttrs))
     {
-        hSsGen->SetSnapshotSize(txSize.x, txSize.y);
+        hSsGen->SetSnapshotSize(tTxPoolAttrs.tTxSize.x, tTxPoolAttrs.tTxSize.y);
     }
     else
     {
@@ -9300,7 +9310,10 @@ void TimeLine::UpdateVideoSettings(MediaCore::SharedSettings::Holder hSettings, 
     mhMediaSettings->SyncVideoSettingsFrom(hSettings.get());
     mhPreviewSettings = hNewPreviewSettings;
     mPreviewScale = previewScale;
-    mTxMgr->SetTexturePoolAttributes(PREVIEW_TEXTURE_POOL_NAME, previewSize, IM_DT_INT8);
+    RenderUtils::TextureManager::TexturePoolAttributes tTxPoolAttrs;
+    mTxMgr->GetTexturePoolAttributes(PREVIEW_TEXTURE_POOL_NAME, tTxPoolAttrs);
+    tTxPoolAttrs.tTxSize = previewSize;
+    mTxMgr->SetTexturePoolAttributes(PREVIEW_TEXTURE_POOL_NAME, tTxPoolAttrs);
     mhPreviewTx = mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
     RefreshPreview(false);
 }
