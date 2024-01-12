@@ -8322,6 +8322,7 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
     */
     // draw page title
     bool changed = false;
+    ImGuiIO& io = ImGui::GetIO();
     ImGui::SetWindowFontScale(1.8);
     auto title_size = ImGui::CalcTextSize("Audio Mixer");
     float str_offset = title_rect.Max.x - title_size.x - 16;
@@ -8394,7 +8395,15 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
         auto volMaster = amFilter->GetVolumeParams();
         timeline->mAudioAttribute.mAudioGain = volMaster.volume;
         float vol = (timeline->mAudioAttribute.mAudioGain - 1.f) * 96.f;
-        if (ImGui::VSliderFloat("##master_gain", slider_size, &vol, -96.f, 32.f, "", ImGuiSliderFlags_Mark))
+        auto master_gain_slide = ImGui::VSliderFloat("##master_gain", slider_size, &vol, -96.f, 32.f, "%.1fdB", ImGuiSliderFlags_Mark);
+        if (ImGui::IsItemHovered() && io.MouseWheel != 0.f)
+        {
+            vol += io.MouseWheel;
+            if (vol < -96.f) vol = -96.f;
+            if (vol > 32.f) vol = 32.f;
+            master_gain_slide = true;
+        }
+        if (master_gain_slide)
         {
             timeline->mAudioAttribute.mAudioGain = (vol / 96.f) + 1.f;
             volMaster.volume = timeline->mAudioAttribute.mAudioGain;
@@ -8426,7 +8435,15 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
                     auto volParams = aeFilter->GetVolumeParams();
                     track->mAudioTrackAttribute.mAudioGain = volParams.volume;
                     float volTrack = (track->mAudioTrackAttribute.mAudioGain - 1.f) * 96.f;
-                    if (ImGui::VSliderFloat("##track_gain", slider_size, &volTrack, -96.f, 32.f, "", ImGuiSliderFlags_Mark))
+                    auto gain_slide = ImGui::VSliderFloat("##track_gain", slider_size, &volTrack, -96.f, 32.f, "%.1fdB", ImGuiSliderFlags_Mark);
+                    if (ImGui::IsItemHovered() && io.MouseWheel != 0.f)
+                    {
+                        volTrack += io.MouseWheel;
+                        if (volTrack < -96.f) volTrack = -96.f;
+                        if (volTrack > 32.f) volTrack = 32.f;
+                        gain_slide = true;
+                    }
+                    if (gain_slide)
                     {
                         track->mAudioTrackAttribute.mAudioGain = (volTrack / 96.f) + 1.f;
                         volParams.volume = track->mAudioTrackAttribute.mAudioGain;
@@ -8638,7 +8655,14 @@ static void ShowAudioMixingWindow(ImDrawList *draw_list, ImRect title_rect)
             std::string cfTag = GetFrequencyTag(timeline->mAudioAttribute.mBandCfg[i].centerFreq);
             ImGui::TextUnformatted(cfTag.c_str());
             ImGui::PushID(i);
-            equalizer_changed |= ImGui::VSliderInt("##band_gain", ImVec2(24, sub_window_size.y - 48), &timeline->mAudioAttribute.mBandCfg[i].gain, MIN_GAIN, MAX_GAIN, "", ImGuiSliderFlags_Mark);
+            equalizer_changed |= ImGui::VSliderInt("##band_gain", ImVec2(24, sub_window_size.y - 48), &timeline->mAudioAttribute.mBandCfg[i].gain, MIN_GAIN, MAX_GAIN, "%+ddB", ImGuiSliderFlags_Mark);
+            if (ImGui::IsItemHovered() && io.MouseWheel != 0.f)
+            {
+                timeline->mAudioAttribute.mBandCfg[i].gain += io.MouseWheel;
+                if (timeline->mAudioAttribute.mBandCfg[i].gain < MIN_GAIN) timeline->mAudioAttribute.mBandCfg[i].gain = MIN_GAIN;
+                if (timeline->mAudioAttribute.mBandCfg[i].gain > MAX_GAIN) timeline->mAudioAttribute.mBandCfg[i].gain = MAX_GAIN;
+                equalizer_changed = true;
+            }
             ImGui::PopID();
             ImGui::Text("%d", timeline->mAudioAttribute.mBandCfg[i].gain);
             ImGui::EndGroup();
