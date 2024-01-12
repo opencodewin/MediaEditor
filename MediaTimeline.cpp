@@ -3378,12 +3378,12 @@ void EditingVideoClip::Save()
     timeline->RefreshPreview();
 }
 
-bool EditingVideoClip::UpdatePreviewTexture()
+bool EditingVideoClip::UpdatePreviewTexture(bool blocking)
 {
     if (!mHandle)
         return false;
     TimeLine* pTimeLine = (TimeLine*)mHandle;
-    bool bTxUpdated = pTimeLine->UpdatePreviewTexture(bTxUpdated);
+    bool bTxUpdated = pTimeLine->UpdatePreviewTexture(blocking);
     const auto& aCurrFrames = pTimeLine->maCurrFrames;
     if (bTxUpdated || !mhFilterInputTx->IsValid())
     {

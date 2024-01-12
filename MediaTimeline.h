@@ -815,7 +815,7 @@ public:
     void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
-    bool UpdatePreviewTexture();
+    bool UpdatePreviewTexture(bool blocking = false);
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
     void SelectEditingMask(MEC::Event::Holder hEvent, int64_t nodeId, int maskIndex, ImGui::MaskCreator::Holder hMaskCreator = nullptr);
     void UnselectEditingMask();

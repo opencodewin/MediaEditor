@@ -4750,9 +4750,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
             }
         }
         
-        std::pair<ImGui::ImMat, ImGui::ImMat> pair;
         bool bTxUpdated = pVidEditingClip->UpdatePreviewTexture();
-        int64_t output_timestamp = pair.second.time_stamp * 1000;
         const auto& secondMat = bOutputPreview ? timeline->mPreviewMat : pVidEditingClip->mFilterOutputMat;
         if ((bTxUpdated || need_update_scope) && !secondMat.empty())
             CalculateVideoScope(secondMat);
@@ -6180,7 +6178,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
     bool bIsMouseDown = false;
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    pVidEditingClip->UpdatePreviewTexture();
+    pVidEditingClip->UpdatePreviewTexture(!timeline->mIsPreviewPlaying);
     int64_t trackId = -1;
     auto track = timeline->FindTrackByClipID(pVidEditingClip->mID);
     if (track) trackId = track->mID;
