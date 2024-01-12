@@ -10409,13 +10409,7 @@ int64_t TimeLine::AddNewClip(
 
 int TimeLine::FindEditingItem(int type, int64_t id)
 {
-    auto track = FindTrackByClipID(id);
-    auto iter = std::find_if(mEditingItems.begin(), mEditingItems.end(), [id, track, type, this] (auto& item) {
-        if (IS_TEXT(item->mMediaType) && item->mEditorType == type)
-        {
-            auto _track = FindTrackByClipID(item->mEditingClip->mID);
-            return track->mID == _track->mID;
-        }
+    auto iter = std::find_if(mEditingItems.begin(), mEditingItems.end(), [id, type, this] (auto& item) {
         return item->mEditorType == type && 
                     ((type == EDITING_CLIP && item->mEditingClip && item->mEditingClip->mID == id) ||
                     (type == EDITING_TRANSITION && item->mEditingOverlap && item->mEditingOverlap->mID == id));
