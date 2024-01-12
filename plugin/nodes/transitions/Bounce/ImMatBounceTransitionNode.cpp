@@ -80,7 +80,7 @@ struct BounceTransitionNode final : Node
         float _shadow_height = m_shadow_height;
         float _bounces = m_bounces;
         ImPixel _shadowColor = m_shadowColor;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("ShadowHeight##Bounce", &_shadow_height, 0.0, 0.3f, "%.3f", flags);

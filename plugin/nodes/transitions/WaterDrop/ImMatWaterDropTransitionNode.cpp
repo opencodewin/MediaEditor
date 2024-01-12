@@ -79,7 +79,7 @@ struct WaterDropTransitionNode final : Node
         bool changed = false;
         float _speed = m_speed;
         float _amplitude = m_amplitude;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Speed##WaterDrop", &_speed, 1.f, 100.f, "%.0f", flags);

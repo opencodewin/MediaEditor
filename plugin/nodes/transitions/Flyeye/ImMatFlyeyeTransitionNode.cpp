@@ -80,7 +80,7 @@ struct FlyeyeTransitionNode final : Node
         float _size = m_size;
         float _zoom = m_zoom;
         float _colorSeparation = m_colorSeparation;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Size##Flyeye", &_size, 0.0, 1.f, "%.2f", flags);

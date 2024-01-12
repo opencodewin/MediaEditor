@@ -623,9 +623,9 @@ struct CustomShaderNode final : Node
                 changed = true;
             }
         }
-        changed |= ImGui::SliderFloat("X Scale", &m_out_scale.x, 0.1, 4.0, "%.2f");
+        changed |= ImGui::SliderFloat("X Scale", &m_out_scale.x, 0.1, 4.0, "%.2f", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick);
         ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_x##CustomShader")) { m_out_scale.x = 1.0; changed = true; }
-        changed |= ImGui::SliderFloat("Y Scale", &m_out_scale.y, 0.1, 4.0, "%.2f");
+        changed |= ImGui::SliderFloat("Y Scale", &m_out_scale.y, 0.1, 4.0, "%.2f", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick);
         ImGui::SameLine(); if (ImGui::Button(ICON_RESET "##reset_scale_y##CustomShader")) { m_out_scale.y = 1.0; changed = true; }
         ImGui::Separator();
         if (ImGui::Button( ICON_FK_PLUS " Add param"))

@@ -851,7 +851,7 @@ struct MediaSourceNode final : Node
     {
         ImGui::SetCurrentContext(ctx);
         ImGui::Text("%s", m_file_name.c_str());
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput | ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::Dummy(ImVec2(320, 8));
         ImGui::PushItemWidth(300);
         if (ImGui::Button(m_paused ? ICON_FAD_PLAY : ICON_FAD_PAUSE, ImVec2(32.0f, 32.0f)))

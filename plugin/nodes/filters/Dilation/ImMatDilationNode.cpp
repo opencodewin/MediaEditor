@@ -73,7 +73,7 @@ struct DilationNode final : Node
             ImVec2 sub_window_size = ImGui::GetWindowSize();
             setting_offset = sub_window_size.x - 80;
         }
-        ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         bool changed = false;
         int _ksz = m_ksz;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);

@@ -82,7 +82,7 @@ struct DissolveTransitionNode final : Node
         float _intensity = m_intensity;
         ImPixel _spreadColor = m_spreadColor;
         ImPixel _hotColor = m_hotColor;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Line Width##Dissolve", &_lineWidth, 0.0, 0.2f, "%.2f", flags);

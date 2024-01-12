@@ -78,7 +78,7 @@ struct SimpleZoomTransitionNode final : Node
         }
         bool changed = false;
         float _quickness = m_quickness;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Quickness##SimpleZoom", &_quickness, 0.1, 3.f, "%.1f", flags);

@@ -82,7 +82,7 @@ struct BinaryNode final : Node
             setting_offset = sub_window_size.x - 80;
         }
         bool changed = false;
-        ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         float _min = m_min;
         float _max = m_max;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);

@@ -209,6 +209,8 @@
 
 #define ICON_SETTING_LINK   u8"\uf0c1"
 #define ICON_SETTING_UNLINK u8"\uf127"
+#define ICON_LINK_UP        u8"\u2510"
+#define ICON_LINK_DOWN      u8"\u2518"
 
 #define ICON_EVENT_VIEW     u8"\ue8d7"
 #define ICON_EVENT_HIDE     u8"\ue89d"

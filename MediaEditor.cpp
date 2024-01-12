@@ -1508,6 +1508,7 @@ static void ShowConfigure(MediaEditorSettings & config)
             break;
             case 2:
             {
+                static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
                 ImGui::BulletText(ICON_MEDIA_TEXT " Text");
                 const char* familyValue = config.FontName.c_str();
                 if (ImGui::BeginCombo("Font family##system_setting", familyValue))
@@ -1527,7 +1528,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::Combo("Font Bold", &config.FontBold, font_bold_list, IM_ARRAYSIZE(font_bold_list));
                 ImGui::Combo("Font Italic", &config.FontItalic, font_italic_list, IM_ARRAYSIZE(font_italic_list));
                 float scale_x = config.FontScaleX;
-                if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
+                if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f", flags))
                 {
                     float scale_ratio = scale_x / config.FontScaleX;
                     if (config.FontScaleLink ) config.FontScaleY *= scale_ratio;
@@ -1537,7 +1538,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 auto size = ImGui::GetWindowSize();
                 auto item_width = ImGui::CalcItemWidth();
                 auto current_pos = ImGui::GetCursorScreenPos();
-                auto link_button_pos = current_pos + ImVec2(size.x - 128, - 8);
+                auto link_button_pos = current_pos + ImVec2(size.x - 96, - 10);
                 ImRect link_button_rect(link_button_pos, link_button_pos + ImVec2(16, 16));
                 std::string link_button_text = std::string(config.FontScaleLink ? ICON_SETTING_LINK : ICON_SETTING_UNLINK);
                 auto  link_button_color = config.FontScaleLink ? IM_COL32(192, 192, 192, 255) : IM_COL32(128, 128, 128, 255);
@@ -1547,19 +1548,21 @@ static void ShowConfigure(MediaEditorSettings & config)
                         config.FontScaleLink = !config.FontScaleLink;
                     link_button_color = IM_COL32_WHITE;
                 }
+                ImGui::GetWindowDrawList()->AddText(link_button_pos - ImVec2(-4, 16), link_button_color, ICON_LINK_UP);
                 ImGui::GetWindowDrawList()->AddText(link_button_pos, link_button_color, link_button_text.c_str());
+                ImGui::GetWindowDrawList()->AddText(link_button_pos + ImVec2(4, 16), link_button_color, ICON_LINK_DOWN);
                 float scale_y = config.FontScaleY;
-                if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f"))
+                if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f", flags))
                 {
                     float scale_ratio = scale_y / config.FontScaleY;
                     if (config.FontScaleLink) config.FontScaleX *= scale_ratio;
                     config.FontScaleY = scale_y;
                 }
-                ImGui::SliderFloat("Font position X", &config.FontPosOffsetX, -2.f, 2.f, "%.2f");
-                ImGui::SliderFloat("Font position Y", &config.FontPosOffsetY, -2.f, 2.f, "%.2f");
-                ImGui::SliderFloat("Font spacing", &config.FontSpacing, 0.5, 5, "%.1f");
-                ImGui::SliderFloat("Font angle", &config.FontAngle, 0, 360, "%.1f");
-                ImGui::SliderFloat("Font outline width", &config.FontOutlineWidth, 0, 5, "%.0f");
+                ImGui::SliderFloat("Font position X", &config.FontPosOffsetX, -2.f, 2.f, "%.2f", flags);
+                ImGui::SliderFloat("Font position Y", &config.FontPosOffsetY, -2.f, 2.f, "%.2f", flags);
+                ImGui::SliderFloat("Font spacing", &config.FontSpacing, 0.5, 5, "%.1f", flags);
+                ImGui::SliderFloat("Font angle", &config.FontAngle, 0, 360, "%.1f", flags);
+                ImGui::SliderFloat("Font outline width", &config.FontOutlineWidth, 0, 5, "%.0f", flags);
                 ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &config.FontUnderLine);
                 ImGui::SameLine();
                 ImGui::Checkbox(ICON_FONT_STRIKEOUT "##font_strike_out", &config.FontStrikeOut);
@@ -1571,7 +1574,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::RadioButton("Drop##font_border_type", &config.FontBorderType, 1); ImGui::SameLine();
                 ImGui::RadioButton("Box##font_border_type", &config.FontBorderType, 3);
                 ImGui::SameLine(item_width); ImGui::TextUnformatted("Font Border Type");
-                ImGui::SliderFloat("Font shadow depth", &config.FontShadowDepth, -20.f, 20.f, "%.1f");
+                ImGui::SliderFloat("Font shadow depth", &config.FontShadowDepth, -20.f, 20.f, "%.1f", flags);
                 ImGui::ColorEdit4("FontColor##Primary", (float*)&config.FontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
                 ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
                 ImGui::ColorEdit4("FontColor##Outline", (float*)&config.FontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar);
@@ -2117,7 +2120,7 @@ static void ShowMediaPlayWindow(bool &show)
 
         ImGui::Spacing();
         ImGui::SetNextItemWidth(window_size.x);
-        if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, ""))
+        if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, "", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick))
             player->Seek(playPos, true);
         if (player->IsSeeking() && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             player->Seek(playPos, false);
@@ -2345,7 +2348,7 @@ static void ShowMediaPlayWindow(bool &show)
                 ImGui::SetWindowFontScale(1.0);
                 ImGui::Spacing();
                 ImGui::SetNextItemWidth(ctrl_window_size.x);
-                if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, ""))
+                if (ImGui::SliderFloat("##TimePosition", &playPos, 0, mediaDur, "", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick))
                     player->Seek(playPos, true);
                 if (player->IsSeeking() && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
                     player->Seek(playPos, false);
@@ -5242,7 +5245,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
             ImGui::PushItemWidth(200);
             float setting_offset = sub_window_size.x - 80;
-            static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+            static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
             auto attribute_keypoint = attribute->GetKeyPoint();
             // Attribute Crop setting
             if (ImGui::TreeNodeEx("Crop Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
@@ -5277,7 +5280,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_margin_t = attribute_keypoint ? curve_margin_t_index != -1 : false;
                 float margin_t = has_curve_margin_t ? attribute_keypoint->GetValueByDim(curve_margin_t_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginTScale();
                 ImGui::BeginDisabled(has_curve_margin_t);
-                if (ImGui::SliderFloat("Crop Top", &margin_t, 0.f, 1.f))
+                if (ImGui::SliderFloat("Crop Top", &margin_t, 0.f, 1.f, "%.3f", flags))
                 {
                     attribute->SetCropMarginT(margin_t);
                     RefreshPreview();
@@ -5301,7 +5304,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_margin_r = attribute_keypoint ? curve_margin_r_index != -1 : false;
                 float margin_r = has_curve_margin_r ? attribute_keypoint->GetValueByDim(curve_margin_r_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginRScale();
                 ImGui::BeginDisabled(has_curve_margin_r);
-                if (ImGui::SliderFloat("Crop Right", &margin_r, 0.f, 1.f))
+                if (ImGui::SliderFloat("Crop Right", &margin_r, 0.f, 1.f, "%.3f", flags))
                 {
                     attribute->SetCropMarginR(margin_r);
                     RefreshPreview();
@@ -5325,7 +5328,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_margin_b = attribute_keypoint ? curve_margin_b_index != -1 : false;
                 float margin_b = has_curve_margin_b ? attribute_keypoint->GetValueByDim(curve_margin_b_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginBScale();
                 ImGui::BeginDisabled(has_curve_margin_b);
-                if (ImGui::SliderFloat("Crop Bottom", &margin_b, 0.f, 1.f))
+                if (ImGui::SliderFloat("Crop Bottom", &margin_b, 0.f, 1.f, "%.3f", flags))
                 {
                     attribute->SetCropMarginB(margin_b);
                     RefreshPreview();
@@ -5355,7 +5358,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
                 float position_h = has_curve_position_h ? attribute_keypoint->GetValueByDim(curve_position_h_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetHScale();
                 ImGui::BeginDisabled(has_curve_position_h);
-                if (ImGui::SliderFloat("Position H", &position_h, -1.f, 1.f, "%.2f"))
+                if (ImGui::SliderFloat("Position H", &position_h, -1.f, 1.f, "%.3f", flags))
                 {
                     attribute->SetPositionOffsetH(position_h);
                     RefreshPreview();
@@ -5379,7 +5382,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
                 float position_v = has_curve_position_v ? attribute_keypoint->GetValueByDim(curve_position_v_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetVScale();
                 ImGui::BeginDisabled(has_curve_position_v);
-                if (ImGui::SliderFloat("Position V", &position_v, -1.f, 1.f, "%.2f"))
+                if (ImGui::SliderFloat("Position V", &position_v, -1.f, 1.f, "%.3f", flags))
                 {
                     attribute->SetPositionOffsetV(position_v);
                     RefreshPreview();
@@ -5439,7 +5442,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     bool has_curve_scale = attribute_keypoint ? curve_scale_index != -1 : false;
                     float scale = has_curve_scale ? attribute_keypoint->GetValueByDim(curve_scale_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
                     ImGui::BeginDisabled(has_curve_scale);
-                    if (ImGui::SliderFloat("Scale", &scale, 0, 8.f, "%.2f"))
+                    if (ImGui::SliderFloat("Scale", &scale, 0, 8.f, "%.3f", flags))
                     {
                         attribute->SetScaleH(scale);
                         attribute->SetScaleV(scale);
@@ -5466,7 +5469,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     bool has_curve_scale_h = attribute_keypoint ? curve_scale_h_index != -1 : false;
                     float scale_h = has_curve_scale_h ? attribute_keypoint->GetValueByDim(curve_scale_h_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleH();
                     ImGui::BeginDisabled(has_curve_scale_h);
-                    if (ImGui::SliderFloat("Scale H", &scale_h, 0, 8.f, "%.2f"))
+                    if (ImGui::SliderFloat("Scale H", &scale_h, 0, 8.f, "%.3f", flags))
                     {
                         attribute->SetScaleH(scale_h);
                         RefreshPreview();
@@ -5490,7 +5493,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     bool has_curve_scale_v = attribute_keypoint ? curve_scale_v_index != -1 : false;
                     float scale_v = has_curve_scale_v ? attribute_keypoint->GetValueByDim(curve_scale_v_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleV();
                     ImGui::BeginDisabled(has_curve_scale_v);
-                    if (ImGui::SliderFloat("Scale V", &scale_v, 0, 8.f, "%.2f"))
+                    if (ImGui::SliderFloat("Scale V", &scale_v, 0, 8.f, "%.3f", flags))
                     {
                         attribute->SetScaleV(scale_v);
                         RefreshPreview();
@@ -5522,7 +5525,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_angle = attribute_keypoint ? curve_angle_index != -1 : false;
                 float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetRotationAngle();
                 ImGui::BeginDisabled(has_curve_angle);
-                if (ImGui::SliderFloat("Rotate Angle", &angle, -360.f, 360.f, "%.1f"))
+                if (ImGui::SliderFloat("Rotate Angle", &angle, -360.f, 360.f, "%.2f", flags))
                 {
                     attribute->SetRotationAngle(angle);
                     RefreshPreview();
@@ -5553,7 +5556,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 bool has_curve_opacity = attribute_keypoint ? curve_angle_index != -1 : false;
                 float opacity = has_curve_opacity ? attribute_keypoint->GetValueByDim(curve_angle_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetOpacity();
                 ImGui::BeginDisabled(has_curve_opacity);
-                if (ImGui::SliderFloat("Opacity", &opacity, 0.f, 1.f, "%.2f"))
+                if (ImGui::SliderFloat("Opacity", &opacity, 0.f, 1.f, "%.2f", flags))
                 {
                     attribute->SetOpacity(opacity);
                     RefreshPreview();
@@ -9026,10 +9029,11 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     ImGuiIO &io = ImGui::GetIO();
     auto& style = track->mMttReader->DefaultStyle();
     ImGui::PushItemWidth(200);
-    const float reset_button_offset = size.x - 64;
-    const float curve_button_offset = size.x - 36;
+    const float reset_button_offset = size.x - 40;
+    const float curve_button_offset = size.x - 16;
     auto item_width = ImGui::CalcItemWidth();
     const char* familyValue = clip->mFontName.c_str();
+    static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
     if (ImGui::BeginCombo("Font family##text_clip_editor", familyValue))
     {
         for (int i = 0; i < fontFamilies.size(); i++)
@@ -9052,7 +9056,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     int curve_pos_x_index = key_point->GetCurveIndex("OffsetH");
     bool has_curve_pos_x = curve_pos_x_index != -1;
     ImGui::BeginDisabled(has_curve_pos_x);
-    if (ImGui::SliderFloat("Font position X", &pos_x, - default_size.x, 1.f, "%.2f"))
+    if (ImGui::SliderFloat("Font position X", &pos_x, - default_size.x, 1.f, "%.2f", flags))
     {
         float offset_x = pos_x - clip->mFontPosX;
         clip->mFontOffsetH += offset_x;
@@ -9077,7 +9081,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     int curve_pos_y_index = key_point->GetCurveIndex("OffsetV");
     bool has_curve_pos_y = curve_pos_y_index != -1;
     ImGui::BeginDisabled(has_curve_pos_y);
-    if (ImGui::SliderFloat("Font position Y", &pos_y, - default_size.y, 1.0, "%.2f"))
+    if (ImGui::SliderFloat("Font position Y", &pos_y, - default_size.y, 1.0, "%.2f", flags))
     {
         float offset_y = pos_y - clip->mFontPosY;
         clip->mFontOffsetV += offset_y;
@@ -9102,7 +9106,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     int curve_scale_x_index = key_point->GetCurveIndex("ScaleX");
     bool has_curve_scale_x = curve_scale_x_index != -1;
     ImGui::BeginDisabled(has_curve_scale_x);
-    if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
+    if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f", flags))
     {
         float scale_ratio = scale_x / clip->mFontScaleX;
         if (clip->mScaleSettingLink) { clip->mFontScaleY *= scale_ratio; clip->mClipHolder->SetScaleY(clip->mFontScaleY); }
@@ -9126,7 +9130,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     // link button for scalex/scaley
     auto was_disable = (ImGui::GetItemFlags() & ImGuiItemFlags_Disabled) == ImGuiItemFlags_Disabled;
     auto current_pos = ImGui::GetCursorScreenPos();
-    auto link_button_pos = current_pos + ImVec2(size.x - 96, - 8);
+    auto link_button_pos = current_pos + ImVec2(size.x - 64, - 10);
     ImRect link_button_rect(link_button_pos, link_button_pos + ImVec2(16, 16));
     std::string link_button_text = std::string(clip->mScaleSettingLink ? ICON_SETTING_LINK : ICON_SETTING_UNLINK);
     auto  link_button_color = clip->mScaleSettingLink ? IM_COL32(192, 192, 192, 255) : IM_COL32(128, 128, 128, 255);
@@ -9137,13 +9141,15 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
             clip->mScaleSettingLink = !clip->mScaleSettingLink;
         link_button_color = IM_COL32_WHITE;
     }
+    draw_list->AddText(link_button_pos - ImVec2(-4, 16), link_button_color, ICON_LINK_UP);
     draw_list->AddText(link_button_pos, link_button_color, link_button_text.c_str());
+    draw_list->AddText(link_button_pos + ImVec2(4, 16), link_button_color, ICON_LINK_DOWN);
 
     float scale_y = clip->mFontScaleY;
     int curve_scale_y_index = key_point->GetCurveIndex("ScaleY");
     bool has_curve_scale_y = curve_scale_y_index != -1;
     ImGui::BeginDisabled(has_curve_scale_y);
-    if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f"))
+    if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f", flags))
     {
         float scale_ratio = scale_y / clip->mFontScaleY;
         if (clip->mScaleSettingLink) { clip->mFontScaleX *= scale_ratio; clip->mClipHolder->SetScaleX(clip->mFontScaleX); }
@@ -9168,7 +9174,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     int curve_spacing_index = key_point->GetCurveIndex("Spacing");
     bool has_curve_spacing = curve_spacing_index != -1;
     ImGui::BeginDisabled(has_curve_spacing);
-    if (ImGui::SliderFloat("Font spacing", &spacing, 0.5, 5, "%.1f"))
+    if (ImGui::SliderFloat("Font spacing", &spacing, 0.5, 5, "%.1f", flags))
     {
         clip->mFontSpacing = spacing;
         clip->mClipHolder->SetSpacing(clip->mFontSpacing);
@@ -9191,7 +9197,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     int curve_anglex_index = key_point->GetCurveIndex("AngleX");
     bool has_curve_anglex = curve_anglex_index != -1;
     ImGui::BeginDisabled(has_curve_anglex);
-    if (ImGui::SliderFloat("Font angle X", &anglex, 0, 360, "%.1f"))
+    if (ImGui::SliderFloat("Font angle X", &anglex, 0, 360, "%.1f", flags))
     {
         clip->mFontAngleX = anglex;
         clip->mClipHolder->SetRotationX(clip->mFontAngleX);
@@ -9214,7 +9220,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     int curve_angley_index = key_point->GetCurveIndex("AngleY");
     bool has_curve_angley = curve_angley_index != -1;
     ImGui::BeginDisabled(has_curve_angley);
-    if (ImGui::SliderFloat("Font angle Y", &angley, 0, 360, "%.1f"))
+    if (ImGui::SliderFloat("Font angle Y", &angley, 0, 360, "%.1f", flags))
     {
         clip->mFontAngleY = angley;
         clip->mClipHolder->SetRotationY(clip->mFontAngleY);
@@ -9237,7 +9243,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     int curve_anglez_index = key_point->GetCurveIndex("AngleZ");
     bool has_curve_anglez = curve_anglez_index != -1;
     ImGui::BeginDisabled(has_curve_anglez);
-    if (ImGui::SliderFloat("Font angle Z", &anglez, 0, 360, "%.1f"))
+    if (ImGui::SliderFloat("Font angle Z", &anglez, 0, 360, "%.1f", flags))
     {
         clip->mFontAngleZ = anglez;
         clip->mClipHolder->SetRotationZ(clip->mFontAngleZ);
@@ -9260,7 +9266,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     int curve_outline_width_index = key_point->GetCurveIndex("OutlineWidth");
     bool has_curve_outline_width = curve_outline_width_index != -1;
     ImGui::BeginDisabled(has_curve_outline_width);
-    if (ImGui::SliderFloat("Font outline width", &outline_width, 0, 5, "%.0f"))
+    if (ImGui::SliderFloat("Font outline width", &outline_width, 0, 5, "%.0f", flags))
     {
         clip->mFontOutlineWidth = outline_width;
         clip->mClipHolder->SetBorderWidth(clip->mFontOutlineWidth);
@@ -9283,7 +9289,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     int curve_shadow_depth_index = key_point->GetCurveIndex("ShadowDepth");
     bool has_curve_shadow_depth = curve_shadow_depth_index != -1;
     ImGui::BeginDisabled(has_curve_shadow_depth);
-    if (ImGui::SliderFloat("Font shadow depth", &shadow_depth, 0.f, 20.f, "%.1f"))
+    if (ImGui::SliderFloat("Font shadow depth", &shadow_depth, 0.f, 20.f, "%.1f", flags))
     {
         clip->mFontShadowDepth = shadow_depth;
         clip->mClipHolder->SetShadowDepth(clip->mFontShadowDepth);
@@ -9516,13 +9522,14 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     };
     ImGuiIO &io = ImGui::GetIO();
     ImGui::PushItemWidth(200);
-    const float reset_button_offset = size.x - 64;
-    const float curve_button_offset = size.x - 36;
+    const float reset_button_offset = size.x - 40;
+    const float curve_button_offset = size.x - 16;
     auto item_width = ImGui::CalcItemWidth();
     auto& style = track->mMttReader->DefaultStyle();
     auto familyName = style.Font();
     const char* familyValue = familyName.c_str();
     ImGui::ImCurveEdit::Curve text_key; text_key.m_id = track->mID;
+    static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
     if (ImGui::BeginCombo("Font family##text_track_editor", familyValue))
     {
         for (int i = 0; i < fontFamilies.size(); i++)
@@ -9543,7 +9550,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     int curve_pos_x_index = keyPointsPtr->GetCurveIndex("OffsetH");
     bool has_curve_pos_x = curve_pos_x_index != -1;
     ImGui::BeginDisabled(has_curve_pos_x);
-    if (ImGui::SliderFloat("Font position X", &offset_x, -1.f , 1.f, "%.2f"))
+    if (ImGui::SliderFloat("Font position X", &offset_x, -1.f , 1.f, "%.2f", flags))
     {
         track->mMttReader->SetOffsetH(offset_x);
         update_preview = true;
@@ -9565,7 +9572,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     int curve_pos_y_index = keyPointsPtr->GetCurveIndex("OffsetV");
     bool has_curve_pos_y = curve_pos_y_index != -1;
     ImGui::BeginDisabled(has_curve_pos_y);
-    if (ImGui::SliderFloat("Font position Y", &offset_y, -1.f, 1.f, "%.2f"))
+    if (ImGui::SliderFloat("Font position Y", &offset_y, -1.f, 1.f, "%.2f", flags))
     {
         track->mMttReader->SetOffsetV(offset_y);
         update_preview = true;
@@ -9601,7 +9608,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     int curve_scale_x_index = keyPointsPtr->GetCurveIndex("ScaleX");
     bool has_curve_scale_x = curve_scale_x_index != -1;
     ImGui::BeginDisabled(has_curve_scale_x);
-    if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f"))
+    if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f", flags))
     {
         float scale_ratio = scale_x / style.ScaleX();
         if (track->mTextTrackScaleLink) track->mMttReader->SetScaleY(style.ScaleY() * scale_ratio);
@@ -9623,7 +9630,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
 
     // link button for scalex/scaley
     auto current_pos = ImGui::GetCursorScreenPos();
-    auto link_button_pos = current_pos + ImVec2(size.x - 96, - 8);
+    auto link_button_pos = current_pos + ImVec2(size.x - 64, - 10);
     ImRect link_button_rect(link_button_pos, link_button_pos + ImVec2(16, 16));
     std::string link_button_text = std::string(track->mTextTrackScaleLink ? ICON_SETTING_LINK : ICON_SETTING_UNLINK);
     auto  link_button_color = track->mTextTrackScaleLink ? IM_COL32(192, 192, 192, 255) : IM_COL32(128, 128, 128, 255);
@@ -9633,13 +9640,15 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
             track->mTextTrackScaleLink = !track->mTextTrackScaleLink;
         link_button_color = IM_COL32_WHITE;
     }
+    draw_list->AddText(link_button_pos - ImVec2(-4, 16), link_button_color, ICON_LINK_UP);
     draw_list->AddText(link_button_pos, link_button_color, link_button_text.c_str());
-    
+    draw_list->AddText(link_button_pos + ImVec2(4, 16), link_button_color, ICON_LINK_DOWN);
+
     float scale_y = style.ScaleY();
     int curve_scale_y_index = keyPointsPtr->GetCurveIndex("ScaleY");
     bool has_curve_scale_y = curve_scale_y_index != -1;
     ImGui::BeginDisabled(has_curve_scale_y);
-    if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f"))
+    if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f", flags))
     {
         float scale_ratio = scale_y / style.ScaleY();
         if (track->mTextTrackScaleLink) track->mMttReader->SetScaleX(style.ScaleX() * scale_ratio);
@@ -9663,7 +9672,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     int curve_spacing_index = keyPointsPtr->GetCurveIndex("Spacing");
     bool has_curve_spacing = curve_spacing_index != -1;
     ImGui::BeginDisabled(has_curve_spacing);
-    if (ImGui::SliderFloat("Font spacing", &spacing, 0.5, 5, "%.1f"))
+    if (ImGui::SliderFloat("Font spacing", &spacing, 0.5, 5, "%.1f", flags))
     {
         track->mMttReader->SetSpacing(spacing);
         update_preview = true;
@@ -9685,7 +9694,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     int curve_angle_index = keyPointsPtr->GetCurveIndex("Angle");
     bool has_curve_angle = curve_angle_index != -1;
     ImGui::BeginDisabled(has_curve_angle);
-    if (ImGui::SliderFloat("Font angle", &angle, 0, 360, "%.1f"))
+    if (ImGui::SliderFloat("Font angle", &angle, 0, 360, "%.1f", flags))
     {
         track->mMttReader->SetAngle(angle);
         update_preview = true;
@@ -9707,7 +9716,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     int curve_outline_width_index = keyPointsPtr->GetCurveIndex("OutlineWidth");
     bool has_curve_outline_width = curve_outline_width_index != -1;
     ImGui::BeginDisabled(has_curve_outline_width);
-    if (ImGui::SliderFloat("Font outline width", &outline_width, 0, 5, "%.0f"))
+    if (ImGui::SliderFloat("Font outline width", &outline_width, 0, 5, "%.0f", flags))
     {
         track->mMttReader->SetOutlineWidth(outline_width);
         update_preview = true;
@@ -9773,7 +9782,7 @@ static bool edit_text_track_style(ImDrawList *draw_list, MediaTrack * track, ImV
     int curve_outline_shadow_depth = keyPointsPtr->GetCurveIndex("ShadowDepth");
     bool has_curve_shadow_depth = curve_outline_shadow_depth != -1;
     ImGui::BeginDisabled(has_curve_shadow_depth);
-    ImGui::SliderFloat("Font shadow depth", &shadow_depth, -20.f, 20.f, "%.1f");
+    ImGui::SliderFloat("Font shadow depth", &shadow_depth, -20.f, 20.f, "%.1f", flags);
     if (shadow_depth != style.ShadowDepth())
     {
         track->mMttReader->SetShadowDepth(shadow_depth);
@@ -9858,7 +9867,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect, Editi
     ImVec2 window_pos = ImGui::GetCursorScreenPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
-    float preview_view_width = window_size.x * 15 / 24;
+    float preview_view_width = window_size.x * 0.7;
     float style_editor_width = window_size.x - preview_view_width;
     float text_keypoint_height = g_media_editor_settings.TextCurveExpanded ? 100 + 30 : 0;
     float preview_view_height = window_size.y - text_keypoint_height;

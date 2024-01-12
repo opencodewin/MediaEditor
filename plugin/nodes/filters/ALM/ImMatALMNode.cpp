@@ -86,7 +86,7 @@ struct AlmNode final : Node
         float _strength = m_strength;
         float _bias = m_bias;
         float _gamma = m_gamma;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_StrengthIn.IsLinked());

@@ -84,7 +84,7 @@ struct BilateralNode final : Node
             setting_offset = sub_window_size.x - 80;
         }
         bool changed = false;
-        ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         int _ksize = m_ksize;
         float _sigma_spatial = m_sigma_spatial;
         float _sigma_color = m_sigma_color;

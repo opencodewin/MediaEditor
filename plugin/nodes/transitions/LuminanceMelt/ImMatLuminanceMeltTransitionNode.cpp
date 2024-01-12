@@ -80,7 +80,7 @@ struct LuminanceMeltTransitionNode final : Node
         float _threshold = m_threshold;
         int _direction = m_direction;
         int _above = m_above;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Threshold##LuminanceMelt", &_threshold, 0.0, 1.f, "%.1f", flags);

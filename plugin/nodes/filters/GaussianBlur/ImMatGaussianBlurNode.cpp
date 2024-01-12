@@ -85,7 +85,7 @@ struct GaussianBlurNode final : Node
         bool changed = false;
         float _sigma = m_sigma;
         int _blurRadius = m_blurRadius;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_SigmaIn.IsLinked());

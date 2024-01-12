@@ -81,7 +81,7 @@ struct CrazyParametricTransitionNode final : Node
         float _smoothness = m_smoothness;
         float _pa = m_pa;
         float _pb = m_pb;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Amplitude##CrazyParametric", &_amplitude, 1.0, 200.f, "%.0f", flags);

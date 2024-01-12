@@ -78,7 +78,7 @@ struct PolkaDotsTransitionNode final : Node
         }
         bool changed = false;
         float _dots = m_dots;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Dots##PolkaDots", &_dots, 1.0, 100.f, "%.0f", flags);

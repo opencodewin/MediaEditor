@@ -296,10 +296,10 @@ struct AudioEqualizerNode final : Node
         {
             ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
             ImVec2 sub_window_size = ImGui::GetWindowSize();
-            indent_offset = (sub_window_size.x - 32 * 11) / 2;
+            indent_offset = (sub_window_size.x - 36 * 11) / 2;
         }
         bool changed = false;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput | ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Mark;
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SetCursorScreenPos(ImGui::GetCursorScreenPos() + ImVec2(indent_offset, 0));
         ImGui::TextColored({ 0.9, 0.4, 0.4, 1.0 }, "Hz");
@@ -312,7 +312,7 @@ struct AudioEqualizerNode final : Node
             ImGui::TextUnformatted(cfTag.c_str());
             ImGui::PushID(i);
             int gain = m_bandCfg[i].gain;
-            ImGui::VSliderInt("##band_gain", ImVec2(20, 100), &gain, MIN_GAIN, MAX_GAIN, "");
+            ImGui::VSliderInt("##band_gain", ImVec2(24, 200), &gain, MIN_GAIN, MAX_GAIN, "%+ddm", flags);
             ImGui::PopID();
             if (gain != m_bandCfg[i].gain)
             {
@@ -338,7 +338,7 @@ struct AudioEqualizerNode final : Node
         }
         ImGui::SetCursorScreenPos(ImGui::GetCursorScreenPos() + ImVec2(indent_offset, 0));
         ImGui::TextColored({ 0.4, 0.4, 0.9, 1.0 }, "Db");
-        ImGui::SameLine(indent_offset + 300);
+        ImGui::SameLine(indent_offset + 360 - 36);
         if (ImGui::Button(ICON_RESET "##reset_equ##AudioEqualizer"))
         {
             for (int i = 0; i < 10; i++)

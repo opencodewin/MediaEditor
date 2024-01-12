@@ -82,7 +82,7 @@ struct CannyNode final : Node
             setting_offset = sub_window_size.x - 80;
         }
         bool changed = false;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         int _blurRadius = m_blurRadius;
         float _minThreshold = m_minThreshold;
         float _maxThreshold = m_maxThreshold;

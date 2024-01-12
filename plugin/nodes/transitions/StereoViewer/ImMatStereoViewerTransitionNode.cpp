@@ -79,7 +79,7 @@ struct StereoViewerTransitionNode final : Node
         bool changed = false;
         float _zoom = m_zoom;
         float _corner_radius = m_corner_radius;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Zoom##StereoView", &_zoom, 0.5, 1.f, "%.2f", flags);

@@ -73,7 +73,7 @@ struct ChromaKeyNode final : Node
         ImGui::SetCurrentContext(ctx);
         ImGuiIO& io = ImGui::GetIO();
         bool changed = false;
-        ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         bool _alpha_only = m_alpha_only;
         float _lumaMask = m_lumaMask;
         float _alphaCutoffMin = m_alphaCutoffMin;

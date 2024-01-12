@@ -80,7 +80,7 @@ struct ButterflyWaveTransitionNode final : Node
         float _amplitude = m_amplitude;
         float _waves = m_waves;
         float _colorSeparation = m_colorSeparation;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Amplitude##ButterflyWave", &_amplitude, 0.0, 1.f, "%.1f", flags);

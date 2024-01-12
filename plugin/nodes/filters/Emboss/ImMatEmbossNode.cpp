@@ -95,7 +95,7 @@ struct EmbossNode final : Node
         float _intensity = m_intensity;
         int _stride = m_stride;
         float _angle = m_angle;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_IntensityIn.IsLinked());

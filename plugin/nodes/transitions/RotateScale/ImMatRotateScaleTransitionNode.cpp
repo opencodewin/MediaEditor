@@ -80,7 +80,7 @@ struct RotateScaleTransitionNode final : Node
         float _rotations = m_rotations;
         float _scale = m_scale;
         ImPixel _backColor = m_backColor;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Rotations##RotateScale", &_rotations, 1.f, 1.f, "%.1f", flags);

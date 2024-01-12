@@ -10651,10 +10651,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 ImGui::BeginGroup();
                 ImGui::Dummy({0, fTextHeight+v2TagTextPadding.y*2.f});
                 ImGui::PushItemWidth(60);
-                ImGui::SliderInt("##VidstabParamShakiness", &m_vidstabParam_iShakiness, 0, 10, "%d", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::SliderInt("##VidstabParamAccuracy", &m_vidstabParam_iAccuracy, 1, 15, "%d", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::SliderInt("##VidstabParamStepsize", &m_vidstabParam_iStepsize, 1, 32, "%d", ImGuiSliderFlags_AlwaysClamp);
-                ImGui::SliderFloat("##VidstabParamMincontrast", &m_vidstabParam_fMincontrast, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::SliderInt("##VidstabParamShakiness", &m_vidstabParam_iShakiness, 0, 10, "%d", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick);
+                ImGui::SliderInt("##VidstabParamAccuracy", &m_vidstabParam_iAccuracy, 1, 15, "%d", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick);
+                ImGui::SliderInt("##VidstabParamStepsize", &m_vidstabParam_iStepsize, 1, 32, "%d", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick);
+                ImGui::SliderFloat("##VidstabParamMincontrast", &m_vidstabParam_fMincontrast, 0, 1, "%.2f", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick);
                 ImGui::PopItemWidth();
                 ImGui::EndGroup(); ImGui::SameLine(0, 40);
                 ImGui::BeginGroup();
@@ -10674,16 +10674,16 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 ImGui::BeginGroup();
                 ImGui::PushItemWidth(80);
                 ImGui::PushItemWidth(140);
-                ImGui::SliderInt("##VidstabParamSmoothing", &m_vidstabParam_iSmoothing, 0, 300, "%d", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::SliderInt("##VidstabParamSmoothing", &m_vidstabParam_iSmoothing, 0, 300, "%d", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick);
                 ImGui::PopItemWidth();
                 ImGui::RadioButton("Gauss##VidstabParamOptalgo", &m_vidstabParam_iOptalgo, 0); ImGui::SameLine();
                 ImGui::RadioButton("Avg##VidstabParamOptalgo", &m_vidstabParam_iOptalgo, 1);
                 ImGui::BeginDisabled(m_vidstabParam_bMaxshiftNolimit);
-                ImGui::SliderInt("##VidstabParamMaxshift", &m_vidstabParam_iMaxshift, 0, 500, "%d"); ImGui::SameLine();
+                ImGui::SliderInt("##VidstabParamMaxshift", &m_vidstabParam_iMaxshift, 0, 500, "%d", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick); ImGui::SameLine();
                 ImGui::EndDisabled();
                 ImGui::Checkbox("No limit##VidstabParamMaxshift", &m_vidstabParam_bMaxshiftNolimit);
                 ImGui::BeginDisabled(m_vidstabParam_bMaxangleNolimit);
-                ImGui::SliderFloat("##VidstabParamMaxangle", &m_vidstabParam_fMaxangle, 0, 180, "%.2f", ImGuiSliderFlags_AlwaysClamp); ImGui::SameLine();
+                ImGui::SliderFloat("##VidstabParamMaxangle", &m_vidstabParam_fMaxangle, 0, 180, "%.2f", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick); ImGui::SameLine();
                 ImGui::EndDisabled();
                 ImGui::Checkbox("No limit##VidstabParamMaxangle", &m_vidstabParam_bMaxangleNolimit);
                 ImGui::RadioButton("Keep##VidstabParamCropmode", &m_vidstabParam_iCropmode, 0); ImGui::SameLine();
@@ -10705,7 +10705,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                     ImGui::EndCombo();
                 }
                 ImGui::BeginDisabled(m_vidstabParam_iAutoZoomMode != 2);
-                ImGui::SliderFloat("##VidstabParamAutoZoomSpeed", &m_vidstabParam_fAutoZoomSpeed, 0.f, 5.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                ImGui::SliderFloat("##VidstabParamAutoZoomSpeed", &m_vidstabParam_fAutoZoomSpeed, 0.f, 5.f, "%.2f", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick);
                 ImGui::EndDisabled();
                 if (ImGui::BeginCombo("##VidstabParamInterpolation", s_vidstabParam_aInterpolations[m_vidstabParam_iInterpolationMode]))
                 {

@@ -79,7 +79,7 @@ struct DirectionalWarpTransitionNode final : Node
         bool changed = false;
         float _smoothness = m_smoothness;
         ImVec2 _direction = m_direction;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Smoothness##DirectionalWarp", &_smoothness, 0.0, 1.f, "%.1f", flags);

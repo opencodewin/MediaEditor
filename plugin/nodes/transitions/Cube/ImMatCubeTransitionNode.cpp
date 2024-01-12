@@ -81,7 +81,7 @@ struct CubeTransitionNode final : Node
         float _persp = m_persp;
         float _unzoom = m_unzoom;
         float _floating = m_floating;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Reflection##Cube", &_reflection, 0.0, 1.f, "%.1f", flags);

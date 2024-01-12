@@ -82,7 +82,7 @@ struct USMNode final : Node
             setting_offset = sub_window_size.x - 80;
         }
         bool changed = false;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         float _sigma = m_sigma;
         float _amount = m_amount;
         float _threshold = m_threshold;

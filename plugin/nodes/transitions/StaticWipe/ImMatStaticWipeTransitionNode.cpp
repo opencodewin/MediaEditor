@@ -79,7 +79,7 @@ struct StaticWipeTransitionNode final : Node
         bool changed = false;
         float _span = m_span;
         bool _UpToDown = m_UpToDown;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Max Span##StaticWipe", &_span, 0.1, 1.f, "%.1f", flags);

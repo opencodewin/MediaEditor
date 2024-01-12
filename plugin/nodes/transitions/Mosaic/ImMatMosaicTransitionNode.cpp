@@ -79,7 +79,7 @@ struct MosaicTransitionNode final : Node
         bool changed = false;
         int size_x = m_size_x;
         int size_y = m_size_y;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);

@@ -135,7 +135,7 @@ struct MatResizeNode final : Node
         bool changed = false;
         float _fx = m_fx;
         float _fy = m_fy;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_NoInput | ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::SliderFloat("fx", &_fx, 0.0, 4.f, "%.2f", flags);

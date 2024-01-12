@@ -78,7 +78,7 @@ struct ColourDistanceTransitionNode final : Node
         }
         bool changed = false;
         float _power = m_power;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Power##Radial", &_power, 1.0, 10.f, "%.0f", flags);

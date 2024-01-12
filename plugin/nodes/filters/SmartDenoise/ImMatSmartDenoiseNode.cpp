@@ -96,7 +96,7 @@ struct SmartDenoiseNode final : Node
         float _sigma = m_sigma;
         float _ksigma = m_ksigma;
         float _threshold = m_threshold;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_SigmaIn.IsLinked());

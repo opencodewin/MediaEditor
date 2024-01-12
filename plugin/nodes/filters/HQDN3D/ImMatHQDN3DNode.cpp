@@ -92,7 +92,7 @@ struct HQDN3DNode final : Node
         float _chrom_spac = m_chrom_spac;
         float _lum_tmp = m_lum_tmp;
         float _chrom_tmp = m_chrom_tmp;
-        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp; // ImGuiSliderFlags_NoInput
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::Dummy(ImVec2(160, 8));
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
