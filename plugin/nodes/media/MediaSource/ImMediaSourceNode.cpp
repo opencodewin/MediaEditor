@@ -87,7 +87,7 @@ extern "C" {
 
 #define ISYUV444P(format) \
     (format == AV_PIX_FMT_YUV444P || \
-    format == AV_PIX_FMT_YUVJ420P || \
+    format == AV_PIX_FMT_YUVJ444P || \
     format == AV_PIX_FMT_YUV444P9 || \
     format == AV_PIX_FMT_YUV444P10 || \
     format == AV_PIX_FMT_YUV444P12 || \
