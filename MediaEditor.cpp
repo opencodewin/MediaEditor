@@ -3747,6 +3747,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 config.userDatas = IGFDUserDatas("OutputPath");
                 config.flags = ImGuiFileDialogFlags_ShowBookmark | 
                             ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                            ImGuiFileDialogFlags_AllowDirectorySelect |
                             ImGuiFileDialogFlags_Modal;
                 ImGuiFileDialog::Instance()->OpenDialog("##MediaEditOutputPathDlgKey", ICON_IGFD_FOLDER_OPEN " Output Path", 
                                                         nullptr,
