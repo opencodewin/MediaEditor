@@ -20,9 +20,6 @@ add_library(
     ${PLUGIN}
     SHARED
     ImMatUSMNode.cpp
-    USM_vulkan.cpp
-    USM_vulkan.h
-    USM_shader.h
 )
 
 add_dependencies(${PLUGIN} BluePrintSDK VkShader imgui)

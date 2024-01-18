@@ -550,7 +550,7 @@ struct MediaSourceNode final : Node
                 {
                     im_RGB.device = IM_DD_VULKAN;
                 }
-                stream->m_yuv2rgb->YUV2RGBA(mat_Y, mat_U, mat_V, im_RGB);
+                stream->m_yuv2rgb->YUV2RGBA(mat_Y, mat_U, mat_V, im_RGB, IM_INTERPOLATE_NONE);
                 im_RGB.flags = mat_Y.flags;
                 im_RGB.time_stamp = current_video_pts;
                 im_RGB.color_space = color_space;

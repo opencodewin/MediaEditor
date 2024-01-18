@@ -9416,7 +9416,7 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
                 uint8_t r = ImClamp(mAudioAttribute.m_audio_vector.at<uint8_t>(x, y, 0) + 30, 0, 255);
                 uint8_t g = ImClamp(mAudioAttribute.m_audio_vector.at<uint8_t>(x, y, 1) + 50, 0, 255);
                 uint8_t b = ImClamp(mAudioAttribute.m_audio_vector.at<uint8_t>(x, y, 2) + 30, 0, 255);
-                mAudioAttribute.m_audio_vector.draw_dot(x, y, ImPixel(r / 255.0, g / 255.0, b / 255.0, 1.f));
+                mAudioAttribute.m_audio_vector.set_pixel(x, y, ImPixel(r / 255.0, g / 255.0, b / 255.0, 1.f));
             }
             mAudioAttribute.m_audio_vector.flags |= IM_MAT_FLAGS_CUSTOM_UPDATED;
         }
