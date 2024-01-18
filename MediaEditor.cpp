@@ -5354,6 +5354,16 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_y_default")) { hTransformFilter->SetPosOffsetRatioY(0.f); RefreshPreview(); }
                 ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
+
+                if (bIsKeyFramesEnabled)
+                {
+                    auto hPosOffsetCurve = hTransformFilter->GetPosOffsetCurve();
+                    float fCurrTick = (float)i64PosInClip;
+                    if (ImGui::ImNewCurve::DrawCurveArraySimpleView(0, { hPosOffsetCurve }, fCurrTick, ImVec2(0, editing_clip->Length())))
+                        RefreshPreview();
+                    if ((int64_t)fCurrTick != i64PosInClip)
+                        timeline->Seek(editing_clip->Start()+(int64_t)fCurrTick);
+                }
                 ImGui::TreePop();
             }
 

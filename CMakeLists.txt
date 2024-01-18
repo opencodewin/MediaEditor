@@ -318,7 +318,7 @@ target_link_libraries(
     ${IMGUI_LIBRARYS}
 )
 
-# Potrace Test
+# Dither Test
 add_executable(
     DitherTest
     test/DitherTest.cpp
