@@ -1963,35 +1963,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
         {
             if (clip->mMediaID == item->mID && IS_DUMMY(clip->mType))
             {
-                // reload clip from new item
-                if (IS_IMAGE(clip->mType))
-                {
-                    VideoClip * new_clip = (VideoClip *)clip;
-                    new_clip->UpdateClip(item->mMediaOverview);
-                }
-                else if (IS_VIDEO(clip->mType))
-                {
-                    VideoClip * new_clip = (VideoClip *)clip;
-                    MediaCore::Snapshot::Viewer::Holder hViewer;
-                    MediaCore::Snapshot::Generator::Holder hSsGen = timeline->GetSnapshotGenerator(item->mID);
-                    if (hSsGen)
-                    {
-                        hViewer = hSsGen->CreateViewer();
-                        new_clip->UpdateClip(item->mMediaOverview->GetMediaParser(), hViewer, item->mSrcLength);
-                    }
-                    // update video snapshot
-                    if (!IS_DUMMY(new_clip->mType))
-                        new_clip->CalcDisplayParams();
-                }
-                else if (IS_AUDIO(clip->mType))
-                {
-                    AudioClip * new_clip = (AudioClip *)clip;
-                    new_clip->UpdateClip(item->mMediaOverview, item->mSrcLength);
-                }
-                else if (IS_TEXT(clip->mType))
-                {
-                    // Text clip don't need update clip
-                }
+                clip->ReloadSource(item);
                 auto track = timeline->FindTrackByClipID(clip->mID);
                 if (track && !IS_DUMMY(clip->mType))
                 {
@@ -2006,9 +1978,8 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                                 hVidClip = vidTrack->AddImageClip(clip->mID, clip->mMediaParser, clip->Start(), clip->Length());
                             else
                                 hVidClip = vidTrack->AddVideoClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), timeline->mCurrentTime - clip->Start());
-                            VideoClip* vclip = dynamic_cast<VideoClip*>(clip);
-                            vclip->SyncFilterWithDataLayer(hVidClip);
-                            vclip->SyncAttributesWithDataLayer(hVidClip);
+                            VideoClip* pUiVClip = dynamic_cast<VideoClip*>(clip);
+                            pUiVClip->SetDataLayer(hVidClip, true);
                         }
                         clip->SetViewWindowStart(timeline->firstTime);
                     }
@@ -2018,8 +1989,8 @@ static bool ReloadMedia(std::string path, MediaItem* item)
                         if (audTrack)
                         {
                             MediaCore::AudioClip::Holder hAudClip = audTrack->AddNewClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset());
-                            AudioClip* aclip = dynamic_cast<AudioClip*>(clip);
-                            aclip->SyncFilterWithDataLayer(hAudClip);
+                            AudioClip* pUiAClip = dynamic_cast<AudioClip*>(clip);
+                            pUiAClip->SetDataLayer(hAudClip, true);
                             // audio attribute
                             auto aeFilter = audTrack->GetAudioEffectFilter();
                             // gain
@@ -4924,11 +4895,11 @@ static void ShowClipBluePrintWindow(ImDrawList *draw_list, BaseEditingClip * edi
     if (is_audio_clip)
     {
         EditingAudioClip * editing_clip = (EditingAudioClip *)editing;
-        MediaCore::AudioFilter* pFilter = editing_clip->mFilter;
-        auto filterName = pFilter->GetFilterName();
+        auto hAFilter = editing_clip->mhAudioFilter;
+        const auto filterName = hAFilter->GetFilterName();
         if (filterName == "EventStackFilter")
         {
-            MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(pFilter);
+            MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(hAFilter.get());
             hTargetEvent = pEsf->GetEditingEvent();
             if (hTargetEvent)
                 pBp = hTargetEvent->GetBp();
@@ -4946,11 +4917,11 @@ static void ShowClipBluePrintWindow(ImDrawList *draw_list, BaseEditingClip * edi
     if (is_video_clip)
     {
         EditingVideoClip * editing_clip = (EditingVideoClip *)editing;
-        MediaCore::VideoFilter* pFilter = editing_clip->mFilter;
-        auto filterName = pFilter->GetFilterName();
+        auto hVFilter = editing_clip->mhVideoFilter;
+        const auto filterName = hVFilter->GetFilterName();
         if (filterName == "EventStackFilter")
         {
-            MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(pFilter);
+            MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hVFilter.get());
             hTargetEvent = pEsf->GetEditingEvent();
             if (hTargetEvent)
                 pBp = hTargetEvent->GetBp();
@@ -5058,10 +5029,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
     if (is_video_clip)
     {
         EditingVideoClip * vclip = (EditingVideoClip *)editing;
-        auto attribute = vclip->mAttribute;
-        if (attribute)
+        auto hTransformFilter = vclip->mhTransformFilter;
+        if (hTransformFilter)
         {
-            auto attribute_keypoint = attribute->GetKeyPoint();
+            auto attribute_keypoint = hTransformFilter->GetKeyPoint();
             if (attribute_keypoint)
             {
                 attribute_keypoint->SetMin(ImVec4(0, 0, 0, 0));
@@ -5077,9 +5048,9 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         // Add Curve
         auto addCurve = [&](std::string name, float _min, float _max, float _default)
         {
-            if (attribute)
+            if (hTransformFilter)
             {
-                auto attribute_keypoint = attribute->GetKeyPoint();
+                auto attribute_keypoint = hTransformFilter->GetKeyPoint();
                 auto found = attribute_keypoint ? attribute_keypoint->GetCurveIndex(name) : -1;
                 if (found == -1)
                 {
@@ -5094,9 +5065,9 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         // Editor Curve
         auto EditCurve = [&](std::string name) 
         {
-            if (attribute)
+            if (hTransformFilter)
             {
-                auto attribute_keypoint = attribute->GetKeyPoint();
+                auto attribute_keypoint = hTransformFilter->GetKeyPoint();
                 int index = attribute_keypoint ? attribute_keypoint->GetCurveIndex(name) : -1;
                 if (index != -1)
                 {
@@ -5209,9 +5180,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 }
             }
         };
-        
+
+        const auto i64PosInClip = timeline->mCurrentTime-editing_clip->Start();
         bool attrib_tree_open = false;
-        if (attribute)
+        if (hTransformFilter)
         {
             auto tree_pos = ImGui::GetCursorScreenPos();
             attrib_tree_open = ImGui::TreeNodeEx("Video Attribute", ImGuiTreeNodeFlags_DefaultOpen);
@@ -5222,15 +5194,15 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             ImGui::SameLine();
             if (ImGui::Button(ICON_RETURN_ALL "##video_attribute_reset_all"))
             {
-                attribute->SetCropMarginL(0.f);
-                attribute->SetCropMarginR(0.f);
-                attribute->SetCropMarginT(0.f);
-                attribute->SetCropMarginB(0.f);
-                attribute->SetPositionOffsetH(0.f);
-                attribute->SetPositionOffsetV(0.f);
-                attribute->SetScaleH(1.f);
-                attribute->SetScaleV(1.f);
-                attribute->SetRotationAngle(0.f);
+                hTransformFilter->SetCropRatioL(0.f);
+                hTransformFilter->SetCropRatioR(0.f);
+                hTransformFilter->SetCropRatioT(0.f);
+                hTransformFilter->SetCropRatioB(0.f);
+                hTransformFilter->SetPosOffsetRatioX(0.f);
+                hTransformFilter->SetPosOffsetRatioY(0.f);
+                hTransformFilter->SetScaleX(1.f);
+                hTransformFilter->SetScaleY(1.f);
+                hTransformFilter->SetRotation(0.f);
                 RefreshPreview();
             }
             ImGui::PopStyleColor();
@@ -5246,7 +5218,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             ImGui::PushItemWidth(200);
             float setting_offset = sub_window_size.x - 80;
             static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
-            auto attribute_keypoint = attribute->GetKeyPoint();
+            auto attribute_keypoint = hTransformFilter->GetKeyPoint();
             // Attribute Crop setting
             if (ImGui::TreeNodeEx("Crop Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
             {
@@ -5254,14 +5226,14 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 // Crop Margin Left
                 int curve_margin_l_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginL") : -1;
                 bool has_curve_margin_l = attribute_keypoint ? curve_margin_l_index != -1 : false;
-                float margin_l = has_curve_margin_l ? attribute_keypoint->GetValueByDim(curve_margin_l_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginLScale();
+                float margin_l = has_curve_margin_l ? attribute_keypoint->GetValueByDim(curve_margin_l_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetCropRatioL();
                 ImGui::BeginDisabled(has_curve_margin_l);
                 if (ImGui::SliderFloat("Crop Left", &margin_l, 0.f, 1.f, "%.3f", flags))
                 {
-                    attribute->SetCropMarginL(margin_l);
+                    hTransformFilter->SetCropRatioL(margin_l);
                     RefreshPreview();
                 }
-                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_l_default")) { attribute->SetCropMarginL(0.f); RefreshPreview(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_l_default")) { hTransformFilter->SetCropRatioL(0.f); RefreshPreview(); }
                 ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
                 if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_margin_l##video_attribute", &margin_key, ImGui::ImCurveEdit::DIM_X, has_curve_margin_l, "margin_l##video_attribute", 0.f, 1.f, 0.f))
@@ -5278,14 +5250,14 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 // Crop Margin Top
                 int curve_margin_t_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginT") : -1;
                 bool has_curve_margin_t = attribute_keypoint ? curve_margin_t_index != -1 : false;
-                float margin_t = has_curve_margin_t ? attribute_keypoint->GetValueByDim(curve_margin_t_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginTScale();
+                float margin_t = has_curve_margin_t ? attribute_keypoint->GetValueByDim(curve_margin_t_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetCropRatioT();
                 ImGui::BeginDisabled(has_curve_margin_t);
                 if (ImGui::SliderFloat("Crop Top", &margin_t, 0.f, 1.f, "%.3f", flags))
                 {
-                    attribute->SetCropMarginT(margin_t);
+                    hTransformFilter->SetCropRatioT(margin_t);
                     RefreshPreview();
                 }
-                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_t_default")) { attribute->SetCropMarginT(0.f); RefreshPreview(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_t_default")) { hTransformFilter->SetCropRatioT(0.f); RefreshPreview(); }
                 ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
                 if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_margin_t##video_attribute", &margin_key, ImGui::ImCurveEdit::DIM_X, has_curve_margin_t, "margin_t##video_attribute", 0.f, 1.f, 0.f))
@@ -5302,14 +5274,14 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 // Crop Margin Right
                 int curve_margin_r_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginR") : -1;
                 bool has_curve_margin_r = attribute_keypoint ? curve_margin_r_index != -1 : false;
-                float margin_r = has_curve_margin_r ? attribute_keypoint->GetValueByDim(curve_margin_r_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginRScale();
+                float margin_r = has_curve_margin_r ? attribute_keypoint->GetValueByDim(curve_margin_r_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetCropRatioR();
                 ImGui::BeginDisabled(has_curve_margin_r);
                 if (ImGui::SliderFloat("Crop Right", &margin_r, 0.f, 1.f, "%.3f", flags))
                 {
-                    attribute->SetCropMarginR(margin_r);
+                    hTransformFilter->SetCropRatioR(margin_r);
                     RefreshPreview();
                 }
-                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_r_default")) { attribute->SetCropMarginR(0.f); RefreshPreview(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_r_default")) { hTransformFilter->SetCropRatioR(0.f); RefreshPreview(); }
                 ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
                 if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_margin_r##video_attribute", &margin_key, ImGui::ImCurveEdit::DIM_X, has_curve_margin_r, "margin_r##video_attribute", 0.f, 1.f, 0.f))
@@ -5326,14 +5298,14 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 // Crop Margin Bottom
                 int curve_margin_b_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginB") : -1;
                 bool has_curve_margin_b = attribute_keypoint ? curve_margin_b_index != -1 : false;
-                float margin_b = has_curve_margin_b ? attribute_keypoint->GetValueByDim(curve_margin_b_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginBScale();
+                float margin_b = has_curve_margin_b ? attribute_keypoint->GetValueByDim(curve_margin_b_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetCropRatioB();
                 ImGui::BeginDisabled(has_curve_margin_b);
                 if (ImGui::SliderFloat("Crop Bottom", &margin_b, 0.f, 1.f, "%.3f", flags))
                 {
-                    attribute->SetCropMarginB(margin_b);
+                    hTransformFilter->SetCropRatioB(margin_b);
                     RefreshPreview();
                 }
-                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_b_default")) { attribute->SetCropMarginB(0.f); RefreshPreview(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##crop_marhin_b_default")) { hTransformFilter->SetCropRatioB(0.f); RefreshPreview(); }
                 ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
                 if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_margin_b##video_attribute", &margin_key, ImGui::ImCurveEdit::DIM_X, has_curve_margin_b, "margin_b##video_attribute", 0.f, 1.f, 0.f))
@@ -5350,56 +5322,37 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             }
             
             // Attribute Position setting
-            if (ImGui::TreeNodeEx("Position Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen))
+            bool bShowTreeContent = ImGui::TreeNodeEx("Position Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen); ImGui::SameLine();
+            const auto bIsKeyFramesEnabled = hTransformFilter->IsPosOffsetKeyFramesEnabled();
+            std::ostringstream oss; oss << "##KeyFramesToggle_PosOffset@" << editing_clip->mID;
+            std::string strLabel = oss.str();
+            if (ImGui::DiamondButton(strLabel.c_str(), bIsKeyFramesEnabled))
             {
-                ImGui::ImCurveEdit::Curve margin_key; margin_key.m_id = editing_clip->mID;
-                // Position offset H
-                int curve_position_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetH") : -1;
-                bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
-                float position_h = has_curve_position_h ? attribute_keypoint->GetValueByDim(curve_position_h_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetHScale();
-                ImGui::BeginDisabled(has_curve_position_h);
-                if (ImGui::SliderFloat("Position H", &position_h, -1.f, 1.f, "%.3f", flags))
+                hTransformFilter->EnablePosOffsetKeyFrames(!bIsKeyFramesEnabled);
+            }
+            if (bShowTreeContent)
+            {
+                float fPosOffRatioX = hTransformFilter->GetPosOffsetRatioX();
+                ImGui::BeginDisabled(bIsKeyFramesEnabled);
+                if (ImGui::SliderFloat("Position X", &fPosOffRatioX, -1.f, 1.f, "%.3f", flags))
                 {
-                    attribute->SetPositionOffsetH(position_h);
+                    hTransformFilter->SetPosOffsetRatioX(i64PosInClip, fPosOffRatioX);
                     RefreshPreview();
                 }
-                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_h_default")) { attribute->SetPositionOffsetH(0.f); RefreshPreview(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_x_default")) { hTransformFilter->SetPosOffsetRatioX(0.f); RefreshPreview(); }
                 ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_position_h##video_attribute", &margin_key, ImGui::ImCurveEdit::DIM_X, has_curve_position_h, "position_h##video_attribute", -1.f, 1.f, 0.f))
-                {
-                    if (has_curve_position_h) addCurve("PositionOffsetH",
-                            ImGui::ImCurveEdit::GetDimVal(margin_key.m_min, ImGui::ImCurveEdit::DIM_X),
-                            ImGui::ImCurveEdit::GetDimVal(margin_key.m_max, ImGui::ImCurveEdit::DIM_X),
-                            ImGui::ImCurveEdit::GetDimVal(margin_key.m_default, ImGui::ImCurveEdit::DIM_X));
-                    else if (attribute_keypoint) attribute_keypoint->DeleteCurve("PositionOffsetH");
-                    RefreshPreview();
-                }
-                if (has_curve_position_h) EditCurve("PositionOffsetH");
 
-                // Position offset V
-                int curve_position_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetV") : -1;
-                bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
-                float position_v = has_curve_position_v ? attribute_keypoint->GetValueByDim(curve_position_v_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetVScale();
-                ImGui::BeginDisabled(has_curve_position_v);
-                if (ImGui::SliderFloat("Position V", &position_v, -1.f, 1.f, "%.3f", flags))
+                float fPosOffRatioY = hTransformFilter->GetPosOffsetRatioY();
+                ImGui::BeginDisabled(bIsKeyFramesEnabled);
+                if (ImGui::SliderFloat("Position Y", &fPosOffRatioY, -1.f, 1.f, "%.3f", flags))
                 {
-                    attribute->SetPositionOffsetV(position_v);
+                    hTransformFilter->SetPosOffsetRatioY(i64PosInClip, fPosOffRatioY);
                     RefreshPreview();
                 }
-                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_v_default")) { attribute->SetPositionOffsetV(0.f); RefreshPreview(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##position_y_default")) { hTransformFilter->SetPosOffsetRatioY(0.f); RefreshPreview(); }
                 ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
-                if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_position_v##video_attribute", &margin_key, ImGui::ImCurveEdit::DIM_X, has_curve_position_v, "position_v##video_attribute", -1.f, 1.f, 0.f))
-                {
-                    if (has_curve_position_v) addCurve("PositionOffsetV",
-                            ImGui::ImCurveEdit::GetDimVal(margin_key.m_min, ImGui::ImCurveEdit::DIM_X),
-                            ImGui::ImCurveEdit::GetDimVal(margin_key.m_max, ImGui::ImCurveEdit::DIM_X),
-                            ImGui::ImCurveEdit::GetDimVal(margin_key.m_default, ImGui::ImCurveEdit::DIM_X));
-                    else if (attribute_keypoint) attribute_keypoint->DeleteCurve("PositionOffsetV");
-                    RefreshPreview();
-                }
-                if (has_curve_position_v) EditCurve("PositionOffsetV");
                 ImGui::TreePop();
             }
 
@@ -5408,25 +5361,22 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             {
                 ImGui::ImCurveEdit::Curve margin_key; margin_key.m_id = editing_clip->mID;
                 // ScaleType as scale method
-                MediaCore::ScaleType scale_type = attribute->GetScaleType();
+                MediaCore::ScaleType scale_type = hTransformFilter->GetScaleType();
                 ImGui::PushItemWidth(100);
                 if (ImGui::Combo("Scale Type##curve_video_attribute_scale_type", (int*)&scale_type, VideoAttributeScaleType, IM_ARRAYSIZE(VideoAttributeScaleType)))
                 {
-                    attribute->SetScaleType(scale_type);
+                    hTransformFilter->SetScaleType(scale_type);
                     RefreshPreview();
                 }
                 ImGui::SameLine();
-                bool keep_aspect_ratio = editing_clip ? ((VideoClip*)editing_clip)->mKeepAspectRatio : false;
+                bool keep_aspect_ratio = hTransformFilter->IsKeepAspectRatio();
                 if (ImGui::Checkbox("Keep Ratio", &keep_aspect_ratio))
                 {
-                    ((VideoClip*)editing_clip)->mKeepAspectRatio = keep_aspect_ratio;
+                    hTransformFilter->SetKeepAspectRatio(keep_aspect_ratio);
                     if (keep_aspect_ratio)
                     {
                         if (attribute_keypoint) attribute_keypoint->DeleteCurve("ScaleH");
                         if (attribute_keypoint) attribute_keypoint->DeleteCurve("ScaleV");
-                        float scale = (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
-                        attribute->SetScaleH(scale);
-                        attribute->SetScaleV(scale);
                         RefreshPreview();
                     }
                     else
@@ -5440,15 +5390,15 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 {
                     int curve_scale_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("Scale") : -1;
                     bool has_curve_scale = attribute_keypoint ? curve_scale_index != -1 : false;
-                    float scale = has_curve_scale ? attribute_keypoint->GetValueByDim(curve_scale_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
+                    float scale = has_curve_scale ? attribute_keypoint->GetValueByDim(curve_scale_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : (hTransformFilter->GetScaleX() + hTransformFilter->GetScaleY()) / 2;
                     ImGui::BeginDisabled(has_curve_scale);
                     if (ImGui::SliderFloat("Scale", &scale, 0, 8.f, "%.3f", flags))
                     {
-                        attribute->SetScaleH(scale);
-                        attribute->SetScaleV(scale);
+                        hTransformFilter->SetScaleX(scale);
+                        hTransformFilter->SetScaleY(scale);
                         RefreshPreview();
                     }
-                    ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_default")) { attribute->SetScaleH(1.0); attribute->SetScaleV(1.0); RefreshPreview(); }
+                    ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_default")) { hTransformFilter->SetScaleX(1.0f); hTransformFilter->SetScaleY(1.0f); RefreshPreview(); }
                     ImGui::ShowTooltipOnHover("Reset");
                     ImGui::EndDisabled();
                     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_scale##video_attribute", &margin_key, ImGui::ImCurveEdit::DIM_X, has_curve_scale, "scale##video_attribute", 0, 8.f, 1.f))
@@ -5467,14 +5417,14 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     // Scale H
                     int curve_scale_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleH") : -1;
                     bool has_curve_scale_h = attribute_keypoint ? curve_scale_h_index != -1 : false;
-                    float scale_h = has_curve_scale_h ? attribute_keypoint->GetValueByDim(curve_scale_h_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleH();
+                    float scale_h = has_curve_scale_h ? attribute_keypoint->GetValueByDim(curve_scale_h_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetScaleX();
                     ImGui::BeginDisabled(has_curve_scale_h);
                     if (ImGui::SliderFloat("Scale H", &scale_h, 0, 8.f, "%.3f", flags))
                     {
-                        attribute->SetScaleH(scale_h);
+                        hTransformFilter->SetScaleX(scale_h);
                         RefreshPreview();
                     }
-                    ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_h_default")) { attribute->SetScaleH(1.0); RefreshPreview(); }
+                    ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_h_default")) { hTransformFilter->SetScaleX(1.0f); RefreshPreview(); }
                     ImGui::ShowTooltipOnHover("Reset");
                     ImGui::EndDisabled();
                     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_scale_h##video_attribute", &margin_key, ImGui::ImCurveEdit::DIM_X, has_curve_scale_h, "scale_h##video_attribute", 0, 8.f, 1.f))
@@ -5491,14 +5441,14 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     // Scale V
                     int curve_scale_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") : -1;
                     bool has_curve_scale_v = attribute_keypoint ? curve_scale_v_index != -1 : false;
-                    float scale_v = has_curve_scale_v ? attribute_keypoint->GetValueByDim(curve_scale_v_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleV();
+                    float scale_v = has_curve_scale_v ? attribute_keypoint->GetValueByDim(curve_scale_v_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetScaleY();
                     ImGui::BeginDisabled(has_curve_scale_v);
                     if (ImGui::SliderFloat("Scale V", &scale_v, 0, 8.f, "%.3f", flags))
                     {
-                        attribute->SetScaleV(scale_v);
+                        hTransformFilter->SetScaleY(scale_v);
                         RefreshPreview();
                     }
-                    ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_v_default")) { attribute->SetScaleV(1.0); RefreshPreview(); }
+                    ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scale_v_default")) { hTransformFilter->SetScaleY(1.0f); RefreshPreview(); }
                     ImGui::ShowTooltipOnHover("Reset");
                     ImGui::EndDisabled();
                     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_scale_v##video_attribute", &margin_key, ImGui::ImCurveEdit::DIM_X, has_curve_scale_v, "scale_v##video_attribute", 0, 8.f, 1.f))
@@ -5523,14 +5473,14 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 // Rotate angle
                 int curve_angle_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("RotateAngle") : -1;
                 bool has_curve_angle = attribute_keypoint ? curve_angle_index != -1 : false;
-                float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetRotationAngle();
+                float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetRotation();
                 ImGui::BeginDisabled(has_curve_angle);
                 if (ImGui::SliderFloat("Rotate Angle", &angle, -360.f, 360.f, "%.2f", flags))
                 {
-                    attribute->SetRotationAngle(angle);
+                    hTransformFilter->SetRotation(angle);
                     RefreshPreview();
                 }
-                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) { attribute->SetRotationAngle(0.0); RefreshPreview(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##angle_default")) { hTransformFilter->SetRotation(0.0); RefreshPreview(); }
                 ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
                 if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_angle##video_attribute", &margin_key, ImGui::ImCurveEdit::DIM_X, has_curve_angle, "angle##video_attribute", -360.f, 360.f, 0.f))
@@ -5554,14 +5504,14 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 // Rotate angle
                 int curve_angle_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("Opacity") : -1;
                 bool has_curve_opacity = attribute_keypoint ? curve_angle_index != -1 : false;
-                float opacity = has_curve_opacity ? attribute_keypoint->GetValueByDim(curve_angle_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetOpacity();
+                float opacity = has_curve_opacity ? attribute_keypoint->GetValueByDim(curve_angle_index, editing->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetOpacity();
                 ImGui::BeginDisabled(has_curve_opacity);
                 if (ImGui::SliderFloat("Opacity", &opacity, 0.f, 1.f, "%.2f", flags))
                 {
-                    attribute->SetOpacity(opacity);
+                    hTransformFilter->SetOpacity(opacity);
                     RefreshPreview();
                 }
-                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##opacity_default")) { attribute->SetOpacity(1.f); RefreshPreview(); }
+                ImGui::SameLine(setting_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##opacity_default")) { hTransformFilter->SetOpacity(1.f); RefreshPreview(); }
                 ImGui::ShowTooltipOnHover("Reset");
                 ImGui::EndDisabled();
                 if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_opacity##video_attribute", &margin_key, ImGui::ImCurveEdit::DIM_X, has_curve_opacity, "opacity##video_attribute", 0.f, 1.f, 0.f))
@@ -6198,43 +6148,38 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
     // draw grad
     draw_list->AddLine(sub_window_pos + ImVec2(sub_window_size.x / 2, 0), sub_window_pos + ImVec2(sub_window_size.x / 2, sub_window_size.y), IM_COL32(64,64,64,128));
     draw_list->AddLine(sub_window_pos + ImVec2(0, sub_window_size.y / 2), sub_window_pos + ImVec2(sub_window_size.x, sub_window_size.y / 2), IM_COL32(64,64,64,128));
-    auto attribute = pVidEditingClip->mAttribute;
-    auto clip = (VideoClip*)pVidEditingClip->GetClip();
-    if (!attribute || !clip)
+    auto hTransformFilter = pVidEditingClip->mhTransformFilter;
+    if (!hTransformFilter)
         return bIsMouseDown;
-    auto attribute_keypoint = attribute->GetKeyPoint();
+    auto attribute_keypoint = hTransformFilter->GetKeyPoint();
+    const auto i64PosInClip = timeline->mCurrentTime-pVidEditingClip->mStart;
 
     // Crop Margin Left
     int curve_margin_l_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginL") : -1;
     bool has_curve_margin_l = attribute_keypoint ? curve_margin_l_index != -1 : false;
-    float margin_l = has_curve_margin_l ? attribute_keypoint->GetValueByDim(curve_margin_l_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginLScale();
+    float margin_l = has_curve_margin_l ? attribute_keypoint->GetValueByDim(curve_margin_l_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetCropRatioL();
     
     // Crop Margin Top
     int curve_margin_t_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginT") : -1;
     bool has_curve_margin_t = attribute_keypoint ? curve_margin_t_index != -1 : false;
-    float margin_t = has_curve_margin_t ? attribute_keypoint->GetValueByDim(curve_margin_t_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginTScale();
+    float margin_t = has_curve_margin_t ? attribute_keypoint->GetValueByDim(curve_margin_t_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetCropRatioT();
 
     // Crop Margin Right
     int curve_margin_r_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginR") : -1;
     bool has_curve_margin_r = attribute_keypoint ? curve_margin_r_index != -1 : false;
-    float margin_r = has_curve_margin_r ? attribute_keypoint->GetValueByDim(curve_margin_r_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginRScale();
+    float margin_r = has_curve_margin_r ? attribute_keypoint->GetValueByDim(curve_margin_r_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetCropRatioR();
 
     // Crop Margin Bottom
     int curve_margin_b_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("CropMarginB") : -1;
     bool has_curve_margin_b = attribute_keypoint ? curve_margin_b_index != -1 : false;
-    float margin_b = has_curve_margin_b ? attribute_keypoint->GetValueByDim(curve_margin_b_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetCropMarginBScale();
+    float margin_b = has_curve_margin_b ? attribute_keypoint->GetValueByDim(curve_margin_b_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetCropRatioB();
 
-    // Position offset H
-    int curve_position_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetH") : -1;
-    bool has_curve_position_h = attribute_keypoint ? curve_position_h_index != -1 : false;
-    float position_h = has_curve_position_h ? attribute_keypoint->GetValueByDim(curve_position_h_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetHScale();
+    // Position offset
+    const bool bPosOffsetKeyFramesEnabled = hTransformFilter->IsPosOffsetKeyFramesEnabled();
+    float fPosOffRatioX = hTransformFilter->GetPosOffsetRatioX();
+    float fPosOffRatioY = hTransformFilter->GetPosOffsetRatioY();
 
-    // Position offset V
-    int curve_position_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("PositionOffsetV") : -1;
-    bool has_curve_position_v = attribute_keypoint ? curve_position_v_index != -1 : false;
-    float position_v = has_curve_position_v ? attribute_keypoint->GetValueByDim(curve_position_v_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetPositionOffsetVScale();
-
-    bool keep_aspect_ratio = clip->mKeepAspectRatio;
+    bool keep_aspect_ratio = hTransformFilter->IsKeepAspectRatio();
     int curve_scale_index = -1;
     int curve_scale_h_index = -1;
     int curve_scale_v_index = -1;
@@ -6247,30 +6192,30 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
     {
         curve_scale_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("Scale") : -1;
         has_curve_scale = attribute_keypoint ? curve_scale_index != -1 : false;
-        scale_h = scale_v = has_curve_scale ? attribute_keypoint->GetValueByDim(curve_scale_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : (attribute->GetScaleH() + attribute->GetScaleV()) / 2;
+        scale_h = scale_v = has_curve_scale ? attribute_keypoint->GetValueByDim(curve_scale_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : (hTransformFilter->GetScaleX() + hTransformFilter->GetScaleY()) / 2;
     }
     else
     {
         // Scale H
         curve_scale_h_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleH") : -1;
         has_curve_scale_h = attribute_keypoint ? curve_scale_h_index != -1 : false;
-        scale_h = has_curve_scale_h ? attribute_keypoint->GetValueByDim(curve_scale_h_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleH();
+        scale_h = has_curve_scale_h ? attribute_keypoint->GetValueByDim(curve_scale_h_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetScaleX();
         // Scale V
         curve_scale_v_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("ScaleV") : -1;
         has_curve_scale_v = attribute_keypoint ? curve_scale_v_index != -1 : false;
-        scale_v = has_curve_scale_v ? attribute_keypoint->GetValueByDim(curve_scale_v_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetScaleV();
+        scale_v = has_curve_scale_v ? attribute_keypoint->GetValueByDim(curve_scale_v_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetScaleY();
     }
 
     // Rotate angle
     int curve_angle_index = attribute_keypoint ? attribute_keypoint->GetCurveIndex("RotateAngle") : -1;
     bool has_curve_angle = attribute_keypoint ? curve_angle_index != -1 : false;
-    float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : attribute->GetRotationAngle();
+    float angle = has_curve_angle ? attribute_keypoint->GetValueByDim(curve_angle_index, pVidEditingClip->mCurrentTime, ImGui::ImCurveEdit::DIM_X) : hTransformFilter->GetRotation();
     // calculate frame vertex
     ImVec2 v_pos = ImVec2(offset_x, offset_y);
     ImVec2 v_size = ImVec2(tf_x - offset_x, tf_y - offset_y);
     ImRect v_rect(v_pos, v_pos + v_size);
-    auto handles = CalculateHandlePoint(v_pos, v_size, margin_l, margin_t, margin_r, margin_b, position_h, position_v, scale_h, scale_v, angle);
-    auto handles_no_crop = CalculateHandlePoint(v_pos, v_size, 0, 0, 0, 0, position_h, position_v, scale_h, scale_v, angle);
+    auto handles = CalculateHandlePoint(v_pos, v_size, margin_l, margin_t, margin_r, margin_b, fPosOffRatioX, fPosOffRatioY, scale_h, scale_v, angle);
+    auto handles_no_crop = CalculateHandlePoint(v_pos, v_size, 0, 0, 0, 0, fPosOffRatioX, fPosOffRatioY, scale_h, scale_v, angle);
 
     // reflush timeline
     auto RefreshPreview = [&]()
@@ -6398,7 +6343,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
         drag_part = hoverd_part;
 
         if (std::isnan(drag_border.x) || std::isnan(drag_border.y)) drag_border = handles[drag_part];
-        if (std::isnan(drag_position.x) || std::isnan(drag_position.y)) drag_position = ImVec2(position_h, position_v);
+        if (std::isnan(drag_position.x) || std::isnan(drag_position.y)) drag_position = ImVec2(fPosOffRatioX, fPosOffRatioY);
         if (std::isnan(drag_scale.x) || std::isnan(drag_scale.y)) drag_scale = ImVec2(scale_h, scale_v);
         if (std::isnan(drag_angle)) drag_angle = angle;
         if (std::isnan(drag_angle_start) && ImGui::GetMouseDragDelta().length() > 32) drag_angle_start = atan2(ImGui::GetMouseDragDelta().y, ImGui::GetMouseDragDelta().x);
@@ -6438,7 +6383,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
             handles_dst[HT_CENTER] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
             handles_dst[HT_RIGHT] = (handles_dst[HT_TOP_RIGHT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
             handles_dst[HT_BOTTOM] = (handles_dst[HT_BOTTOM_LEFT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
-            return handles_dst;
+            return std::move(handles_dst);
         };
         auto scale_adj = [&](const std::vector<ImVec2>& handles_dst)
         {
@@ -6463,6 +6408,10 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
             offset.y = ImClamp(offset.y, -1.0f, 1.0f);
             return offset;
         };
+        bool bUpdatePosOffset = false;
+        bool bUpdateCrop = false;
+        bool bUpdateScale = false;
+        bool bUpdateRotation = false;
         switch (drag_part)
         {
             case HT_AREA:
@@ -6471,13 +6420,11 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
                 float y_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).y / v_size.y;
                 x_offset = 2.0 * x_offset / (1.0 + scale_h);
                 y_offset = 2.0 * y_offset / (1.0 + scale_v);
-                position_h = drag_position.x + x_offset;
-                position_h = ImClamp(position_h, -1.0f, 1.0f);
-                position_v = drag_position.y + y_offset;
-                position_v = ImClamp(position_v, -1.0f, 1.0f);
-                attribute->SetPositionOffsetH(position_h);
-                attribute->SetPositionOffsetV(position_v);
-                RefreshPreview();
+                fPosOffRatioX = drag_position.x + x_offset;
+                fPosOffRatioX = ImClamp(fPosOffRatioX, -1.0f, 1.0f);
+                fPosOffRatioY = drag_position.y + y_offset;
+                fPosOffRatioY = ImClamp(fPosOffRatioY, -1.0f, 1.0f);
+                bUpdatePosOffset = true;
             }
             break;
             case HT_ROTATE_CENTER:
@@ -6489,8 +6436,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
                     float d_angle = atan2(y_offset, x_offset) - drag_angle_start;
                     angle = drag_angle + ImRadToDeg(d_angle);
                     angle = fmod(angle, 360.f);
-                    attribute->SetRotationAngle(angle);
-                    RefreshPreview();
+                    bUpdateRotation = true;
                     draw_list->AddLine(handles[HT_ROTATE_CENTER], ImGui::GetMousePos(), IM_COL32(64, 192, 64, 192), 2);
                 }
                 else
@@ -6502,8 +6448,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
                 ImVec2 top = handles_no_crop[HT_TOP];
                 ImVec2 bottom = handles_no_crop[HT_BOTTOM];
                 margin_t = margin_adj(drag_border, top, bottom, v_size.y, scale_v);
-                attribute->SetCropMarginT(margin_t);
-                RefreshPreview();
+                bUpdateCrop = true;
             }
             break;
             case HT_BOTTOM:
@@ -6511,8 +6456,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
                 ImVec2 top = handles_no_crop[HT_TOP];
                 ImVec2 bottom = handles_no_crop[HT_BOTTOM];
                 margin_b = margin_adj(drag_border, bottom, top, v_size.y, scale_v);
-                attribute->SetCropMarginB(margin_b);
-                RefreshPreview();
+                bUpdateCrop = true;
             }
             break;
             case HT_LEFT:
@@ -6520,8 +6464,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
                 ImVec2 left = handles_no_crop[HT_LEFT];
                 ImVec2 right = handles_no_crop[HT_RIGHT];
                 margin_l = margin_adj(drag_border, left, right, v_size.x, scale_h);
-                attribute->SetCropMarginL(margin_l);
-                RefreshPreview();
+                bUpdateCrop = true;
             }
             break;
             case HT_RIGHT:
@@ -6529,80 +6472,54 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
                 ImVec2 left = handles_no_crop[HT_LEFT];
                 ImVec2 right = handles_no_crop[HT_RIGHT];
                 margin_r = margin_adj(drag_border, right, left, v_size.x, scale_h);
-                attribute->SetCropMarginR(margin_r);
-                RefreshPreview();
+                bUpdateCrop = true;
             }
             break;
             case HT_TOP_LEFT:
-            {
-                auto handles_dst = handle_adj(HT_TOP_LEFT, HT_TOP_RIGHT, HT_BOTTOM_LEFT, HT_BOTTOM_RIGHT);
-                auto new_scale = scale_adj(handles_dst);
-                scale_h = new_scale.x;
-                scale_v = new_scale.y;
-                attribute->SetScaleH(scale_h);
-                attribute->SetScaleV(scale_v);
-                auto offset = position_adj(handles_dst, new_scale);
-                position_h = offset.x;
-                position_v = offset.y;
-                attribute->SetPositionOffsetH(position_h);
-                attribute->SetPositionOffsetV(position_v);
-                RefreshPreview();
-                //draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
-            }
-            break;
             case HT_TOP_RIGHT:
-            {
-                auto handles_dst = handle_adj(HT_TOP_RIGHT, HT_TOP_LEFT, HT_BOTTOM_RIGHT, HT_BOTTOM_LEFT);
-                auto new_scale = scale_adj(handles_dst);
-                scale_h = new_scale.x;
-                scale_v = new_scale.y;
-                attribute->SetScaleH(scale_h);
-                attribute->SetScaleV(scale_v);
-                auto offset = position_adj(handles_dst, new_scale);
-                position_h = offset.x;
-                position_v = offset.y;
-                attribute->SetPositionOffsetH(position_h);
-                attribute->SetPositionOffsetV(position_v);
-                RefreshPreview();
-                //draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
-            }
-            break;
             case HT_BOTTOM_LEFT:
-            {
-                auto handles_dst = handle_adj(HT_BOTTOM_LEFT, HT_BOTTOM_RIGHT, HT_TOP_LEFT, HT_TOP_RIGHT);
-                auto new_scale = scale_adj(handles_dst);
-                scale_h = new_scale.x;
-                scale_v = new_scale.y;
-                attribute->SetScaleH(scale_h);
-                attribute->SetScaleV(scale_v);
-                auto offset = position_adj(handles_dst, new_scale);
-                position_h = offset.x;
-                position_v = offset.y;
-                attribute->SetPositionOffsetH(position_h);
-                attribute->SetPositionOffsetV(position_v);
-                RefreshPreview();
-                //draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
-            }
-            break;
             case HT_BOTTOM_RIGHT:
             {
-                auto handles_dst = handle_adj(HT_BOTTOM_RIGHT, HT_BOTTOM_LEFT, HT_TOP_RIGHT, HT_TOP_LEFT);
-                auto new_scale = scale_adj(handles_dst);
+                std::vector<ImVec2> handles_dst;
+                if (drag_part == HT_TOP_LEFT)
+                    handles_dst = handle_adj(HT_TOP_LEFT, HT_TOP_RIGHT, HT_BOTTOM_LEFT, HT_BOTTOM_RIGHT);
+                else if (drag_part == HT_TOP_RIGHT)
+                    handles_dst = handle_adj(HT_TOP_RIGHT, HT_TOP_LEFT, HT_BOTTOM_RIGHT, HT_BOTTOM_LEFT);
+                else if (drag_part == HT_BOTTOM_LEFT)
+                    handles_dst = handle_adj(HT_BOTTOM_LEFT, HT_BOTTOM_RIGHT, HT_TOP_LEFT, HT_TOP_RIGHT);
+                else
+                    handles_dst = handle_adj(HT_BOTTOM_RIGHT, HT_BOTTOM_LEFT, HT_TOP_RIGHT, HT_TOP_LEFT);
+                const auto new_scale = scale_adj(handles_dst);
                 scale_h = new_scale.x;
                 scale_v = new_scale.y;
-                attribute->SetScaleH(scale_h);
-                attribute->SetScaleV(scale_v);
-                auto offset = position_adj(handles_dst, new_scale);
-                position_h = offset.x;
-                position_v = offset.y;
-                attribute->SetPositionOffsetH(position_h);
-                attribute->SetPositionOffsetV(position_v);
-                RefreshPreview();
-                //draw_grad(draw_list, handles_dst, IM_COL32(192, 64, 64, 255));
+                bUpdateScale = true;
+                const auto offset = position_adj(handles_dst, new_scale);
+                fPosOffRatioX = offset.x;
+                fPosOffRatioY = offset.y;
+                bUpdatePosOffset = true;
             }
             break;
             default : break;
         }
+        if (bUpdatePosOffset)
+        {
+            hTransformFilter->SetPosOffsetRatio(i64PosInClip, fPosOffRatioX, fPosOffRatioY);
+        }
+        if (bUpdateCrop)
+        {
+            hTransformFilter->SetCropRatio(margin_l, margin_t, margin_r, margin_b);
+        }
+        if (bUpdateScale)
+        {
+            hTransformFilter->SetScaleX(scale_h);
+            hTransformFilter->SetScaleY(scale_v);
+        }
+        if (bUpdateRotation)
+        {
+            hTransformFilter->SetRotation(angle);
+        }
+        if (bUpdatePosOffset || bUpdateCrop || bUpdateScale || bUpdateRotation)
+            RefreshPreview();
     }
 
     draw_list->PopClipRect();
@@ -8894,7 +8811,7 @@ static void ShowBgtaskTab(ImDrawList *draw_list, ImRect title_rect)
 
 static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 size, ImVec2 default_size)
 {
-    if (!clip || !clip->mClipHolder)
+    if (!clip || !clip->mhDataLayerClip)
         return false;;
     MediaTrack * track = (MediaTrack * )clip->mTrack;
     if (!track || !track->mMttReader)
@@ -9042,14 +8959,14 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
             if (ImGui::Selectable(fontFamilies[i].c_str(), is_selected))
             {
                 clip->mFontName = fontFamilies[i];
-                clip->mClipHolder->SetFont(clip->mFontName);
+                clip->mhDataLayerClip->SetFont(clip->mFontName);
                 update_preview = true;
             }
             if (is_selected)
                 ImGui::SetItemDefaultFocus();
         }
         ImGui::EndCombo();
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); clip->mClipHolder->SetFont(clip->mFontName); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##clip_font_family_default")) { clip->mFontName = style.Font(); clip->mhDataLayerClip->SetFont(clip->mFontName); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::ImCurveEdit::Curve text_key; text_key.m_id = clip->mID;
     float pos_x = clip->mFontPosX;
@@ -9060,10 +8977,10 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     {
         float offset_x = pos_x - clip->mFontPosX;
         clip->mFontOffsetH += offset_x;
-        clip->mClipHolder->SetOffsetH(clip->mFontOffsetH);
+        clip->mhDataLayerClip->SetOffsetH(clip->mFontOffsetH);
         clip->mFontPosX = pos_x;
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontOffsetH = 0; clip->mClipHolder->SetOffsetH(0.f); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##posx_default")) { clip->mFontOffsetH = 0; clip->mhDataLayerClip->SetOffsetH(0.f); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_text_pos_x##text_clip_ediror", &text_key, ImGui::ImCurveEdit::DIM_X, has_curve_pos_x, "text_pos_x##text_clip_ediror",  - (float)default_size.x , 1.f, pos_x, curve_button_offset))
@@ -9072,7 +8989,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_min, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_max, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_default, ImGui::ImCurveEdit::DIM_X));
-        else { key_point->DeleteCurve("OffsetH"); clip->mClipHolder->SetOffsetH(clip->mFontOffsetH); }
+        else { key_point->DeleteCurve("OffsetH"); clip->mhDataLayerClip->SetOffsetH(clip->mFontOffsetH); }
         update_preview = true;
     }
     if (has_curve_pos_x) EditCurve("OffsetH");
@@ -9085,10 +9002,10 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     {
         float offset_y = pos_y - clip->mFontPosY;
         clip->mFontOffsetV += offset_y;
-        clip->mClipHolder->SetOffsetV(clip->mFontOffsetV);
+        clip->mhDataLayerClip->SetOffsetV(clip->mFontOffsetV);
         clip->mFontPosY = pos_y;
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontOffsetV = 0; clip->mClipHolder->SetOffsetV(0.f); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##posy_default")) { clip->mFontOffsetV = 0; clip->mhDataLayerClip->SetOffsetV(0.f); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_text_pos_y##text_clip_ediror", &text_key, ImGui::ImCurveEdit::DIM_X, has_curve_pos_y, "text_pos_y##text_clip_ediror",  - (float)default_size.y , 1.f, pos_y, curve_button_offset))
@@ -9097,7 +9014,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_min, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_max, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_default, ImGui::ImCurveEdit::DIM_X));
-        else { key_point->DeleteCurve("OffsetV"); clip->mClipHolder->SetOffsetV(clip->mFontOffsetV); }
+        else { key_point->DeleteCurve("OffsetV"); clip->mhDataLayerClip->SetOffsetV(clip->mFontOffsetV); }
         update_preview = true;
     }
     if (has_curve_pos_y) EditCurve("OffsetV");
@@ -9109,11 +9026,11 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::SliderFloat("Font scale X", &scale_x, 0.2, 10, "%.1f", flags))
     {
         float scale_ratio = scale_x / clip->mFontScaleX;
-        if (clip->mScaleSettingLink) { clip->mFontScaleY *= scale_ratio; clip->mClipHolder->SetScaleY(clip->mFontScaleY); }
+        if (clip->mScaleSettingLink) { clip->mFontScaleY *= scale_ratio; clip->mhDataLayerClip->SetScaleY(clip->mFontScaleY); }
         clip->mFontScaleX = scale_x;
-        clip->mClipHolder->SetScaleX(clip->mFontScaleX);
+        clip->mhDataLayerClip->SetScaleX(clip->mFontScaleX);
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) { clip->mFontScaleX = style.ScaleX(); clip->mClipHolder->SetScaleX(style.ScaleX()); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scalex_default")) { clip->mFontScaleX = style.ScaleX(); clip->mhDataLayerClip->SetScaleX(style.ScaleX()); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_text_scale_x##text_clip_ediror", &text_key, ImGui::ImCurveEdit::DIM_X, has_curve_scale_x, "text_pscale_x##text_clip_ediror",  0.2f , 10.f, style.ScaleX(), curve_button_offset))
@@ -9122,7 +9039,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_min, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_max, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_default, ImGui::ImCurveEdit::DIM_X));
-        else { key_point->DeleteCurve("ScaleX"); clip->mClipHolder->SetScaleX(clip->mFontScaleX); }
+        else { key_point->DeleteCurve("ScaleX"); clip->mhDataLayerClip->SetScaleX(clip->mFontScaleX); }
         update_preview = true;
     }
     if (has_curve_scale_x) EditCurve("ScaleX");
@@ -9152,11 +9069,11 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::SliderFloat("Font scale Y", &scale_y, 0.2, 10, "%.1f", flags))
     {
         float scale_ratio = scale_y / clip->mFontScaleY;
-        if (clip->mScaleSettingLink) { clip->mFontScaleX *= scale_ratio; clip->mClipHolder->SetScaleX(clip->mFontScaleX); }
+        if (clip->mScaleSettingLink) { clip->mFontScaleX *= scale_ratio; clip->mhDataLayerClip->SetScaleX(clip->mFontScaleX); }
         clip->mFontScaleY = scale_y;
-        clip->mClipHolder->SetScaleY(clip->mFontScaleY);
+        clip->mhDataLayerClip->SetScaleY(clip->mFontScaleY);
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) { clip->mFontScaleY = style.ScaleY(); clip->mClipHolder->SetScaleY(style.ScaleY()); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##scaley_default")) { clip->mFontScaleY = style.ScaleY(); clip->mhDataLayerClip->SetScaleY(style.ScaleY()); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_text_scale_y##text_clip_ediror", &text_key, ImGui::ImCurveEdit::DIM_X, has_curve_scale_y, "text_scale_y##text_clip_ediror",  0.2f , 10.f, style.ScaleY(), curve_button_offset))
@@ -9165,7 +9082,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_min, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_max, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_default, ImGui::ImCurveEdit::DIM_X));
-        else { key_point->DeleteCurve("ScaleY"); clip->mClipHolder->SetScaleY(clip->mFontScaleY); }
+        else { key_point->DeleteCurve("ScaleY"); clip->mhDataLayerClip->SetScaleY(clip->mFontScaleY); }
         update_preview = true;
     }
     if (has_curve_scale_y) EditCurve("ScaleY");
@@ -9177,9 +9094,9 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::SliderFloat("Font spacing", &spacing, 0.5, 5, "%.1f", flags))
     {
         clip->mFontSpacing = spacing;
-        clip->mClipHolder->SetSpacing(clip->mFontSpacing);
+        clip->mhDataLayerClip->SetSpacing(clip->mFontSpacing);
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) { clip->mFontSpacing = style.Spacing(); clip->mClipHolder->SetSpacing(style.Spacing()); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##spacing_default")) { clip->mFontSpacing = style.Spacing(); clip->mhDataLayerClip->SetSpacing(style.Spacing()); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_text_spacing##text_clip_ediror", &text_key, ImGui::ImCurveEdit::DIM_X, has_curve_spacing, "text_spacing##text_clip_ediror",  0.5f , 5.f, style.Spacing(), curve_button_offset))
@@ -9188,7 +9105,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_min, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_max, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_default, ImGui::ImCurveEdit::DIM_X));
-        else { key_point->DeleteCurve("Spacing"); clip->mClipHolder->SetSpacing(clip->mFontSpacing); }
+        else { key_point->DeleteCurve("Spacing"); clip->mhDataLayerClip->SetSpacing(clip->mFontSpacing); }
         update_preview = true;
     }
     if (has_curve_spacing) EditCurve("Spacing");
@@ -9200,9 +9117,9 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::SliderFloat("Font angle X", &anglex, 0, 360, "%.1f", flags))
     {
         clip->mFontAngleX = anglex;
-        clip->mClipHolder->SetRotationX(clip->mFontAngleX);
+        clip->mhDataLayerClip->SetRotationX(clip->mFontAngleX);
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglex_default")) { clip->mFontAngleX = style.Angle(); clip->mClipHolder->SetRotationX( style.Angle()); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglex_default")) { clip->mFontAngleX = style.Angle(); clip->mhDataLayerClip->SetRotationX( style.Angle()); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_text_anglex##text_clip_ediror", &text_key, ImGui::ImCurveEdit::DIM_X, has_curve_anglex, "text_anglex##text_clip_ediror",  0.f , 360.f, style.Angle(), curve_button_offset))
@@ -9211,7 +9128,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_min, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_max, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_default, ImGui::ImCurveEdit::DIM_X));
-        else { key_point->DeleteCurve("AngleX"); clip->mClipHolder->SetRotationX(clip->mFontAngleX); }
+        else { key_point->DeleteCurve("AngleX"); clip->mhDataLayerClip->SetRotationX(clip->mFontAngleX); }
         update_preview = true;
     }
     if (has_curve_anglex) EditCurve("AngleX");
@@ -9223,9 +9140,9 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::SliderFloat("Font angle Y", &angley, 0, 360, "%.1f", flags))
     {
         clip->mFontAngleY = angley;
-        clip->mClipHolder->SetRotationY(clip->mFontAngleY);
+        clip->mhDataLayerClip->SetRotationY(clip->mFontAngleY);
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##angley_default")) { clip->mFontAngleY = style.Angle(); clip->mClipHolder->SetRotationY( style.Angle()); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##angley_default")) { clip->mFontAngleY = style.Angle(); clip->mhDataLayerClip->SetRotationY( style.Angle()); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_text_angley##text_clip_ediror", &text_key, ImGui::ImCurveEdit::DIM_X, has_curve_angley, "text_angley##text_clip_ediror",  0.f , 360.f, style.Angle(), curve_button_offset))
@@ -9234,7 +9151,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_min, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_max, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_default, ImGui::ImCurveEdit::DIM_X));
-        else { key_point->DeleteCurve("AngleY"); clip->mClipHolder->SetRotationY(clip->mFontAngleY); }
+        else { key_point->DeleteCurve("AngleY"); clip->mhDataLayerClip->SetRotationY(clip->mFontAngleY); }
         update_preview = true;
     }
     if (has_curve_angley) EditCurve("AngleY");
@@ -9246,9 +9163,9 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::SliderFloat("Font angle Z", &anglez, 0, 360, "%.1f", flags))
     {
         clip->mFontAngleZ = anglez;
-        clip->mClipHolder->SetRotationZ(clip->mFontAngleZ);
+        clip->mhDataLayerClip->SetRotationZ(clip->mFontAngleZ);
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglez_default")) { clip->mFontAngleZ = style.Angle(); clip->mClipHolder->SetRotationZ( style.Angle()); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##anglez_default")) { clip->mFontAngleZ = style.Angle(); clip->mhDataLayerClip->SetRotationZ( style.Angle()); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_text_anglez##text_clip_ediror", &text_key, ImGui::ImCurveEdit::DIM_X, has_curve_anglez, "text_anglez##text_clip_ediror",  0.f , 360.f, style.Angle(), curve_button_offset))
@@ -9257,7 +9174,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_min, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_max, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_default, ImGui::ImCurveEdit::DIM_X));
-        else { key_point->DeleteCurve("AngleZ"); clip->mClipHolder->SetRotationZ(clip->mFontAngleZ); }
+        else { key_point->DeleteCurve("AngleZ"); clip->mhDataLayerClip->SetRotationZ(clip->mFontAngleZ); }
         update_preview = true;
     }
     if (has_curve_anglez) EditCurve("AngleZ");
@@ -9269,9 +9186,9 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::SliderFloat("Font outline width", &outline_width, 0, 5, "%.0f", flags))
     {
         clip->mFontOutlineWidth = outline_width;
-        clip->mClipHolder->SetBorderWidth(clip->mFontOutlineWidth);
+        clip->mhDataLayerClip->SetBorderWidth(clip->mFontOutlineWidth);
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) { clip->mFontOutlineWidth = style.OutlineWidth(); clip->mClipHolder->SetBorderWidth(style.OutlineWidth()); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_default")) { clip->mFontOutlineWidth = style.OutlineWidth(); clip->mhDataLayerClip->SetBorderWidth(style.OutlineWidth()); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_text_outline_width##text_clip_ediror", &text_key, ImGui::ImCurveEdit::DIM_X, has_curve_outline_width, "text_outline_width##text_clip_ediror",  0.f , 5.f, style.OutlineWidth(), curve_button_offset))
@@ -9280,7 +9197,7 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_min, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_max, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_default, ImGui::ImCurveEdit::DIM_X));
-        else { key_point->DeleteCurve("OutlineWidth"); clip->mClipHolder->SetBorderWidth(clip->mFontOutlineWidth); }
+        else { key_point->DeleteCurve("OutlineWidth"); clip->mhDataLayerClip->SetBorderWidth(clip->mFontOutlineWidth); }
         update_preview = true;
     }
     if (has_curve_outline_width) EditCurve("OutlineWidth");
@@ -9292,9 +9209,9 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (ImGui::SliderFloat("Font shadow depth", &shadow_depth, 0.f, 20.f, "%.1f", flags))
     {
         clip->mFontShadowDepth = shadow_depth;
-        clip->mClipHolder->SetShadowDepth(clip->mFontShadowDepth);
+        clip->mhDataLayerClip->SetShadowDepth(clip->mFontShadowDepth);
         update_preview = true;
-    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##shadow_default")) { clip->mFontShadowDepth = fabs(style.ShadowDepth()); clip->mClipHolder->SetShadowDepth(clip->mFontShadowDepth); update_preview = true; }
+    } ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##shadow_default")) { clip->mFontShadowDepth = fabs(style.ShadowDepth()); clip->mhDataLayerClip->SetShadowDepth(clip->mFontShadowDepth); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::EndDisabled();
     if (ImGui::ImCurveCheckEditKeyByDim("##add_curve_text_shadow_depth##text_clip_ediror", &text_key, ImGui::ImCurveEdit::DIM_X, has_curve_shadow_depth, "text_shadow_depth##text_clip_ediror",  0.f , 20.f, style.ShadowDepth(), curve_button_offset))
@@ -9303,32 +9220,32 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_min, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_max, ImGui::ImCurveEdit::DIM_X),
                 ImGui::ImCurveEdit::GetDimVal(text_key.m_default, ImGui::ImCurveEdit::DIM_X));
-        else { key_point->DeleteCurve("ShadowDepth"); clip->mClipHolder->SetShadowDepth(clip->mFontShadowDepth); }
+        else { key_point->DeleteCurve("ShadowDepth"); clip->mhDataLayerClip->SetShadowDepth(clip->mFontShadowDepth); }
         update_preview = true;
     }
     if (has_curve_shadow_depth) EditCurve("ShadowDepth");
     
     if (ImGui::Checkbox(ICON_FONT_BOLD "##font_bold", &clip->mFontBold))
     {
-        clip->mClipHolder->SetBold(clip->mFontBold);
+        clip->mhDataLayerClip->SetBold(clip->mFontBold);
         update_preview = true;
     }
     ImGui::SameLine();
     if (ImGui::Checkbox(ICON_FONT_ITALIC "##font_italic", &clip->mFontItalic))
     {
-        clip->mClipHolder->SetItalic(clip->mFontItalic);
+        clip->mhDataLayerClip->SetItalic(clip->mFontItalic);
         update_preview = true;
     }
     ImGui::SameLine();
     if (ImGui::Checkbox(ICON_FONT_UNDERLINE "##font_underLine", &clip->mFontUnderLine))
     {
-        clip->mClipHolder->SetUnderLine(clip->mFontUnderLine);
+        clip->mhDataLayerClip->SetUnderLine(clip->mFontUnderLine);
         update_preview = true;
     }
     ImGui::SameLine();
     if (ImGui::Checkbox(ICON_FONT_STRIKEOUT "##font_strike_out", &clip->mFontStrikeOut))
     {
-        clip->mClipHolder->SetStrikeOut(clip->mFontStrikeOut);
+        clip->mhDataLayerClip->SetStrikeOut(clip->mFontStrikeOut);
         update_preview = true;
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font attribute");
@@ -9338,10 +9255,10 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
         clip->mFontItalic = style.Italic() > 0;
         clip->mFontUnderLine = style.UnderLine();
         clip->mFontStrikeOut = style.StrikeOut();
-        clip->mClipHolder->SetBold(clip->mFontBold);
-        clip->mClipHolder->SetItalic(clip->mFontItalic);
-        clip->mClipHolder->SetUnderLine(clip->mFontUnderLine);
-        clip->mClipHolder->SetStrikeOut(clip->mFontStrikeOut);
+        clip->mhDataLayerClip->SetBold(clip->mFontBold);
+        clip->mhDataLayerClip->SetItalic(clip->mFontItalic);
+        clip->mhDataLayerClip->SetUnderLine(clip->mFontUnderLine);
+        clip->mhDataLayerClip->SetStrikeOut(clip->mFontStrikeOut);
         update_preview = true;
     }
     ImGui::ShowTooltipOnHover("Reset");
@@ -9354,38 +9271,38 @@ static bool edit_text_clip_style(ImDrawList *draw_list, TextClip * clip, ImVec2 
     if (alignment != clip->mFontAlignment)
     {
         clip->mFontAlignment = alignment;
-        clip->mClipHolder->SetAlignment(alignment);
+        clip->mhDataLayerClip->SetAlignment(alignment);
         update_preview = true;
     }
-    ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) { clip->mFontAlignment = style.Alignment(); clip->mClipHolder->SetAlignment(style.Alignment()); update_preview = true; }
+    ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##alignment_default")) { clip->mFontAlignment = style.Alignment(); clip->mhDataLayerClip->SetAlignment(style.Alignment()); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     if (ImGui::ColorEdit4("FontColor##Primary", (float*)&clip->mFontPrimaryColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
-        clip->mClipHolder->SetPrimaryColor(clip->mFontPrimaryColor);
+        clip->mhDataLayerClip->SetPrimaryColor(clip->mFontPrimaryColor);
         update_preview = true;
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font primary color");
-    ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) { clip->mFontPrimaryColor = style.PrimaryColor().ToImVec4(); clip->mClipHolder->SetPrimaryColor(style.PrimaryColor()); update_preview = true; }
+    ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##primary_color_default")) { clip->mFontPrimaryColor = style.PrimaryColor().ToImVec4(); clip->mhDataLayerClip->SetPrimaryColor(style.PrimaryColor()); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     if (ImGui::ColorEdit4("FontColor##Outline", (float*)&clip->mFontOutlineColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
-        clip->mClipHolder->SetOutlineColor(clip->mFontOutlineColor);
+        clip->mhDataLayerClip->SetOutlineColor(clip->mFontOutlineColor);
         update_preview = true;
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font outline color");
-    ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) { clip->mFontOutlineColor = style.OutlineColor().ToImVec4(); clip->mClipHolder->SetOutlineColor(style.OutlineColor()); update_preview = true; }
+    ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##outline_color_default")) { clip->mFontOutlineColor = style.OutlineColor().ToImVec4(); clip->mhDataLayerClip->SetOutlineColor(style.OutlineColor()); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     if (ImGui::ColorEdit4("FontColor##Back", (float*)&clip->mFontBackColor, ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_DisplayRGB | ImGuiColorEditFlags_AlphaBar))
     {
-        clip->mClipHolder->SetBackColor(clip->mFontBackColor);
+        clip->mhDataLayerClip->SetBackColor(clip->mFontBackColor);
         update_preview = true;
     }
     ImGui::SameLine(item_width); ImGui::TextUnformatted("Font shadow color");
-    ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##back_color_default")) { clip->mFontBackColor = style.BackColor().ToImVec4(); clip->mClipHolder->SetBackColor(style.BackColor()); update_preview = true; }
+    ImGui::SameLine(reset_button_offset); if (ImGui::Button(ICON_RETURN_DEFAULT "##back_color_default")) { clip->mFontBackColor = style.BackColor().ToImVec4(); clip->mhDataLayerClip->SetBackColor(style.BackColor()); update_preview = true; }
     ImGui::ShowTooltipOnHover("Reset");
     ImGui::PopItemWidth();
 
-    if (update_preview && clip->mClipHolder) clip->mClipHolder->SetKeyPoints(clip->mAttributeKeyPoints); 
+    if (update_preview && clip->mhDataLayerClip) clip->mhDataLayerClip->SetKeyPoints(clip->mAttributeKeyPoints); 
     return update_preview;
 }
 
@@ -9886,10 +9803,10 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect, Editi
     {
         editing_clip = nullptr;
     }
-    else if (editing_clip && editing_clip->mClipHolder)
+    else if (editing_clip && editing_clip->mhDataLayerClip)
     {
         editing_track = (MediaTrack *)editing_clip->mTrack;
-        current_image = editing_clip->mClipHolder->Image(timeline->mCurrentTime-editing_clip->Start());
+        current_image = editing_clip->mhDataLayerClip->Image(timeline->mCurrentTime-editing_clip->Start());
         default_size = ImVec2((float)current_image.Area().w / (float)timeline->GetPreviewWidth(), (float)current_image.Area().h / (float)timeline->GetPreviewHeight());
         editing_clip->mFontPosX = (float)current_image.Area().x / (float)timeline->GetPreviewWidth();
         editing_clip->mFontPosY = (float)current_image.Area().y / (float)timeline->GetPreviewHeight();
@@ -9944,7 +9861,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect, Editi
                 if (editing_clip->mText.compare(value) != 0)
                 {
                     editing_clip->mText = value;
-                    editing_clip->mClipHolder->SetText(editing_clip->mText);
+                    editing_clip->mhDataLayerClip->SetText(editing_clip->mText);
                     auto found = timeline->FindEditingItem(EDITING_CLIP, editing_clip->mID);
                     if (found != -1) timeline->mEditingItems[found]->mTooltip = value;
                     force_update_preview = true;
@@ -10047,9 +9964,9 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect, Editi
                     ImGui::CaptureMouseFromApp();
                     mouse_is_dragging = true;
                     editing_clip->mFontOffsetH += io.MouseDelta.x / video_rect.GetWidth();
-                    editing_clip->mClipHolder->SetOffsetH(editing_clip->mFontOffsetH);
+                    editing_clip->mhDataLayerClip->SetOffsetH(editing_clip->mFontOffsetH);
                     editing_clip->mFontOffsetV += io.MouseDelta.y / video_rect.GetHeight();
-                    editing_clip->mClipHolder->SetOffsetV(editing_clip->mFontOffsetV);
+                    editing_clip->mhDataLayerClip->SetOffsetV(editing_clip->mFontOffsetV);
 
                     // draw meters on video
                     draw_list->AddLine(video_rect.Min + ImVec2(video_rect.GetWidth() / 2, 0), video_rect.Min + ImVec2(video_rect.GetWidth() / 2, video_rect.GetHeight()), IM_COL32(128, 128, 128, 128));
@@ -10112,7 +10029,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect, Editi
                                                         );
                 current_time += editing_clip->Start();
                 if ((int64_t)current_time != timeline->mCurrentTime) { timeline->Seek(current_time); }
-                if (_changed && editing_clip->mClipHolder) { editing_clip->mClipHolder->SetKeyPoints(editing_clip->mAttributeKeyPoints); timeline->RefreshPreview(); }
+                if (_changed && editing_clip->mhDataLayerClip) { editing_clip->mhDataLayerClip->SetKeyPoints(editing_clip->mAttributeKeyPoints); timeline->RefreshPreview(); }
                 changed |= _changed;
             }
             else if (StyleWindowIndex == 1 && editing_track)

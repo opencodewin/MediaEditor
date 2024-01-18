@@ -487,26 +487,30 @@ struct EventTrack
     void Update();
 };
 
+struct TimeLine;
+struct MediaTrack;
+
 struct Clip
 {
     int64_t mID                 {-1};               // clip ID, project saved
-    int64_t mMediaID            {-1};               // clip media ID in media bank, project saved
+    int64_t mMediaID            {-1};               // MediaItem ID, project saved
+    MediaItem* mpMediaItem      {nullptr};
     int64_t mGroupID            {-1};               // Group ID clip belong, project saved
     uint32_t mType              {MEDIA_UNKNOWN};    // clip type, project saved
     std::string mName;                              // clip name, project saved
     std::string mPath;                              // clip media path, project saved
     bool bSelected              {false};            // clip is selected, project saved
     std::mutex mLock;                               // clip mutex, not using yet
-    void * mHandle              {nullptr};          // clip belong to timeline 
+    void* mHandle               {nullptr};          // clip belong to timeline 
     MediaCore::MediaParser::Holder mMediaParser;
+    MediaCore::Overview::Holder mhOverview;
     int64_t mViewWndDur         {0};
     float mPixPerMs             {0};
     int mTrackHeight            {0};
     bool bMoving                {false};            // clip is moving
     bool bHovered               {false};            // clip is under mouse
 
-    imgui_json::value           mFilterJson;        // clip filter blue print, project saved
-    imgui_json::value           mAttributeJson;     // clip attribute, project saved
+    imgui_json::value           mClipJson;
     bool                        bAttributeScrolling {false}; // need scrolling UI to attribute setting
 
     MEC::EventStack*            mEventStack {nullptr};// clip event stack,
@@ -518,21 +522,21 @@ struct Clip
     int64_t visibleTime = 0;
     float msPixelWidthTarget = -1.f;
 
-    Clip(int64_t start, int64_t end, int64_t id, MediaCore::MediaParser::Holder mediaParser, void * handle);
     virtual ~Clip();
 
     virtual int64_t Moving(int64_t diff, int mouse_track);
     virtual int64_t Cropping(int64_t diff, int type);
     void Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_json::value>* pActionList = nullptr);
     bool isLinkedWith(Clip * clip);
-    
+
     virtual void ConfigViewWindow(int64_t wndDur, float pixPerMs) { mViewWndDur = wndDur; mPixPerMs = pixPerMs; }
     virtual void SetTrackHeight(int trackHeight) { mTrackHeight = trackHeight; }
     virtual void SetViewWindowStart(int64_t millisec) {}
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated = false) { drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK); }
     virtual void DrawTooltips() {};
-    static void Load(Clip * clip, const imgui_json::value& value);
-    virtual void Save(imgui_json::value& value) = 0;
+    virtual bool ReloadSource(MediaItem* pMediaItem) = 0;
+    virtual bool LoadFromJson(const imgui_json::value& j);
+    virtual imgui_json::value SaveAsJson();
 
     int64_t Start() const { return mStart; }
     int64_t End() const { return mEnd; }
@@ -542,7 +546,7 @@ struct Clip
     void SetPositionAndRange(int64_t start, int64_t end, int64_t startOffset, int64_t endOffset)
     { mStart = start; mEnd = end; mStartOffset = startOffset; mEndOffset = endOffset; }
     bool IsInClipRange(int64_t pos) const { return pos >= mStart && pos < mEnd; }
-    
+
     int AddEventTrack();
     MEC::Event::Holder FindEventByID(int64_t event_id);
     MEC::Event::Holder FindSelectedEvent();
@@ -560,7 +564,11 @@ struct Clip
     void ChangeStartOffset(int64_t newOffset);
     void ChangeEndOffset(int64_t newOffset);
 
-private:
+protected:
+    Clip(TimeLine* pOwner, uint32_t u32Type);
+    Clip(TimeLine* pOwner, uint32_t u32Type, const std::string& strName, int64_t i64Start, int64_t i64End, int64_t i64StartOffset = 0, int64_t i64EndOffset = 0);
+
+protected:
     int64_t mStart              {0};                // clip start time in timeline, project saved
     int64_t mEnd                {0};                // clip end time in timeline, project saved
     int64_t mStartOffset        {0};                // clip start time in media, project saved
@@ -570,92 +578,88 @@ private:
 struct VideoClip : Clip
 {
     // video info
-    MediaCore::Snapshot::Viewer::Holder mSsViewer;
+    MediaCore::Snapshot::Viewer::Holder mhSsViewer;
     std::vector<VideoSnapshotInfo> mVideoSnapshotInfos; // clip snapshots info, with all croped range
-    std::list<Snapshot> mVideoSnapshots;                // clip snapshots, including texture and timestamp info
-
     // image info
     int mWidth          {0};        // image width, project saved
     int mHeight         {0};        // image height, project saved
-    int mColorFormat    {0};        // image color format, project saved
-    MediaCore::Overview::Holder mOverview;
-    ImTextureID mImgTexture     {nullptr};
 
-    // attribute
-    MediaCore::ScaleType mScaleType {MediaCore::ScaleType::SCALE_TYPE__FIT}; // clip attribute scale type, project saved
-    double mScaleH  {1.f};                              // clip attribute scale h, project saved
-    double mScaleV  {1.f};                              // clip attribute scale v, project saved
-    bool mKeepAspectRatio {false};                      // clip attribute scale keep aspect ratio, project saved
-    double mRotationAngle {0.f};                        // clip attribute rotate angle, project saved
-    float mfOpacity {1.f};                              // clip attribute opacity, project saved
-    float mPositionOffsetH {0.f};                       // clip attribute position offset h, project saved
-    float mPositionOffsetV {0.f};                       // clip attribute position offset v, project saved
-    float mCropMarginL {0.f};                           // clip attribute crop margin left, project saved
-    float mCropMarginT {0.f};                           // clip attribute crop margin top, project saved
-    float mCropMarginR {0.f};                           // clip attribute crop margin right, project saved
-    float mCropMarginB {0.f};                           // clip attribute crop margin bottom, project saved
+    static VideoClip* CreateInstance(TimeLine* pOwner, const std::string& strName, MediaItem* pMediaItem, int64_t i64Start, int64_t i64End, int64_t i64StartOffset = 0, int64_t i64EndOffset = 0);
+    static VideoClip* CreateInstance(TimeLine* pOwner, MediaItem* pMediaItem, int64_t i64Start);
+    static VideoClip* CreateDummyInstance(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End);
+    virtual ~VideoClip();
 
-    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::MediaParser::Holder hParser, MediaCore::Snapshot::Viewer::Holder viewer, void* handle);
-    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::Overview::Holder overview, void* handle);
-    VideoClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle); // dummy clip
-    ~VideoClip();
-
-    void UpdateClip(MediaCore::MediaParser::Holder hParser, MediaCore::Snapshot::Viewer::Holder viewer, int64_t duration);
-    void UpdateClip(MediaCore::Overview::Holder overview);
     void CalcDisplayParams();
 
     void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
     void SetTrackHeight(int trackHeight) override;
     void SetViewWindowStart(int64_t millisec) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated = false) override;
+    bool ReloadSource(MediaItem* pMediaItem) override;
 
-    static Clip * Load(const imgui_json::value& value, void * handle);
-    void Save(imgui_json::value& value) override;
+    static VideoClip* CreateInstanceFromJson(const imgui_json::value& j, TimeLine* pOwner);
+    imgui_json::value SaveAsJson() override;
     int64_t Cropping(int64_t diff, int type) override;
 
-    void SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool createNewIfNotExist = false);
-    void SyncAttributesWithDataLayer(MediaCore::VideoClip::Holder hClip);
+    void SetDataLayer(MediaCore::VideoClip::Holder hVClip, bool bSyncStateToDataLayer);
+    MediaCore::VideoClip::Holder GetDataLayer() const { return mhDataLayerClip; }
+
+    RenderUtils::ManagedTexture::Holder GetImageTexture() const { return mhImageTx; }
+
+private:
+    VideoClip(TimeLine* pOwner) : Clip(pOwner, MEDIA_VIDEO) {}
+    VideoClip(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End, int64_t i64StartOffset = 0, int64_t i64EndOffset = 0)
+        : Clip(pOwner, MEDIA_VIDEO, strName, i64Start, i64End, i64StartOffset, i64EndOffset)
+    {}
+    bool UpdateClip(MediaItem* pMediaItem);
+    void SyncStateToDataLayer();
+    void SyncStateFromDataLayer();
 
 private:
     float mSnapWidth                {0};
     float mSnapHeight               {0};
-    int64_t mSrcLength              {0};                // media source duration
-    int32_t mAlignmentPadding       {0};                // for alignment of the clip length, according to the timeline framerate
     int64_t mClipViewStartPos;
+    MediaCore::VideoClip::Holder mhDataLayerClip;
     std::vector<MediaCore::Snapshot::Image> mSnapImages;
+    RenderUtils::ManagedTexture::Holder mhImageTx;
 };
 
 struct AudioClip : Clip
 {
     int mAudioChannels {0};             // clip audio channels, project saved
     int mAudioSampleRate {0};           // clip audio sample rate, project saved
-    MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32}; // clip audio type, project saved
     MediaCore::Overview::Waveform::Holder mWaveform {nullptr};  // clip audio snapshot
     MediaCore::Overview::Holder mOverview;
     ImTextureID mWaveformTexture {nullptr}; // clip waveform texture
 
-    AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::Overview::Holder overview, void* handle);
-    AudioClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle);
-    ~AudioClip();
-
-    void UpdateClip(MediaCore::Overview::Holder overview, int64_t duration);
+    static AudioClip* CreateInstance(TimeLine* pOwner, const std::string& strName, MediaItem* pMediaItem, int64_t i64Start, int64_t i64End, int64_t i64StartOffset = 0, int64_t i64EndOffset = 0);
+    static AudioClip* CreateInstance(TimeLine* pOwner, MediaItem* pMediaItem, int64_t i64Start);
+    static AudioClip* CreateDummyInstance(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End);
+    virtual ~AudioClip();
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated = false) override;
-    static Clip * Load(const imgui_json::value& value, void * handle);
-    void Save(imgui_json::value& value) override;
+    bool ReloadSource(MediaItem* pMediaItem) override;
 
-    void SyncFilterWithDataLayer(MediaCore::AudioClip::Holder hClip, bool createNewIfNotExist = false);
+    static AudioClip* CreateInstanceFromJson(const imgui_json::value& j, TimeLine* pOwner);
+    imgui_json::value SaveAsJson() override;
+
+    MediaCore::AudioClip::Holder mhDataLayerClip;
+    void SetDataLayer(MediaCore::AudioClip::Holder hVClip, bool bSyncStateToDataLayer);
 
 private:
-    int64_t mSrcLength              {0};                // media source duration
-    int32_t mAlignmentPadding       {0};                // for alignment of the clip length, according to the timeline framerate
+    AudioClip(TimeLine* pOwner) : Clip(pOwner, MEDIA_AUDIO) {}
+    AudioClip(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End, int64_t i64StartOffset = 0, int64_t i64EndOffset = 0)
+        : Clip(pOwner, MEDIA_AUDIO, strName, i64Start, i64End, i64StartOffset, i64EndOffset)
+    {}
+    bool UpdateClip(MediaItem* pMediaItem);
+    void SyncStateToDataLayer();
+    void SyncStateFromDataLayer();
 };
 
 struct TextClip : Clip
 {
-    TextClip(int64_t start, int64_t end, int64_t id, std::string name, std::string text, void* handle);
-    TextClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle);
-    ~TextClip();
+    static TextClip* CreateInstance(TimeLine* pOwner, const std::string& strText, int64_t i64Start, int64_t i64Length = 0);
+    virtual ~TextClip();
     void SetClipDefault(const MediaCore::SubtitleStyle & style);
     void SetClipDefault(const TextClip* clip);
     void SyncClipAttributes();
@@ -665,15 +669,16 @@ struct TextClip : Clip
     void DrawTooltips() override;
     int64_t Moving(int64_t diff, int mouse_track) override;
     int64_t Cropping(int64_t diff, int type) override;
+    bool ReloadSource(MediaItem* pMediaItem) override;
 
-    static Clip * Load(const imgui_json::value& value, void * handle);
-    void Save(imgui_json::value& value) override;
+    static TextClip* CreateInstanceFromJson(const imgui_json::value& j, TimeLine* pOwner);
+    imgui_json::value SaveAsJson() override;
 
-    void CreateClipHold(void * track);
+    void CreateDataLayer(MediaTrack* pTrack);
     
     std::string mText;
     std::string mFontName;
-    ImGui::KeyPointEditor  mAttributeKeyPoints;
+    ImGui::KeyPointEditor mAttributeKeyPoints;
     bool mTrackStyle {true};
     bool mScaleSettingLink {true};
     float mFontScaleX {1.0f};
@@ -697,8 +702,17 @@ struct TextClip : Clip
     ImVec4 mFontOutlineColor {0, 0, 0, 0};
     ImVec4 mFontBackColor {0, 0, 0, 0};
     bool mIsInited {false};
-    MediaCore::SubtitleClipHolder mClipHolder {nullptr};
+    MediaCore::SubtitleClipHolder mhDataLayerClip;
     void* mTrack {nullptr};
+
+private:
+    TextClip(TimeLine* pOwner) : Clip(pOwner, MEDIA_TEXT) {}
+    TextClip(TimeLine* pOwner, const std::string& strText, int64_t i64Start, int64_t i64End)
+        : Clip(pOwner, MEDIA_TEXT, "", i64Start, i64End, 0, 0), mText(strText)
+    {
+        mAttributeKeyPoints.SetMin({0, 0, 0, 0});
+        mAttributeKeyPoints.SetMax(ImVec4(1, 1, 1, Length()), true);
+    }
 };
 
 class BluePrintVideoTransition : public MediaCore::VideoTransition
@@ -713,6 +727,8 @@ public:
 
     void SetBluePrintFromJson(imgui_json::value& bpJson);
     void SetKeyPoint(ImGui::KeyPointEditor &keypoint) { mKeyPoints = keypoint; };
+
+    imgui_json::value SaveAsJson() const override;
 
 public:
     BluePrint::BluePrintUI* mBp{nullptr};
@@ -791,7 +807,7 @@ struct EditingVideoClip : BaseEditingClip
     uint32_t mHeight            {0};
 
     // for image clip
-    ImTextureID mImgTexture     {0};
+    RenderUtils::ManagedTexture::Holder mhImgTx;
     // for attribute editor
     RenderUtils::ManagedTexture::Holder mhTransformOutputTx;
     RenderUtils::ManagedTexture::Holder mhFilterInputTx;
@@ -800,15 +816,14 @@ struct EditingVideoClip : BaseEditingClip
     MediaCore::CorrelativeFrame::Phase meAttrOutFramePhase {MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING};
     ImGui::ImMat mFilterOutputMat;
 
-    MediaCore::VideoFilter* mFilter {nullptr};
+    MediaCore::VideoFilter::Holder mhVideoFilter;
+    MediaCore::VideoTransformFilter::Holder mhTransformFilter;
     BluePrint::BluePrintUI* mFilterBp {nullptr};
     ImGui::KeyPointEditor* mFilterKp {nullptr};
     ImGui::MaskCreator::Holder mhMaskCreator;
     int64_t mMaskEventId {-1}, mMaskNodeId {-1};
     int mMaskIndex {-1};
     int64_t mMaskEventStart, mMaskEventEnd;
-
-    MediaCore::VideoTransformFilter::Holder mAttribute {nullptr};
 
 public:
     EditingVideoClip(VideoClip* vidclip);
@@ -827,13 +842,13 @@ struct EditingAudioClip : BaseEditingClip
 {
     int mAudioChannels  {2}; 
     int mAudioSampleRate {44100};
-    MediaCore::AudioRender::PcmFormat mAudioFormat {MediaCore::AudioRender::PcmFormat::FLOAT32};
     MediaCore::Overview::Waveform::Holder mWaveform {nullptr};
     std::vector<ImTextureID> mWaveformTextures;
 
-    MediaCore::AudioFilter* mFilter {nullptr};
     BluePrint::BluePrintUI* mFilterBp {nullptr};
     ImGui::KeyPointEditor* mFilterKp {nullptr};
+
+    MediaCore::AudioFilter::Holder mhAudioFilter;
 
 public:
     EditingAudioClip(AudioClip* vidclip);
@@ -887,8 +902,8 @@ struct EditingVideoOverlap : BaseEditingOverlap
     VideoClip *mClip1, *mClip2;
     MediaCore::Snapshot::Generator::Holder mSsGen1, mSsGen2;
     MediaCore::Snapshot::Viewer::Holder mViewer1, mViewer2;
-    ImTextureID mImgTexture1 {0};
-    ImTextureID mImgTexture2 {0};
+    RenderUtils::ManagedTexture::Holder mhImgTx1;
+    RenderUtils::ManagedTexture::Holder mhImgTx2;
     ImVec2 mSnapSize{0, 0};
 
     BluePrintVideoTransition* mTransition{nullptr};

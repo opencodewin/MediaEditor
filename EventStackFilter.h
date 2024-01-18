@@ -32,7 +32,6 @@ namespace MEC
     {
         static MediaCore::VideoFilter::Holder CreateInstance(const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
         static MediaCore::VideoFilter::Holder LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks, MediaCore::SharedSettings::Holder hSettings = nullptr);
-        virtual imgui_json::value SaveAsJson() const = 0;
         virtual void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks) = 0;
     };
 
@@ -40,7 +39,6 @@ namespace MEC
     {
         static MediaCore::AudioFilter::Holder CreateInstance(const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
         static MediaCore::AudioFilter::Holder LoadFromJson(const imgui_json::value& json, const BluePrint::BluePrintCallbackFunctions& bpCallbacks);
-        virtual imgui_json::value SaveAsJson() const = 0;
         virtual void SetBluePrintCallbacks(const BluePrint::BluePrintCallbackFunctions& bpCallbacks) = 0;
     };
 

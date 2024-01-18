@@ -671,134 +671,164 @@ namespace MediaTimeline
 /***********************************************************************************************************
  * Clip Struct Member Functions
  ***********************************************************************************************************/
-Clip::Clip(int64_t start, int64_t end, int64_t id, MediaCore::MediaParser::Holder mediaParser, void * handle)
+Clip::Clip(TimeLine* pOwner, uint32_t u32Type) : mHandle(pOwner), mType(u32Type)
 {
-    TimeLine * timeline = (TimeLine *)handle;
-    mID = timeline ? timeline->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
-    mMediaID = id;
-    mStart = start;
-    mEnd = end;
-    mHandle = handle;
-    mMediaParser = mediaParser;
+    mID = pOwner ? pOwner->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
+}
+
+Clip::Clip(TimeLine* pOwner, uint32_t u32Type, const std::string& strName, int64_t i64Start, int64_t i64End, int64_t i64StartOffset, int64_t i64EndOffset)
+    : mHandle(pOwner), mType(u32Type), mName(strName), mStart(i64Start), mEnd(i64End), mStartOffset(i64StartOffset), mEndOffset(i64EndOffset)
+{
+    mID = pOwner ? pOwner->m_IDGenerator.GenerateID() : ImGui::get_current_time_usec();
 }
 
 Clip::~Clip()
 {
 }
 
-void Clip::Load(Clip * clip, const imgui_json::value& value)
+bool Clip::LoadFromJson(const imgui_json::value& j)
 {
-    if (value.contains("ID"))
+    std::string strAttrName;
+    strAttrName = "ID";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        mID = j[strAttrName].get<imgui_json::number>();
+    else
     {
-        auto& val = value["ID"];
-        if (val.is_number()) clip->mID = val.get<imgui_json::number>();
+        Logger::Log(Logger::Error) << "FAILED to perform 'Clip::LoadFromJson()'! No attribute '" << strAttrName << "' can be found. Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        return false;
     }
-    if (value.contains("MediaID"))
+    strAttrName = "Type";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        mType = j[strAttrName].get<imgui_json::number>();
+    else
     {
-        auto& val = value["MediaID"];
-        if (val.is_number()) clip->mMediaID = val.get<imgui_json::number>();
+        Logger::Log(Logger::Error) << "FAILED to perform 'Clip::LoadFromJson()'! No attribute '" << strAttrName << "' can be found. Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        return false;
     }
-    if (value.contains("GroupID"))
+    strAttrName = "MediaID";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        mMediaID = j[strAttrName].get<imgui_json::number>();
+    else
     {
-        auto& val = value["GroupID"];
-        if (val.is_number()) clip->mGroupID = val.get<imgui_json::number>();
+        Logger::Log(Logger::Error) << "FAILED to perform 'Clip::LoadFromJson()'! No attribute '" << strAttrName << "' can be found. Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        return false;
     }
-    if (value.contains("Start"))
+    strAttrName = "GroupID";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        mGroupID = j[strAttrName].get<imgui_json::number>();
+    else
     {
-        auto& val = value["Start"];
-        if (val.is_number()) clip->mStart = val.get<imgui_json::number>();
+        Logger::Log(Logger::WARN) << "ABNORMAL json in 'Clip::LoadFromJson()'! No attribute '" << strAttrName << "' can be found." << std::endl;
     }
-    if (value.contains("End"))
+    strAttrName = "Start";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        mStart = j[strAttrName].get<imgui_json::number>();
+    else
     {
-        auto& val = value["End"];
-        if (val.is_number()) clip->mEnd = val.get<imgui_json::number>();
+        Logger::Log(Logger::Error) << "FAILED to perform 'Clip::LoadFromJson()'! No attribute '" << strAttrName << "' can be found. Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        return false;
     }
-    if (value.contains("StartOffset"))
+    strAttrName = "End";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        mEnd = j[strAttrName].get<imgui_json::number>();
+    else
     {
-        auto& val = value["StartOffset"];
-        if (val.is_number()) clip->mStartOffset = val.get<imgui_json::number>();
+        Logger::Log(Logger::Error) << "FAILED to perform 'Clip::LoadFromJson()'! No attribute '" << strAttrName << "' can be found. Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        return false;
     }
-    if (value.contains("EndOffset"))
+    strAttrName = "StartOffset";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        mStartOffset = j[strAttrName].get<imgui_json::number>();
+    else
     {
-        auto& val = value["EndOffset"];
-        if (val.is_number()) clip->mEndOffset = val.get<imgui_json::number>();
+        Logger::Log(Logger::Error) << "FAILED to perform 'Clip::LoadFromJson()'! No attribute '" << strAttrName << "' can be found. Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        return false;
     }
-    if (value.contains("Selected"))
+    strAttrName = "EndOffset";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        mEndOffset = j[strAttrName].get<imgui_json::number>();
+    else
     {
-        auto& val = value["Selected"];
-        if (val.is_boolean()) clip->bSelected = val.get<imgui_json::boolean>();
+        Logger::Log(Logger::Error) << "FAILED to perform 'Clip::LoadFromJson()'! No attribute '" << strAttrName << "' can be found. Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        return false;
     }
-    if (value.contains("Path"))
+    strAttrName = "Path";
+    if (j.contains(strAttrName) && j[strAttrName].is_string())
+        mPath = j[strAttrName].get<imgui_json::string>();
+    else
     {
-        auto& val = value["Path"];
-        if (val.is_string()) clip->mPath = val.get<imgui_json::string>();
+        Logger::Log(Logger::WARN) << "ABNORMAL json in 'Clip::LoadFromJson()'! No attribute '" << strAttrName << "' can be found." << std::endl;
     }
-    if (value.contains("Name"))
+    strAttrName = "Name";
+    if (j.contains(strAttrName) && j[strAttrName].is_string())
+        mName = j[strAttrName].get<imgui_json::string>();
+    else
     {
-        auto& val = value["Name"];
-        if (val.is_string()) clip->mName = val.get<imgui_json::string>();
-    }
-    // load filter bp
-    if (value.contains("FilterJson"))
-    {
-        auto& val = value["FilterJson"];
-        if (val.is_object()) clip->mFilterJson = val;
-    }
-    // load attribute
-    if (value.contains("AttributeJson"))
-    {
-        auto& val = value["AttributeJson"];
-        if (val.is_object()) clip->mAttributeJson = val;
+        Logger::Log(Logger::Error) << "FAILED to perform 'Clip::LoadFromJson()'! No attribute '" << strAttrName << "' can be found. Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        return false;
     }
 
-    // load event track
-    const imgui_json::array* eventTrackArray = nullptr;
-    if (imgui_json::GetPtrTo(value, "EventTracks", eventTrackArray))
+    // load event tracks
+    strAttrName = "EventTracks";
+    if (j.contains(strAttrName) && j[strAttrName].is_array())
     {
-        for (auto& track : *eventTrackArray)
+        const auto& jnEventTracks = j[strAttrName].get<imgui_json::array>();
+        for (const auto& jnEvtTrack : jnEventTracks)
         {
-            EventTrack * event_track = EventTrack::Load(track, clip);
-            if (event_track)
+            EventTrack* pEvtTrack = EventTrack::Load(jnEvtTrack, this);
+            if (pEvtTrack)
+                mEventTracks.push_back(pEvtTrack);
+            else
             {
-                clip->mEventTracks.push_back(event_track);
+                Logger::Log(Logger::WARN) << "FAILED to restore 'EventTrack' instance for 'Clip (id=" << mID << ", path=" << mPath <<", type=" << (int)mType
+                        << ")'! Event track json is:" << std::endl;
+                Logger::Log(Logger::WARN) << jnEvtTrack.dump() << std::endl << std::endl;
             }
         }
     }
+
+    // save a copy of the json for this clip
+    mClipJson = j;
+    return true;
 }
 
-void Clip::Save(imgui_json::value& value)
+imgui_json::value Clip::SaveAsJson()
 {
+    imgui_json::value j;
     // save clip global info
-    value["ID"] = imgui_json::number(mID);
-    value["MediaID"] = imgui_json::number(mMediaID);
-    value["GroupID"] = imgui_json::number(mGroupID);
-    value["Type"] = imgui_json::number(mType);
-    value["Path"] = mPath;
-    value["Name"] = mName;
-    value["Start"] = imgui_json::number(mStart);
-    value["End"] = imgui_json::number(mEnd);
-    value["StartOffset"] = imgui_json::number(mStartOffset);
-    value["EndOffset"] = imgui_json::number(mEndOffset);
-    value["Selected"] = imgui_json::boolean(bSelected);
-
-    // save clip filter bp
-    if (!mFilterJson.is_null())
-    {
-        value["FilterJson"] = mFilterJson;
-    }
+    j["ID"] = imgui_json::number(mID);
+    j["MediaID"] = imgui_json::number(mMediaID);
+    j["GroupID"] = imgui_json::number(mGroupID);
+    j["Type"] = imgui_json::number(mType);
+    j["Path"] = mPath;
+    j["Name"] = mName;
+    j["Start"] = imgui_json::number(mStart);
+    j["End"] = imgui_json::number(mEnd);
+    j["StartOffset"] = imgui_json::number(mStartOffset);
+    j["EndOffset"] = imgui_json::number(mEndOffset);
+    // jnClip["Selected"] = imgui_json::boolean(bSelected);
 
     // save event track
-    imgui_json::value event_tracks;
-    for (auto track : mEventTracks)
+    imgui_json::array jnEvtTracks;
+    for (const auto pEvtTrack : mEventTracks)
     {
-        imgui_json::value event_track;
-        track->Save(event_track);
-        event_tracks.push_back(event_track);
+        imgui_json::value jnEvtTrack;
+        pEvtTrack->Save(jnEvtTrack);
+        jnEvtTracks.push_back(jnEvtTrack);
     }
-    if (mEventTracks.size() > 0) value["EventTracks"] = event_tracks;
+    if (!jnEvtTracks.empty())
+        j["EventTracks"] = jnEvtTracks;
 
-    // save Attribute setting
-    value["AttributeJson"] = mAttributeJson;
+    mClipJson = j;
+    return std::move(j);
 }
 
 int64_t Clip::Cropping(int64_t diff, int type)
@@ -905,7 +935,7 @@ int64_t Clip::Cropping(int64_t diff, int type)
             if (IS_VIDEO(item->mMediaType))
             {
                 auto editing_clip = (EditingVideoClip *)item->mEditingClip;
-                editing_clip->mAttribute->GetKeyPoint()->SetRangeX(0, Length(), true);
+                editing_clip->mhTransformFilter->GetKeyPoint()->SetRangeX(0, Length(), true);
             }
         }
     }
@@ -1735,285 +1765,193 @@ int64_t Clip::EventCropping(int64_t event_id, int64_t diff, int type, std::list<
 namespace MediaTimeline
 {
 // VideoClip Struct Member Functions
-VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::MediaParser::Holder hParser, MediaCore::Snapshot::Viewer::Holder hViewer, void* handle)
-    : Clip(start, end, id, hParser, handle)
-{
-    if (hParser)
-    {
-        mSrcLength = (int64_t)(hParser->GetMediaInfo()->duration*1000);
-        mAlignmentPadding = Length()-mSrcLength;
-    }
-    if (handle && hViewer)
-    {
-        mSsViewer = hViewer;
-        if (!mSsViewer)
-            return;
-        mType = MEDIA_VIDEO;
-        mName = name;
-        MediaCore::MediaInfo::Holder info = hParser->GetMediaInfo();
-        const MediaCore::VideoStream* video_stream = hParser->GetBestVideoStream();
-        if (!info || !video_stream)
-        {
-            hViewer->Release();
-            mType |= MEDIA_DUMMY;
-            return;
-        }
-        mWidth = video_stream->width;
-        mHeight = video_stream->height;
-        mPath = info->url;
-    }
-}
-
-VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::Overview::Holder overview, void* handle)
-    : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
-{
-    if (overview)
-    {
-        mType = MEDIA_SUBTYPE_VIDEO_IMAGE;
-        mName = name;
-        MediaCore::MediaInfo::Holder info = overview->GetMediaParser()->GetMediaInfo();
-        const MediaCore::VideoStream* video_stream = mOverview->GetVideoStream();
-        if (!info || !video_stream)
-        {
-            mOverview = nullptr;
-            mType |= MEDIA_DUMMY;
-            return;
-        }
-        TimeLine * timeline = (TimeLine *)handle;
-        mWidth = video_stream->width;
-        mHeight = video_stream->height;
-        std::vector<ImGui::ImMat> snap_images;
-        if (mOverview->GetSnapshots(snap_images))
-        {
-            if (!snap_images.empty() && !snap_images[0].empty() && !mImgTexture && timeline && !timeline->m_in_threads)
-                ImMatToTexture(snap_images[0], mImgTexture);
-        }
-
-        mPath = info->url;
-    }
-}
-
-VideoClip::VideoClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle)
-    : Clip(start, end, id, nullptr, handle)
-{
-    mType = MEDIA_VIDEO | MEDIA_DUMMY;
-    mName = name;
-}
-
 VideoClip::~VideoClip()
 {
-    if (mSsViewer) mSsViewer->Release();
-    for (auto& snap : mVideoSnapshots)
-    {
-        if (snap.texture) { ImGui::ImDestroyTexture(snap.texture); snap.texture = nullptr; }
-    }
-    mVideoSnapshots.clear();
-    if (mImgTexture) { ImGui::ImDestroyTexture(mImgTexture); mImgTexture = nullptr; }
+    if (mhSsViewer) mhSsViewer->Release();
 }
 
-void VideoClip::UpdateClip(MediaCore::MediaParser::Holder hParser, MediaCore::Snapshot::Viewer::Holder viewer, int64_t duration)
+VideoClip* VideoClip::CreateInstance(TimeLine* pOwner, const std::string& strName, MediaItem* pMediaItem, int64_t i64Start, int64_t i64End, int64_t i64StartOffset, int64_t i64EndOffset)
 {
-    if (viewer)
+    if (!pOwner)
     {
-        mType = MEDIA_VIDEO;
-        mMediaParser = hParser;
-        mSsViewer = viewer;
-        MediaCore::MediaInfo::Holder info = hParser->GetMediaInfo();
-        const MediaCore::VideoStream* video_stream = hParser->GetBestVideoStream();
-        if (!info || !video_stream)
-        {
-            viewer->Release();
-            mType |= MEDIA_DUMMY;
-            return;
-        }
-        if (mWidth != video_stream->width || mHeight != video_stream->height)
-        {
-            viewer->Release();
-            mType |= MEDIA_DUMMY;
-            return;
-        }
-        if (Length() > duration)
-        {
-            viewer->Release();
-            mType |= MEDIA_DUMMY;
-            return;
-        }
-
-        mPath = info->url;
-    }
-}
-
-void VideoClip::UpdateClip(MediaCore::Overview::Holder overview)
-{
-    if (overview)
-    {
-        mType = MEDIA_SUBTYPE_VIDEO_IMAGE;
-        mOverview = overview;
-        mMediaParser = overview->GetMediaParser();
-        MediaCore::MediaInfo::Holder info = overview->GetMediaParser()->GetMediaInfo();
-        const MediaCore::VideoStream* video_stream = mOverview->GetVideoStream();
-        if (!info || !video_stream)
-        {
-            mOverview = nullptr;
-            mType |= MEDIA_DUMMY;
-            return;
-        }
-        if (mWidth != video_stream->width || mHeight != video_stream->height)
-        {
-            mOverview = nullptr;
-            mType |= MEDIA_DUMMY;
-            return;
-        }
-        std::vector<ImGui::ImMat> snap_images;
-        if (mOverview->GetSnapshots(snap_images))
-        {
-            TimeLine * timeline = (TimeLine *)mHandle;
-            if (!snap_images.empty() && !snap_images[0].empty() && !mImgTexture && timeline && !timeline->m_in_threads)
-                ImMatToTexture(snap_images[0], mImgTexture);
-        }
-
-        mPath = info->url;
-    }
-}
-
-Clip* VideoClip::Load(const imgui_json::value& value, void * handle)
-{
-    TimeLine * timeline = (TimeLine *)handle;
-    if (!timeline || timeline->media_items.size() <= 0)
+        Logger::Log(Logger::Error) << "INVALID argument 'pOwner'! Can NOT be NULL." << std::endl;
         return nullptr;
+    }
+    if (!pMediaItem)
+    {
+        Logger::Log(Logger::Error) << "INVALID argument 'pMediaItem'! Can NOT be NULL." << std::endl;
+        return nullptr;
+    }
+    auto hParser = pMediaItem->mhParser;
+    IM_ASSERT(hParser);
+    const auto pVidstm = pMediaItem->mhParser->GetBestVideoStream();
+    if (!pVidstm)
+    {
+        Logger::Log(Logger::Error) << "FAILED to perform 'VideoClip::CreateInstance()'! CANNOT find any video stream from '" << hParser->GetUrl() << "'." << std::endl;
+        return nullptr;
+    }
+    auto pNewClip = new VideoClip(pOwner, strName, i64Start, i64End, i64StartOffset, i64EndOffset);
+    IM_ASSERT(pNewClip);
+    if (pVidstm->isImage)
+        pNewClip->mType = MEDIA_SUBTYPE_VIDEO_IMAGE;
+    else if (hParser->IsImageSequence())
+        pNewClip->mType = MEDIA_SUBTYPE_VIDEO_IMAGE_SEQUENCE;
+    if (!pNewClip->UpdateClip(pMediaItem))
+    {
+        Logger::Log(Logger::Error) << "FAILED to perform 'VideoClip::CreateInstance()'! 'VideoClip::UpdateClip()' failed." << std::endl;
+        delete pNewClip;
+        return nullptr;
+    }
+    return pNewClip;
+}
 
-    int64_t id = -1;
-    int width = 0, height = 0;
-    MediaItem * item = nullptr;
-    if (value.contains("MediaID"))
+VideoClip* VideoClip::CreateInstance(TimeLine* pOwner, MediaItem* pMediaItem, int64_t i64Start)
+{
+    if (!pOwner)
     {
-        auto& val = value["MediaID"];
-        if (val.is_number()) id = val.get<imgui_json::number>();
+        Logger::Log(Logger::Error) << "INVALID argument 'pOwner'! Can NOT be NULL." << std::endl;
+        return nullptr;
     }
-    if (id != -1)
+    if (!pMediaItem)
     {
-        item = timeline->FindMediaItemByID(id);
+        Logger::Log(Logger::Error) << "INVALID argument 'pMediaItem'! Can NOT be NULL." << std::endl;
+        return nullptr;
     }
-    if (value.contains("width"))
+    auto hParser = pMediaItem->mhParser;
+    IM_ASSERT(hParser);
+    const auto pVidstm = pMediaItem->mhParser->GetBestVideoStream();
+    if (!pVidstm)
     {
-        auto& val = value["width"];
-        if (val.is_number()) width = val.get<imgui_json::number>();
+        Logger::Log(Logger::Error) << "FAILED to perform 'VideoClip::CreateInstance()'! CANNOT find any video stream from '" << hParser->GetUrl() << "'." << std::endl;
+        return nullptr;
     }
-    if (value.contains("height"))
-    {
-        auto& val = value["height"];
-        if (val.is_number()) height = val.get<imgui_json::number>();
-    }
+    const auto tClipRange = pOwner->AlignClipRange(pVidstm->isImage ? std::pair<int64_t, int64_t>(i64Start, 10000) : std::pair<int64_t, int64_t>(i64Start, (int64_t)(pVidstm->duration*1000)));
+    const std::string strClipName = pVidstm->isImage ? pMediaItem->mName : (pMediaItem->mName+":Video");
+    return CreateInstance(pOwner, strClipName, pMediaItem, tClipRange.first, tClipRange.first+tClipRange.second, 0, 0);
+}
 
-    if (item)
-    {
-        // media is in bank
-        VideoClip * new_clip = nullptr;
-        auto clipRange = timeline->AlignClipRange({0, item->mSrcLength});
-        if (!item->mValid)
-        {
-            new_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, handle);
-            if (IS_IMAGE(item->mMediaType))
-                new_clip->mType |= MEDIA_SUBTYPE_VIDEO_IMAGE;
-            else
-                new_clip->mType |= MEDIA_VIDEO;
-        }
-        else if (IS_IMAGE(item->mMediaType))
-        {
-            new_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, handle);
-        }
-        else
-        {
-            MediaCore::Snapshot::Viewer::Holder hViewer;
-            MediaCore::Snapshot::Generator::Holder hSsGen = timeline->GetSnapshotGenerator(item->mID);
-            if (!hSsGen)
-            {
-                // TODO::Dicky create media error, need show dummy clip
-                return nullptr;
-            }
+VideoClip* VideoClip::CreateDummyInstance(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End)
+{
+    auto pNewClip = new VideoClip(pOwner);
+    pNewClip->mName = strName;
+    pNewClip->mType |= MEDIA_DUMMY;
+    pNewClip->mStart = i64Start;
+    pNewClip->mEnd = i64End;
+    return pNewClip;
+}
 
-            hViewer = hSsGen->CreateViewer();
-            new_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview->GetMediaParser(), hViewer, handle);
-        }
-        if (new_clip)
+imgui_json::value VideoClip::SaveAsJson()
+{
+    imgui_json::value j = Clip::SaveAsJson();
+    // save video clip info
+    j["width"] = imgui_json::number(mWidth);
+    j["height"] = imgui_json::number(mHeight);
+
+    if (mhDataLayerClip)
+    {
+        j["TransformFilter"] = mhDataLayerClip->GetTransformFilter()->SaveAsJson();
+        const auto hVFilter = mhDataLayerClip->GetFilter();
+        if (hVFilter)
+            j["VideoFilter"] = hVFilter->SaveAsJson();
+    }
+    mClipJson = j;
+    return std::move(j);
+}
+
+VideoClip* VideoClip::CreateInstanceFromJson(const imgui_json::value& j, TimeLine* pOwner)
+{
+    if (!pOwner)
+    {
+        Logger::Log(Logger::Error) << "INVALID argument 'pOwner'! Can NOT be NULL." << std::endl;
+        return nullptr;
+    }
+    auto pNewClip = new VideoClip(pOwner);
+    if (!pNewClip->LoadFromJson(j))
+    {
+        delete pNewClip;
+        return nullptr;
+    }
+    if (!IS_VIDEO(pNewClip->mType))
+    {
+        Logger::Log(Logger::Error) << "FAILED to create 'VideoClip' instance from json! Invalid clip type (" << pNewClip->mType << "). Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        delete pNewClip;
+        return nullptr;
+    }
+    if (IS_DUMMY(pNewClip->mType))
+        return pNewClip;
+    auto pMediaItem = pOwner->FindMediaItemByID(pNewClip->mMediaID);
+    if (!pMediaItem)
+    {
+        Logger::Log(Logger::Error) << "FAILED to create 'VideoClip' instance from json! Invalid 'MediaItem' id (" << pNewClip->mMediaID << "). Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        delete pNewClip;
+        return nullptr;
+    }
+    if (!pNewClip->UpdateClip(pMediaItem))
+    {
+        delete pNewClip;
+        return nullptr;
+    }
+    if (pNewClip->mhDataLayerClip)
+        pNewClip->SyncStateToDataLayer();
+    return pNewClip;
+}
+
+bool VideoClip::UpdateClip(MediaItem* pMediaItem)
+{
+    auto pVidstm = pMediaItem->mhParser->GetBestVideoStream();
+    if (!pVidstm)
+    {
+        Logger::Log(Logger::Error) << "FAILED to perform 'VideoClip::UpdateClip()'! CANNOT find any video stream from '" << mPath << "'." << std::endl;
+        return false;
+    }
+    const bool bIsImage = IS_IMAGE(mType);
+    const bool bIsImgseq = IS_IMAGESEQ(mType);
+    MediaCore::Snapshot::Viewer::Holder hSsViewer;
+    if (bIsImage)
+    {
+        if (!pVidstm->isImage)
         {
-            if ((width != 0 && new_clip->mWidth != width) || 
-                (height != 0 && new_clip->mHeight != height))
-            {
-                new_clip->mType |= MEDIA_DUMMY;
-                new_clip->mWidth = width;
-                new_clip->mHeight = height;
-            }
-            Clip::Load(new_clip, value);
-            // load video info
-            if (value.contains("ScaleType"))
-            {
-                auto& val = value["ScaleType"];
-                if (val.is_number()) new_clip->mScaleType = (MediaCore::ScaleType)val.get<imgui_json::number>();
-            }
-            if (value.contains("ScaleH"))
-            {
-                auto& val = value["ScaleH"];
-                if (val.is_number()) new_clip->mScaleH = val.get<imgui_json::number>();
-            }
-            if (value.contains("ScaleV"))
-            {
-                auto& val = value["ScaleV"];
-                if (val.is_number()) new_clip->mScaleV = val.get<imgui_json::number>();
-            }
-            if (value.contains("KeepAspectRatio"))
-            {
-                auto& val = value["KeepAspectRatio"];
-                if (val.is_boolean()) new_clip->mKeepAspectRatio = val.get<imgui_json::boolean>();
-            }
-            if (value.contains("RotationAngle"))
-            {
-                auto& val = value["RotationAngle"];
-                if (val.is_number()) new_clip->mRotationAngle = val.get<imgui_json::number>();
-            }
-            if (value.contains("Opacity"))
-            {
-                auto& val = value["Opacity"];
-                if (val.is_number()) new_clip->mfOpacity = val.get<imgui_json::number>();
-            }
-            if (value.contains("PositionOffsetH"))
-            {
-                auto& val = value["PositionOffsetH"];
-                if (val.is_number()) new_clip->mPositionOffsetH = val.get<imgui_json::number>();
-            }
-            if (value.contains("PositionOffsetV"))
-            {
-                auto& val = value["PositionOffsetV"];
-                if (val.is_number()) new_clip->mPositionOffsetV = val.get<imgui_json::number>();
-            }
-            if (value.contains("CropMarginL"))
-            {
-                auto& val = value["CropMarginL"];
-                if (val.is_number()) new_clip->mCropMarginL = val.get<imgui_json::number>();
-            }
-            if (value.contains("CropMarginT"))
-            {
-                auto& val = value["CropMarginT"];
-                if (val.is_number()) new_clip->mCropMarginT = val.get<imgui_json::number>();
-            }
-            if (value.contains("CropMarginR"))
-            {
-                auto& val = value["CropMarginR"];
-                if (val.is_number()) new_clip->mCropMarginR = val.get<imgui_json::number>();
-            }
-            if (value.contains("CropMarginB"))
-            {
-                auto& val = value["CropMarginB"];
-                if (val.is_number()) new_clip->mCropMarginB = val.get<imgui_json::number>();
-            }
-            return new_clip;
+            Logger::Log(Logger::Error) << "WRONG media type! Try to use a NON-IMAGE source to create an IMAGE 'Videoclip'. Url is '" << mPath << "'." << std::endl;
+            return false;
         }
     }
     else
     {
-        // media isn't in bank we need create new media item first ?
+        if (pVidstm->isImage)
+        {
+            Logger::Log(Logger::Error) << "WRONG media type! Try to use an IMAGE source to create a NON-IMAGE 'VideoClip'. Url is '" << mPath << "'." << std::endl;
+            return false;
+        }
+        TimeLine* pOwner = (TimeLine*)mHandle;
+        auto hSsGen = pOwner->GetSnapshotGenerator(pMediaItem->mID);
+        if (hSsGen)
+            hSsViewer = hSsGen->CreateViewer();
+        else
+        {
+            Logger::Log(Logger::WARN) << "FAILED to retrieve 'Snapshot::Generator' for 'VideoClip' built on '" << mPath << "'! Then no 'Snapshot::Viewer' is available." << std::endl;
+            return false;
+        }
     }
-    return nullptr;
+    if (!bIsImage && !bIsImgseq && StartOffset()+Length() > (int64_t)(pVidstm->duration*1000))
+        Logger::Log(Logger::WARN) << "The underline range of 'VideoClip' exceeds the duration of the source video stream! start-offset(" << StartOffset() << ")+length("
+                << Length() << ")=" << StartOffset()+Length() << " > video-stream-duration(" << (int64_t)(pVidstm->duration*1000) << ")." << std::endl;
+
+    mpMediaItem = pMediaItem;
+    mMediaID = pMediaItem->mID;
+    mMediaParser = pMediaItem->mhParser;
+    mhOverview = pMediaItem->mMediaOverview;
+    mhSsViewer = hSsViewer;
+    mPath = mMediaParser->GetUrl();
+    mWidth = pVidstm->width;
+    mHeight = pVidstm->height;
+    return true;
+}
+
+bool VideoClip::ReloadSource(MediaItem* pMediaItem)
+{
+    return UpdateClip(pMediaItem);
 }
 
 void VideoClip::ConfigViewWindow(int64_t wndDur, float pixPerMs)
@@ -2039,10 +1977,10 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
         mClipViewStartPos += millisec-Start();
     if (!IS_DUMMY(mType) && !IS_IMAGE(mType))
     {
-        if (!mSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
-            throw std::runtime_error(mSsViewer->GetError());
+        if (!mhSsViewer->GetSnapshots((double)mClipViewStartPos/1000, mSnapImages))
+            throw std::runtime_error(mhSsViewer->GetError());
         auto txmgr = ((TimeLine*)mHandle)->mTxMgr;
-        mSsViewer->UpdateSnapshotTexture(mSnapImages, txmgr, VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
+        mhSsViewer->UpdateSnapshotTexture(mSnapImages, txmgr, VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
     }
 }
 
@@ -2114,27 +2052,40 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             imgLeftTop.x += snapDispWidth;
             snapDispWidth = snapWidth;
         }
-        return;
     }
-    if (mImgTexture)
+    else if (IS_IMAGE(mType))
     {
-        int _width = ImGui::ImGetTextureWidth(mImgTexture);
-        int _height = ImGui::ImGetTextureHeight(mImgTexture);
-        if (_width > 0 && _height > 0)
+        if (!mhImageTx)
         {
-            int trackHeight = rightBottom.y - leftTop.y;
+            TimeLine* pOwner = (TimeLine*)mHandle;
+            std::vector<ImGui::ImMat> aOvwSsAry;
+            mhOverview->GetSnapshots(aOvwSsAry);
+            if (!aOvwSsAry.empty() && !aOvwSsAry[0].empty())
+            {
+                mhImageTx = pOwner->mTxMgr->GetGridTextureFromPool(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME);
+                mhImageTx->RenderMatToTexture(aOvwSsAry[0]);
+            }
+        }
+        auto pImgTid = mhImageTx ? mhImageTx->TextureID() : nullptr;
+        if (pImgTid && mSnapWidth > 0 && mSnapHeight > 0)
+        {
+            const auto roiRect = mhImageTx->GetDisplayRoi();
+            const auto& roiSize = roiRect.size;
             ImVec2 imgLeftTop = leftTop;
             while (imgLeftTop.x < rightBottom.x)
             {
-                float snapDispWidth = mSnapWidth;
+                auto fSsW = mSnapWidth;
+                const auto fSsH = mSnapHeight;
                 ImVec2 uvMin{0, 0}, uvMax{1, 1};
-                if (imgLeftTop.x + snapDispWidth > rightBottom.x)
+                if (imgLeftTop.x+fSsW > rightBottom.x)
                 {
-                    uvMax.x = 1 - (imgLeftTop.x + snapDispWidth - rightBottom.x) / mSnapWidth;
-                    snapDispWidth = rightBottom.x - imgLeftTop.x;
+                    uvMax.x = 1 - (imgLeftTop.x+fSsW-rightBottom.x) / fSsW;
+                    fSsW = rightBottom.x - imgLeftTop.x;
                 }
-                drawList->AddImage(mImgTexture, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
-                imgLeftTop.x += snapDispWidth;
+                MatUtils::Point2f uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
+                uvMin2 = roiRect.leftTop+roiSize*uvMin2; uvMax2 = roiRect.leftTop+roiSize*uvMax2;
+                drawList->AddImage(pImgTid, imgLeftTop, {imgLeftTop.x + fSsW, rightBottom.y}, MatUtils::ToImVec2(uvMin2), MatUtils::ToImVec2(uvMax2));
+                imgLeftTop.x += fSsW;
             }
         }
     }
@@ -2165,8 +2116,8 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
             auto tid = hTx ? hTx->TextureID() : nullptr;
             if (tid)
             {
-                auto roiRect = hTx->GetDisplayRoi();
-                auto roiSize = roiRect.size;
+                const auto roiRect = hTx->GetDisplayRoi();
+                const auto& roiSize = roiRect.size;
                 MatUtils::Point2f uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
                 uvMin2 = roiRect.leftTop+roiSize*uvMin2; uvMax2 = roiRect.leftTop+roiSize*uvMax2;
                 drawList->AddImage(tid, snapLeftTop, {snapLeftTop.x + snapDispWidth, rightBottom.y}, MatUtils::ToImVec2(uvMin2), MatUtils::ToImVec2(uvMax2));
@@ -2188,14 +2139,9 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         }
         MediaCore::Snapshot::GetLogger()->Log(Logger::VERBOSE) << "[1]<<<<< End display snapshot" << std::endl;
     }
-    else if (mOverview)
+    else
     {
-        std::vector<ImGui::ImMat> snap_images;
-        if (mOverview->GetSnapshots(snap_images))
-        {
-            if (!snap_images.empty() && !snap_images[0].empty())
-                ImMatToTexture(snap_images[0], mImgTexture);
-        }
+        Logger::Log(Logger::WARN) << "ABNORMAL state for 'VideoClip' based on '" << mPath << "': No snapshots to show." << std::endl;
     }
 }
 
@@ -2206,190 +2152,313 @@ void VideoClip::CalcDisplayParams()
     MediaCore::Ratio displayAspectRatio = {
         (int32_t)(video_stream->width * video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height * video_stream->sampleAspectRatio.den) };
     mSnapWidth = (float)mTrackHeight * displayAspectRatio.num / displayAspectRatio.den;
-    // double windowSize = (double)mViewWndDur / 1000;
-    // if (windowSize > video_stream->duration)
-    //     windowSize = video_stream->duration;
-    // mSnapsInViewWindow = std::max((float)((double)mPixPerMs*windowSize * 1000 / mSnapWidth), 1.f);
-    // if (!mSnapshot->ConfigSnapWindow(windowSize, mSnapsInViewWindow))
-    //     throw std::runtime_error(mSnapshot->GetError());
 }
 
-void VideoClip::Save(imgui_json::value& value)
+void VideoClip::SetDataLayer(MediaCore::VideoClip::Holder hVClip, bool bSyncStateToDataLayer)
 {
-    Clip::Save(value);
-    // save video clip info
-    value["width"] = imgui_json::number(mWidth);
-    value["height"] = imgui_json::number(mHeight);
-
-    value["CropMarginL"] = imgui_json::number(mCropMarginL);
-    value["CropMarginT"] = imgui_json::number(mCropMarginT);
-    value["CropMarginR"] = imgui_json::number(mCropMarginR);
-    value["CropMarginB"] = imgui_json::number(mCropMarginB);
-
-    value["PositionOffsetH"] = imgui_json::number(mPositionOffsetH);
-    value["PositionOffsetV"] = imgui_json::number(mPositionOffsetV);
-
-    value["ScaleH"] = imgui_json::number(mScaleH);
-    value["ScaleV"] = imgui_json::number(mScaleV);
-    value["ScaleType"] = imgui_json::number(mScaleType);
-    value["KeepAspectRatio"] = imgui_json::boolean(mKeepAspectRatio);
-
-    value["RotationAngle"] = imgui_json::number(mRotationAngle);
-    value["Opacity"] = imgui_json::number(mfOpacity);
+    mhDataLayerClip = hVClip;
+    if (bSyncStateToDataLayer)
+        SyncStateToDataLayer();
+    else
+        SyncStateFromDataLayer();
 }
 
-void VideoClip::SyncFilterWithDataLayer(MediaCore::VideoClip::Holder hClip, bool createNewIfNotExist)
+void VideoClip::SyncStateToDataLayer()
 {
-    auto hFilter = hClip->GetFilter();
-    if (!hFilter && (createNewIfNotExist || !mFilterJson.is_null()))
+    // sync 'VideoFilter' from clip json to data-layer
+    MediaCore::VideoFilter::Holder hVFilter;
+    BluePrint::BluePrintCallbackFunctions tBpCallbacks;
+    tBpCallbacks.BluePrintOnChanged = TimeLine::OnVideoEventStackFilterBpChanged;
+    std::string strAttrName;
+    strAttrName = "VideoFilter";
+    if (mClipJson.contains(strAttrName) && mClipJson[strAttrName].is_object())
     {
-        bool isEventStackFilter = false;
-        if (mFilterJson.contains("name") && mFilterJson["name"].is_string())
-        {
-            auto& filterName = mFilterJson["name"].get<imgui_json::string>();
-            if (filterName == "EventStackFilter")
-                isEventStackFilter = true;
-        }
-        BluePrint::BluePrintCallbackFunctions bpCallbacks;
-        bpCallbacks.BluePrintOnChanged = TimeLine::OnVideoEventStackFilterBpChanged;
-        // load 'EventStackFilter'
-        MediaCore::VideoFilter::Holder hNewFilter;
-        bool isNewFilter = false;
-        if (isEventStackFilter)
-            hNewFilter = MEC::VideoEventStackFilter::LoadFromJson(mFilterJson, bpCallbacks);
-        else
-        {
-            hNewFilter = MEC::VideoEventStackFilter::CreateInstance(bpCallbacks);
-            isNewFilter = true;
-        }
-        if (hNewFilter)
-        {
-            MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hNewFilter.get());
-            pEsf->SetTimelineHandle(mHandle);
-            hClip->SetFilter(hNewFilter);
-            mEventStack = static_cast<MEC::EventStack*>(pEsf);
-        }
-        else
-        {
-            Logger::Log(Logger::WARN) << "! FAILED to create new 'EventStackFilter' instance !" << std::endl;
-        }
+        const auto& jnFilterJson = mClipJson[strAttrName];
+        std::string strFilterName;
+        strAttrName = "name";
+        if (jnFilterJson.contains(strAttrName) && jnFilterJson[strAttrName].is_string())
+            strFilterName = jnFilterJson[strAttrName].get<imgui_json::string>();
+        if (strFilterName == "EventStackFilter")
+            hVFilter = MEC::VideoEventStackFilter::LoadFromJson(jnFilterJson, tBpCallbacks);
+        else if (!strFilterName.empty())
+            Logger::Log(Logger::WARN) << "Unrecognized 'VideoFilter' type '" << strFilterName << "'! Ignore the 'VideoFilter' json for 'VideoClip' on '" << mPath << "'." << std::endl;
     }
-    else if (hFilter && mFilterJson.is_null())
+    if (!hVFilter)
+        hVFilter = MEC::VideoEventStackFilter::CreateInstance(tBpCallbacks);
+    if (hVFilter->GetFilterName() == "EventStackFilter")
     {
-        auto filterName = hFilter->GetFilterName();
-        if (filterName == "EventStackFilter")
+        MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hVFilter.get());
+        pEsf->SetTimelineHandle(mHandle);
+        mEventStack = static_cast<MEC::EventStack*>(pEsf);
+    }
+    mhDataLayerClip->SetFilter(hVFilter);
+    // sync 'TransformFilter' from clip json to data-layer
+    strAttrName = "TransformFilter";
+    if (mClipJson.contains(strAttrName) && mClipJson[strAttrName].is_object())
+    {
+        const auto& jnTransformFilterJson = mClipJson[strAttrName];
+        if (!mhDataLayerClip->GetTransformFilter()->LoadFromJson(jnTransformFilterJson))
         {
-            MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hFilter.get());
-            pEsf->SetTimelineHandle(mHandle);
-            mFilterJson = pEsf->SaveAsJson();
-            mEventStack = static_cast<MEC::EventStack*>(pEsf);
-            auto eventList = mEventStack->GetEventList();
-            mEventTracks.clear();
-            for (auto& e : eventList)
-            {
-                const auto z = e->Z();
-                while (z >= mEventTracks.size())
-                    AddEventTrack();
-                mEventTracks[z]->m_Events.push_back(e->Id());
-            }
-        }
-        else
-        {
-            Logger::Log(Logger::WARN) << "UNHANDLED filter type '" << filterName << "'!" << std::endl;
+            Logger::Log(Logger::WARN) << "FAILED to sync 'TransformFilter' json to 'VideoClip' on '" << mPath << "'. Transform filter json is:" << std::endl;
+            Logger::Log(Logger::WARN) << jnTransformFilterJson.dump() << std::endl << std::endl;
         }
     }
 }
 
-void VideoClip::SyncAttributesWithDataLayer(MediaCore::VideoClip::Holder hClip)
+void VideoClip::SyncStateFromDataLayer()
 {
-    auto hTransformFilter = hClip->GetTransformFilter();
-    if (hTransformFilter)
+    // sync 'VideoFilter' from data-layer to clip json
+    mEventTracks.clear();
+    auto hVFilter = mhDataLayerClip->GetFilter();
+    if (!hVFilter)
     {
-        hTransformFilter->SetScaleType(mScaleType);
-        hTransformFilter->SetScaleH(mScaleH);
-        hTransformFilter->SetScaleV(mScaleV);
-        hTransformFilter->SetPositionOffsetH(mPositionOffsetH);
-        hTransformFilter->SetPositionOffsetV(mPositionOffsetV);
-        hTransformFilter->SetRotationAngle(mRotationAngle);
-        hTransformFilter->SetOpacity(mfOpacity);
-        hTransformFilter->SetCropMarginL(mCropMarginL);
-        hTransformFilter->SetCropMarginT(mCropMarginT);
-        hTransformFilter->SetCropMarginR(mCropMarginR);
-        hTransformFilter->SetCropMarginB(mCropMarginB);
+        BluePrint::BluePrintCallbackFunctions tBpCallbacks;
+        tBpCallbacks.BluePrintOnChanged = TimeLine::OnVideoEventStackFilterBpChanged;
+        hVFilter = MEC::VideoEventStackFilter::CreateInstance(tBpCallbacks);
+        mhDataLayerClip->SetFilter(hVFilter);
     }
+
+    const auto strFilterName = hVFilter->GetFilterName();
+    if (strFilterName == "EventStackFilter")
+    {
+        MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hVFilter.get());
+        mEventStack = static_cast<MEC::EventStack*>(pEsf);
+        auto aEventList = mEventStack->GetEventList();
+        for (auto& hEvt : aEventList)
+        {
+            const auto z = hEvt->Z();
+            while (z >= mEventTracks.size())
+                AddEventTrack();
+            mEventTracks[z]->m_Events.push_back(hEvt->Id());
+        }
+    }
+    else
+        Logger::Log(Logger::WARN) << "Unrecognized 'VideoFilter' type '" << strFilterName << "'! Ignore syncing state from this instance for 'VideoClip' on '" << mPath << "'." << std::endl;
+    mClipJson["VideoFilter"] = hVFilter->SaveAsJson();
+
+    // sync 'TransformFilter' from data-layer to clip json
+    mClipJson["TransformFilter"] = mhDataLayerClip->GetTransformFilter()->SaveAsJson();
 }
 } // namespace MediaTimeline
 
 namespace MediaTimeline
 {
 // AudioClip Struct Member Functions
-AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, MediaCore::Overview::Holder overview, void* handle)
-    : Clip(start, end, id, overview->GetMediaParser(), handle), mOverview(overview)
-{
-    if (mMediaParser)
-    {
-        mSrcLength = (int64_t)(mMediaParser->GetMediaInfo()->duration*1000);
-        mAlignmentPadding = Length()-mSrcLength;
-    }
-    if (handle && mMediaParser)
-    {
-        mType = MEDIA_AUDIO;
-        mName = name;
-        MediaCore::MediaInfo::Holder info = mMediaParser->GetMediaInfo();
-        const MediaCore::AudioStream* audio_stream = mMediaParser->GetBestAudioStream();
-        if (!info || !audio_stream)
-        {
-            mType |= MEDIA_DUMMY;
-            return;
-        }
-        TimeLine * timeline = (TimeLine *)mHandle;
-        mAudioSampleRate = audio_stream->sampleRate;
-        mAudioChannels = audio_stream->channels;
-        mPath = info->url;
-        mWaveform = overview->GetWaveform();
-    }
-}
-
-AudioClip::AudioClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle)
-    : Clip(start, end, id, nullptr, handle)
-{
-    mType = MEDIA_DUMMY | MEDIA_AUDIO;
-    mName = name;
-}
-
 AudioClip::~AudioClip()
 {
     if (mWaveformTexture) { ImGui::ImDestroyTexture(mWaveformTexture); mWaveformTexture = nullptr; }
 }
 
-void AudioClip::UpdateClip(MediaCore::Overview::Holder overview, int64_t duration)
+AudioClip* AudioClip::CreateInstance(TimeLine* pOwner, const std::string& strName, MediaItem* pMediaItem, int64_t i64Start, int64_t i64End, int64_t i64StartOffset, int64_t i64EndOffset)
 {
-    if (overview)
+    if (!pOwner)
     {
-        mType = MEDIA_AUDIO;
-        mOverview = overview;
-        mMediaParser = overview->GetMediaParser();
-        MediaCore::MediaInfo::Holder info = mMediaParser->GetMediaInfo();
-        const MediaCore::AudioStream* audio_stream = mMediaParser->GetBestAudioStream();
-        if (!info || !audio_stream)
-        {
-            mType |= MEDIA_DUMMY;
-            return;
-        }
-        if (mAudioSampleRate != audio_stream->sampleRate ||
-            mAudioChannels != audio_stream->channels)
-        {
-            mType |= MEDIA_DUMMY;
-            return;
-        }
-        if (Length() > duration)
-        {
-            mType |= MEDIA_DUMMY;
-            return;
-        }
-        mPath = info->url;
-        mWaveform = overview->GetWaveform();
+        Logger::Log(Logger::Error) << "INVALID argument 'pOwner'! Can NOT be NULL." << std::endl;
+        return nullptr;
     }
+    if (!pMediaItem)
+    {
+        Logger::Log(Logger::Error) << "INVALID argument 'pMediaItem'! Can NOT be NULL." << std::endl;
+        return nullptr;
+    }
+    auto hParser = pMediaItem->mhParser;
+    IM_ASSERT(hParser);
+    const auto pAudstm = pMediaItem->mhParser->GetBestAudioStream();
+    if (!pAudstm)
+    {
+        Logger::Log(Logger::Error) << "FAILED to perform 'AudioClip::CreateInstance()'! CANNOT find any video stream from '" << hParser->GetUrl() << "'." << std::endl;
+        return nullptr;
+    }
+    auto pNewClip = new AudioClip(pOwner, strName, i64Start, i64End, i64StartOffset, i64EndOffset);
+    IM_ASSERT(pNewClip);
+    if (!pNewClip->UpdateClip(pMediaItem))
+    {
+        Logger::Log(Logger::Error) << "FAILED to perform 'AudioClip::CreateInstance()'! 'AudioClip::UpdateClip()' failed." << std::endl;
+        delete pNewClip;
+        return nullptr;
+    }
+    return pNewClip;
+}
+
+AudioClip* AudioClip::CreateInstance(TimeLine* pOwner, MediaItem* pMediaItem, int64_t i64Start)
+{
+    if (!pOwner)
+    {
+        Logger::Log(Logger::Error) << "INVALID argument 'pOwner'! Can NOT be NULL." << std::endl;
+        return nullptr;
+    }
+    if (!pMediaItem)
+    {
+        Logger::Log(Logger::Error) << "INVALID argument 'pMediaItem'! Can NOT be NULL." << std::endl;
+        return nullptr;
+    }
+    auto hParser = pMediaItem->mhParser;
+    IM_ASSERT(hParser);
+    const auto pAudstm = pMediaItem->mhParser->GetBestAudioStream();
+    if (!pAudstm)
+    {
+        Logger::Log(Logger::Error) << "FAILED to perform 'AudioClip::CreateInstance()'! CANNOT find any video stream from '" << hParser->GetUrl() << "'." << std::endl;
+        return nullptr;
+    }
+    const auto tClipRange = pOwner->AlignClipRange(std::pair<int64_t, int64_t>(i64Start, (int64_t)(pAudstm->duration*1000)));
+    const std::string strClipName = pMediaItem->mName+":Audio";
+    return CreateInstance(pOwner, strClipName, pMediaItem, tClipRange.first, tClipRange.first+tClipRange.second, 0, 0);
+}
+
+AudioClip* AudioClip::CreateDummyInstance(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End)
+{
+    auto pNewClip = new AudioClip(pOwner);
+    pNewClip->mName = strName;
+    pNewClip->mType |= MEDIA_DUMMY;
+    pNewClip->mStart = i64Start;
+    pNewClip->mEnd = i64End;
+    return pNewClip;
+}
+
+imgui_json::value AudioClip::SaveAsJson()
+{
+    imgui_json::value j = Clip::SaveAsJson();
+    // save audio clip info
+    j["Channels"] = imgui_json::number(mAudioChannels);
+    j["SampleRate"] = imgui_json::number(mAudioSampleRate);
+    mClipJson = j;
+    return std::move(j);
+}
+
+AudioClip* AudioClip::CreateInstanceFromJson(const imgui_json::value& j, TimeLine* pOwner)
+{
+    if (!pOwner)
+    {
+        Logger::Log(Logger::Error) << "INVALID argument 'pOwner'! Can NOT be NULL." << std::endl;
+        return nullptr;
+    }
+    auto pNewClip = new AudioClip(pOwner);
+    if (!pNewClip->LoadFromJson(j))
+    {
+        delete pNewClip;
+        return nullptr;
+    }
+    if (!IS_AUDIO(pNewClip->mType))
+    {
+        Logger::Log(Logger::Error) << "FAILED to create 'AudioClip' instance from json! Invalid clip type (" << pNewClip->mType << "). Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        delete pNewClip;
+        return nullptr;
+    }
+    if (IS_DUMMY(pNewClip->mType))
+        return pNewClip;
+    auto pMediaItem = pOwner->FindMediaItemByID(pNewClip->mMediaID);
+    if (!pMediaItem)
+    {
+        Logger::Log(Logger::Error) << "FAILED to create 'AudioClip' instance from json! Invalid 'MediaItem' id (" << pNewClip->mMediaID << "). Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        delete pNewClip;
+        return nullptr;
+    }
+    if (!pNewClip->UpdateClip(pMediaItem))
+    {
+        delete pNewClip;
+        return nullptr;
+    }
+    if (pNewClip->mhDataLayerClip)
+        pNewClip->SyncStateToDataLayer();
+    return pNewClip;
+}
+
+bool AudioClip::UpdateClip(MediaItem* pMediaItem)
+{
+    auto pAudstm = pMediaItem->mhParser->GetBestAudioStream();
+    if (!pAudstm)
+    {
+        Logger::Log(Logger::Error) << "FAILED to perform 'AudioClip::UpdateClip()'! CANNOT find any audio stream from '" << mPath << "'." << std::endl;
+        return false;
+    }
+    mpMediaItem = pMediaItem;
+    mMediaID = pMediaItem->mID;
+    mMediaParser = pMediaItem->mhParser;
+    mhOverview = pMediaItem->mMediaOverview;
+    mPath = mMediaParser->GetUrl();
+    mWaveform = mhOverview->GetWaveform();
+    mAudioChannels = pAudstm->channels;
+    mAudioChannels = pAudstm->sampleRate;
+    return true;
+}
+
+bool AudioClip::ReloadSource(MediaItem* pMediaItem)
+{
+    return UpdateClip(pMediaItem);
+}
+
+void AudioClip::SetDataLayer(MediaCore::AudioClip::Holder hAClip, bool bSyncStateToDataLayer)
+{
+    mhDataLayerClip = hAClip;
+    if (bSyncStateToDataLayer)
+        SyncStateToDataLayer();
+    else
+        SyncStateFromDataLayer();
+}
+
+void AudioClip::SyncStateToDataLayer()
+{
+    // sync 'AudioFilter' from clip json to data-layer
+    MediaCore::AudioFilter::Holder hAFilter;
+    BluePrint::BluePrintCallbackFunctions tBpCallbacks;
+    tBpCallbacks.BluePrintOnChanged = TimeLine::OnAudioEventStackFilterBpChanged;
+    std::string strAttrName;
+    strAttrName = "AudioFilter";
+    if (mClipJson.contains(strAttrName) && mClipJson[strAttrName].is_object())
+    {
+        const auto& jnFilterJson = mClipJson[strAttrName];
+        std::string strFilterName;
+        strAttrName = "name";
+        if (jnFilterJson.contains(strAttrName) && jnFilterJson[strAttrName].is_string())
+            strFilterName = jnFilterJson[strAttrName].get<imgui_json::string>();
+        if (strFilterName == "EventStackFilter")
+            hAFilter = MEC::AudioEventStackFilter::LoadFromJson(jnFilterJson, tBpCallbacks);
+        else if (!strFilterName.empty())
+            Logger::Log(Logger::WARN) << "Unrecognized 'AudioFilter' type '" << strFilterName << "'! Ignore the 'AudioFilter' json for 'AudioClip' on '" << mPath << "'." << std::endl;
+    }
+    if (!hAFilter)
+        hAFilter = MEC::AudioEventStackFilter::CreateInstance(tBpCallbacks);
+    if (hAFilter->GetFilterName() == "EventStackFilter")
+    {
+        MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(hAFilter.get());
+        pEsf->SetTimelineHandle(mHandle);
+        mEventStack = static_cast<MEC::EventStack*>(pEsf);
+    }
+    mhDataLayerClip->SetFilter(hAFilter);
+}
+
+void AudioClip::SyncStateFromDataLayer()
+{
+    // sync 'AudioFilter' from data-layer to clip json
+    mEventTracks.clear();
+    auto hAFilter = mhDataLayerClip->GetFilter();
+    if (!hAFilter)
+    {
+        BluePrint::BluePrintCallbackFunctions tBpCallbacks;
+        tBpCallbacks.BluePrintOnChanged = TimeLine::OnAudioEventStackFilterBpChanged;
+        hAFilter = MEC::AudioEventStackFilter::CreateInstance(tBpCallbacks);
+        mhDataLayerClip->SetFilter(hAFilter);
+    }
+
+    const auto strFilterName = hAFilter->GetFilterName();
+    if (strFilterName == "EventStackFilter")
+    {
+        MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(hAFilter.get());
+        mEventStack = static_cast<MEC::EventStack*>(pEsf);
+        auto aEventList = mEventStack->GetEventList();
+        for (auto& hEvt : aEventList)
+        {
+            const auto z = hEvt->Z();
+            while (z >= mEventTracks.size())
+                AddEventTrack();
+            mEventTracks[z]->m_Events.push_back(hEvt->Id());
+        }
+    }
+    else
+        Logger::Log(Logger::WARN) << "Unrecognized 'AudioFilter' type '" << strFilterName << "'! Ignore syncing state from this instance for 'AudioClip' on '" << mPath << "'." << std::endl;
+    mClipJson["AudioFilter"] = hAFilter->SaveAsJson();
 }
 
 void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated)
@@ -2505,157 +2574,24 @@ void AudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
         }        
     }
 }
-
-Clip * AudioClip::Load(const imgui_json::value& value, void * handle)
-{
-    TimeLine * timeline = (TimeLine *)handle;
-    if (!timeline || timeline->media_items.size() <= 0)
-        return nullptr;
-    
-    int64_t id = -1;
-    MediaItem * item = nullptr;
-    if (value.contains("MediaID"))
-    {
-        auto& val = value["MediaID"];
-        if (val.is_number()) id = val.get<imgui_json::number>();
-    }
-    if (id != -1)
-    {
-        item = timeline->FindMediaItemByID(id);
-    }
-    if (item)
-    {
-        AudioClip * new_clip = nullptr;
-        auto clipRange = timeline->AlignClipRange({0, item->mSrcLength});
-        if (item->mValid)
-            new_clip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, handle);
-        else
-            new_clip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName, handle);
-        if (new_clip)
-        {
-            Clip::Load(new_clip, value);
-            // load audio info
-            if (value.contains("Channels"))
-            {
-                auto& val = value["Channels"];
-                if (val.is_number()) new_clip->mAudioChannels = val.get<imgui_json::number>();
-            }
-            if (value.contains("SampleRate"))
-            {
-                auto& val = value["SampleRate"];
-                if (val.is_number()) new_clip->mAudioSampleRate = val.get<imgui_json::number>();
-            }
-            if (value.contains("Format"))
-            {
-                auto& val = value["Format"];
-                if (val.is_number()) new_clip->mAudioFormat = (MediaCore::AudioRender::PcmFormat)val.get<imgui_json::number>();
-            }
-            return new_clip;
-        }
-    }
-    else
-    {
-        // media isn't in bank we need create new media item first ?
-    }
-    return nullptr;
-}
-
-void AudioClip::Save(imgui_json::value& value)
-{
-    Clip::Save(value);
-    // save audio clip info
-    value["Channels"] = imgui_json::number(mAudioChannels);
-    value["SampleRate"] = imgui_json::number(mAudioSampleRate);
-    value["Format"] = imgui_json::number(mAudioFormat);
-}
-
-void AudioClip::SyncFilterWithDataLayer(MediaCore::AudioClip::Holder hClip, bool createNewIfNotExist)
-{
-    auto hFilter = hClip->GetFilter();
-    if (!hFilter && (createNewIfNotExist || !mFilterJson.is_null()))
-    {
-        bool isEventStackFilter = false;
-        if (mFilterJson.contains("name") && mFilterJson["name"].is_string())
-        {
-            auto& filterName = mFilterJson["name"].get<imgui_json::string>();
-            if (filterName == "EventStackFilter")
-                isEventStackFilter = true;
-        }
-        BluePrint::BluePrintCallbackFunctions bpCallbacks;
-        bpCallbacks.BluePrintOnChanged = TimeLine::OnAudioEventStackFilterBpChanged;
-        // load 'EventStackFilter'
-        MediaCore::AudioFilter::Holder hNewFilter;
-        bool isNewFilter = false;
-        if (isEventStackFilter)
-            hNewFilter = MEC::AudioEventStackFilter::LoadFromJson(mFilterJson, bpCallbacks);
-        else
-        {
-            hNewFilter = MEC::AudioEventStackFilter::CreateInstance(bpCallbacks);
-            isNewFilter = true;
-        }
-        if (hNewFilter)
-        {
-            MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(hNewFilter.get());
-            pEsf->SetTimelineHandle(mHandle);
-            hClip->SetFilter(hNewFilter);
-            mEventStack = static_cast<MEC::EventStack*>(pEsf);
-        }
-        else
-        {
-            Logger::Log(Logger::WARN) << "! FAILED to create new 'EventStackFilter' instance !" << std::endl;
-        }
-    }
-    else if (hFilter && mFilterJson.is_null())
-    {
-        auto filterName = hFilter->GetFilterName();
-        if (filterName == "EventStackFilter")
-        {
-            MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(hFilter.get());
-            pEsf->SetTimelineHandle(mHandle);
-            mFilterJson = pEsf->SaveAsJson();
-            mEventStack = static_cast<MEC::EventStack*>(pEsf);
-            auto eventList = mEventStack->GetEventList();
-            mEventTracks.clear();
-            for (auto& e : eventList)
-            {
-                const auto z = e->Z();
-                while (z >= mEventTracks.size())
-                    AddEventTrack();
-                mEventTracks[z]->m_Events.push_back(e->Id());
-            }
-        }
-        else
-        {
-            Logger::Log(Logger::WARN) << "UNHANDLED filter type '" << filterName << "'!" << std::endl;
-        }
-    }
-}
 } // namespace MediaTimeline
 
 namespace MediaTimeline
 {
 // TextClip Struct Member Functions
-TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, std::string text, void* handle)
-    : Clip(start, end, id, nullptr, handle)
+TextClip* TextClip::CreateInstance(TimeLine* pOwner, const std::string& strText, int64_t i64Start, int64_t i64Length)
 {
-    if (handle)
+    if (!pOwner)
     {
-        mType = MEDIA_TEXT;
-        mName = name;
-        mText = text;
-        mTrackStyle = true;
-        mAttributeKeyPoints.SetMin({0, 0, 0, 0});
-        mAttributeKeyPoints.SetMax(ImVec4(1, 1, 1, Length()), true);
+        Logger::Log(Logger::Error) << "INVALID argument 'pOwner'! Can NOT be NULL." << std::endl;
+        return nullptr;
     }
-}
-
-TextClip::TextClip(int64_t start, int64_t end, int64_t id, std::string name, void* handle)
-    : Clip(start, end, id, nullptr, handle)
-{
-    mType = MEDIA_DUMMY | MEDIA_TEXT;
-    mName = name;
-    mAttributeKeyPoints.SetMin({0, 0, 0, 0});
-    mAttributeKeyPoints.SetMax(ImVec4(1, 1, 1, Length()), true);
+    if (i64Length <= 0)
+        i64Length = 5000;
+    const auto tClipRange = pOwner->AlignClipRange({i64Start, i64Length});
+    auto pNewClip = new TextClip(pOwner, strText, tClipRange.first, tClipRange.first+tClipRange.second);
+    IM_ASSERT(pNewClip);
+    return pNewClip;
 }
 
 TextClip::~TextClip()
@@ -2724,27 +2660,27 @@ void TextClip::SetClipDefault(const TextClip* clip)
 
 void TextClip::SyncClipAttributes()
 {
-    if (mClipHolder)
+    if (mhDataLayerClip)
     {
-        mClipHolder->SetFont(mFontName);
-        mClipHolder->SetOffsetH(mFontOffsetH);
-        mClipHolder->SetOffsetV(mFontOffsetV);
-        mClipHolder->SetScaleX(mFontScaleX);
-        mClipHolder->SetScaleY(mFontScaleY);
-        mClipHolder->SetSpacing(mFontSpacing);
-        mClipHolder->SetRotationX(mFontAngleX);
-        mClipHolder->SetRotationY(mFontAngleY);
-        mClipHolder->SetRotationZ(mFontAngleZ);
-        mClipHolder->SetBorderWidth(mFontOutlineWidth);
-        mClipHolder->SetBold(mFontBold);
-        mClipHolder->SetItalic(mFontItalic);
-        mClipHolder->SetUnderLine(mFontUnderLine);
-        mClipHolder->SetStrikeOut(mFontStrikeOut);
-        mClipHolder->SetAlignment(mFontAlignment);
-        mClipHolder->SetShadowDepth(mFontShadowDepth);
-        mClipHolder->SetPrimaryColor(mFontPrimaryColor);
-        mClipHolder->SetOutlineColor(mFontOutlineColor);
-        mClipHolder->SetBackColor(mFontBackColor);
+        mhDataLayerClip->SetFont(mFontName);
+        mhDataLayerClip->SetOffsetH(mFontOffsetH);
+        mhDataLayerClip->SetOffsetV(mFontOffsetV);
+        mhDataLayerClip->SetScaleX(mFontScaleX);
+        mhDataLayerClip->SetScaleY(mFontScaleY);
+        mhDataLayerClip->SetSpacing(mFontSpacing);
+        mhDataLayerClip->SetRotationX(mFontAngleX);
+        mhDataLayerClip->SetRotationY(mFontAngleY);
+        mhDataLayerClip->SetRotationZ(mFontAngleZ);
+        mhDataLayerClip->SetBorderWidth(mFontOutlineWidth);
+        mhDataLayerClip->SetBold(mFontBold);
+        mhDataLayerClip->SetItalic(mFontItalic);
+        mhDataLayerClip->SetUnderLine(mFontUnderLine);
+        mhDataLayerClip->SetStrikeOut(mFontStrikeOut);
+        mhDataLayerClip->SetAlignment(mFontAlignment);
+        mhDataLayerClip->SetShadowDepth(mFontShadowDepth);
+        mhDataLayerClip->SetPrimaryColor(mFontPrimaryColor);
+        mhDataLayerClip->SetOutlineColor(mFontOutlineColor);
+        mhDataLayerClip->SetBackColor(mFontBackColor);
     }
 }
 
@@ -2753,54 +2689,58 @@ void TextClip::EnableUsingTrackStyle(bool enable)
     if (mTrackStyle != enable)
     {
         mTrackStyle = enable;
-        if (mClipHolder)
+        if (mhDataLayerClip)
         {
             if (!enable)
                 SyncClipAttributes();
-            mClipHolder->EnableUsingTrackStyle(enable);
+            mhDataLayerClip->EnableUsingTrackStyle(enable);
         }
     }
 }
 
-void TextClip::CreateClipHold(void * _track)
+void TextClip::CreateDataLayer(MediaTrack* pTrack)
 {
-    MediaTrack * track = (MediaTrack *)_track;
-    if (!track || !track->mMttReader)
-        return;
-    mClipHolder = track->mMttReader->NewClip(Start(), Length());
-    mTrack = track;
-    mMediaID = track->mID;
-    mName = track->mName;
-    mClipHolder->SetText(mText);
-    mClipHolder->EnableUsingTrackStyle(mTrackStyle);
+    IM_ASSERT(pTrack && pTrack->mMttReader);
+    mhDataLayerClip = pTrack->mMttReader->NewClip(Start(), Length());
+    mTrack = pTrack;
+    // mMediaID = pTrack->mID;
+    // mName = track->mName;
+    mhDataLayerClip->SetText(mText);
+    mhDataLayerClip->EnableUsingTrackStyle(mTrackStyle);
     if (!mIsInited)
     {
-        mFontName = mClipHolder->Font();
-        mFontOffsetH = mClipHolder->OffsetHScale();
-        mFontOffsetV = mClipHolder->OffsetVScale();
-        mFontScaleX = mClipHolder->ScaleX();
-        mFontScaleY = mClipHolder->ScaleY();
-        mFontSpacing = mClipHolder->Spacing();
-        mFontAngleX = mClipHolder->RotationX();
-        mFontAngleY = mClipHolder->RotationY();
-        mFontAngleZ = mClipHolder->RotationZ();
-        mFontOutlineWidth = mClipHolder->BorderWidth();
-        mFontBold = mClipHolder->Bold();
-        mFontItalic = mClipHolder->Italic();
-        mFontUnderLine = mClipHolder->UnderLine();
-        mFontStrikeOut = mClipHolder->StrikeOut();
-        mFontAlignment = mClipHolder->Alignment();
-        mFontShadowDepth = mClipHolder->ShadowDepth();
-        mFontPrimaryColor = mClipHolder->PrimaryColor().ToImVec4();
-        mFontOutlineColor = mClipHolder->OutlineColor().ToImVec4();
-        mFontBackColor = mClipHolder->BackColor().ToImVec4();
+        mFontName = mhDataLayerClip->Font();
+        mFontOffsetH = mhDataLayerClip->OffsetHScale();
+        mFontOffsetV = mhDataLayerClip->OffsetVScale();
+        mFontScaleX = mhDataLayerClip->ScaleX();
+        mFontScaleY = mhDataLayerClip->ScaleY();
+        mFontSpacing = mhDataLayerClip->Spacing();
+        mFontAngleX = mhDataLayerClip->RotationX();
+        mFontAngleY = mhDataLayerClip->RotationY();
+        mFontAngleZ = mhDataLayerClip->RotationZ();
+        mFontOutlineWidth = mhDataLayerClip->BorderWidth();
+        mFontBold = mhDataLayerClip->Bold();
+        mFontItalic = mhDataLayerClip->Italic();
+        mFontUnderLine = mhDataLayerClip->UnderLine();
+        mFontStrikeOut = mhDataLayerClip->StrikeOut();
+        mFontAlignment = mhDataLayerClip->Alignment();
+        mFontShadowDepth = mhDataLayerClip->ShadowDepth();
+        mFontPrimaryColor = mhDataLayerClip->PrimaryColor().ToImVec4();
+        mFontOutlineColor = mhDataLayerClip->OutlineColor().ToImVec4();
+        mFontBackColor = mhDataLayerClip->BackColor().ToImVec4();
         mIsInited = true;
     }
     else if (!mTrackStyle)
     {
         SyncClipAttributes();
     }
-    mClipHolder->SetKeyPoints(mAttributeKeyPoints);
+    mhDataLayerClip->SetKeyPoints(mAttributeKeyPoints);
+}
+
+bool TextClip::ReloadSource(MediaItem* pMediaItem)
+{
+    Logger::Log(Logger::Error) << "INVALID CODE BRANCH! TextClip does NOT SUPPORT reload source." << std::endl;
+    return false;
 }
 
 int64_t TextClip::Moving(int64_t diff, int mouse_track)
@@ -2808,7 +2748,7 @@ int64_t TextClip::Moving(int64_t diff, int mouse_track)
     auto ret = Clip::Moving(diff, mouse_track);
     MediaTrack * track = (MediaTrack*)mTrack;
     if (track && track->mMttReader)
-        track->mMttReader->ChangeClipTime(mClipHolder, Start(), Length());
+        track->mMttReader->ChangeClipTime(mhDataLayerClip, Start(), Length());
     return ret;
 }
 
@@ -2817,7 +2757,7 @@ int64_t TextClip::Cropping(int64_t diff, int type)
     auto ret = Clip::Cropping(diff, type);
     MediaTrack * track = (MediaTrack*)mTrack;
     if (track && track->mMttReader)
-        track->mMttReader->ChangeClipTime(mClipHolder, Start(), Length());
+        track->mMttReader->ChangeClipTime(mhDataLayerClip, Start(), Length());
     return ret;
 }
 
@@ -2845,161 +2785,143 @@ void TextClip::DrawTooltips()
     }
 }
 
-Clip * TextClip::Load(const imgui_json::value& value, void * handle)
+TextClip* TextClip::CreateInstanceFromJson(const imgui_json::value& j, TimeLine* pOwner)
 {
-    TimeLine * timeline = (TimeLine *)handle;
-    if (!timeline)
+    if (!pOwner)
+    {
+        Logger::Log(Logger::Error) << "INVALID argument 'pOwner'! Can NOT be NULL." << std::endl;
         return nullptr;
-    TextClip * new_clip = new TextClip(0, 0, 0, std::string(""), std::string(""), handle);
-    if (!new_clip)
+    }
+    auto pNewClip = new TextClip(pOwner);
+    if (!pNewClip->LoadFromJson(j))
+    {
+        delete pNewClip;
         return nullptr;
+    }
+    if (!IS_TEXT(pNewClip->mType))
+    {
+        Logger::Log(Logger::Error) << "FAILED to create 'TextClip' instance from json! Invalid clip type (" << pNewClip->mType << "). Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        delete pNewClip;
+        return nullptr;
+    }
+    std::string strAttrName;
+    strAttrName = "Text";
+    if (j.contains(strAttrName) && j[strAttrName].is_string())
+        pNewClip->mText = j[strAttrName].get<imgui_json::string>();
+    else
+    {
+        Logger::Log(Logger::Error) << "FAILED to perform 'TextClip::CreateInstanceFromJson()'! No attribute '" << strAttrName << "' can be found. Clip json is:" << std::endl;
+        Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
+        delete pNewClip;
+        return nullptr;
+    }
+    strAttrName = "TrackStyle";
+    if (j.contains(strAttrName) && j[strAttrName].is_boolean())
+        pNewClip->mTrackStyle = j[strAttrName].get<imgui_json::boolean>();
+    strAttrName = "FontName";
+    if (j.contains(strAttrName) && j[strAttrName].is_string())
+        pNewClip->mFontName = j[strAttrName].get<imgui_json::string>();
+    strAttrName = "ScaleLink";
+    if (j.contains(strAttrName) && j[strAttrName].is_boolean())
+        pNewClip->mScaleSettingLink = j[strAttrName].get<imgui_json::boolean>();
+    strAttrName = "ScaleX";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        pNewClip->mFontScaleX = j[strAttrName].get<imgui_json::number>();
+    strAttrName = "ScaleY";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        pNewClip->mFontScaleY = j[strAttrName].get<imgui_json::number>();
+    strAttrName = "Spacing";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        pNewClip->mFontSpacing = j[strAttrName].get<imgui_json::number>();
+    strAttrName = "AngleX";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        pNewClip->mFontAngleX = j[strAttrName].get<imgui_json::number>();
+    strAttrName = "AngleY";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        pNewClip->mFontAngleY = j[strAttrName].get<imgui_json::number>();
+    strAttrName = "AngleZ";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        pNewClip->mFontAngleZ = j[strAttrName].get<imgui_json::number>();
+    strAttrName = "OutlineWidth";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        pNewClip->mFontOutlineWidth = j[strAttrName].get<imgui_json::number>();
+    strAttrName = "Alignment";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        pNewClip->mFontAlignment = j[strAttrName].get<imgui_json::number>();
+    strAttrName = "Bold";
+    if (j.contains(strAttrName) && j[strAttrName].is_boolean())
+        pNewClip->mFontBold = j[strAttrName].get<imgui_json::boolean>();
+    strAttrName = "Italic";
+    if (j.contains(strAttrName) && j[strAttrName].is_boolean())
+        pNewClip->mFontItalic = j[strAttrName].get<imgui_json::boolean>();
+    strAttrName = "UnderLine";
+    if (j.contains(strAttrName) && j[strAttrName].is_boolean())
+        pNewClip->mFontUnderLine = j[strAttrName].get<imgui_json::boolean>();
+    strAttrName = "StrikeOut";
+    if (j.contains(strAttrName) && j[strAttrName].is_boolean())
+        pNewClip->mFontStrikeOut = j[strAttrName].get<imgui_json::boolean>();
+    strAttrName = "OffsetX";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        pNewClip->mFontOffsetH = j[strAttrName].get<imgui_json::number>();
+    strAttrName = "OffsetY";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        pNewClip->mFontOffsetV = j[strAttrName].get<imgui_json::number>();
+    strAttrName = "ShadowDepth";
+    if (j.contains(strAttrName) && j[strAttrName].is_number())
+        pNewClip->mFontShadowDepth = j[strAttrName].get<imgui_json::number>();
+    strAttrName = "PrimaryColor";
+    if (j.contains(strAttrName) && j[strAttrName].is_vec4())
+        pNewClip->mFontPrimaryColor = j[strAttrName].get<imgui_json::vec4>();
+    strAttrName = "OutlineColor";
+    if (j.contains(strAttrName) && j[strAttrName].is_vec4())
+        pNewClip->mFontOutlineColor = j[strAttrName].get<imgui_json::vec4>();
+    strAttrName = "BackColor";
+    if (j.contains(strAttrName) && j[strAttrName].is_vec4())
+        pNewClip->mFontBackColor = j[strAttrName].get<imgui_json::vec4>();
 
-    Clip::Load(new_clip, value);
-    // load text info
-    if (value.contains("Text"))
-    {
-        auto& val = value["Text"];
-        if (val.is_string()) new_clip->mText = val.get<imgui_json::string>();
-    }
-    if (value.contains("TrackStyle"))
-    {
-        auto& val = value["TrackStyle"];
-        if (val.is_boolean()) new_clip->mTrackStyle = val.get<imgui_json::boolean>();
-    }
-    if (value.contains("Name"))
-    {
-        auto& val = value["Name"];
-        if (val.is_string()) new_clip->mFontName = val.get<imgui_json::string>();
-    }
-    if (value.contains("ScaleLink"))
-    {
-        auto& val = value["ScaleLink"];
-        if (val.is_boolean()) new_clip->mScaleSettingLink = val.get<imgui_json::boolean>();
-    }
-    if (value.contains("ScaleX"))
-    {
-        auto& val = value["ScaleX"];
-        if (val.is_number()) new_clip->mFontScaleX = val.get<imgui_json::number>();
-    }
-    if (value.contains("ScaleY"))
-    {
-        auto& val = value["ScaleY"];
-        if (val.is_number()) new_clip->mFontScaleY = val.get<imgui_json::number>();
-    }
-    if (value.contains("Spacing"))
-    {
-        auto& val = value["Spacing"];
-        if (val.is_number()) new_clip->mFontSpacing = val.get<imgui_json::number>();
-    }
-    if (value.contains("AngleX"))
-    {
-        auto& val = value["AngleX"];
-        if (val.is_number()) new_clip->mFontAngleX = val.get<imgui_json::number>();
-    }
-    if (value.contains("AngleY"))
-    {
-        auto& val = value["AngleY"];
-        if (val.is_number()) new_clip->mFontAngleY = val.get<imgui_json::number>();
-    }
-    if (value.contains("AngleZ"))
-    {
-        auto& val = value["AngleZ"];
-        if (val.is_number()) new_clip->mFontAngleZ = val.get<imgui_json::number>();
-    }
-    if (value.contains("OutlineWidth"))
-    {
-        auto& val = value["OutlineWidth"];
-        if (val.is_number()) new_clip->mFontOutlineWidth = val.get<imgui_json::number>();
-    }
-    if (value.contains("Alignment"))
-    {
-        auto& val = value["Alignment"];
-        if (val.is_number()) new_clip->mFontAlignment = val.get<imgui_json::number>();
-    }
-    if (value.contains("Bold"))
-    {
-        auto& val = value["Bold"];
-        if (val.is_boolean()) new_clip->mFontBold = val.get<imgui_json::boolean>();
-    }
-    if (value.contains("Italic"))
-    {
-        auto& val = value["Italic"];
-        if (val.is_boolean()) new_clip->mFontItalic = val.get<imgui_json::boolean>();
-    }
-    if (value.contains("UnderLine"))
-    {
-        auto& val = value["UnderLine"];
-        if (val.is_boolean()) new_clip->mFontUnderLine = val.get<imgui_json::boolean>();
-    }
-    if (value.contains("StrikeOut"))
-    {
-        auto& val = value["StrikeOut"];
-        if (val.is_boolean()) new_clip->mFontStrikeOut = val.get<imgui_json::boolean>();
-    }
-    if (value.contains("OffsetX"))
-    {
-        auto& val = value["OffsetX"];
-        if (val.is_number()) new_clip->mFontOffsetH = val.get<imgui_json::number>();
-    }
-    if (value.contains("OffsetY"))
-    {
-        auto& val = value["OffsetY"];
-        if (val.is_number()) new_clip->mFontOffsetV = val.get<imgui_json::number>();
-    }
-    if (value.contains("ShadowDepth"))
-    {
-        auto& val = value["ShadowDepth"];
-        if (val.is_number()) new_clip->mFontShadowDepth = val.get<imgui_json::number>();
-    }
-    if (value.contains("PrimaryColor"))
-    {
-        auto& val = value["PrimaryColor"];
-        if (val.is_vec4()) new_clip->mFontPrimaryColor = val.get<imgui_json::vec4>();
-    }
-    if (value.contains("OutlineColor"))
-    {
-        auto& val = value["OutlineColor"];
-        if (val.is_vec4()) new_clip->mFontOutlineColor = val.get<imgui_json::vec4>();
-    }
-    if (value.contains("BackColor"))
-    {
-        auto& val = value["BackColor"];
-        if (val.is_vec4()) new_clip->mFontBackColor = val.get<imgui_json::vec4>();
-    }
     // load attribute curve
-    new_clip->mAttributeKeyPoints.Load(new_clip->mAttributeJson);
-    new_clip->mIsInited = true;
-    return new_clip;
+    strAttrName = "Atrributes";
+    if (j.contains(strAttrName) && j[strAttrName].is_object())
+        pNewClip->mAttributeKeyPoints.Load(j[strAttrName]);
+
+    pNewClip->mIsInited = true;
+    return pNewClip;
 }
 
-void TextClip::Save(imgui_json::value& value)
+imgui_json::value TextClip::SaveAsJson()
 {
-    // save Attribute curve setting
-    mAttributeKeyPoints.Save(mAttributeJson);
-    Clip::Save(value);
-    // save Text clip info
-    value["Text"] = mText;
-    value["TrackStyle"] = imgui_json::boolean(mTrackStyle);
-    value["Name"] = mFontName;
-    value["ScaleLink"] = imgui_json::boolean(mScaleSettingLink);
-    value["ScaleX"] = imgui_json::number(mFontScaleX);
-    value["ScaleY"] = imgui_json::number(mFontScaleY);
-    value["Spacing"] = imgui_json::number(mFontSpacing);
-    value["AngleX"] = imgui_json::number(mFontAngleX);
-    value["AngleY"] = imgui_json::number(mFontAngleY);
-    value["AngleZ"] = imgui_json::number(mFontAngleZ);
-    value["OutlineWidth"] = imgui_json::number(mFontOutlineWidth);
-    value["Alignment"] = imgui_json::number(mFontAlignment);
-    value["Bold"] = imgui_json::boolean(mFontBold);
-    value["Italic"] = imgui_json::boolean(mFontItalic);
-    value["UnderLine"] = imgui_json::boolean(mFontUnderLine);
-    value["StrikeOut"] = imgui_json::boolean(mFontStrikeOut);
-    value["OffsetX"] = imgui_json::number(mFontOffsetH);
-    value["OffsetY"] = imgui_json::number(mFontOffsetV);
-    value["ShadowDepth"] = imgui_json::number(mFontShadowDepth);
-    value["PrimaryColor"] = imgui_json::vec4(mFontPrimaryColor);
-    value["OutlineColor"] = imgui_json::vec4(mFontOutlineColor);
-    value["BackColor"] = imgui_json::vec4(mFontBackColor);
+    auto j = Clip::SaveAsJson();
+
+    j["Text"] = mText;
+    j["TrackStyle"] = imgui_json::boolean(mTrackStyle);
+    j["FontName"] = imgui_json::string(mFontName);
+    j["ScaleLink"] = imgui_json::boolean(mScaleSettingLink);
+    j["ScaleX"] = imgui_json::number(mFontScaleX);
+    j["ScaleY"] = imgui_json::number(mFontScaleY);
+    j["Spacing"] = imgui_json::number(mFontSpacing);
+    j["AngleX"] = imgui_json::number(mFontAngleX);
+    j["AngleY"] = imgui_json::number(mFontAngleY);
+    j["AngleZ"] = imgui_json::number(mFontAngleZ);
+    j["OutlineWidth"] = imgui_json::number(mFontOutlineWidth);
+    j["Alignment"] = imgui_json::number(mFontAlignment);
+    j["Bold"] = imgui_json::boolean(mFontBold);
+    j["Italic"] = imgui_json::boolean(mFontItalic);
+    j["UnderLine"] = imgui_json::boolean(mFontUnderLine);
+    j["StrikeOut"] = imgui_json::boolean(mFontStrikeOut);
+    j["OffsetX"] = imgui_json::number(mFontOffsetH);
+    j["OffsetY"] = imgui_json::number(mFontOffsetV);
+    j["ShadowDepth"] = imgui_json::number(mFontShadowDepth);
+    j["PrimaryColor"] = imgui_json::vec4(mFontPrimaryColor);
+    j["OutlineColor"] = imgui_json::vec4(mFontOutlineColor);
+    j["BackColor"] = imgui_json::vec4(mFontBackColor);
+
+    imgui_json::value jnAttributes;
+    mAttributeKeyPoints.Save(jnAttributes);
+    j["Attributes"] = jnAttributes;
+
+    mClipJson = j;
+    return std::move(j);
 }
 } // namespace MediaTimeline
 
@@ -3066,6 +2988,17 @@ MediaCore::VideoTransition::Holder BluePrintVideoTransition::Clone()
     bpTrans->SetBluePrintFromJson(bpJson);
     bpTrans->SetKeyPoint(mKeyPoints);
     return MediaCore::VideoTransition::Holder(bpTrans);
+}
+
+imgui_json::value BluePrintVideoTransition::SaveAsJson() const
+{
+    imgui_json::value j;
+    j["BluePrint"] = mBp->m_Document->Serialize();
+    // TODO: KeyPointEditor::Save() CANNOT be invoked here because it needs to be changed as 'const' member function!
+    // imgui_json::value jnCurve;
+    // mKeyPoints.Save(jnCurve);
+    // j["KeyFrameCurve"] = jnCurve;
+    return std::move(j);
 }
 
 ImGui::ImMat BluePrintVideoTransition::MixTwoImages(const ImGui::ImMat& vmat1, const ImGui::ImMat& vmat2, int64_t pos, int64_t dur)
@@ -3248,7 +3181,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     
     if (IS_IMAGE(vidclip->mType))
     {
-        mImgTexture = vidclip->mImgTexture;
+        mhImgTx = vidclip->GetImageTexture();
     }
     else
     {
@@ -3262,7 +3195,7 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
             return;
         }
         if (timeline) mSsGen->EnableHwAccel(timeline->mHardwareCodec);
-        if (!mSsGen->Open(vidclip->mSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
+        if (!mSsGen->Open(vidclip->mhSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
         {
             Logger::Log(Logger::Error) << mSsGen->GetError() << std::endl;
             return;
@@ -3287,42 +3220,36 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mhFilterInputTx = timeline->mTxMgr->GetTextureFromPool(ARBITRARY_SIZE_TEXTURE_POOL_NAME);
     mhFilterOutputTx = timeline->mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
 
-    auto hClip = timeline->mMtvReader->GetClipById(vidclip->mID);
+    auto hClip = vidclip->GetDataLayer();
     IM_ASSERT(hClip);
     auto hFilter = hClip->GetFilter();      
-    if (!hFilter)
+    IM_ASSERT(hFilter);
+    mhVideoFilter = hFilter;
+    auto filterName = hFilter->GetFilterName();
+    if (filterName == "EventStackFilter")
     {
-        vidclip->SyncFilterWithDataLayer(hClip, true);
-        hFilter = hClip->GetFilter();
-    }
-    if (hFilter)
-    {
-        mFilter = hFilter.get();
-        auto filterName = hFilter->GetFilterName();
-        if (filterName == "EventStackFilter")
+        auto pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(mhVideoFilter.get());
+        auto editingEvent = pEsf->GetEditingEvent();
+        if (editingEvent)
         {
-            auto pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(mFilter);
-            auto editingEvent = pEsf->GetEditingEvent();
-            if (editingEvent)
-            {
-                mFilterBp = editingEvent->GetBp();
-                auto filterJson = mFilterBp->m_Document->Serialize();
-                mFilterKp = editingEvent->GetKeyPoint();
-            }
+            mFilterBp = editingEvent->GetBp();
+            auto filterJson = mFilterBp->m_Document->Serialize();
+            mFilterKp = editingEvent->GetKeyPoint();
         }
     }
-    mAttribute = hClip->GetTransformFilter();
-    vidclip->SyncAttributesWithDataLayer(hClip);
+    mhTransformFilter = hClip->GetTransformFilter();
 }
 
 EditingVideoClip::~EditingVideoClip()
 {
+    if (mSsViewer) mSsViewer->Release();
     mSsViewer = nullptr;
     mSsGen = nullptr;
-    mFilter = nullptr;
+    mhVideoFilter = nullptr;
+    mhTransformFilter = nullptr;
     mFilterBp = nullptr;
     mFilterKp = nullptr;
-    if (mImgTexture) { ImGui::ImDestroyTexture(mImgTexture); mImgTexture = nullptr; }
+    // if (mImgTexture) { ImGui::ImDestroyTexture(mImgTexture); mImgTexture = nullptr; }
 }
 
 void EditingVideoClip::UpdateClipRange(Clip* clip)
@@ -3351,29 +3278,6 @@ void EditingVideoClip::Save()
     clip->lastTime = lastTime;
     clip->visibleTime = visibleTime;
     clip->msPixelWidthTarget = msPixelWidthTarget;
-    if (mFilter)
-    {
-        auto filterName = mFilter->GetFilterName();
-        if (filterName == "EventStackFilter")
-        {
-            MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(mFilter);
-            clip->mFilterJson = pEsf->SaveAsJson();
-        }
-    }
-    if (mAttribute)
-    {
-        clip->mScaleType = mAttribute->GetScaleType();
-        clip->mScaleH = mAttribute->GetScaleH();
-        clip->mScaleV = mAttribute->GetScaleV();
-        clip->mRotationAngle = mAttribute->GetRotationAngle();
-        clip->mfOpacity = mAttribute->GetOpacity();
-        clip->mPositionOffsetH = mAttribute->GetPositionOffsetHScale();
-        clip->mPositionOffsetV = mAttribute->GetPositionOffsetVScale();
-        clip->mCropMarginL = mAttribute->GetCropMarginLScale();
-        clip->mCropMarginT = mAttribute->GetCropMarginTScale();
-        clip->mCropMarginR = mAttribute->GetCropMarginRScale();
-        clip->mCropMarginB = mAttribute->GetCropMarginBScale();
-    }
     // TODO::Dicky save clip event track?
     timeline->RefreshPreview();
 }
@@ -3417,15 +3321,16 @@ bool EditingVideoClip::UpdatePreviewTexture(bool blocking)
 
 void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
 {
-    if (mImgTexture)
+    if (mhImgTx)
     {
-        int _width = ImGui::ImGetTextureWidth(mImgTexture);
-        int _height = ImGui::ImGetTextureHeight(mImgTexture);
-        if (_width > 0 && _height > 0)
+        const auto tImgTid = mhImgTx->TextureID();
+        const auto roiRect = mhImgTx->GetDisplayRoi();
+        const auto& roiSize = roiRect.size;
+        if (roiSize.x > 0 && roiSize.y > 0)
         {
             int trackHeight = rightBottom.y - leftTop.y;
             int snapHeight = trackHeight;
-            int snapWidth = trackHeight * _width / _height;
+            int snapWidth = trackHeight * roiSize.x / roiSize.y;
             ImVec2 imgLeftTop = leftTop;
             float snapDispWidth = snapWidth;
             while (imgLeftTop.x < rightBottom.x)
@@ -3438,7 +3343,9 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
                     uvMax.x = 1 - (imgLeftTop.x + snapDispWidth - rightBottom.x) / snapWidth;
                     snapDispWidth = rightBottom.x - imgLeftTop.x;
                 }
-                drawList->AddImage(mImgTexture, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, uvMin, uvMax);
+                MatUtils::Point2f uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
+                uvMin2 = roiRect.leftTop+roiSize*uvMin2; uvMax2 = roiRect.leftTop+roiSize*uvMax2;
+                drawList->AddImage(tImgTid, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, MatUtils::ToImVec2(uvMin2), MatUtils::ToImVec2(uvMax2));
                 imgLeftTop.x += snapDispWidth;
                 snapDispWidth = snapWidth;
             }
@@ -3504,8 +3411,8 @@ void EditingVideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, 
             auto tid = hTx ? hTx->TextureID() : nullptr;
             if (tid)
             {
-                auto roiRect = hTx->GetDisplayRoi();
-                auto roiSize = roiRect.size;
+                const auto roiRect = hTx->GetDisplayRoi();
+                const auto& roiSize = roiRect.size;
                 MatUtils::Point2f uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
                 uvMin2 = roiRect.leftTop+roiSize*uvMin2; uvMax2 = roiRect.leftTop+roiSize*uvMax2;
                 drawList->AddImage(tid, imgLeftTop, {imgLeftTop.x + snapDispWidth, rightBottom.y}, MatUtils::ToImVec2(uvMin2), MatUtils::ToImVec2(uvMax2));
@@ -3569,7 +3476,6 @@ EditingAudioClip::EditingAudioClip(AudioClip* audclip)
     mDuration = mEnd-mStart;
     mAudioChannels = audclip->mAudioChannels;
     mAudioSampleRate = audclip->mAudioSampleRate;
-    mAudioFormat = audclip->mAudioFormat;
     mWaveform = audclip->mWaveform;
     firstTime = audclip->firstTime;
     lastTime = audclip->lastTime;
@@ -3579,26 +3485,19 @@ EditingAudioClip::EditingAudioClip(AudioClip* audclip)
         throw std::invalid_argument("Clip duration is negative!");
     auto hClip = timeline->mMtaReader->GetClipById(audclip->mID);
     IM_ASSERT(hClip);
-    auto hFilter = hClip->GetFilter();
-    if (!hFilter)
+    auto hFilter = hClip->GetFilter();      
+    IM_ASSERT(hFilter);
+    mhAudioFilter = hFilter;
+    const auto strFilterName = hFilter->GetFilterName();
+    if (strFilterName == "EventStackFilter")
     {
-        audclip->SyncFilterWithDataLayer(hClip, true);
-        hFilter = hClip->GetFilter();
-    }
-    if (hFilter)
-    {
-        mFilter = hFilter.get();
-        auto filterName = hFilter->GetFilterName();
-        if (filterName == "EventStackFilter")
+        auto pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(hFilter.get());
+        auto editingEvent = pEsf->GetEditingEvent();
+        if (editingEvent)
         {
-            auto pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(mFilter);
-            auto editingEvent = pEsf->GetEditingEvent();
-            if (editingEvent)
-            {
-                mFilterBp = editingEvent->GetBp();
-                auto filterJson = mFilterBp->m_Document->Serialize();
-                mFilterKp = editingEvent->GetKeyPoint();
-            }
+            mFilterBp = editingEvent->GetBp();
+            auto filterJson = mFilterBp->m_Document->Serialize();
+            mFilterKp = editingEvent->GetKeyPoint();
         }
     }
 }
@@ -3607,7 +3506,7 @@ EditingAudioClip::~EditingAudioClip()
 {
     for (auto texture : mWaveformTextures) ImGui::ImDestroyTexture(texture);
     mWaveformTextures.clear();
-    mFilter = nullptr;
+    mhAudioFilter = nullptr;
     mFilterBp = nullptr;
     mFilterKp = nullptr;
 }
@@ -3638,15 +3537,6 @@ void EditingAudioClip::Save()
     clip->lastTime = lastTime;
     clip->visibleTime = visibleTime;
     clip->msPixelWidthTarget = msPixelWidthTarget;
-    if (mFilter)
-    {
-        auto filterName = mFilter->GetFilterName();
-        if (filterName == "EventStackFilter")
-        {
-            MEC::AudioEventStackFilter* pEsf = dynamic_cast<MEC::AudioEventStackFilter*>(mFilter);
-            clip->mFilterJson = pEsf->SaveAsJson();
-        }
-    }
 }
 
 void EditingAudioClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated)
@@ -4031,7 +3921,7 @@ EditingVideoOverlap::EditingVideoOverlap(int64_t id, void* handle)
         if (IS_IMAGE(mClip1->mType))
         {
             m_StartOffset.first = ovlp->mStart - vidclip1->Start();
-            if (vidclip1->mImgTexture) mImgTexture1 = vidclip1->mImgTexture;
+            mhImgTx1 = vidclip1->GetImageTexture();
         }
         else
         {
@@ -4040,7 +3930,7 @@ EditingVideoOverlap::EditingVideoOverlap(int64_t id, void* handle)
             if (mi && mi->mMediaOverview)
                 mSsGen1->SetOverview(mi->mMediaOverview);
             if (timeline) mSsGen1->EnableHwAccel(timeline->mHardwareCodec);
-            if (!mSsGen1->Open(vidclip1->mSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
+            if (!mSsGen1->Open(vidclip1->mhSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 1st video clip!");
             mSsGen1->SetCacheFactor(1.0);
             RenderUtils::TextureManager::TexturePoolAttributes tTxPoolAttrs;
@@ -4050,7 +3940,7 @@ EditingVideoOverlap::EditingVideoOverlap(int64_t id, void* handle)
             }
             else
             {
-                auto video1_info = vidclip1->mSsViewer->GetMediaParser()->GetBestVideoStream();
+                auto video1_info = vidclip1->mhSsViewer->GetMediaParser()->GetBestVideoStream();
                 float snapshot_scale1 = video1_info->height > 0 ? 50.f / (float)video1_info->height : 0.05;
                 mSsGen1->SetSnapshotResizeFactor(snapshot_scale1, snapshot_scale1);
             }
@@ -4061,7 +3951,7 @@ EditingVideoOverlap::EditingVideoOverlap(int64_t id, void* handle)
         if (IS_IMAGE(mClip2->mType))
         {
             m_StartOffset.second = ovlp->mStart - vidclip2->Start();
-            if (vidclip2->mImgTexture) mImgTexture2 = vidclip2->mImgTexture;
+            mhImgTx2 = vidclip2->GetImageTexture();
         }
         else
         {
@@ -4070,7 +3960,7 @@ EditingVideoOverlap::EditingVideoOverlap(int64_t id, void* handle)
             if (mi && mi->mMediaOverview)
                 mSsGen2->SetOverview(mi->mMediaOverview);
             if (timeline) mSsGen2->EnableHwAccel(timeline->mHardwareCodec);
-            if (!mSsGen2->Open(vidclip2->mSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
+            if (!mSsGen2->Open(vidclip2->mhSsViewer->GetMediaParser(), timeline->mhMediaSettings->VideoOutFrameRate()))
                 throw std::runtime_error("FAILED to open the snapshot generator for the 2nd video clip!");
             mSsGen2->SetCacheFactor(1.0);
             RenderUtils::TextureManager::TexturePoolAttributes tTxPoolAttrs;
@@ -4080,7 +3970,7 @@ EditingVideoOverlap::EditingVideoOverlap(int64_t id, void* handle)
             }
             else
             {
-                auto video2_info = vidclip2->mSsViewer->GetMediaParser()->GetBestVideoStream();
+                auto video2_info = vidclip2->mhSsViewer->GetMediaParser()->GetBestVideoStream();
                 float snapshot_scale2 = video2_info->height > 0 ? 50.f / (float)video2_info->height : 0.05;
                 mSsGen2->SetSnapshotResizeFactor(snapshot_scale2, snapshot_scale2);
             }
@@ -4150,10 +4040,12 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             mSnapSize.y = viewWndSize.y / 2;
             mSnapSize.x = mSnapSize.y * vidStream->width / vidStream->height;
         }
-        else if (mImgTexture1 || mImgTexture2)
+        else if (mhImgTx1 || mhImgTx2)
         {
-            int width = ImGui::ImGetTextureWidth(mImgTexture1 ? mImgTexture1 : mImgTexture2);
-            int height = ImGui::ImGetTextureHeight(mImgTexture1 ? mImgTexture1 : mImgTexture2);
+            const auto tImgTid1 = mhImgTx1 ? mhImgTx1->TextureID() : nullptr;
+            const auto tImgTid2 = mhImgTx2 ? mhImgTx2->TextureID() : nullptr;
+            int width = ImGui::ImGetTextureWidth(tImgTid1 ? tImgTid1 : tImgTid2);
+            int height = ImGui::ImGetTextureHeight(tImgTid1 ? tImgTid1 : tImgTid2);
             if (width == 0 || height == 0)
             {
                 Logger::Log(Logger::Error) << "Snapshot video size is INVALID! Width or height is ZERO." << std::endl;
@@ -4218,8 +4110,8 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             auto tid = hTx ? hTx->TextureID() : nullptr;
             if (tid)
             {
-                auto roiRect = hTx->GetDisplayRoi();
-                auto roiSize = roiRect.size;
+                const auto roiRect = hTx->GetDisplayRoi();
+                const auto& roiSize = roiRect.size;
                 MatUtils::Point2f uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
                 uvMin2 = roiRect.leftTop+roiSize*uvMin2; uvMax2 = roiRect.leftTop+roiSize*uvMax2;
                 drawList->AddImage(tid, imgLeftTop, imgLeftTop + snapDispSize, MatUtils::ToImVec2(uvMin2), MatUtils::ToImVec2(uvMax2));
@@ -4240,8 +4132,9 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 break;
         }
     }
-    else if (mImgTexture1)
+    else if (mhImgTx1)
     {
+        const auto tImgTid1 = mhImgTx1->TextureID();
         ImVec2 imgLeftTop = leftTop;
         while (1)
         {
@@ -4252,7 +4145,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 snapDispSize.x = rightBottom.x - imgLeftTop.x;
                 uvMax.x = snapDispSize.x / mSnapSize.x;
             }
-            drawList->AddImage(mImgTexture1, imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
+            drawList->AddImage(tImgTid1, imgLeftTop, imgLeftTop + snapDispSize, uvMin, uvMax);
             imgLeftTop.x += snapDispSize.x;
             if (imgLeftTop.x >= rightBottom.x)
                 break;
@@ -4277,8 +4170,8 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
             auto tid = hTx ? hTx->TextureID() : nullptr;
             if (tid)
             {
-                auto roiRect = hTx->GetDisplayRoi();
-                auto roiSize = roiRect.size;
+                const auto roiRect = hTx->GetDisplayRoi();
+                const auto& roiSize = roiRect.size;
                 MatUtils::Point2f uvMin2(uvMin.x, uvMin.y), uvMax2(uvMax.x, uvMax.y);
                 uvMin2 = roiRect.leftTop+roiSize*uvMin2; uvMax2 = roiRect.leftTop+roiSize*uvMax2;
                 drawList->AddImage(tid, img2LeftTop, img2LeftTop + snapDispSize, MatUtils::ToImVec2(uvMin2), MatUtils::ToImVec2(uvMax2));
@@ -4299,8 +4192,9 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 break;
         }
     }
-    else if (mImgTexture2)
+    else if (mhImgTx2)
     {
+        const auto tImgTid2 = mhImgTx2->TextureID();
         ImVec2 imgLeftTop = leftTop;
         while (1)
         {
@@ -4312,7 +4206,7 @@ void EditingVideoOverlap::DrawContent(ImDrawList* drawList, const ImVec2& leftTo
                 uvMax.x = snapDispSize.x / mSnapSize.x;
             }
             ImVec2 img2LeftTop = {imgLeftTop.x, imgLeftTop.y+mSnapSize.y};
-            drawList->AddImage(mImgTexture2, img2LeftTop, img2LeftTop + snapDispSize, uvMin, uvMax);
+            drawList->AddImage(tImgTid2, img2LeftTop, img2LeftTop + snapDispSize, uvMin, uvMax);
             imgLeftTop.x += snapDispSize.x;
             if (imgLeftTop.x >= rightBottom.x)
                 break;
@@ -4917,9 +4811,9 @@ void MediaTrack::DeleteClip(int64_t id)
         {
             TextClip * tclip = dynamic_cast<TextClip *>(*iter);
             // if clip is text clip, need delete from track holder
-            if (mMttReader && tclip->mClipHolder)
+            if (mMttReader && tclip->mhDataLayerClip)
             {
-                mMttReader->DeleteClip(tclip->mClipHolder);
+                mMttReader->DeleteClip(tclip->mhDataLayerClip);
             }
         }
         m_Clips.erase(iter);
@@ -4948,12 +4842,11 @@ bool MediaTrack::CanInsertClip(Clip * clip, int64_t pos)
     return can_insert_clip;
 }
 
-void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update, std::list<imgui_json::value>* pActionList)
+void MediaTrack::InsertClip(Clip* clip, int64_t pos, bool update, std::list<imgui_json::value>* pActionList)
 {
     TimeLine * timeline = (TimeLine *)m_Handle;
     if (!timeline || !clip)
         return;
-        
     auto iter = std::find_if(m_Clips.begin(), m_Clips.end(), [clip](const Clip * _clip)
     {
         return _clip->mID == clip->mID;
@@ -4972,12 +4865,17 @@ void MediaTrack::InsertClip(Clip * clip, int64_t pos, bool update, std::list<img
             action["action"] = "ADD_CLIP";
             action["media_type"] = imgui_json::number(clip->mType);
             action["to_track_id"] = imgui_json::number(mID);
-            imgui_json::value clipJson;
-            clip->Save(clipJson);
-            action["clip_json"] = clipJson;
+            action["clip_json"] = clip->SaveAsJson();
             pActionList->push_back(std::move(action));
         }
     }
+    // also insert this clip into TimeLine::m_Clips array
+    auto& aTlClips = timeline->m_Clips;
+    auto iter2 = std::find_if(aTlClips.begin(), aTlClips.end(), [clip] (const auto& elem) {
+        return elem->mID == clip->mID;
+    });
+    if (iter2 == aTlClips.end())
+        aTlClips.push_back(clip);
     if (update) Update();
 }
 
@@ -5150,7 +5048,7 @@ void MediaTrack::SelectEditingClip(Clip * clip)
     }
     if (timeline->m_CallBacks.EditingClip)
     {
-        updated = timeline->m_CallBacks.EditingClip(clip->mType, clip);
+        updated = timeline->m_CallBacks.EditingClip(0, clip);
     }
 }
 
@@ -5475,7 +5373,7 @@ MediaTrack* MediaTrack::Load(const imgui_json::value& value, void * handle)
                 if (IS_TEXT(clip->mType))
                 {
                     TextClip * tclip = dynamic_cast<TextClip *>(clip);
-                    tclip->CreateClipHold(new_track);
+                    tclip->CreateDataLayer(new_track);
                 }
             }
         }
@@ -6142,9 +6040,7 @@ int64_t TimeLine::DeleteTrack(int index, std::list<imgui_json::value>* pActionLi
             imgui_json::value containedClipsJson;
             for (auto clip : containedClips)
             {
-                imgui_json::value clipJson;
-                clip->Save(clipJson);
-                containedClipsJson.push_back(clipJson);
+                containedClipsJson.push_back(clip->SaveAsJson());
                 if (clip->mGroupID != -1)
                 {
                     auto iter = std::find(relatedGroupIds.begin(), relatedGroupIds.end(), clip->mGroupID);
@@ -6322,11 +6218,11 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
             Clip* c = nullptr;
             uint32_t type = clipJson["Type"].get<imgui_json::number>();
             if (IS_VIDEO(type))
-                c = VideoClip::Load(clipJson, this);
+                c = VideoClip::CreateInstanceFromJson(clipJson, this);
             else if (IS_AUDIO(type))
-                c = AudioClip::Load(clipJson, this);
+                c = AudioClip::CreateInstanceFromJson(clipJson, this);
             else if (IS_TEXT(type))
-                c = TextClip::Load(clipJson, this);
+                c = TextClip::CreateInstanceFromJson(clipJson, this);
             else
             {
                 Logger::Log(Logger::WARN) << "FAILED to restore clip (id=";
@@ -6446,9 +6342,8 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
                 hVidClip = hVidTrk->AddImageClip(c->mID, c->mMediaParser, c->Start(), c->Length());
             else
                 hVidClip = hVidTrk->AddVideoClip(c->mID, c->mMediaParser, c->Start(), c->End(), c->StartOffset(), c->EndOffset(), mCurrentTime-c->Start());
-            VideoClip* vclip = dynamic_cast<VideoClip*>(c);
-            vclip->SyncFilterWithDataLayer(hVidClip);
-            vclip->SyncAttributesWithDataLayer(hVidClip);
+            VideoClip* pUiVClip = dynamic_cast<VideoClip*>(c);
+            pUiVClip->SetDataLayer(hVidClip, true);
         }
         RefreshPreview();
     }
@@ -6462,8 +6357,8 @@ bool TimeLine::RestoreTrack(imgui_json::value& action)
             MediaCore::AudioClip::Holder hAudClip = hAudTrk->AddNewClip(
                 c->mID, c->mMediaParser,
                 c->Start(), c->End(), c->StartOffset(), c->EndOffset());
-            AudioClip* aclip = dynamic_cast<AudioClip*>(c);
-            aclip->SyncFilterWithDataLayer(hAudClip);
+            AudioClip* pUiAClip = dynamic_cast<AudioClip*>(c);
+            pUiAClip->SetDataLayer(hAudClip, true);
         }
         // audio attribute
         auto aeFilter = hAudTrk->GetAudioEffectFilter();
@@ -6607,12 +6502,12 @@ void TimeLine::MovingClip(int64_t id, int from_track_index, int to_track_index)
         {
             TextClip * tclip = dynamic_cast<TextClip *>(clip);
             // need remove from source track holder
-            if (track->mMttReader && tclip->mClipHolder)
+            if (track->mMttReader && tclip->mhDataLayerClip)
             {
-                track->mMttReader->DeleteClip(tclip->mClipHolder);
+                track->mMttReader->DeleteClip(tclip->mhDataLayerClip);
             }
             // and add into dst track holder
-            tclip->CreateClipHold(dst_track);
+            tclip->CreateDataLayer(dst_track);
         }
 
         dst_track->InsertClip(clip, clip->Start());
@@ -6647,7 +6542,7 @@ bool TimeLine::DeleteClip(int64_t id, std::list<imgui_json::value>* pActionList)
             }
             if (m_CallBacks.EditingClip)
             {
-                m_CallBacks.EditingClip(clip->mType, clip);
+                m_CallBacks.EditingClip(0, clip);
             }
         }
 
@@ -6659,9 +6554,7 @@ bool TimeLine::DeleteClip(int64_t id, std::list<imgui_json::value>* pActionList)
             action["action"] = "REMOVE_CLIP";
             action["media_type"] = imgui_json::number(clip->mType);
             action["from_track_id"] = imgui_json::number(track->mID);
-            imgui_json::value clip_json;
-            clip->Save(clip_json);
-            action["clip_json"] = clip_json;
+            action["clip_json"] = clip->SaveAsJson();
             pActionList->push_back(std::move(action));
         }
         delete clip;
@@ -7959,29 +7852,23 @@ int TimeLine::Load(const imgui_json::value& value)
     const imgui_json::array* mediaClipArray = nullptr;
     if (imgui_json::GetPtrTo(value, "MediaClip", mediaClipArray))
     {
-        for (auto& clip : *mediaClipArray)
+        for (const auto& jnClipJson : *mediaClipArray)
         {
             uint32_t type = MEDIA_UNKNOWN;
-            if (clip.contains("Type"))
+            if (jnClipJson.contains("Type"))
             {
-                auto& val = clip["Type"];
+                auto& val = jnClipJson["Type"];
                 if (val.is_number()) type = val.get<imgui_json::number>();
             }
-            Clip * media_clip = nullptr;
+            Clip* pClip = nullptr;
             if (IS_VIDEO(type))
-            {
-                media_clip = VideoClip::Load(clip, this);
-            }
+                pClip = VideoClip::CreateInstanceFromJson(jnClipJson, this);
             else if (IS_AUDIO(type))
-            {
-                media_clip = AudioClip::Load(clip, this);
-            }
+                pClip = AudioClip::CreateInstanceFromJson(jnClipJson, this);
             else if (IS_TEXT(type))
-            {
-                media_clip = TextClip::Load(clip, this);
-            }
-            if (media_clip)
-                m_Clips.push_back(media_clip);
+                pClip = TextClip::CreateInstanceFromJson(jnClipJson, this);
+            if (pClip)
+                m_Clips.push_back(pClip);
         }
     }
 
@@ -8240,42 +8127,32 @@ int TimeLine::Load(const imgui_json::value& value)
         {
             MediaCore::VideoTrack::Holder vidTrack = mMtvReader->AddTrack(track->mID);
             vidTrack->SetVisible(track->mView);
-            for (auto clip : track->m_Clips)
+            for (auto pUiClip : track->m_Clips)
             {
-                if (IS_DUMMY(clip->mType))
+                if (IS_DUMMY(pUiClip->mType))
                     continue;
                 MediaCore::VideoClip::Holder hVidClip;
-                if (IS_IMAGE(clip->mType))
-                    hVidClip = vidTrack->AddImageClip(clip->mID, clip->mMediaParser, clip->Start(), clip->Length());
+                if (IS_IMAGE(pUiClip->mType))
+                    hVidClip = vidTrack->AddImageClip(pUiClip->mID, pUiClip->mMediaParser, pUiClip->Start(), pUiClip->Length());
                 else
-                    hVidClip = vidTrack->AddVideoClip(clip->mID, clip->mMediaParser, clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), mCurrentTime-clip->Start());
-                VideoClip* vclip = dynamic_cast<VideoClip*>(clip);
-                vclip->SyncFilterWithDataLayer(hVidClip);
-                vclip->SyncAttributesWithDataLayer(hVidClip);
-                auto attribute = hVidClip->GetTransformFilter();
-                if (attribute)
-                {
-                    auto attribute_keypoint = attribute->GetKeyPoint();
-                    if (attribute_keypoint)
-                    {
-                        attribute_keypoint->Load(clip->mAttributeJson);
-                    }
-                }
+                    hVidClip = vidTrack->AddVideoClip(pUiClip->mID, pUiClip->mMediaParser, pUiClip->Start(), pUiClip->End(), pUiClip->StartOffset(), pUiClip->EndOffset(), mCurrentTime-pUiClip->Start());
+                VideoClip* pUiVClip = dynamic_cast<VideoClip*>(pUiClip);
+                pUiVClip->SetDataLayer(hVidClip, true);
             }
         }
         else if (IS_AUDIO(track->mType))
         {
             MediaCore::AudioTrack::Holder audTrack = mMtaReader->AddTrack(track->mID);
             audTrack->SetMuted(!track->mView);
-            for (auto clip : track->m_Clips)
+            for (auto pUiClip : track->m_Clips)
             {
-                if (IS_DUMMY(clip->mType) || !clip->mMediaParser)
+                if (IS_DUMMY(pUiClip->mType) || !pUiClip->mMediaParser)
                     continue;
                 MediaCore::AudioClip::Holder hAudClip = audTrack->AddNewClip(
-                    clip->mID, clip->mMediaParser,
-                    clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset());
-                AudioClip* aclip = dynamic_cast<AudioClip*>(clip);
-                aclip->SyncFilterWithDataLayer(hAudClip);
+                    pUiClip->mID, pUiClip->mMediaParser,
+                    pUiClip->Start(), pUiClip->End(), pUiClip->StartOffset(), pUiClip->EndOffset());
+                AudioClip* pUiAClip = dynamic_cast<AudioClip*>(pUiClip);
+                pUiAClip->SetDataLayer(hAudClip, true);
             }
             // audio attribute
             auto aeFilter = audTrack->GetAudioEffectFilter();
@@ -8355,26 +8232,7 @@ void TimeLine::Save(imgui_json::value& value)
     imgui_json::value media_clips;
     for (auto clip : m_Clips)
     {
-        // store clip attribute
-        if (IS_VIDEO(clip->mType))
-        {
-            auto vclip = mMtvReader->GetClipById(clip->mID);
-            if (vclip)
-            {
-                auto attribute = vclip->GetTransformFilter();
-                if (attribute)
-                {
-                    auto attribute_keypoint = attribute->GetKeyPoint();
-                    if (attribute_keypoint)
-                    {
-                        attribute_keypoint->Save(clip->mAttributeJson);
-                    }
-                }
-            }
-        }
-        imgui_json::value media_clip;
-        clip->Save(media_clip);
-        media_clips.push_back(media_clip);
+        media_clips.push_back(clip->SaveAsJson());
     }
     if (m_Clips.size() > 0) value["MediaClip"] = media_clips;
 
@@ -8579,13 +8437,12 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
         MediaCore::VideoTrack::Holder vidTrack = mMtvReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
-        Clip* clip = FindClipByID(clipId);
+        auto pUiVClip = dynamic_cast<VideoClip*>(FindClipByID(clipId));
+        IM_ASSERT(pUiVClip);
         MediaCore::VideoClip::Holder hVidClip = MediaCore::VideoClip::CreateVideoInstance(
-            clip->mID, clip->mMediaParser, mMtvReader->GetSharedSettings(),
-            clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset(), mCurrentTime-clip->Start(), vidTrack->Direction());
-        VideoClip* vclip = dynamic_cast<VideoClip*>(clip);
-        vclip->SyncFilterWithDataLayer(hVidClip);
-        vclip->SyncAttributesWithDataLayer(hVidClip);
+            pUiVClip->mID, pUiVClip->mMediaParser, mMtvReader->GetSharedSettings(),
+            pUiVClip->Start(), pUiVClip->End(), pUiVClip->StartOffset(), pUiVClip->EndOffset(), mCurrentTime-pUiVClip->Start(), vidTrack->Direction());
+        pUiVClip->SetDataLayer(hVidClip, false);
         vidTrack->InsertClip(hVidClip);
         bool updateDuration = true;
         if (action.contains("update_duration"))
@@ -8680,8 +8537,7 @@ void TimeLine::PerformVideoAction(imgui_json::value& action)
             hNewClip->SetFilter(hNewFilter);
         }
         auto pUiClip = dynamic_cast<VideoClip*>(FindClipByID(newClipId));
-        pUiClip->SyncFilterWithDataLayer(hNewClip);
-        pUiClip->SyncAttributesWithDataLayer(hNewClip);
+        pUiClip->SetDataLayer(hNewClip, true);
         hVidTrk->InsertClip(hNewClip);
         RefreshPreview(false);
     }
@@ -8735,12 +8591,11 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
         MediaCore::AudioTrack::Holder audTrack = mMtaReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
-        Clip* clip = FindClipByID(clipId);
+        auto pUiAClip = dynamic_cast<AudioClip*>(FindClipByID(clipId));
         MediaCore::AudioClip::Holder hAudClip = MediaCore::AudioClip::CreateInstance(
-            clip->mID, clip->mMediaParser, mMtaReader->GetTrackSharedSettings(),
-            clip->Start(), clip->End(), clip->StartOffset(), clip->EndOffset());
-        AudioClip* aclip = dynamic_cast<AudioClip*>(clip);
-        aclip->SyncFilterWithDataLayer(hAudClip);
+            pUiAClip->mID, pUiAClip->mMediaParser, mMtaReader->GetTrackSharedSettings(),
+            pUiAClip->Start(), pUiAClip->End(), pUiAClip->StartOffset(), pUiAClip->EndOffset());
+        pUiAClip->SetDataLayer(hAudClip, true);
         audTrack->InsertClip(hAudClip);
         bool updateDuration = true;
         if (action.contains("update_duration"))
@@ -8835,7 +8690,7 @@ void TimeLine::PerformAudioAction(imgui_json::value& action)
             hNewClip->SetFilter(hNewFilter);
         }
         auto pUiClip = dynamic_cast<AudioClip*>(FindClipByID(newClipId));
-        pUiClip->SyncFilterWithDataLayer(hNewClip);
+        pUiClip->SetDataLayer(hNewClip, true);
         hAudTrk->InsertClip(hNewClip);
         mMtaReader->Refresh(false);
     }
@@ -8873,11 +8728,13 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
         int64_t trackId = action["to_track_id"].get<imgui_json::number>();
         MediaCore::VideoTrack::Holder vidTrack = mMtvReader->GetTrackById(trackId, true);
         int64_t clipId = action["clip_json"]["ID"].get<imgui_json::number>();
-        Clip* clip = FindClipByID(clipId);
-        MediaCore::VideoClip::Holder imgClip = MediaCore::VideoClip::CreateImageInstance(
-            clip->mID, clip->mMediaParser, mMtvReader->GetSharedSettings(),
-            clip->Start(), clip->Length());
-        vidTrack->InsertClip(imgClip);
+        auto pUiVClip = dynamic_cast<VideoClip*>(FindClipByID(clipId));
+        IM_ASSERT(pUiVClip);
+        MediaCore::VideoClip::Holder hImgClip = MediaCore::VideoClip::CreateImageInstance(
+            pUiVClip->mID, pUiVClip->mMediaParser, mMtvReader->GetSharedSettings(),
+            pUiVClip->Start(), pUiVClip->Length());
+        pUiVClip->SetDataLayer(hImgClip, false);
+        vidTrack->InsertClip(hImgClip);
         RefreshPreview();
     }
     else if (actionName == "REMOVE_CLIP")
@@ -8954,8 +8811,7 @@ void TimeLine::PerformImageAction(imgui_json::value& action)
             hNewClip->SetFilter(hNewFilter);
         }
         auto pUiClip = dynamic_cast<VideoClip*>(FindClipByID(newClipId));
-        pUiClip->SyncFilterWithDataLayer(hNewClip);
-        pUiClip->SyncAttributesWithDataLayer(hNewClip);
+        pUiClip->SetDataLayer(hNewClip, true);
         hVidTrk->InsertClip(hNewClip);
         RefreshPreview(false);
     }
@@ -9912,13 +9768,11 @@ bool TimeLine::UndoOneRecord()
         {
             int64_t newClipId = action["new_clip_id"].get<imgui_json::number>();
             auto pUiClip = FindClipByID(newClipId);
-            imgui_json::value clipJson;
-            pUiClip->Save(clipJson);
             imgui_json::value undoAction;
             undoAction["action"] = "REMOVE_CLIP";
             undoAction["media_type"] = action["media_type"];
             undoAction["from_track_id"] = action["track_id"];
-            undoAction["clip_json"] = clipJson;
+            undoAction["clip_json"] = pUiClip->SaveAsJson();
             undoAction["update_duration"] = imgui_json::boolean(false);
             mUiActions.push_back(std::move(undoAction));
             DeleteClip(newClipId, nullptr);
@@ -10303,7 +10157,7 @@ bool TimeLine::RedoOneRecord()
     return true;
 }
 
-int64_t TimeLine::AddNewClip(const imgui_json::value& clip_json, int64_t track_id, std::list<imgui_json::value>* pActionList)
+int64_t TimeLine::AddNewClip(const imgui_json::value& jnClipJson, int64_t track_id, std::list<imgui_json::value>* pActionList)
 {
     MediaTrack* track = FindTrackByID(track_id);
     if (!track)
@@ -10311,35 +10165,35 @@ int64_t TimeLine::AddNewClip(const imgui_json::value& clip_json, int64_t track_i
         Logger::Log(Logger::Error) << "FAILED to invoke 'TimeLine::AddNewClip()'! Target 'MediaTrack' does NOT exist." << std::endl;
         return -1;
     }
-    const uint32_t mediaType = clip_json["Type"].get<imgui_json::number>();
-    Clip* newClip = nullptr;
+    const uint32_t mediaType = jnClipJson["Type"].get<imgui_json::number>();
+    Clip* pUiNewClip = nullptr;
     switch (mediaType)
     {
     case MEDIA_VIDEO:
-        newClip = VideoClip::Load(clip_json, this);
+        pUiNewClip = VideoClip::CreateInstanceFromJson(jnClipJson, this);
         break;
     case MEDIA_AUDIO:
-        newClip = AudioClip::Load(clip_json, this);
+        pUiNewClip = AudioClip::CreateInstanceFromJson(jnClipJson, this);
         break;
     case MEDIA_TEXT:
-        newClip = TextClip::Load(clip_json, this);
+        pUiNewClip = TextClip::CreateInstanceFromJson(jnClipJson, this);
         break;
     }
-    m_Clips.push_back(newClip);
-    track->InsertClip(newClip, newClip->Start(), true, pActionList);
+    m_Clips.push_back(pUiNewClip);
+    track->InsertClip(pUiNewClip, pUiNewClip->Start(), true, pActionList);
 
-    int64_t groupId = clip_json["GroupID"].get<imgui_json::number>();
+    int64_t groupId = jnClipJson["GroupID"].get<imgui_json::number>();
     if (groupId != -1)
     {
         auto iter = std::find_if(m_Groups.begin(), m_Groups.end(), [groupId] (auto& group) {
             return group.mID == groupId;
         });
         if (iter == m_Groups.end())
-            NewGroup(newClip, groupId, 0, pActionList);
+            NewGroup(pUiNewClip, groupId, 0, pActionList);
         else
-            AddClipIntoGroup(newClip, groupId, pActionList);
+            AddClipIntoGroup(pUiNewClip, groupId, pActionList);
     }
-    return newClip->mID;
+    return pUiNewClip->mID;
 }
 
 int64_t TimeLine::AddNewClip(
@@ -10360,24 +10214,10 @@ int64_t TimeLine::AddNewClip(
         return -1;
     }
     Clip* newClip = nullptr;
-    if (IS_VIDEO(media_type) && !IS_IMAGE(media_type))
-    {
-        MediaCore::Snapshot::Viewer::Holder hViewer;
-        MediaCore::Snapshot::Generator::Holder hSsGen = GetSnapshotGenerator(item->mID);
-        if (hSsGen) hViewer = hSsGen->CreateViewer();
-        auto clipRange = AlignClipRange({0, item->mSrcLength});
-        newClip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName+":Video", item->mMediaOverview->GetMediaParser(), hViewer, this);
-    }
-    else if (IS_IMAGE(media_type))
-    {
-        auto clipRange = AlignClipRange({0, 5000});
-        newClip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, this);
-    }
+    if (IS_VIDEO(media_type))
+        newClip = VideoClip::CreateInstance(this, item, start);
     else if (IS_AUDIO(media_type))
-    {
-        auto clipRange = AlignClipRange({0, item->mSrcLength});
-        newClip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName+":Audio", item->mMediaOverview, this);
-    }
+        newClip = AudioClip::CreateInstance(this, item, start);
     else
     {
         Logger::Log(Logger::Error) << "Unsupported media type " << media_type << " for TimeLine::AddNewClip()!" << std::endl;
@@ -10391,7 +10231,7 @@ int64_t TimeLine::AddNewClip(
         newClip->ChangeStartOffset(start_offset);
         newClip->ChangeEndOffset(end_offset);
     }
-    newClip->ChangeStart(start);
+    // newClip->ChangeStart(start);
     m_Clips.push_back(newClip);
     track->InsertClip(newClip, start, true, pActionList);
     if (group_id != -1)
@@ -11704,16 +11544,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                     {
                         if (track->mMttReader && menuMouseTime != -1)
                         {
-                            auto clipRange = timeline->AlignClipRange({menuMouseTime, 5000});
-                            TextClip * clip = new TextClip(clipRange.first, clipRange.second, track->mID, track->mName, std::string(""), timeline);
-                            clip->CreateClipHold(track);
-                            clip->SetClipDefault(track->mMttReader->DefaultStyle());
-                            timeline->m_Clips.push_back(clip);
-                            track->InsertClip(clip, clipRange.first);
-                            track->SelectEditingClip(clip);
+                            auto pTextClip = TextClip::CreateInstance(timeline, "", menuMouseTime);
+                            pTextClip->CreateDataLayer(track);
+                            pTextClip->SetClipDefault(track->mMttReader->DefaultStyle());
+                            track->InsertClip(pTextClip, menuMouseTime);
+                            track->SelectEditingClip(pTextClip);
                             if (timeline->m_CallBacks.EditingClip)
                             {
-                                timeline->m_CallBacks.EditingClip(clip->mType, clip);
+                                timeline->m_CallBacks.EditingClip(0, pTextClip);
                             }
                             changed = true;
                         }
@@ -12468,180 +12306,71 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     // handle drag drop
     auto insert_item_into_timeline = [&](MediaItem * item, MediaTrack * track)
     {
-        auto clipRange = timeline->AlignClipRange({0, item->mSrcLength});
         if (IS_VIDEO(item->mMediaType))
         {
-            if (IS_IMAGE(item->mMediaType))
+            auto pNewVideoClip = VideoClip::CreateInstance(timeline, item, 0);
+            auto pVidInsTrack = track;
+            if (!pVidInsTrack || !pVidInsTrack->CanInsertClip(pNewVideoClip, mouseTime))
             {
-                clipRange = timeline->AlignClipRange({0, 10000});  // wyvern: Add new image clip with default length of 10 seconds
-                VideoClip* new_image_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Image", item->mMediaOverview, timeline);
-                timeline->m_Clips.push_back(new_image_clip);
-                new_image_clip->mType = item->mMediaType;
-                MediaTrack* insertTrack = track;
-                if (!track || !track->CanInsertClip(new_image_clip, mouseTime))
-                {
-                    int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
-                    insertTrack = timeline->m_Tracks[newTrackIndex];
-                    bInsertNewTrack = true;
-                    InsertHeight += insertTrack->mTrackHeight + trackHeadHeight;
-                }
-                insertTrack->InsertClip(new_image_clip, mouseTime, true, &actionList);
+                const auto iNewTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
+                pVidInsTrack = timeline->m_Tracks[iNewTrackIndex];
+                bInsertNewTrack = true;
+                InsertHeight += pVidInsTrack->mTrackHeight + trackHeadHeight;
             }
-            else if (IS_IMAGESEQ(item->mMediaType))
+            pVidInsTrack->InsertClip(pNewVideoClip, mouseTime, true, &actionList);
+
+            if (item->mhParser->HasAudio())
             {
-                MediaCore::Snapshot::Viewer::Holder hViewer;
-                MediaCore::Snapshot::Generator::Holder hSsGen = timeline->GetSnapshotGenerator(item->mID);
-                if (hSsGen) hViewer = hSsGen->CreateViewer();
-                VideoClip* new_imageseq_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName + ":ImageSeq", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
-                new_imageseq_clip->mType = item->mMediaType;
-                timeline->m_Clips.push_back(new_imageseq_clip);
-                MediaTrack* insertTrack = track;
-                if (!track || !track->CanInsertClip(new_imageseq_clip, mouseTime))
+                // create the 'AudioClip' based on the audio stream in the same 'MediaItem'
+                auto pNewAudioClip = AudioClip::CreateInstance(timeline, item, 0);
+                // first try to insert the bundled AudioClip into the 'linked' audio track for the video track
+                auto pAudInsTrack = timeline->FindTrackByID(pVidInsTrack->mLinkedTrack);
+                if (!pAudInsTrack || !pAudInsTrack->CanInsertClip(pNewAudioClip, mouseTime))
                 {
-                    int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
-                    insertTrack = timeline->m_Tracks[newTrackIndex];
-                    bInsertNewTrack = true;
-                    InsertHeight += insertTrack->mTrackHeight + trackHeadHeight;
-                }
-                insertTrack->InsertClip(new_imageseq_clip, mouseTime, true, &actionList);
-            }
-            else  // handle general video file
-            {
-                bool create_new_track = false;
-                MediaTrack* videoTrack = nullptr;
-                VideoClip* new_video_clip = nullptr;
-                AudioClip* new_audio_clip = nullptr;
-                const MediaCore::VideoStream* video_stream = item->mMediaOverview->GetVideoStream();
-                const MediaCore::AudioStream* audio_stream = item->mMediaOverview->GetAudioStream();
-                const MediaCore::SubtitleStream * subtitle_stream = nullptr;
-                if (video_stream)
-                {
-                    MediaCore::Snapshot::Viewer::Holder hViewer;
-                    MediaCore::Snapshot::Generator::Holder hSsGen = timeline->GetSnapshotGenerator(item->mID);
-                    if (hSsGen) hViewer = hSsGen->CreateViewer();
-                    new_video_clip = new VideoClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Video", item->mMediaOverview->GetMediaParser(), hViewer, timeline);
-                    timeline->m_Clips.push_back(new_video_clip);
-                    videoTrack = track;
-                    if (!track || !track->CanInsertClip(new_video_clip, mouseTime))
+                    // then try to insert the AudioClip into an empty audio track
+                    pAudInsTrack = timeline->FindEmptyTrackByType(MEDIA_AUDIO);
+                    if (!pAudInsTrack || !pAudInsTrack->CanInsertClip(pNewAudioClip, mouseTime))
                     {
-                        int newTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
-                        videoTrack = timeline->m_Tracks[newTrackIndex];
+                        const auto iNewTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &actionList);
+                        pAudInsTrack = timeline->m_Tracks[iNewTrackIndex];
                         bInsertNewTrack = true;
-                        InsertHeight += videoTrack->mTrackHeight + trackHeadHeight;
+                        InsertHeight += pAudInsTrack->mTrackHeight + trackHeadHeight;
                     }
-                    videoTrack->InsertClip(new_video_clip, mouseTime, true, &actionList);
                 }
-                if (audio_stream)
+                pAudInsTrack->InsertClip(pNewAudioClip, mouseTime, true, &actionList);
+
+                // group new added Video&Audio Clip in the same group
+                if (pNewVideoClip->mGroupID == -1)
+                    timeline->NewGroup(pNewVideoClip, -1L, 0U, &actionList);
+                timeline->AddClipIntoGroup(pNewAudioClip, pNewVideoClip->mGroupID, &actionList);
+
+                // link two insert tracks
+                // wyvern: The logic is bad, video track may already has a linked audio track, and the following code breaks the old link!
+                // TODO: need to figure out a better way of keeping 'linked' relationship between clips generated from the same source
+                if (pVidInsTrack->mLinkedTrack != pAudInsTrack->mID || pAudInsTrack->mLinkedTrack != pVidInsTrack->mID)
                 {
-                    new_audio_clip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName + ":Audio", item->mMediaOverview, timeline);
-                    timeline->m_Clips.push_back(new_audio_clip);
-                    if (!create_new_track)
-                    {
-                        if (new_video_clip)
-                        {
-                            // video clip is insert into track, we need check if this track has linked track
-                            if (track && track->mLinkedTrack != -1)
-                            {
-                                MediaTrack * relative_track = timeline->FindTrackByID(track->mLinkedTrack);
-                                if (relative_track && IS_AUDIO(relative_track->mType))
-                                {
-                                    bool can_insert_clip = relative_track->CanInsertClip(new_audio_clip, mouseTime);
-                                    if (can_insert_clip)
-                                    {
-                                        if (new_video_clip->mGroupID == -1)
-                                        {
-                                            timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
-                                        }
-                                        relative_track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
-                                        timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
-                                    }
-                                    else
-                                        create_new_track = true;
-                                }
-                                else
-                                    create_new_track = true;
-                            }
-                            else if (track)
-                            {
-                                // no mLinkedTrack with track, we try to find empty audio track first
-                                MediaTrack * empty_track = timeline->FindEmptyTrackByType(MEDIA_AUDIO);
-                                if (empty_track)
-                                {
-                                    if (new_video_clip->mGroupID == -1)
-                                    {
-                                        timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
-                                    }
-                                    timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
-                                    empty_track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
-                                }
-                                else
-                                    create_new_track = true;
-                            }
-                            else
-                                create_new_track = true;
-                        }
-                        else
-                        {
-                            // no video stream
-                            bool can_insert_clip = track ? track->CanInsertClip(new_audio_clip, mouseTime) : false;
-                            if (can_insert_clip)
-                            {
-                                // update clip info and push into track
-                                track->InsertClip(new_audio_clip, mouseTime, true, &actionList);
-                            }
-                            else
-                            {
-                                create_new_track = true;
-                            }
-                        }
-                    }
-                    if (create_new_track)
-                    {
-                        if (new_video_clip)
-                        {
-                            if (new_video_clip->mGroupID == -1)
-                            {
-                                timeline->NewGroup(new_video_clip, -1L, 0U, &actionList);
-                            }
-                            timeline->AddClipIntoGroup(new_audio_clip, new_video_clip->mGroupID, &actionList);
-                        }
-                        //  we try to find empty audio track first
-                        MediaTrack * audioTrack = timeline->FindEmptyTrackByType(MEDIA_AUDIO);
-                        if (!audioTrack)
-                        {
-                            int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &actionList);
-                            audioTrack = timeline->m_Tracks[newTrackIndex];
-                            bInsertNewTrack = true;
-                            InsertHeight += audioTrack->mTrackHeight + trackHeadHeight;
-                        }
-                        audioTrack->InsertClip(new_audio_clip, mouseTime, true, &actionList);
-                        if (videoTrack)
-                        {
-                            videoTrack->mLinkedTrack = audioTrack->mID;
-                            audioTrack->mLinkedTrack = videoTrack->mID;
-                            imgui_json::value action;
-                            action["action"] = "LINK_TRACK";
-                            action["track_id1"] = imgui_json::number(videoTrack->mID);
-                            action["track_id2"] = imgui_json::number(audioTrack->mID);
-                            actionList.push_back(std::move(action));
-                        }
-                    }
+                    pVidInsTrack->mLinkedTrack = pAudInsTrack->mID;
+                    pAudInsTrack->mLinkedTrack = pVidInsTrack->mID;
+                    imgui_json::value jnUiAction;
+                    jnUiAction["action"] = "LINK_TRACK";
+                    jnUiAction["track_id1"] = imgui_json::number(pVidInsTrack->mID);
+                    jnUiAction["track_id2"] = imgui_json::number(pAudInsTrack->mID);
+                    actionList.push_back(std::move(jnUiAction));
                 }
             }
         }
         else if (IS_AUDIO(item->mMediaType))
         {
-            AudioClip * new_audio_clip = new AudioClip(clipRange.first, clipRange.second, item->mID, item->mName, item->mMediaOverview, timeline);
-            timeline->m_Clips.push_back(new_audio_clip);
-            MediaTrack* insertTrack = track;
-            if (!track || !track->CanInsertClip(new_audio_clip, mouseTime))
+            auto pNewAudioClip = AudioClip::CreateInstance(timeline, item, 0);
+            auto pAudInsTrack = track;
+            if (!pAudInsTrack || !pAudInsTrack->CanInsertClip(pNewAudioClip, mouseTime))
             {
-                int newTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &actionList);
-                insertTrack = timeline->m_Tracks[newTrackIndex];
+                const auto iNewTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
+                pAudInsTrack = timeline->m_Tracks[iNewTrackIndex];
                 bInsertNewTrack = true;
-                InsertHeight += insertTrack->mTrackHeight + trackHeadHeight;
+                InsertHeight += pAudInsTrack->mTrackHeight + trackHeadHeight;
             }
-            insertTrack->InsertClip(new_audio_clip, mouseTime, true, &actionList);
+            pAudInsTrack->InsertClip(pNewAudioClip, mouseTime, true, &actionList);
         } 
         else if (IS_SUBTITLE(item->mMediaType))
         {
@@ -12659,12 +12388,12 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 MediaCore::SubtitleClipHolder hSubClip = newTrack->mMttReader->GetCurrClip();
                 while (hSubClip)
                 {
-                    TextClip * new_text_clip = new TextClip(hSubClip->StartTime(), hSubClip->EndTime(), newTrack->mID, newTrack->mName, hSubClip->Text(), timeline);
-                    new_text_clip->SetClipDefault(style);
-                    new_text_clip->mClipHolder = hSubClip;
-                    new_text_clip->mTrack = newTrack;
-                    timeline->m_Clips.push_back(new_text_clip);
-                    newTrack->InsertClip(new_text_clip, hSubClip->StartTime(), false);
+                    TextClip* pNewTextClip = TextClip::CreateInstance(timeline, hSubClip->Text(), hSubClip->StartTime(), hSubClip->Duration());
+                    pNewTextClip->SetClipDefault(style);
+                    pNewTextClip->mhDataLayerClip = hSubClip;
+                    pNewTextClip->mTrack = newTrack;
+                    timeline->m_Clips.push_back(pNewTextClip);
+                    newTrack->InsertClip(pNewTextClip, hSubClip->StartTime(), false);
                     hSubClip = newTrack->mMttReader->GetNextClip();
                 }
                 if (newTrack->mMttReader->Duration() > timeline->mEnd)
@@ -13057,7 +12786,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         const auto frameRate = main_timeline->mhMediaSettings->VideoOutFrameRate();
         maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) * frameRate.num / (frameRate.den * 1000);
         view_frames = video_clip->mSnapSize.x > 0 ? (window_size.x / video_clip->mSnapSize.x) : 16;
-        video_attribute = video_clip->mAttribute;
+        video_attribute = video_clip->mhTransformFilter;
     }
     else if (is_audio_clip)
     {
