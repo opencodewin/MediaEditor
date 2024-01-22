@@ -85,6 +85,14 @@ extern "C" {
     format == AV_PIX_FMT_YUV422P14 || \
     format == AV_PIX_FMT_YUV422P16)
 
+#define ISYUV440P(format) \
+    (format == AV_PIX_FMT_YUV440P || \
+    format == AV_PIX_FMT_YUVJ440P || \
+    format == AV_PIX_FMT_YUV440P10LE || \
+    format == AV_PIX_FMT_YUV440P10BE || \
+    format == AV_PIX_FMT_YUV440P12LE || \
+    format == AV_PIX_FMT_YUV440P12BE)
+
 #define ISYUV444P(format) \
     (format == AV_PIX_FMT_YUV444P || \
     format == AV_PIX_FMT_YUVJ444P || \
@@ -489,6 +497,7 @@ struct MediaSourceNode final : Node
                                     stream->m_dec_ctx->color_range == AVCOL_RANGE_JPEG ? IM_CR_FULL_RANGE : IM_CR_NARROW_RANGE;
         ImColorFormat color_format = ISYUV420P(tmp_frame->format) ? IM_CF_YUV420 :
                                     ISYUV422P(tmp_frame->format) ? IM_CF_YUV422 :
+                                    ISYUV440P(tmp_frame->format) ? IM_CF_YUV440 :
                                     ISYUV444P(tmp_frame->format) ? IM_CF_YUV444 :
                                     ISNV12(tmp_frame->format) ? video_depth == 10 ? IM_CF_P010LE : IM_CF_NV12 : 
                                     ISRGB(tmp_frame->format) ? IM_CF_RGBA : IM_CF_YUV420;
@@ -520,6 +529,8 @@ struct MediaSourceNode final : Node
             mat_Y.color_range = color_range;
             mat_Y.color_format = color_format;
             mat_Y.depth = video_depth;
+            mat_Y.dw = tmp_frame->width;
+            mat_Y.dh = tmp_frame->height;
             mat_Y.flags = IM_MAT_FLAGS_VIDEO_FRAME;
             if (stream->m_frame->pict_type == AV_PICTURE_TYPE_I) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_FRAME_I;
             if (stream->m_frame->pict_type == AV_PICTURE_TYPE_P) mat_Y.flags |= IM_MAT_FLAGS_VIDEO_FRAME_P;
@@ -544,8 +555,6 @@ struct MediaSourceNode final : Node
                 ImGui::ImMat im_RGB;
                 im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_Y.type : m_mat_data_type;
                 im_RGB.color_format = IM_CF_ABGR;
-                im_RGB.w = mat_Y.w;
-                im_RGB.h = mat_Y.h;
                 if (m_device == 0)
                 {
                     im_RGB.device = IM_DD_VULKAN;
@@ -611,6 +620,8 @@ struct MediaSourceNode final : Node
             ImGui::ImMat mat_in;
             int image_width = tmp_frame->linesize[0] / desc->nb_components / (data_shift ? 2 : 1);
             mat_in.create_type(image_width, tmp_frame->height, desc->nb_components, tmp_frame->data[0], data_shift ? (is_be ? IM_DT_INT16_BE : IM_DT_INT16) /*IM_DT_INT16*/ : IM_DT_INT8);
+            mat_in.dw = tmp_frame->width;
+            mat_in.dh = tmp_frame->height;
             m_mutex.lock();
 #if IMGUI_VULKAN_SHADER
             if (!stream->m_yuv2rgb)
@@ -628,8 +639,6 @@ struct MediaSourceNode final : Node
                 ImGui::ImMat im_RGB;
                 im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? IM_DT_INT8 : m_mat_data_type;
                 im_RGB.color_format = IM_CF_ABGR;
-                im_RGB.w = mat_in.w;
-                im_RGB.h = mat_in.h;
                 if (m_device == 0)
                 {
                     im_RGB.device = IM_DD_VULKAN;
@@ -765,6 +774,7 @@ struct MediaSourceNode final : Node
     void Reset(Context& context) override
     {
         Node::Reset(context);
+        if (m_fmt_ctx) av_seek_frame(m_fmt_ctx, -1, 0, AVSEEK_FLAG_BACKWARD);
     }
 
     FlowPin Execute(Context& context, FlowPin& entryPoint, bool threading = false) override
