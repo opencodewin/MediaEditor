@@ -599,7 +599,6 @@ struct VideoClip : Clip
 
     static VideoClip* CreateInstanceFromJson(const imgui_json::value& j, TimeLine* pOwner);
     imgui_json::value SaveAsJson() override;
-    int64_t Cropping(int64_t diff, int type) override;
 
     void SetDataLayer(MediaCore::VideoClip::Holder hVClip, bool bSyncStateToDataLayer);
     MediaCore::VideoClip::Holder GetDataLayer() const { return mhDataLayerClip; }

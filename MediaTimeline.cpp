@@ -1984,38 +1984,6 @@ void VideoClip::SetViewWindowStart(int64_t millisec)
     }
 }
 
-int64_t VideoClip::Cropping(int64_t diff, int type)
-{
-    auto ret = Clip::Cropping(diff, type);
-    TimeLine * timeline = (TimeLine *)mHandle;
-    auto vclip = timeline ? timeline->mMtvReader->GetClipById(mID) : nullptr;
-    if (vclip && type == 0)
-    {
-        // only addjust start crop
-        auto attribute = vclip->GetTransformFilter();
-        if (attribute)
-        {
-            auto attribute_keypoint = attribute->GetKeyPoint();
-            if (attribute_keypoint)
-            {
-                attribute_keypoint->SetMin({0, 0, 0, 0});
-                attribute_keypoint->SetMax(ImVec4(1, 1, 1, Length()), true);
-                for (int k = 0; k < attribute_keypoint->GetCurveKeyCount(); k++)
-                {
-                    auto pCount = attribute_keypoint->GetCurvePointCount(k);
-                    for (int p = 1; p < pCount - 1; p++)
-                    {
-                        auto point = attribute_keypoint->GetPoint(k, p);
-                        point.t -= ret;//StartOffset();
-                        attribute_keypoint->EditPoint(k, p, point.val, point.type);
-                    }
-                }
-            }
-        }
-    }
-    return ret;
-}
-
 void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated)
 {
     if (IS_DUMMY(mType))
@@ -12779,14 +12747,14 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     float minPixelWidthTarget = (float)(timline_size.x) / (float)duration;
     float maxPixelWidthTarget = 20.f;
     int view_frames = 16;
-    MediaCore::VideoTransformFilter::Holder video_attribute = nullptr;
+    MediaCore::VideoTransformFilter::Holder hTransformFilter = nullptr;
     if (is_video_clip)
     {
         EditingVideoClip * video_clip = (EditingVideoClip *)editingClip;
         const auto frameRate = main_timeline->mhMediaSettings->VideoOutFrameRate();
         maxPixelWidthTarget = (video_clip->mSnapSize.x > 0 ? video_clip->mSnapSize.x : 60.f) * frameRate.num / (frameRate.den * 1000);
         view_frames = video_clip->mSnapSize.x > 0 ? (window_size.x / video_clip->mSnapSize.x) : 16;
-        video_attribute = video_clip->mhTransformFilter;
+        hTransformFilter = video_clip->mhTransformFilter;
     }
     else if (is_audio_clip)
     {
@@ -13486,70 +13454,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
 
             if (isAttribute)
             {
-                ImGui::SetCursorPos({0, 0});
-                auto   attribute_current = ImGui::GetCursorScreenPos();
-                ImVec2 attribute_size = ImVec2(event_track_size.x, trackHeight + curveHeight);
-                ImRect attribute_area = ImRect(attribute_current, attribute_current + attribute_size);
-                ImVec2 attribute_title_size = ImVec2(event_track_size.x, trackHeight);
-                ImRect attribute_title_area = ImRect(attribute_current, attribute_current + attribute_title_size);
-                ImVec2 attribute_curve_size = ImVec2(event_track_size.x, curveHeight);
-                ImRect attribute_curve_area = attribute_area; attribute_curve_area.Min.y += trackHeight;
-                bool is_attribute_title_hovered = attribute_title_area.Contains(io.MousePos);
-                drawList->AddRectFilled(attribute_title_area.Min, attribute_title_area.Max, IM_COL32(64, 128, 64, 255));
-                drawList->AddText(attribute_title_area.Min + ImVec2(10, 4), IM_COL32_WHITE, "Attribute Curve");
-
-                if (video_attribute)
-                {
-                    auto keypoint = video_attribute->GetKeyPoint();
-                    if (keypoint)
-                    {
-                        for (int i = 0; i < keypoint->GetCurveCount(); i++)
-                        {
-                            auto curve_color = keypoint->GetCurveColor(i);
-                            for (int p = 0; p < keypoint->GetCurvePointCount(i); p++)
-                            {
-                                auto point = keypoint->GetPoint(i, p);
-                                auto pos = point.t;
-                                if (pos >= editingClip->firstTime && pos <= editingClip->lastTime)
-                                {
-                                    ImVec2 center = ImVec2(attribute_title_area.Min.x + (pos - editingClip->firstTime) * editingClip->msPixelWidthTarget, attribute_title_area.Min.y + (attribute_title_area.Max.y - attribute_title_area.Min.y) / 2);
-                                    draw_list->AddCircle(center, 3, curve_color, 0, 2);
-                                }
-                            }
-                        }
-                    }
-                }
-                ImGui::SetCursorScreenPos(attribute_current);
-                ImGui::InvisibleButton("##attribute_track", attribute_size);
-                if (is_attribute_title_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
-                {
-                    // attribute selected, clear event select
-                    for (auto event : clip->mEventStack->GetEventList())  event->SetStatus(EVENT_SELECTED_BIT, 0);
-                    clip->bAttributeScrolling = true;
-                }
-
-                {
-                    ImGui::SetCursorScreenPos(attribute_curve_area.Min);
-                    drawList->AddRectFilled(attribute_curve_area.Min, attribute_curve_area.Max, IM_COL32_BLACK);
-                    bool _changed = false;
-                    float current_time = editingClip->mCurrentTime;
-                    const auto frameRate = main_timeline->mhMediaSettings->VideoOutFrameRate();
-                    ImGui::KeyPointEditor* keyPointsPtr = video_attribute ? video_attribute->GetKeyPoint() : nullptr;
-                    ImVec2 alignT = { (float)frameRate.num, (float)frameRate.den*1000 };
-                    if (keyPointsPtr) keyPointsPtr->SetCurveAlign(alignT, ImGui::ImCurveEdit::DIM_T);
-                    mouse_hold |= ImGui::ImCurveEdit::Edit( drawList,
-                                                            keyPointsPtr,
-                                                            attribute_curve_size, 
-                                                            ImGui::GetID("##clip_keypoint_editor"), 
-                                                            !menuIsOpened,
-                                                            current_time,
-                                                            editingClip->firstTime,
-                                                            editingClip->lastTime,
-                                                            CURVE_EDIT_FLAG_VALUE_LIMITED | CURVE_EDIT_FLAG_MOVE_CURVE | CURVE_EDIT_FLAG_KEEP_BEGIN_END | CURVE_EDIT_FLAG_DOCK_BEGIN_END, 
-                                                            nullptr, // clippingRect
-                                                            &_changed);
-                    if (_changed) main_timeline->RefreshPreview();
-                }
+                // TODO: Draw attribute curves using 'ImGui::ImNewCurve'
             }
             else
             {

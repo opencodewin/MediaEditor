@@ -164,6 +164,7 @@ set(MEDIA_EDITOR_SRCS
     MediaPlayer.cpp
     BackgroundTask.cpp
     BgtaskVidstab.cpp
+    VideoTransformFilterUiCtrl.cpp
     ${IMGUI_APP_ENTRY_SRC}
 )
 
