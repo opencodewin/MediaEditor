@@ -609,7 +609,8 @@ struct MediaSourceNode final : Node
         else if (is_rgb)
         {
             ImGui::ImMat mat_in;
-            mat_in.create_type(tmp_frame->width, tmp_frame->height, desc->nb_components, tmp_frame->data[0], data_shift ? (is_be ? IM_DT_INT16_BE : IM_DT_INT16) /*IM_DT_INT16*/ : IM_DT_INT8);
+            int image_width = tmp_frame->linesize[0] / desc->nb_components / (data_shift ? 2 : 1);
+            mat_in.create_type(image_width, tmp_frame->height, desc->nb_components, tmp_frame->data[0], data_shift ? (is_be ? IM_DT_INT16_BE : IM_DT_INT16) /*IM_DT_INT16*/ : IM_DT_INT8);
             m_mutex.lock();
 #if IMGUI_VULKAN_SHADER
             if (!stream->m_yuv2rgb)
