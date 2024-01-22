@@ -129,7 +129,25 @@ extern "C" {
     format == AV_PIX_FMT_BGRA64BE || \
     format == AV_PIX_FMT_NV20BE || \
     format == AV_PIX_FMT_P010BE || \
-    format == AV_PIX_FMT_P016BE)
+    format == AV_PIX_FMT_P016BE || \
+    format == AV_PIX_FMT_GRAY9BE || \
+    format == AV_PIX_FMT_GRAY10BE || \
+    format == AV_PIX_FMT_GRAY12BE || \
+    format == AV_PIX_FMT_GRAY14BE || \
+    format == AV_PIX_FMT_GRAY16BE)
+
+#define ISMONO(format) \
+    (format == AV_PIX_FMT_GRAY8 || \
+    format == AV_PIX_FMT_GRAY9BE || \
+    format == AV_PIX_FMT_GRAY9LE || \
+    format == AV_PIX_FMT_GRAY10BE || \
+    format == AV_PIX_FMT_GRAY10LE || \
+    format == AV_PIX_FMT_GRAY12BE || \
+    format == AV_PIX_FMT_GRAY12LE || \
+    format == AV_PIX_FMT_GRAY14BE || \
+    format == AV_PIX_FMT_GRAY14LE || \
+    format == AV_PIX_FMT_GRAY16LE || \
+    format == AV_PIX_FMT_GRAY16BE)
 
 static inline std::string PrintTimeStamp(double time_stamp)
 {
@@ -500,12 +518,13 @@ struct MediaSourceNode final : Node
                                     ISYUV440P(tmp_frame->format) ? IM_CF_YUV440 :
                                     ISYUV444P(tmp_frame->format) ? IM_CF_YUV444 :
                                     ISNV12(tmp_frame->format) ? video_depth == 10 ? IM_CF_P010LE : IM_CF_NV12 : 
-                                    ISRGB(tmp_frame->format) ? IM_CF_RGBA : IM_CF_YUV420;
+                                    ISRGB(tmp_frame->format) ? IM_CF_RGBA : 
+                                    ISMONO(tmp_frame->format) ? IM_CF_GRAY : IM_CF_YUV420;
 
         bool is_yuv = IM_ISYUV(color_format);
         bool is_rgb = IM_ISRGB(color_format);
         bool is_be = ISBE(tmp_frame->format);
-
+        bool is_mono = IM_ISMONO(color_format);
         AVRational tb = stream->m_stream->time_base;
         int64_t time_stamp = stream->m_frame->best_effort_timestamp;
         double current_video_pts = (time_stamp == AV_NOPTS_VALUE) ? NAN : time_stamp * av_q2d(tb);
@@ -656,7 +675,49 @@ struct MediaSourceNode final : Node
 #endif
             m_mutex.unlock();
         }
-        
+        else if(is_mono)
+        {
+            ImGui::ImMat mat_in;
+            int image_width = tmp_frame->linesize[0] / desc->nb_components / (data_shift ? 2 : 1);
+            mat_in.create_type(image_width, tmp_frame->height, desc->nb_components, tmp_frame->data[0], data_shift ? (is_be ? IM_DT_INT16_BE : IM_DT_INT16) /*IM_DT_INT16*/ : IM_DT_INT8);
+            mat_in.dw = tmp_frame->width;
+            mat_in.dh = tmp_frame->height;
+            m_mutex.lock();
+#if IMGUI_VULKAN_SHADER
+            if (!stream->m_yuv2rgb)
+            {
+                int gpu = m_device == IM_DD_CPU ? -1 : ImGui::get_default_gpu_index();
+                stream->m_yuv2rgb = new ImGui::ColorConvert_vulkan(gpu);
+                if (!stream->m_yuv2rgb)
+                {
+                    m_mutex.unlock();
+                    return -1;
+                }
+            }
+            if (stream->m_yuv2rgb)
+            {
+                ImGui::ImMat im_RGB;
+                im_RGB.type = IM_DT_INT8;
+                im_RGB.color_format = IM_CF_ABGR;
+                if (m_device == 0)
+                {
+                    im_RGB.device = IM_DD_VULKAN;
+                }
+                im_RGB.device = IM_DD_CPU;
+                stream->m_yuv2rgb->ConvertColorFormat(mat_in, im_RGB);
+                im_RGB.flags = IM_MAT_FLAGS_VIDEO_FRAME;
+                im_RGB.elempack = 4;
+                im_RGB.time_stamp = current_video_pts;
+                im_RGB.color_space = color_space;
+                im_RGB.color_range = color_range;
+                im_RGB.depth = video_depth;
+                im_RGB.rate = {stream->m_stream->avg_frame_rate.num, stream->m_stream->avg_frame_rate.den};
+                auto pin = (MatPin*)stream->m_mat;
+                if (pin) pin->SetValue(im_RGB);
+            }
+#endif
+        m_mutex.unlock();
+    }
         av_frame_free(&sw_frame);
         m_current_pts = current_video_pts;
         return 0;
