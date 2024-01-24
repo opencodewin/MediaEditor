@@ -5090,7 +5090,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 hTransformFilter->EnableKeyFramesOnCrop(!bIsKeyFramesEnabled);
             if (bShowTreeContent)
             {
-                ImGui::BeginDisabled(bIsKeyFramesEnabled);
                 float fCropRatioL = hTransformFilter->GetCropRatioL();
                 if (ImGui::SliderFloat("Crop Left", &fCropRatioL, 0.f, 1.f, "%.3f", flags))
                 {
@@ -5147,7 +5146,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     RefreshPreview();
                 }
                 ImGui::ShowTooltipOnHover("Reset");
-                ImGui::EndDisabled();
 
                 if (bIsKeyFramesEnabled)
                 {
@@ -5168,7 +5166,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 hTransformFilter->EnableKeyFramesOnPosOffset(!bIsKeyFramesEnabled);
             if (bShowTreeContent)
             {
-                ImGui::BeginDisabled(bIsKeyFramesEnabled);
                 float fPosOffRatioX = hTransformFilter->GetPosOffsetRatioX();
                 if (ImGui::SliderFloat("Position X", &fPosOffRatioX, -1.f, 1.f, "%.3f", flags))
                 {
@@ -5196,7 +5193,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     RefreshPreview();
                 }
                 ImGui::ShowTooltipOnHover("Reset");
-                ImGui::EndDisabled();
 
                 if (bIsKeyFramesEnabled)
                 {
@@ -5234,7 +5230,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 }
                 ImGui::PopItemWidth();
 
-                ImGui::BeginDisabled(bIsKeyFramesEnabled);
                 float fScaleX = hTransformFilter->GetScaleX();
                 if (ImGui::SliderFloat(bKeepAspectRatio ? "Scale" : "Scale X", &fScaleX, 0.f, 4.f, "%.3f", flags))
                 {
@@ -5268,7 +5263,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     }
                     ImGui::ShowTooltipOnHover("Reset");
                 }
-                ImGui::EndDisabled();
 
                 if (bIsKeyFramesEnabled)
                 {
@@ -5289,7 +5283,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 hTransformFilter->EnableKeyFramesOnRotation(!bIsKeyFramesEnabled);
             if (bShowTreeContent)
             {
-                ImGui::BeginDisabled(bIsKeyFramesEnabled);
                 float fAngle = hTransformFilter->GetRotation();
                 if (ImGui::SliderFloat("Rotate Angle", &fAngle, -360.f, 360.f, "%.3f", flags))
                 {
@@ -5303,7 +5296,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     RefreshPreview();
                 }
                 ImGui::ShowTooltipOnHover("Reset");
-                ImGui::EndDisabled();
 
                 if (bIsKeyFramesEnabled)
                 {
@@ -5324,7 +5316,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 hTransformFilter->EnableKeyFramesOnOpacity(!bIsKeyFramesEnabled);
             if (bShowTreeContent)
             {
-                ImGui::BeginDisabled(bIsKeyFramesEnabled);
                 float fOpacity = hTransformFilter->GetOpacity();
                 if (ImGui::SliderFloat("Opacity", &fOpacity, 0.f, 1.f, "%.3f", flags))
                 {
@@ -5338,7 +5329,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     RefreshPreview();
                 }
                 ImGui::ShowTooltipOnHover("Reset");
-                ImGui::EndDisabled();
 
                 if (bIsKeyFramesEnabled)
                 {
