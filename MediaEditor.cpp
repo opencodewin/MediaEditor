@@ -1002,7 +1002,7 @@ static bool Show_Version(ImDrawList* draw_list, int32_t start_time)
     ImVec2 window_pos = ImGui::GetWindowPos();
     ImVec2 window_size = ImGui::GetWindowSize();
     if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
-    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
+    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height, codewin::codewin_depth / 8);
     draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
     if (logo_texture || codewin_texture)
     {
@@ -11469,7 +11469,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
 #endif
 
     if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
-    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height);
+    if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height, codewin::codewin_depth / 8);
     if (!set_context_in_splash)
     {
         if (g_project_loading)
