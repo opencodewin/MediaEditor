@@ -3206,10 +3206,16 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         }
     }
     mhTransformFilter = hClip->GetTransformFilter();
+    m_pTransFilterUiCtrl = new MEC::VideoTransformFilterUiCtrl(mhTransformFilter);
 }
 
 EditingVideoClip::~EditingVideoClip()
 {
+    if (m_pTransFilterUiCtrl)
+    {
+        delete m_pTransFilterUiCtrl;
+        m_pTransFilterUiCtrl = nullptr;
+    }
     if (mSsViewer) mSsViewer->Release();
     mSsViewer = nullptr;
     mSsGen = nullptr;

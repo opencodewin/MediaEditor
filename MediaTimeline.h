@@ -33,6 +33,7 @@
 #include "MecProject.h"
 #include "Event.h"
 #include "EventStackFilter.h"
+#include "VideoTransformFilterUiCtrl.h"
 #include "MediaPlayer.h"
 #include <thread>
 #include <string>
@@ -835,6 +836,10 @@ public:
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
     void SelectEditingMask(MEC::Event::Holder hEvent, int64_t nodeId, int maskIndex, ImGui::MaskCreator::Holder hMaskCreator = nullptr);
     void UnselectEditingMask();
+    MEC::VideoTransformFilterUiCtrl* GetTransformFilterUiCtrl() { return m_pTransFilterUiCtrl; }
+
+private:
+    MEC::VideoTransformFilterUiCtrl* m_pTransFilterUiCtrl {nullptr};
 };
 
 struct EditingAudioClip : BaseEditingClip

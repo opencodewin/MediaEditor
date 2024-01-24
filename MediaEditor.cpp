@@ -824,73 +824,78 @@ static bool ExpandButton(ImDrawList *draw_list, ImVec2 pos, bool expand = true, 
     return overDel;
 }
 
-static void ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title, float title_size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true, bool out_border = false, const ImVec2& uvMin = ImVec2(0, 0), const ImVec2& uvMax = ImVec2(1, 1))
+static std::pair<ImVec2, ImVec2> ShowVideoWindow(ImDrawList *draw_list, ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title, float title_size, float& offset_x, float& offset_y, float& tf_x, float& tf_y, bool bLandscape = true, bool out_border = false, const ImVec2& uvMin = ImVec2(0, 0), const ImVec2& uvMax = ImVec2(1, 1))
 {
-    if (texture)
-    {        
-        float texture_width = ImGui::ImGetTextureWidth(texture);
-        float texture_height = ImGui::ImGetTextureHeight(texture);
-        float aspectRatioTexture = texture_width / texture_height;
-        float aspectRatioView = size.x / size.y;
-        bool bTextureisLandscape = aspectRatioTexture > 1.f ? true : false;
-        bool bViewisLandscape = aspectRatioView > 1.f ? true : false;
-        float adj_w = 0, adj_h = 0;
-        if ((bViewisLandscape && bTextureisLandscape) || (!bViewisLandscape && !bTextureisLandscape))
-        {
-            if (aspectRatioTexture >= aspectRatioView)
-            {
-                adj_w = size.x;
-                adj_h = adj_w / aspectRatioTexture;
-            }
-            else
-            {
-                adj_h = size.y;
-                adj_w = adj_h * aspectRatioTexture;
-            }
-        }
-        else if (bViewisLandscape && !bTextureisLandscape)
-        {
-            adj_h = size.y;
-            adj_w = adj_h * aspectRatioTexture;
-        }
-        else if (!bViewisLandscape && bTextureisLandscape)
+    ImVec2 v2RenderPos(0, 0);
+    ImVec2 v2RenderSize(0, 0);
+    if (!texture)
+        return {v2RenderPos, v2RenderSize};
+
+    float texture_width = ImGui::ImGetTextureWidth(texture);
+    float texture_height = ImGui::ImGetTextureHeight(texture);
+    float aspectRatioTexture = texture_width / texture_height;
+    float aspectRatioView = size.x / size.y;
+    bool bTextureisLandscape = aspectRatioTexture > 1.f ? true : false;
+    bool bViewisLandscape = aspectRatioView > 1.f ? true : false;
+    float adj_w = 0, adj_h = 0;
+    if ((bViewisLandscape && bTextureisLandscape) || (!bViewisLandscape && !bTextureisLandscape))
+    {
+        if (aspectRatioTexture >= aspectRatioView)
         {
             adj_w = size.x;
             adj_h = adj_w / aspectRatioTexture;
         }
-        tf_x = (size.x - adj_w) / 2.0;
-        tf_y = (size.y - adj_h) / 2.0;
-        offset_x = pos.x + tf_x;
-        offset_y = pos.y + tf_y;
-        draw_list->AddRectFilled(ImVec2(offset_x, offset_y), ImVec2(offset_x + adj_w, offset_y + adj_h), IM_COL32_BLACK);
-        
-        draw_list->AddImage(
-            texture,
-            ImVec2(offset_x, offset_y),
-            ImVec2(offset_x + adj_w, offset_y + adj_h),
-            uvMin,
-            uvMax
-        );
-        
-        tf_x = offset_x + adj_w;
-        tf_y = offset_y + adj_h;
-        if (!title.empty() && title_size > 0)
+        else
         {
-            draw_list->AddTextComplex(ImVec2(offset_x, offset_y) + ImVec2(20, 10),
-                                title.c_str(), title_size, IM_COL32(224, 224, 224, 128),
-                                0.25f, IM_COL32(128, 128, 128, 255),
-                                ImVec2(title_size * 1.5, title_size * 1.5), IM_COL32(32, 32, 32, 255));
+            adj_h = size.y;
+            adj_w = adj_h * aspectRatioTexture;
         }
-        if (out_border)
-        {
-            draw_list->AddTextComplex(ImVec2(offset_x, offset_y + adj_h - 48) + ImVec2(20, 10),
-                                "Out of range", title_size, IM_COL32(224, 0, 0, 224),
-                                0.25f, IM_COL32(128, 128, 128, 255),
-                                ImVec2(title_size * 1.5, title_size * 1.5), IM_COL32(32, 32, 32, 255));
-        }
-        ImGui::SetCursorScreenPos(pos);
-        ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
     }
+    else if (bViewisLandscape && !bTextureisLandscape)
+    {
+        adj_h = size.y;
+        adj_w = adj_h * aspectRatioTexture;
+    }
+    else if (!bViewisLandscape && bTextureisLandscape)
+    {
+        adj_w = size.x;
+        adj_h = adj_w / aspectRatioTexture;
+    }
+    tf_x = (size.x - adj_w) / 2.0;
+    tf_y = (size.y - adj_h) / 2.0;
+    offset_x = pos.x + tf_x;
+    offset_y = pos.y + tf_y;
+    draw_list->AddRectFilled(ImVec2(offset_x, offset_y), ImVec2(offset_x + adj_w, offset_y + adj_h), IM_COL32_BLACK);
+
+    v2RenderPos = ImVec2(offset_x, offset_y);
+    v2RenderSize = ImVec2(adj_w, adj_h);
+    draw_list->AddImage(
+        texture,
+        v2RenderPos,
+        v2RenderPos+v2RenderSize,
+        uvMin,
+        uvMax
+    );
+    
+    tf_x = offset_x + adj_w;
+    tf_y = offset_y + adj_h;
+    if (!title.empty() && title_size > 0)
+    {
+        draw_list->AddTextComplex(ImVec2(offset_x, offset_y) + ImVec2(20, 10),
+                            title.c_str(), title_size, IM_COL32(224, 224, 224, 128),
+                            0.25f, IM_COL32(128, 128, 128, 255),
+                            ImVec2(title_size * 1.5, title_size * 1.5), IM_COL32(32, 32, 32, 255));
+    }
+    if (out_border)
+    {
+        draw_list->AddTextComplex(ImVec2(offset_x, offset_y + adj_h - 48) + ImVec2(20, 10),
+                            "Out of range", title_size, IM_COL32(224, 0, 0, 224),
+                            0.25f, IM_COL32(128, 128, 128, 255),
+                            ImVec2(title_size * 1.5, title_size * 1.5), IM_COL32(32, 32, 32, 255));
+    }
+    ImGui::SetCursorScreenPos(pos);
+    ImGui::InvisibleButton(("##video_window" + std::to_string((long long)texture)).c_str(), size);
+    return {v2RenderPos, v2RenderSize};
 }
 
 static void ShowVideoWindow(ImTextureID texture, ImVec2 pos, ImVec2 size, std::string title = std::string(), float title_size = 0.f, bool out_border = false, const ImVec2& uvMin = ImVec2(0, 0), const ImVec2& uvMax = ImVec2(1, 1))
@@ -5948,23 +5953,19 @@ static std::vector<ImVec2> CalculateHandlePoint(ImVec2 v_pos, ImVec2 v_size, flo
 
 static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVideoClip* pVidEditingClip)
 {
+    pVidEditingClip->UpdatePreviewTexture(!timeline->mIsPreviewPlaying);
+    const auto tidPreview = pVidEditingClip->meAttrOutFramePhase == MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING ? timeline->mhPreviewTx->TextureID() : pVidEditingClip->mhTransformOutputTx->TextureID();
+
     bool bIsMouseDown = false;
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
-    pVidEditingClip->UpdatePreviewTexture(!timeline->mIsPreviewPlaying);
-    int64_t trackId = -1;
-    auto track = timeline->FindTrackByClipID(pVidEditingClip->mID);
-    if (track) trackId = track->mID;
-    ImVec2 videoPos = sub_window_pos + ImVec2(16, 16);
-    ImVec2 videoSize = sub_window_size - ImVec2(32, 32);
+    const ImVec2 videoPos = sub_window_pos + ImVec2(16, 16);
+    const ImVec2 videoSize = sub_window_size - ImVec2(32, 32);
     float offset_x = 0, offset_y = 0;
     float tf_x = 0, tf_y = 0;
-    auto tidPreview = pVidEditingClip->meAttrOutFramePhase == MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING ? timeline->mhPreviewTx->TextureID() : pVidEditingClip->mhTransformOutputTx->TextureID();
-    if (tidPreview)
-    {
-        ShowVideoWindow(draw_list, tidPreview, videoPos, videoSize, "", 1.5f, offset_x, offset_y, tf_x, tf_y, true, false);
-        draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
-    }
+    const auto tImgPosSize = ShowVideoWindow(draw_list, tidPreview, videoPos, videoSize, "", 1.5f, offset_x, offset_y, tf_x, tf_y, true, false);
+    draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
+
     // draw grad
     draw_list->AddLine(sub_window_pos + ImVec2(sub_window_size.x / 2, 0), sub_window_pos + ImVec2(sub_window_size.x / 2, sub_window_size.y), IM_COL32(64,64,64,128));
     draw_list->AddLine(sub_window_pos + ImVec2(0, sub_window_size.y / 2), sub_window_pos + ImVec2(sub_window_size.x, sub_window_size.y / 2), IM_COL32(64,64,64,128));
@@ -5973,335 +5974,21 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
         return bIsMouseDown;
 
     const auto i64PosInClip = timeline->mCurrentTime-pVidEditingClip->mStart;
-    float fCropRatioL = hTransformFilter->GetCropRatioL();
-    float fCropRatioT = hTransformFilter->GetCropRatioT();
-    float fCropRatioR = hTransformFilter->GetCropRatioR();
-    float fCropRatioB = hTransformFilter->GetCropRatioB();
-    float fPosOffRatioX = hTransformFilter->GetPosOffsetRatioX();
-    float fPosOffRatioY = hTransformFilter->GetPosOffsetRatioY();
-    const bool bKeepAspectRatio = hTransformFilter->IsKeepAspectRatio();
-    float fScaleX = hTransformFilter->GetScaleX();
-    float fScaleY = bKeepAspectRatio ? fScaleX : hTransformFilter->GetScaleY();
-    float fAngle = hTransformFilter->GetRotation();
-    float fOpacity = hTransformFilter->GetOpacity();
-
-    // calculate frame vertex
     ImVec2 v_pos = ImVec2(offset_x, offset_y);
     ImVec2 v_size = ImVec2(tf_x - offset_x, tf_y - offset_y);
-    ImRect v_rect(v_pos, v_pos + v_size);
-    auto handles = CalculateHandlePoint(v_pos, v_size, fCropRatioL, fCropRatioT, fCropRatioR, fCropRatioB, fPosOffRatioX, fPosOffRatioY, fScaleX, fScaleY, fAngle);
-    auto handles_no_crop = CalculateHandlePoint(v_pos, v_size, 0, 0, 0, 0, fPosOffRatioX, fPosOffRatioY, fScaleX, fScaleY, fAngle);
+    draw_list->PushClipRect(v_pos, v_pos + v_size);
 
-    // reflush timeline
-    auto RefreshPreview = [&]()
+    bool bTransFilterParamChanged;
+    bIsMouseDown = pVidEditingClip->GetTransformFilterUiCtrl()->Draw(sub_window_size, tImgPosSize.first, tImgPosSize.second, i64PosInClip, &bTransFilterParamChanged);
+    if (bTransFilterParamChanged)
     {
+        const auto pTrack = timeline->FindTrackByClipID(pVidEditingClip->mID);
+        const int64_t trackId = pTrack ? pTrack->mID : -1;
         timeline->RefreshTrackView({trackId});
         project_changed = true;
-    };
-    auto draw_grad = [](ImDrawList *draw_list, std::vector<ImVec2>& h, ImU32 color)
-    {
-        draw_list->AddLine(h[HT_TOP_LEFT],  h[HT_TOP],          color);
-        draw_list->AddLine(h[HT_TOP],       h[HT_TOP_RIGHT],    color);
-        draw_list->AddLine(h[HT_LEFT],      h[HT_CENTER],       color);
-        draw_list->AddLine(h[HT_CENTER],    h[HT_RIGHT],        color);
-        draw_list->AddLine(h[HT_BOTTOM_LEFT], h[HT_BOTTOM],     color);
-        draw_list->AddLine(h[HT_BOTTOM],    h[HT_BOTTOM_RIGHT], color);
-        draw_list->AddLine(h[HT_TOP_LEFT],  h[HT_LEFT],         color);
-        draw_list->AddLine(h[HT_LEFT],      h[HT_BOTTOM_LEFT],  color);
-        draw_list->AddLine(h[HT_TOP],       h[HT_CENTER],       color);
-        draw_list->AddLine(h[HT_CENTER],    h[HT_BOTTOM],       color);
-        draw_list->AddLine(h[HT_TOP_RIGHT], h[HT_RIGHT],        color);
-        draw_list->AddLine(h[HT_RIGHT],     h[HT_BOTTOM_RIGHT], color);
-    };
-
-    std::vector<ImVec2> dst_poly;
-    dst_poly.push_back(handles[0]);
-    dst_poly.push_back(handles[2]);
-    dst_poly.push_back(handles[8]);
-    dst_poly.push_back(handles[6]);
-    static int drag_part = HT_NONE;
-    int hoverd_part = HT_NONE;
-
-    draw_list->PushClipRect(v_pos - ImVec2(16, 16), v_pos + v_size + ImVec2(32, 32));
-    // draw handle points
-    for (int i = 0; i < handles.size(); i++)
-    {
-        ImRect handle_rect(handles[i] - ImVec2(8, 8), handles[i] + ImVec2(8, 8));
-        if (IS_VP(i))
-        {
-            if (drag_part == i || (handle_rect.Contains(ImGui::GetMousePos()) && v_rect.Contains(ImGui::GetMousePos())))
-            {
-                draw_list->AddCircle(handle_rect.GetCenter(), 8, IM_COL32(192, 192, 32, 255), 0, 2);
-                hoverd_part = i == 0 ? HT_TOP_LEFT : i == 2 ? HT_TOP_RIGHT : i == 6 ? HT_BOTTOM_LEFT : HT_BOTTOM_RIGHT;
-            }
-            else
-                draw_list->AddCircle(handle_rect.GetCenter(), 6, IM_COL32(192, 192, 64, 192));
-        }
-        if (IS_CP(i))
-        {
-            if (drag_part == i || (handle_rect.Contains(ImGui::GetMousePos()) && v_rect.Contains(ImGui::GetMousePos())))
-            {
-                draw_list->AddCircle(handle_rect.GetCenter(), 6, IM_COL32(32, 192, 32, 255), 0, 2);
-                hoverd_part = i == 1 ? HT_TOP : i == 7 ? HT_BOTTOM : i == 3 ? HT_LEFT : HT_RIGHT;
-            }
-            else
-                draw_list->AddCircle(handle_rect.GetCenter(), 4, IM_COL32(64, 192, 64, 192));
-        }
-        if (IS_C(i))
-        {
-            draw_list->AddCircle(handle_rect.GetCenter(), 4, IM_COL32(192, 192, 192, 192));
-        }
-        if (IS_CC(i))
-        {
-            if ((v_rect.Contains(ImGui::GetMousePos()) && handle_rect.Contains(ImGui::GetMousePos()) && drag_part == HT_NONE) || drag_part == i)
-            {
-                draw_list->AddCircle(handle_rect.GetCenter(), 7, IM_COL32(192, 32, 32, 255), 0, 2);
-                hoverd_part = HT_ROTATE_CENTER;
-            }
-            else
-                draw_list->AddCircle(handle_rect.GetCenter(), 5, IM_COL32(192, 64, 64, 192));
-        }
-    }
-    if (hoverd_part == HT_NONE && CheckPointInsidePolygon(ImGui::GetMousePos(), dst_poly) && v_rect.Contains(ImGui::GetMousePos()))
-    {
-        hoverd_part = HT_AREA;
-    }
-    if (drag_part != HT_NONE && hoverd_part != drag_part)
-    {
-        hoverd_part = drag_part;
-    }
-    draw_list->PopClipRect();
-
-    draw_list->PushClipRect(v_pos, v_pos + v_size);
-    // draw handle points
-    draw_grad(draw_list, handles, IM_COL32(192, 192, 64, 128));
-
-    // draw mouse cursor
-    switch (hoverd_part)
-    {
-        case HT_ROTATE_CENTER: ImGui::RenderMouseCursor(ICON_ROTATE, ImVec2(8, 8), 1.f, fAngle); break;
-        case HT_TOP:
-        case HT_BOTTOM: ImGui::RenderMouseCursor(ICON_FA_ARROWS_UP_DOWN, ImVec2(4, 8), 1.f, fAngle); break;
-        case HT_LEFT: 
-        case HT_RIGHT: ImGui::RenderMouseCursor(ICON_FA_ARROWS_LEFT_RIGHT, ImVec2(8, 8), 1.f, fAngle); break;
-        case HT_TOP_LEFT:
-        case HT_BOTTOM_RIGHT: ImGui::RenderMouseCursor(ICON_FA_ARROWS_UP_DOWN, ImVec2(4, 8), 1.f, fAngle - 45); break;
-        case HT_TOP_RIGHT:
-        case HT_BOTTOM_LEFT: ImGui::RenderMouseCursor(ICON_FA_ARROWS_LEFT_RIGHT, ImVec2(8, 8), 1.f, fAngle - 45); break;
-        case HT_AREA: ImGui::RenderMouseCursor(ICON_FA_UP_DOWN_LEFT_RIGHT, ImVec2(8, 8), 1.f, fAngle); break;
-        case HT_NONE:
-        default : break;
-    }
-    
-    auto margin_adj = [&](ImVec2& p, ImVec2& p1, ImVec2& p2, float size, float scale)
-    {
-        ImVec2 offset = p + ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0);
-        ImVec2 new_point = offset.project(p1, p2);
-        new_point.x = ImClamp(new_point.x, fmin(p1.x, p2.x), fmax(p1.x, p2.x));
-        new_point.y = ImClamp(new_point.y, fmin(p1.y, p2.y), fmax(p1.y, p2.y));
-        auto distance = new_point.distance(p2) / size / (scale + FLT_EPSILON);
-        return 1.0 - ImClamp(distance, 0.0f, 1.0f);
-    };
-
-    // handle mouse down and drag
-    static ImVec2 drag_position(NAN, NAN);
-    static ImVec2 drag_border(NAN, NAN);
-    static ImVec2 drag_scale(NAN, NAN);
-    static std::vector<ImVec2> drag_handles;
-    static float drag_angle = NAN;
-    static float drag_angle_start = NAN;
-
-    if (hoverd_part != HT_NONE && (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0)))
-    {
-        bIsMouseDown = true;
-        drag_part = hoverd_part;
-
-        if (std::isnan(drag_border.x) || std::isnan(drag_border.y)) drag_border = handles[drag_part];
-        if (std::isnan(drag_position.x) || std::isnan(drag_position.y)) drag_position = ImVec2(fPosOffRatioX, fPosOffRatioY);
-        if (std::isnan(drag_scale.x) || std::isnan(drag_scale.y)) drag_scale = ImVec2(fScaleX, fScaleY);
-        if (std::isnan(drag_angle)) drag_angle = fAngle;
-        if (std::isnan(drag_angle_start) && ImGui::GetMouseDragDelta().length() > 32) drag_angle_start = atan2(ImGui::GetMouseDragDelta().y, ImGui::GetMouseDragDelta().x);
-        if (drag_handles.empty()) drag_handles = handles;
-
-        auto handle_adj = [&](int p_index, int p1_index, int p2_index, int p3_index)
-        {
-            auto handles_dst = drag_handles;
-            auto p = drag_handles[p_index];
-            ImVec2 offset = p + ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0);
-            auto p_h = drag_handles[p1_index];
-            auto p_v = drag_handles[p2_index];
-            auto p_i = drag_handles[p3_index];
-            if (bKeepAspectRatio)
-                offset = offset.project(p, p_i);
-            ImVec2 new_point_ih = offset.project(p_v, p_i);
-            ImVec2 new_point_iv = offset.project(p_h, p_i);
-
-            if (p_v.x < p_i.x) new_point_ih.x = ImClamp(new_point_ih.x, -FLT_MAX, p_i.x);
-            else new_point_ih.x = ImClamp(new_point_ih.x, p_i.x, FLT_MAX);
-            if (p_v.y < p_i.y) new_point_ih.y = ImClamp(new_point_ih.y, -FLT_MAX, p_i.y);
-            else new_point_ih.y = ImClamp(new_point_ih.y, p_i.y, FLT_MAX);
-            if (p_h.x < p_i.x) new_point_iv.x = ImClamp(new_point_iv.x, -FLT_MAX, p_i.x);
-            else new_point_iv.x = ImClamp(new_point_iv.x, p_i.x, FLT_MAX);
-            if (p_h.y < p_i.y) new_point_iv.y = ImClamp(new_point_iv.y, -FLT_MAX, p_i.y);
-            else new_point_iv.y = ImClamp(new_point_iv.y, p_i.y, FLT_MAX);
-
-            offset.x = new_point_ih.x + new_point_iv.x - p_i.x;
-            offset.y = new_point_ih.y + new_point_iv.y - p_i.y;
-
-            handles_dst[p_index] = offset;
-            handles_dst[p1_index] = new_point_iv;
-            handles_dst[p2_index] = new_point_ih;
-
-            handles_dst[HT_TOP] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_TOP_RIGHT]) / 2;
-            handles_dst[HT_LEFT] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_BOTTOM_LEFT]) / 2;
-            handles_dst[HT_CENTER] = (handles_dst[HT_TOP_LEFT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
-            handles_dst[HT_RIGHT] = (handles_dst[HT_TOP_RIGHT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
-            handles_dst[HT_BOTTOM] = (handles_dst[HT_BOTTOM_LEFT] + handles_dst[HT_BOTTOM_RIGHT]) / 2;
-            return std::move(handles_dst);
-        };
-        auto scale_adj = [&](const std::vector<ImVec2>& handles_dst)
-        {
-            ImVec2 scale;
-            auto old_w = (drag_handles[HT_TOP_RIGHT] - drag_handles[HT_TOP_LEFT]).length();
-            auto new_w = (handles_dst[HT_TOP_RIGHT] - handles_dst[HT_TOP_LEFT]).length();
-            auto new_scale_h = new_w / (old_w + FLT_EPSILON);
-            scale.x = ImClamp(drag_scale.x * new_scale_h, 0.001f, 8.0f);
-            auto old_h = (drag_handles[HT_BOTTOM_RIGHT] - drag_handles[HT_TOP_RIGHT]).length();
-            auto new_h = (handles_dst[HT_BOTTOM_RIGHT] - handles_dst[HT_TOP_RIGHT]).length();
-            auto new_scale_v = new_h / (old_h + FLT_EPSILON);
-            scale.y = ImClamp(drag_scale.y * new_scale_v, 0.001f, 8.0f);
-            return scale;
-        };
-        auto position_adj = [&](const std::vector<ImVec2>& handles_dst, const ImVec2& scale)
-        {
-            auto handles_no_offset = CalculateHandlePoint(v_pos, v_size, fCropRatioL, fCropRatioT, fCropRatioR, fCropRatioB, fPosOffRatioX, fPosOffRatioY, fScaleX, fScaleY, fAngle);
-            auto offset = (handles_dst[drag_part] - handles_no_offset[drag_part]) / v_size;
-            offset.x = 2 * offset.x / (1.0 + fScaleX);
-            offset.y = 2 * offset.y / (1.0 + fScaleY);
-            offset.x = ImClamp(offset.x, -1.0f, 1.0f);
-            offset.y = ImClamp(offset.y, -1.0f, 1.0f);
-            return offset;
-        };
-        bool bUpdatePosOffset = false;
-        bool bUpdateCrop = false;
-        bool bUpdateScale = false;
-        bool bUpdateRotation = false;
-        switch (drag_part)
-        {
-            case HT_AREA:
-            {
-                float x_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).x / v_size.x;
-                float y_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).y / v_size.y;
-                x_offset = 2.0 * x_offset / (1.0 + fScaleX);
-                y_offset = 2.0 * y_offset / (1.0 + fScaleY);
-                fPosOffRatioX = drag_position.x + x_offset;
-                fPosOffRatioX = ImClamp(fPosOffRatioX, -1.0f, 1.0f);
-                fPosOffRatioY = drag_position.y + y_offset;
-                fPosOffRatioY = ImClamp(fPosOffRatioY, -1.0f, 1.0f);
-                bUpdatePosOffset = true;
-            }
-            break;
-            case HT_ROTATE_CENTER:
-            {
-                if (!std::isnan(drag_angle_start))
-                {
-                    float x_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).x;
-                    float y_offset = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left, 0).y;
-                    float d_angle = atan2(y_offset, x_offset) - drag_angle_start;
-                    fAngle = drag_angle + ImRadToDeg(d_angle);
-                    fAngle = fmod(fAngle, 360.f);
-                    bUpdateRotation = true;
-                    draw_list->AddLine(handles[HT_ROTATE_CENTER], ImGui::GetMousePos(), IM_COL32(64, 192, 64, 192), 2);
-                }
-                else
-                    draw_list->AddLine(handles[HT_ROTATE_CENTER], ImGui::GetMousePos(), IM_COL32(192, 64, 64, 192), 2);
-            }
-            break;
-            case HT_TOP:
-            {
-                ImVec2 top = handles_no_crop[HT_TOP];
-                ImVec2 bottom = handles_no_crop[HT_BOTTOM];
-                fCropRatioT = margin_adj(drag_border, top, bottom, v_size.y, fScaleY);
-                bUpdateCrop = true;
-            }
-            break;
-            case HT_BOTTOM:
-            {
-                ImVec2 top = handles_no_crop[HT_TOP];
-                ImVec2 bottom = handles_no_crop[HT_BOTTOM];
-                fCropRatioB = margin_adj(drag_border, bottom, top, v_size.y, fScaleY);
-                bUpdateCrop = true;
-            }
-            break;
-            case HT_LEFT:
-            {
-                ImVec2 left = handles_no_crop[HT_LEFT];
-                ImVec2 right = handles_no_crop[HT_RIGHT];
-                fCropRatioL = margin_adj(drag_border, left, right, v_size.x, fScaleX);
-                bUpdateCrop = true;
-            }
-            break;
-            case HT_RIGHT:
-            {
-                ImVec2 left = handles_no_crop[HT_LEFT];
-                ImVec2 right = handles_no_crop[HT_RIGHT];
-                fCropRatioR = margin_adj(drag_border, right, left, v_size.x, fScaleX);
-                bUpdateCrop = true;
-            }
-            break;
-            case HT_TOP_LEFT:
-            case HT_TOP_RIGHT:
-            case HT_BOTTOM_LEFT:
-            case HT_BOTTOM_RIGHT:
-            {
-                std::vector<ImVec2> handles_dst;
-                if (drag_part == HT_TOP_LEFT)
-                    handles_dst = handle_adj(HT_TOP_LEFT, HT_TOP_RIGHT, HT_BOTTOM_LEFT, HT_BOTTOM_RIGHT);
-                else if (drag_part == HT_TOP_RIGHT)
-                    handles_dst = handle_adj(HT_TOP_RIGHT, HT_TOP_LEFT, HT_BOTTOM_RIGHT, HT_BOTTOM_LEFT);
-                else if (drag_part == HT_BOTTOM_LEFT)
-                    handles_dst = handle_adj(HT_BOTTOM_LEFT, HT_BOTTOM_RIGHT, HT_TOP_LEFT, HT_TOP_RIGHT);
-                else
-                    handles_dst = handle_adj(HT_BOTTOM_RIGHT, HT_BOTTOM_LEFT, HT_TOP_RIGHT, HT_TOP_LEFT);
-                const auto new_scale = scale_adj(handles_dst);
-                fScaleX = new_scale.x;
-                fScaleY = new_scale.y;
-                bUpdateScale = true;
-                const auto offset = position_adj(handles_dst, new_scale);
-                fPosOffRatioX = offset.x;
-                fPosOffRatioY = offset.y;
-                Logger::Log(Logger::WARN) << "------> fScaleX=" << fScaleX << ", fScaleY=" << fScaleY << ", fPosOffRatioX=" << fPosOffRatioX << ", fPosOffRatioY=" << fPosOffRatioY << std::endl;
-                bUpdatePosOffset = true;
-            }
-            break;
-            default : break;
-        }
-        if (bUpdateCrop)
-            hTransformFilter->SetCropRatio(i64PosInClip, fCropRatioL, fCropRatioT, fCropRatioR, fCropRatioB);
-        if (bUpdatePosOffset)
-            hTransformFilter->SetPosOffsetRatio(i64PosInClip, fPosOffRatioX, fPosOffRatioY);
-        if (bUpdateScale)
-            hTransformFilter->SetScale(i64PosInClip, fScaleX, fScaleY);
-        if (bUpdateRotation)
-            hTransformFilter->SetRotation(i64PosInClip, fAngle);
-        if (bUpdatePosOffset || bUpdateCrop || bUpdateScale || bUpdateRotation)
-            RefreshPreview();
     }
 
     draw_list->PopClipRect();
-
-    // handle mouse release
-    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
-    {
-        bIsMouseDown = false;
-        drag_part = HT_NONE;
-        drag_position = ImVec2(NAN, NAN);
-        drag_border = ImVec2(NAN, NAN);
-        drag_scale = ImVec2(NAN, NAN);
-        drag_handles.clear();
-        drag_angle = NAN;
-        drag_angle_start = NAN;
-    }
     return bIsMouseDown;
 }
 
