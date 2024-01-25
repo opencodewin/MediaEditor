@@ -277,7 +277,7 @@ static void process_image(const ImGui::ImMat& gray, const bool dither_filter, co
             default : break;
         }
         gray_dup = result;
-        if (dither.m_dither_upscale) gray_dup = gray_dup.resize(2);
+        if (dither.m_dither_upscale) gray_dup = gray_dup.resize(gray_dup.w * 2, gray_dup.h * 2);
         info.param->turdsize = 0;
         info.param->alphamax = 0;
     }
