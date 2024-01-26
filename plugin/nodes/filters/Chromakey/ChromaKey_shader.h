@@ -208,8 +208,9 @@ SHADER_SHARPEN_MAIN
 #define SHADER_DESPILL_PARAM \
 " \n\
 #define CHROMAKEY_OUTPUT_NORMAL      0  \n\
-#define CHROMAKEY_OUTPUT_ALPHA_ONLY  1  \n\
-#define CHROMAKEY_OUTPUT_ALPHA_RGBA  2  \n\
+#define CHROMAKEY_OUTPUT_NODESPILL   1  \n\
+#define CHROMAKEY_OUTPUT_ALPHA_ONLY  2  \n\
+#define CHROMAKEY_OUTPUT_ALPHA_RGBA  3  \n\
 layout (push_constant) uniform parameter \n\
 { \n\
     int w; \n\
@@ -251,6 +252,11 @@ void main() \n\
     else if (p.output_type == CHROMAKEY_OUTPUT_ALPHA_RGBA) \n\
     { \n\
         store_rgba(sfpvec4(val, val, val, sfp(1.0f)), gx, gy, p.out_w, p.out_h, p.out_cstep, p.out_format, p.out_type); \n\
+    } \n\
+    else if (p.output_type == CHROMAKEY_OUTPUT_NODESPILL) \n\
+    { \n\
+        sfpvec4 rgba = load_rgba(gx, gy, p.w, p.h, p.cstep, p.in_format, p.in_type); \n\
+        store_rgba(sfpvec4(rgba.rgb, val), gx, gy, p.out_w, p.out_h, p.out_cstep, p.out_format, p.out_type); \n\
     } \n\
     else \n\
     { \n\

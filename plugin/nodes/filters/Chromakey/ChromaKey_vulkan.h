@@ -5,8 +5,9 @@
 
 #define FILTER_2DS_BLUR 0
 #define CHROMAKEY_OUTPUT_NORMAL      0  // normal RGBA with masked alpha channel
-#define CHROMAKEY_OUTPUT_ALPHA_ONLY  1  // Mono Channel with alpha only
-#define CHROMAKEY_OUTPUT_ALPHA_RGBA  2  // RGBA output with all channels is alpha mask
+#define CHROMAKEY_OUTPUT_NODESPILL   1  // normal RGBA with masked alpha channel, RGB no de-spill
+#define CHROMAKEY_OUTPUT_ALPHA_ONLY  2  // Mono Channel with alpha only
+#define CHROMAKEY_OUTPUT_ALPHA_RGBA  3  // RGBA output with all channels is alpha mask data
 
 namespace ImGui 
 {

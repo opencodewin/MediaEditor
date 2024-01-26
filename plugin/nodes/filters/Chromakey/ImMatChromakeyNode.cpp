@@ -53,7 +53,7 @@ struct ChromaKeyNode final : Node
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
             m_NodeTimeMs = m_filter->filter(mat_in, im_RGB, m_lumaMask, m_chromaColor,
                                 m_alphaCutoffMin, m_alphaScale, m_alphaExponent,
-                                m_alpha_only ? CHROMAKEY_OUTPUT_ALPHA_RGBA : CHROMAKEY_OUTPUT_NORMAL);
+                                m_alpha_only ? CHROMAKEY_OUTPUT_ALPHA_RGBA : m_despill ? CHROMAKEY_OUTPUT_NORMAL : CHROMAKEY_OUTPUT_NODESPILL);
             m_MatOut.SetValue(im_RGB);
         }
         return m_Exit;
@@ -75,6 +75,7 @@ struct ChromaKeyNode final : Node
         bool changed = false;
         ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         bool _alpha_only = m_alpha_only;
+        bool _despill = m_despill;
         float _lumaMask = m_lumaMask;
         float _alphaCutoffMin = m_alphaCutoffMin;
         float _alphaScale = m_alphaScale;
@@ -83,6 +84,7 @@ struct ChromaKeyNode final : Node
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled);
         ImGui::Checkbox("Alpha Output##ChromaKey",&_alpha_only);
+        ImGui::Checkbox("Color De-Spill##ChromaKey",&_despill);
         ImGui::SliderFloat("Luma Mask##ChromaKey", &_lumaMask, 0.f, 20.f, "%.1f", flags);
         ImGui::SliderFloat("Alpha Cutoff Min##ChromaKey", &_alphaCutoffMin, 0.f, 1.f, "%.2f", flags);
         ImGui::SliderFloat("Alpha Scale##ChromaKey", &_alphaScale, 0.f, 100.f, "%.1f", flags);
@@ -107,6 +109,7 @@ struct ChromaKeyNode final : Node
             m_chromaColor = _chromaColor; changed = true; }
         if (_chromaColor.a != m_alphaExponent) { m_alphaExponent = _chromaColor.a; changed = true; }
         if (_alpha_only != m_alpha_only) { m_alpha_only = _alpha_only; changed = true; }
+        if (_despill != m_despill) { m_despill = _despill; changed = true; }
         ImGui::EndDisabled();
         return changed;
     }
@@ -128,6 +131,12 @@ struct ChromaKeyNode final : Node
             auto& val = value["alpha_only"];
             if (val.is_boolean())
                 m_alpha_only = val.get<imgui_json::boolean>();
+        }
+        if (value.contains("despill"))
+        { 
+            auto& val = value["despill"];
+            if (val.is_boolean())
+                m_despill = val.get<imgui_json::boolean>();
         }
         if (value.contains("lumaMask"))
         {
@@ -170,6 +179,7 @@ struct ChromaKeyNode final : Node
         Node::Save(value, MapID);
         value["mat_type"] = imgui_json::number(m_mat_data_type);
         value["alpha_only"] = imgui_json::boolean(m_alpha_only);
+        value["despill"] = imgui_json::boolean(m_despill);
         value["lumaMask"] = imgui_json::number(m_lumaMask);
         value["alphaCutoffMin"] = imgui_json::number(m_alphaCutoffMin);
         value["alphaScale"] = imgui_json::number(m_alphaScale);
@@ -203,6 +213,7 @@ private:
     ImGui::ChromaKey_vulkan * m_filter {nullptr};
     bool m_color_straw          {false};
     bool  m_alpha_only          {false};
+    bool  m_despill             {true};
     float m_lumaMask            {10.0f};
     ImPixel m_chromaColor       {0.0f, 1.0f, 0.0f, 1.0f};
     float m_alphaCutoffMin      {0.05f};
