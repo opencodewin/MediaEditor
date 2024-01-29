@@ -2183,6 +2183,9 @@ void VideoClip::SyncStateFromDataLayer()
         BluePrint::BluePrintCallbackFunctions tBpCallbacks;
         tBpCallbacks.BluePrintOnChanged = TimeLine::OnVideoEventStackFilterBpChanged;
         hVFilter = MEC::VideoEventStackFilter::CreateInstance(tBpCallbacks);
+        MEC::VideoEventStackFilter* pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(hVFilter.get());
+        pEsf->SetTimelineHandle(mHandle);
+        mEventStack = static_cast<MEC::EventStack*>(pEsf);
         mhDataLayerClip->SetFilter(hVFilter);
     }
 
