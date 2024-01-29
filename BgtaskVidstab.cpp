@@ -86,7 +86,7 @@ public:
             const auto strWorkDirName = oss.str();
             m_strTaskDir = SysUtils::JoinPath(strAttrValue, strWorkDirName);
             if (!SysUtils::IsDirectory(m_strTaskDir))
-                SysUtils::CreateDirectory(m_strTaskDir, true);
+                SysUtils::CreateDirectoryCstm(m_strTaskDir, true);
         }
         m_strTrfPath = SysUtils::JoinPath(m_strTaskDir, "transforms.trf");
         // read 'source_url'

@@ -39,7 +39,7 @@ Project::ErrorCode Project::CreateNew(const string& name, const string& baseDir)
         m_pLogger->Log(Error) << "Project directory path '" << projDir << "' already exists! Can NOT create new project at this location." << endl;
         return ALREADY_EXISTS;
     }
-    if (!SysUtils::CreateDirectory(projDir, true))
+    if (!SysUtils::CreateDirectoryCstm(projDir, true))
     {
         m_pLogger->Log(Error) << "FAILED to create project directory at '" << projDir << "'!" << endl;
         return MKDIR_FAILED;
