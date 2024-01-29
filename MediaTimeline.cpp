@@ -1827,7 +1827,7 @@ VideoClip* VideoClip::CreateInstance(TimeLine* pOwner, MediaItem* pMediaItem, in
     }
     const auto tClipRange = pOwner->AlignClipRange(pVidstm->isImage ? std::pair<int64_t, int64_t>(i64Start, 10000) : std::pair<int64_t, int64_t>(i64Start, (int64_t)(pVidstm->duration*1000)));
     const std::string strClipName = pVidstm->isImage ? pMediaItem->mName : (pMediaItem->mName+":Video");
-    return CreateInstance(pOwner, strClipName, pMediaItem, tClipRange.first, tClipRange.first+tClipRange.second, 0, 0);
+    return CreateInstance(pOwner, strClipName, pMediaItem, tClipRange.first, tClipRange.second, 0, 0);
 }
 
 VideoClip* VideoClip::CreateDummyInstance(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End)
@@ -2270,7 +2270,7 @@ AudioClip* AudioClip::CreateInstance(TimeLine* pOwner, MediaItem* pMediaItem, in
     }
     const auto tClipRange = pOwner->AlignClipRange(std::pair<int64_t, int64_t>(i64Start, (int64_t)(pAudstm->duration*1000)));
     const std::string strClipName = pMediaItem->mName+":Audio";
-    return CreateInstance(pOwner, strClipName, pMediaItem, tClipRange.first, tClipRange.first+tClipRange.second, 0, 0);
+    return CreateInstance(pOwner, strClipName, pMediaItem, tClipRange.first, tClipRange.second, 0, 0);
 }
 
 AudioClip* AudioClip::CreateDummyInstance(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End)
@@ -2557,7 +2557,7 @@ TextClip* TextClip::CreateInstance(TimeLine* pOwner, const std::string& strText,
     if (i64Length <= 0)
         i64Length = 5000;
     const auto tClipRange = pOwner->AlignClipRange({i64Start, i64Length});
-    auto pNewClip = new TextClip(pOwner, strText, tClipRange.first, tClipRange.first+tClipRange.second);
+    auto pNewClip = new TextClip(pOwner, strText, tClipRange.first, tClipRange.second);
     IM_ASSERT(pNewClip);
     return pNewClip;
 }
