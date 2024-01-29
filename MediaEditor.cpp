@@ -5818,15 +5818,15 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     if (tree_open) ImGui::TreePop();
                 }
             }
-            // Handle event delete
-            if (msgbox_event.Draw() == 1)
-            {
-                editing_clip->DeleteEvent(event, &timeline->mUiActions);
-                auto track = timeline->FindTrackByClipID(editing_clip->mID);
-                RefreshPreview(track);
-            }
             ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
             ImGui::TreePop();
+        }
+        // Handle event delete
+        if (msgbox_event.Draw() == 1)
+        {
+            editing_clip->DeleteEvent(event, &timeline->mUiActions);
+            auto track = timeline->FindTrackByClipID(editing_clip->mID);
+            RefreshPreview(track);
         }
         ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0,1.0,1.0,0.75));
         ImGui::Separator();
