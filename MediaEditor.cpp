@@ -5818,15 +5818,25 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     if (tree_open) ImGui::TreePop();
                 }
             }
+            // Handle event delete
+            if (msgbox_event.Draw() == 1)
+            {
+                editing_clip->DeleteEvent(event, &timeline->mUiActions);
+                auto track = timeline->FindTrackByClipID(editing_clip->mID);
+                RefreshPreview(track);
+            }
             ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
             ImGui::TreePop();
         }
-        // Handle event delete
-        if (msgbox_event.Draw() == 1)
+        else
         {
-            editing_clip->DeleteEvent(event, &timeline->mUiActions);
-            auto track = timeline->FindTrackByClipID(editing_clip->mID);
-            RefreshPreview(track);
+            // Handle event delete
+            if (msgbox_event.Draw() == 1)
+            {
+                editing_clip->DeleteEvent(event, &timeline->mUiActions);
+                auto track = timeline->FindTrackByClipID(editing_clip->mID);
+                RefreshPreview(track);
+            }
         }
         ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.0,1.0,1.0,0.75));
         ImGui::Separator();
@@ -11186,6 +11196,10 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
         out_buf->appendf("OutputAudioChannelsIndex=%d\n", g_media_editor_settings.OutputAudioChannelsIndex);
         out_buf->appendf("OutputAudioChannels=%d\n", g_media_editor_settings.OutputAudioChannels);
         out_buf->append("\n");
+        if (g_media_editor_settings.project_path.empty())
+        {
+            g_project_loading = false;
+        }
     };
     setting_ini_handler.ApplyAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler)
     {
