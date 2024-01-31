@@ -5979,7 +5979,7 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
     draw_list->PushClipRect(v_pos, v_pos + v_size);
 
     bool bTransFilterParamChanged;
-    bIsMouseDown = pVidEditingClip->GetTransformFilterUiCtrl()->Draw(sub_window_size, tImgPosSize.first, tImgPosSize.second, i64PosInClip, &bTransFilterParamChanged);
+    bIsMouseDown = pVidEditingClip->GetTransformFilterUiCtrl()->Draw(sub_window_pos, sub_window_size, tImgPosSize.first, tImgPosSize.second, i64PosInClip, &bTransFilterParamChanged);
     if (bTransFilterParamChanged)
     {
         const auto pTrack = timeline->FindTrackByClipID(pVidEditingClip->mID);

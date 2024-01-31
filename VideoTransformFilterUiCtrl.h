@@ -14,7 +14,7 @@ public:
     VideoTransformFilterUiCtrl() = delete;
     VideoTransformFilterUiCtrl(const VideoTransformFilterUiCtrl&) = delete;
 
-    bool Draw(const ImVec2& v2ViewSize, const ImVec2& v2ImageViewPos, const ImVec2& v2ImageViewSize, int64_t i64Tick, bool* pParamChanged);
+    bool Draw(const ImVec2& v2ViewPos, const ImVec2& v2ViewSize, const ImVec2& v2ImageViewPos, const ImVec2& v2ImageViewSize, int64_t i64Tick, bool* pParamChanged);
 
     enum HandleType : int
     {

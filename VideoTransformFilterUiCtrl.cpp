@@ -29,7 +29,7 @@ VideoTransformFilterUiCtrl::VideoTransformFilterUiCtrl(VideoTransformFilter::Hol
     m_u32GrabberBorderHoveredColor = IM_COL32(240, 240, 220, 255);
 }
 
-bool VideoTransformFilterUiCtrl::Draw(const ImVec2& v2ViewSize, const ImVec2& v2ImageViewPos, const ImVec2& v2ImageViewSize, int64_t i64Tick, bool* pParamChanged)
+bool VideoTransformFilterUiCtrl::Draw(const ImVec2& v2ViewPos, const ImVec2& v2ViewSize, const ImVec2& v2ImageViewPos, const ImVec2& v2ImageViewSize, int64_t i64Tick, bool* pParamChanged)
 {
     const auto v2CursorPos = GetCursorPos();
     if (m_bNeedUpdateCornerPoints)
@@ -61,6 +61,7 @@ bool VideoTransformFilterUiCtrl::Draw(const ImVec2& v2ViewSize, const ImVec2& v2
     aEdgeCenters[3] = (m_aUiCornerPoints[2]+m_aUiCornerPoints[3])/2;
     auto pDrawList = GetWindowDrawList();
     const auto v2MousePos = GetMousePos();
+    const ImRect rViewArea(v2ViewPos, v2ViewPos+v2ViewSize);
 
     // left edge
     pDrawList->AddLine(m_aUiCornerPoints[0], m_aUiCornerPoints[3], m_u32GradLineColor, m_fGradLineThickness);
@@ -77,6 +78,14 @@ bool VideoTransformFilterUiCtrl::Draw(const ImVec2& v2ViewSize, const ImVec2& v2
 
     HandleType eHoveredHandleType = m_ePrevHandleType;
     bool bIsHovering = m_ePrevHandleType != HT_NONE;
+    auto bIsMouseDown = IsMouseDown(ImGuiMouseButton_Left);
+    const auto fMouseDownDur = GetIO().MouseDownDuration[ImGuiMouseButton_Left];
+    // if mouse is clicked outside of the curve area, then dragging into this area. Ignore the mouse down event
+    if (m_ePrevHandleType == HT_NONE && bIsMouseDown && fMouseDownDur > 0.f)
+    {
+        bIsMouseDown = false;
+        bIsHovering = true;
+    }
     const auto fRotationAngle = m_hTransformFilter->GetRotation();
     // draw resize grabbers
     auto fRadiusWithBorder = m_fResizeGrabberRadius+m_fGrabberBorderThickness;
@@ -228,6 +237,12 @@ bool VideoTransformFilterUiCtrl::Draw(const ImVec2& v2ViewSize, const ImVec2& v2
         if (CheckPointInsidePolygon(v2MousePos, m_aUiCornerPoints))
         { bIsHovering = true; eHoveredHandleType = HT_AREA; }
     }
+    // check if mouse is outside of the view area
+    if (!rViewArea.Contains(v2MousePos) && m_ePrevHandleType == HT_NONE)
+    {
+        bIsHovering = false;
+        eHoveredHandleType = HT_NONE;
+    }
 
     // render customized mouse shape according to hovered handle type
     if (eHoveredHandleType != HT_NONE)
@@ -264,7 +279,6 @@ bool VideoTransformFilterUiCtrl::Draw(const ImVec2& v2ViewSize, const ImVec2& v2
     bool bMouseCaptured = false;
     bool bParamChanged = false;
     // handle mouse dragging
-    const auto bIsMouseDown = IsMouseDown(ImGuiMouseButton_Left);
     if (bIsMouseDown && bIsHovering)
     {
         const auto v2MouseMoveDelta = m_ePrevHandleType == HT_NONE ? ImVec2(0, 0) : v2MousePos-m_v2PrevMousePos;

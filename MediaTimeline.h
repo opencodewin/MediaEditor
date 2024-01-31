@@ -836,10 +836,12 @@ public:
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) override;
     void SelectEditingMask(MEC::Event::Holder hEvent, int64_t nodeId, int maskIndex, ImGui::MaskCreator::Holder hMaskCreator = nullptr);
     void UnselectEditingMask();
-    MEC::VideoTransformFilterUiCtrl* GetTransformFilterUiCtrl() { return m_pTransFilterUiCtrl; }
+    MEC::VideoTransformFilterUiCtrl* GetTransformFilterUiCtrl() { return mpTransFilterUiCtrl; }
+    bool DrawAttributeCurves(const ImVec2& v2ViewSize, bool* pCurveUpdated, ImDrawList* pDrawList);
 
 private:
-    MEC::VideoTransformFilterUiCtrl* m_pTransFilterUiCtrl {nullptr};
+    MEC::VideoTransformFilterUiCtrl* mpTransFilterUiCtrl {nullptr};
+    ImGui::ImNewCurve::Editor::Holder mhAttrCurveEditor;
 };
 
 struct EditingAudioClip : BaseEditingClip

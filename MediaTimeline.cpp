@@ -3209,15 +3209,19 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         }
     }
     mhTransformFilter = hClip->GetTransformFilter();
-    m_pTransFilterUiCtrl = new MEC::VideoTransformFilterUiCtrl(mhTransformFilter);
+    mpTransFilterUiCtrl = new MEC::VideoTransformFilterUiCtrl(mhTransformFilter);
+    mhAttrCurveEditor = ImGui::ImNewCurve::Editor::CreateInstance();
+    auto hPosOffsetCurve = mhTransformFilter->GetKeyFramesCurveOnPosOffset();
+    mhAttrCurveEditor->AddCurve(hPosOffsetCurve, ImGui::ImNewCurve::DIM_X, IM_COL32(255, 0, 0, 255));
+    mhAttrCurveEditor->AddCurve(hPosOffsetCurve, ImGui::ImNewCurve::DIM_Y, IM_COL32(0, 255, 0, 255));
 }
 
 EditingVideoClip::~EditingVideoClip()
 {
-    if (m_pTransFilterUiCtrl)
+    if (mpTransFilterUiCtrl)
     {
-        delete m_pTransFilterUiCtrl;
-        m_pTransFilterUiCtrl = nullptr;
+        delete mpTransFilterUiCtrl;
+        mpTransFilterUiCtrl = nullptr;
     }
     if (mSsViewer) mSsViewer->Release();
     mSsViewer = nullptr;
@@ -3441,6 +3445,11 @@ void EditingVideoClip::UnselectEditingMask()
     mMaskEventId = mMaskNodeId = -1;
     mMaskIndex = -1;
     mMaskEventStart = mMaskEventEnd = 0;
+}
+
+bool EditingVideoClip::DrawAttributeCurves(const ImVec2& v2ViewSize, bool* pCurveUpdated, ImDrawList* pDrawList)
+{
+    return mhAttrCurveEditor->DrawContent("##VidClipAttrCurves", v2ViewSize, 0, pCurveUpdated, pDrawList);
 }
 } // namespace MediaTimeline
 
@@ -13447,7 +13456,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             const float VerticalBarHeightInPixels = std::max(VerticalBarHeightRatio * VerticalScrollBarSize.y, (float)scrollSize / 2);
 
             auto trackview_pos = ImGui::GetCursorPos();
-            ImDrawList * drawList = ImGui::GetWindowDrawList();
+            ImDrawList* drawList = ImGui::GetWindowDrawList();
             ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
 
             // up-down wheel to scroll vertical
@@ -13463,7 +13472,14 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
 
             if (isAttribute)
             {
-                // TODO: Draw attribute curves using 'ImGui::ImNewCurve'
+                EditingVideoClip* pEdtVidClip = (EditingVideoClip*)editingClip;
+                bool bCurveUpdated;
+                pEdtVidClip->DrawAttributeCurves({event_track_size.x, curveHeight}, &bCurveUpdated, drawList);
+                if (bCurveUpdated)
+                {
+                    auto* pTrack = main_timeline->FindTrackByClipID(pEdtVidClip->mID);
+                    main_timeline->RefreshTrackView({ pTrack->mID });
+                }
             }
             else
             {
