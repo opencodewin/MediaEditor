@@ -226,7 +226,7 @@ struct MatRenderNode final : Node
         ImGui::Separator();
 
         // Draw custom layout
-        changed|= ImGui::InputInt("Preview Width", &m_preview_width);
+        changed |= ImGui::InputInt("Preview Width", &m_preview_width);
         changed |= ImGui::InputInt("Preview Height", &m_preview_height);
         ImGui::Separator();
 

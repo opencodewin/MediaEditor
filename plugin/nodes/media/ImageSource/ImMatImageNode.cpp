@@ -159,8 +159,8 @@ struct MatImageNode final : Node
         }
         ImGui::Separator();
         // Draw custom layout
-        ImGui::InputInt("Preview Width", &m_preview_width);
-        ImGui::InputInt("Preview Height", &m_preview_height);
+        changed |= ImGui::InputInt("Preview Width", &m_preview_width);
+        changed |= ImGui::InputInt("Preview Height", &m_preview_height);
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
             io.ConfigViewportsNoDecoration = false;
         return changed;
