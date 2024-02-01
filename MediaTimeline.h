@@ -837,7 +837,7 @@ public:
     void SelectEditingMask(MEC::Event::Holder hEvent, int64_t nodeId, int maskIndex, ImGui::MaskCreator::Holder hMaskCreator = nullptr);
     void UnselectEditingMask();
     MEC::VideoTransformFilterUiCtrl* GetTransformFilterUiCtrl() { return mpTransFilterUiCtrl; }
-    bool DrawAttributeCurves(const ImVec2& v2ViewSize, bool* pCurveUpdated, ImDrawList* pDrawList);
+    bool DrawAttributeCurves(const ImVec2& v2ViewSize, float fViewScaleX, float fViewOffsetX, bool* pCurveUpdated, ImDrawList* pDrawList);
 
 private:
     MEC::VideoTransformFilterUiCtrl* mpTransFilterUiCtrl {nullptr};

@@ -3211,6 +3211,8 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mhTransformFilter = hClip->GetTransformFilter();
     mpTransFilterUiCtrl = new MEC::VideoTransformFilterUiCtrl(mhTransformFilter);
     mhAttrCurveEditor = ImGui::ImNewCurve::Editor::CreateInstance();
+    mhAttrCurveEditor->SetGraticuleLineCount(5);
+    mhAttrCurveEditor->SetGraticuleColor(IM_COL32(80, 80, 80, 150));
     auto hPosOffsetCurve = mhTransformFilter->GetKeyFramesCurveOnPosOffset();
     mhAttrCurveEditor->AddCurve(hPosOffsetCurve, ImGui::ImNewCurve::DIM_X, IM_COL32(255, 0, 0, 255));
     mhAttrCurveEditor->AddCurve(hPosOffsetCurve, ImGui::ImNewCurve::DIM_Y, IM_COL32(0, 255, 0, 255));
@@ -3447,9 +3449,9 @@ void EditingVideoClip::UnselectEditingMask()
     mMaskEventStart = mMaskEventEnd = 0;
 }
 
-bool EditingVideoClip::DrawAttributeCurves(const ImVec2& v2ViewSize, bool* pCurveUpdated, ImDrawList* pDrawList)
+bool EditingVideoClip::DrawAttributeCurves(const ImVec2& v2ViewSize, float fViewScaleX, float fViewOffsetX, bool* pCurveUpdated, ImDrawList* pDrawList)
 {
-    return mhAttrCurveEditor->DrawContent("##VidClipAttrCurves", v2ViewSize, 0, pCurveUpdated, pDrawList);
+    return mhAttrCurveEditor->DrawContent("##VidClipAttrCurves", v2ViewSize, fViewScaleX, fViewOffsetX, 0, pCurveUpdated, pDrawList);
 }
 } // namespace MediaTimeline
 
@@ -13417,30 +13419,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             MovingCurrentTime = false;
             editingClip->bSeeking = false;
         }
-
-        // draw cursor
-        static const float cursorWidth = 2.f;
-        ImRect custom_view_rect(canvas_pos, canvas_pos + ImVec2(canvas_size.x, header_height + custom_height));
-        draw_list->PushClipRect(custom_view_rect.Min - ImVec2(32, 0), custom_view_rect.Max + ImVec2(32, 0));
-        if (editingClip->mCurrentTime >= editingClip->firstTime && editingClip->mCurrentTime <= editingClip->lastTime)
-        {
-            // cursor arrow
-            const float arrowWidth = draw_list->_Data->FontSize;
-            float arrowOffset = contentMin.x + (editingClip->mCurrentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - arrowWidth * 0.5f + 1;
-            ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, canvas_pos.y), COL_CURSOR_ARROW_R, ImGuiDir_Down);
-            ImGui::SetWindowFontScale(0.8);
-            auto time_str = ImGuiHelper::MillisecToString(editingClip->mCurrentTime, 2);
-            ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
-            float strOffset = contentMin.x + (editingClip->mCurrentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - str_size.x * 0.5f + 1;
-            ImVec2 str_pos = ImVec2(strOffset, canvas_pos.y + 10);
-            draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BR, 2.0, ImDrawFlags_RoundCornersAll);
-            draw_list->AddText(str_pos, COL_CURSOR_TEXT_R, time_str.c_str());
-            ImGui::SetWindowFontScale(1.0);
-            // cursor line
-            float cursorOffset = contentMin.x + (editingClip->mCurrentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - 0.5f;
-            draw_list->AddLine(ImVec2(cursorOffset, canvas_pos.y + header_height), ImVec2(cursorOffset, canvas_pos.y + header_height + custom_height), COL_CURSOR_LINE_R, cursorWidth);
-        }
-        draw_list->PopClipRect();
         ImGui::PopStyleColor();
 
         // event track
@@ -13473,8 +13451,11 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             if (isAttribute)
             {
                 EditingVideoClip* pEdtVidClip = (EditingVideoClip*)editingClip;
+                const ImVec2 v2ViewSize(event_track_size.x, curveHeight);
+                const float fViewScaleX = (float)((double)pEdtVidClip->mDuration/pEdtVidClip->visibleTime);
+                const float fViewOffsetX = (float)((double)pEdtVidClip->firstTime*v2ViewSize.x*fViewScaleX/pEdtVidClip->mDuration);
                 bool bCurveUpdated;
-                pEdtVidClip->DrawAttributeCurves({event_track_size.x, curveHeight}, &bCurveUpdated, drawList);
+                pEdtVidClip->DrawAttributeCurves(v2ViewSize, fViewScaleX, fViewOffsetX, &bCurveUpdated, nullptr);
                 if (bCurveUpdated)
                 {
                     auto* pTrack = main_timeline->FindTrackByClipID(pEdtVidClip->mID);
@@ -13700,13 +13681,6 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
                 }
             }
 
-            if (editingClip->mCurrentTime >= editingClip->firstTime && editingClip->mCurrentTime <= editingClip->lastTime)
-            {
-                // draw cursor line
-                float cursorOffset = window_pos.x + (editingClip->mCurrentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget - 0.5f;
-                drawList->AddLine(ImVec2(cursorOffset, cursor_pos.y), ImVec2(cursorOffset, window_pos.y + window_size.y), COL_CURSOR_LINE_R, cursorWidth);
-            }
-
             // draw vertical scroll bar
             if (!isAttribute)
             {
@@ -13752,6 +13726,41 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             }
         }
         ImGui::EndChild();
+
+        // draw play pos cursor
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Border, 0);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.f, 0.f, 0.f, 0.0f));
+        const ImVec2 v2PlayPosCursorLayerPos(canvas_pos);
+        const ImVec2 v2PlayPosCursorLayerSize(canvas_size.x, HorizonScrollPos.y - v2PlayPosCursorLayerPos.y - 1);
+        ImGui::SetCursorScreenPos(v2PlayPosCursorLayerPos);
+        if (ImGui::BeginChild(ImGui::GetID("##vidclip_editing_window_attribute_view_timeline_overlay_view"), v2PlayPosCursorLayerSize, ImGuiChildFlags_FrameStyle))
+        {
+            static const float cursorWidth = 2.f;
+            draw_list = ImGui::GetWindowDrawList();
+            if (editingClip->mCurrentTime >= editingClip->firstTime && editingClip->mCurrentTime <= editingClip->lastTime)
+            {
+                // cursor arrow
+                const auto fOffsetX = contentMin.x + (editingClip->mCurrentTime - editingClip->firstTime) * editingClip->msPixelWidthTarget;
+                const float arrowWidth = draw_list->_Data->FontSize;
+                const float arrowOffset = fOffsetX - arrowWidth * 0.5f + 1;
+                ImGui::RenderArrow(draw_list, ImVec2(arrowOffset, v2PlayPosCursorLayerPos.y), COL_CURSOR_ARROW_R, ImGuiDir_Down);
+                ImGui::SetWindowFontScale(0.8);
+                const auto time_str = ImGuiHelper::MillisecToString(editingClip->mCurrentTime, 2);
+                const ImVec2 str_size = ImGui::CalcTextSize(time_str.c_str(), nullptr, true);
+                const float strOffset = fOffsetX - str_size.x * 0.5f + 1;
+                const ImVec2 str_pos = ImVec2(strOffset, v2PlayPosCursorLayerPos.y + 10);
+                draw_list->AddRectFilled(str_pos + ImVec2(-3, 0), str_pos + str_size + ImVec2(3, 3), COL_CURSOR_TEXT_BR, 2.0, ImDrawFlags_RoundCornersAll);
+                draw_list->AddText(str_pos, COL_CURSOR_TEXT_R, time_str.c_str());
+                ImGui::SetWindowFontScale(1.0);
+                // cursor line
+                const float cursorOffset = fOffsetX - 0.5f;
+                draw_list->AddLine(ImVec2(cursorOffset, v2PlayPosCursorLayerPos.y + header_height), ImVec2(cursorOffset, v2PlayPosCursorLayerPos.y + v2PlayPosCursorLayerSize.y), COL_CURSOR_LINE_R, cursorWidth);
+            }
+        }
+        ImGui::EndChild();
+        ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar();
     }
     ImGui::EndGroup();
 
