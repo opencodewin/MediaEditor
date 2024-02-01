@@ -350,7 +350,7 @@ struct CustomShaderNode final : Node
     bool DrawShaderEditor()
     {
         static string filters = ".comp";
-        ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal;
+        ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal;
         bool changed = false;
         ImGui::PushID(m_ID);
         auto cpos = m_editor.GetCursorPosition();

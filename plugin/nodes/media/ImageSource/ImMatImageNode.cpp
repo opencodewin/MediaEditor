@@ -114,7 +114,7 @@ struct MatImageNode final : Node
         auto separator = m_path.find_last_of('/');
         if (separator != std::string::npos)
             file_name = m_path.substr(separator + 1);
-        ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_Modal;
+        ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_Modal;
         if (m_isShowBookmark)       vflags |= ImGuiFileDialogFlags_ShowBookmark;
         if (!m_isShowHiddenFiles)   vflags |= ImGuiFileDialogFlags_DontShowHiddenFiles;
         if (!m_bookmark.empty())    ImGuiFileDialog::Instance()->DeserializeBookmarks(m_bookmark);

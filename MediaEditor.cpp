@@ -2368,6 +2368,7 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
         config.sidePaneWidth = 200;
         config.userDatas = IGFDUserDatas("Media Source");
         config.flags = ImGuiFileDialogFlags_ShowBookmark | 
+                    ImGuiFileDialogFlags_DontShowHiddenFiles |
                     ImGuiFileDialogFlags_CaseInsensitiveExtention | 
                     ImGuiFileDialogFlags_DisableCreateDirectoryButton | 
                     ImGuiFileDialogFlags_Modal | 
@@ -2697,7 +2698,7 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
             config.path = ".";
             config.countSelectionMax = 1;
             config.userDatas = IGFDUserDatas((*item));
-            config.flags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
+            config.flags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
             ImGuiFileDialog::Instance()->OpenDialog("##MediaEditReloadDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
                                                     filter.c_str(),
                                                     config);
@@ -3721,7 +3722,8 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 config.path = timeline->mOutputPath.empty() ? "." : timeline->mOutputPath;
                 config.countSelectionMax = 1;
                 config.userDatas = IGFDUserDatas("OutputPath");
-                config.flags = ImGuiFileDialogFlags_ShowBookmark | 
+                config.flags = ImGuiFileDialogFlags_ShowBookmark |
+                            ImGuiFileDialogFlags_DontShowHiddenFiles |
                             ImGuiFileDialogFlags_CaseInsensitiveExtention |
                             ImGuiFileDialogFlags_AllowDirectorySelect |
                             ImGuiFileDialogFlags_Modal;
@@ -11434,8 +11436,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
         g.LanguageName = g_media_editor_settings.UILanguage;
     static std::string project_name = g_media_editor_settings.project_path.empty() ? "Untitled" : ImGuiHelper::path_filename_prefix(g_media_editor_settings.project_path);
-    const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
-    const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite | ImGuiFileDialogFlags_Modal;
+    const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
+    const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite | ImGuiFileDialogFlags_Modal;
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     bool power_saving_mode = io.ConfigFlags & ImGuiConfigFlags_EnablePowerSavingMode;
     bool multiviewport = io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable;
