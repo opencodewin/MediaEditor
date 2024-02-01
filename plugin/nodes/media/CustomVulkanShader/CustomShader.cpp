@@ -38,9 +38,9 @@ CustomShader::~CustomShader()
     }
 }
 
-void CustomShader::upload_param(const ImGui::VkMat& src, ImGui::VkMat& dst, std::vector<float>& params)
+void CustomShader::upload_param(const ImGui::VkMat& src, const ImGui::VkMat& src2, ImGui::VkMat& dst, std::vector<float>& params)
 {
-    std::vector<ImGui::VkMat> bindings(8);
+    std::vector<ImGui::VkMat> bindings(12);
     if      (dst.type == IM_DT_INT8)     bindings[0] = dst;
     else if (dst.type == IM_DT_INT16)    bindings[1] = dst;
     else if (dst.type == IM_DT_FLOAT16)  bindings[2] = dst;
@@ -51,23 +51,33 @@ void CustomShader::upload_param(const ImGui::VkMat& src, ImGui::VkMat& dst, std:
     else if (src.type == IM_DT_FLOAT16)  bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)  bindings[7] = src;
 
-    std::vector<ImGui::vk_constant_type> constants(10 + params.size());
+    if      (src2.type == IM_DT_INT8)     bindings[8] = src2;
+    else if (src2.type == IM_DT_INT16)    bindings[9] = src2;
+    else if (src2.type == IM_DT_FLOAT16)  bindings[10] = src2;
+    else if (src2.type == IM_DT_FLOAT32)  bindings[11] = src2;
+
+    std::vector<ImGui::vk_constant_type> constants(15 + params.size());
     constants[0].i = src.w;
     constants[1].i = src.h;
     constants[2].i = src.c;
     constants[3].i = src.color_format;
     constants[4].i = src.type;
-    constants[5].i = dst.w;
-    constants[6].i = dst.h;
-    constants[7].i = dst.c;
-    constants[8].i = dst.color_format;
-    constants[9].i = dst.type;
-    for (int i = 10; i < constants.size(); i++)
-        constants[i].f = params[i - 10];
+    constants[5].i = src2.w;
+    constants[6].i = src2.h;
+    constants[7].i = src2.c;
+    constants[8].i = src2.color_format;
+    constants[9].i = src2.type;
+    constants[10].i = dst.w;
+    constants[11].i = dst.h;
+    constants[12].i = dst.c;
+    constants[13].i = dst.color_format;
+    constants[14].i = dst.type;
+    for (int i = 15; i < constants.size(); i++)
+        constants[i].f = params[i - 15];
     cmd->record_pipeline(pipe, bindings, constants, dst);
 }
 
-double CustomShader::filter(const ImGui::ImMat& src, ImGui::ImMat& dst, std::vector<float>& params)
+double CustomShader::filter(const ImGui::ImMat& src, const ImGui::ImMat& src2, ImGui::ImMat& dst, std::vector<float>& params)
 {
     double ret = 0.0;
     if (!vkdev || !pipe || !cmd)
@@ -94,11 +104,22 @@ double CustomShader::filter(const ImGui::ImMat& src, ImGui::ImMat& dst, std::vec
         cmd->record_clone(src, src_gpu, opt);
     }
 
+    ImGui::VkMat src2_gpu;
+    if (src2.device == IM_DD_VULKAN)
+    {
+        src2_gpu = src2;
+    }
+    else if (src2.device == IM_DD_CPU)
+    {
+        cmd->record_clone(src2, src2_gpu, opt);
+    }
+
+
 #ifdef VULKAN_SHADER_BENCHMARK
     cmd->benchmark_start();
 #endif
 
-    upload_param(src_gpu, dst_gpu, params);
+    upload_param(src_gpu, src2_gpu, dst_gpu, params);
 
 #ifdef VULKAN_SHADER_BENCHMARK
     cmd->benchmark_end();
