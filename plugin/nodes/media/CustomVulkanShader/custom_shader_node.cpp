@@ -88,6 +88,7 @@ struct CustomShaderNode final : Node
         my_identifiers.insert(std::make_pair("store_rgb", "void store_rgb(sfpvec3 val, int x, int y, int w, int cstep, int format, int type)"));
         my_identifiers.insert(std::make_pair("store_rgba", "void store_rgba(sfpvec4 val, int x, int y, int w, int cstep, int format, int type)"));
         my_identifiers.insert(std::make_pair("load", "sfpvec4 load(int x, int y) //sample call as load_rgba"));
+        my_identifiers.insert(std::make_pair("load2", "sfpvec4 load2(int x, int y) //sample call as load_rgba_src2"));
         my_identifiers.insert(std::make_pair("store", "void store(sfpvec4 val, int x, int y) //sample call as store_rgba"));
         my_identifiers.insert(std::make_pair("p", "param:"));
         for (const auto& k : my_identifiers)
@@ -116,6 +117,7 @@ struct CustomShaderNode final : Node
         );
         m_program_function_alias = std::string(
             "#define load(x, y) load_rgba(x, y, p.w, p.h, p.cstep, p.in_format, p.in_type)\n"
+            "#define load2(x, y) load_rgba_src2(x, y, p.w2, p.h2, p.cstep2, p.in_format2, p.in_type2)\n"
             "#define store(v, x, y) store_rgba(v, x, y, p.out_w, p.out_h, p.out_cstep, p.out_format, p.out_type)\n\n"
         );
         m_editor.SetTabSize(4);
@@ -123,10 +125,11 @@ struct CustomShaderNode final : Node
         m_editor.SetText(m_program_filter);
 
         m_program_start =   std::string(SHADER_HEADER) + 
-                            std::string(SHADER_DEFAULT_PARAM_HEADER) +
+                            std::string(SHADER_DEFAULT_PARAM2_HEADER) +
                             std::string(SHADER_DEFAULT_PARAM_TAIL) +
-                            std::string(SHADER_INPUT_OUTPUT_DATA) +
+                            std::string(SHADER_INPUT2_OUTPUT_DATA) +
                             std::string(SHADER_LOAD_RGBA) +
+                            std::string(SHADER_LOAD_RGBA_NAME(src2)) +
                             std::string(SHADER_STORE_RGBA) +
                             m_program_function_alias;
     }
@@ -138,7 +141,7 @@ struct CustomShaderNode final : Node
     
     void update_program()
     {
-        std::string param_string = std::string(SHADER_DEFAULT_PARAM_HEADER);
+        std::string param_string = std::string(SHADER_DEFAULT_PARAM2_HEADER);
         for (int i = 0; i < m_params.size(); i++)
         {
             if (m_params[i].name.empty() || !m_params[i].name_valid)
@@ -149,8 +152,9 @@ struct CustomShaderNode final : Node
         param_string += std::string(SHADER_DEFAULT_PARAM_TAIL);
         m_program_start =   std::string(SHADER_HEADER) + 
                             param_string +
-                            std::string(SHADER_INPUT_OUTPUT_DATA) +
+                            std::string(SHADER_INPUT2_OUTPUT_DATA) +
                             std::string(SHADER_LOAD_RGBA) +
+                            std::string(SHADER_LOAD_RGBA_NAME(src2)) +
                             std::string(SHADER_STORE_RGBA) +
                             m_program_function_alias;
         // need earse old pair ? 
@@ -188,17 +192,18 @@ struct CustomShaderNode final : Node
             Reset(context);
             return m_OReset;
         }
-        auto mat_in = context.GetPinValue<ImGui::ImMat>(m_MatIn);
-        if (!mat_in.empty())
+        auto mat_in1 = context.GetPinValue<ImGui::ImMat>(m_MatIn1);
+        auto mat_in2 = context.GetPinValue<ImGui::ImMat>(m_MatIn2);
+        if (!mat_in1.empty())
         {
             if (!m_Enabled)
             {
-                m_MatOut.SetValue(mat_in);
+                m_MatOut.SetValue(mat_in1);
                 return m_Exit;
             }
             if (!m_filter && m_compile_succeed)
             {
-                int gpu = mat_in.device == IM_DD_VULKAN ? mat_in.device_number : ImGui::get_default_gpu_index();
+                int gpu = mat_in1.device == IM_DD_VULKAN ? mat_in1.device_number : ImGui::get_default_gpu_index();
                 m_program_filter = m_editor.GetText();
                 std::string shader_program = m_program_start + m_program_filter;
                 m_filter = new CustomShader(shader_program, gpu, m_fp16);
@@ -207,17 +212,17 @@ struct CustomShaderNode final : Node
             {
                 return {};
             }
-            ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
-            im_RGB.w = mat_in.w * m_out_scale.x;
-            im_RGB.h = mat_in.h * m_out_scale.y;
+            ImGui::VkMat RGB_out; RGB_out.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in1.type : m_mat_data_type;
+            RGB_out.w = mat_in1.w * m_out_scale.x;
+            RGB_out.h = mat_in1.h * m_out_scale.y;
             std::vector<float> params;
             for (auto param : m_params)
                 params.push_back(param.value);
-            m_NodeTimeMs = m_filter->filter(mat_in, im_RGB, params);
-            im_RGB.time_stamp = mat_in.time_stamp;
-            im_RGB.rate = mat_in.rate;
-            im_RGB.flags = mat_in.flags;
-            m_MatOut.SetValue(im_RGB);
+            m_NodeTimeMs = m_filter->filter(mat_in1, mat_in2, RGB_out, params);
+            RGB_out.time_stamp = mat_in1.time_stamp;
+            RGB_out.rate = mat_in1.rate;
+            RGB_out.flags = mat_in1.flags;
+            m_MatOut.SetValue(RGB_out);
         }
         return m_Exit;
     }
@@ -345,7 +350,7 @@ struct CustomShaderNode final : Node
     bool DrawShaderEditor()
     {
         static string filters = ".comp";
-        ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal;
+        ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal;
         bool changed = false;
         ImGui::PushID(m_ID);
         auto cpos = m_editor.GetCursorPosition();
@@ -781,7 +786,6 @@ struct CustomShaderNode final : Node
                 if (val.contains("valid")) { auto& bvalue = val["valid"]; if (bvalue.is_boolean())  param.name_valid = bvalue.get<imgui_json::boolean>(); }
                 m_params.push_back(param);
             }
-            update_program();
         }
         m_editor.SetPalette(m_editor_style == 0 ? TextEditor::GetDarkPalette() :
                                 m_editor_style == 1 ? TextEditor::GetLightPalette() :
@@ -790,6 +794,7 @@ struct CustomShaderNode final : Node
         m_editor.SetTextChanged(false);
         m_editor.SetShowWhitespaces(m_show_space_tab);
         m_editor.SetShowShortTabGlyphs(m_show_short_tab);
+        update_program();
         return ret;
     }
 
@@ -824,18 +829,19 @@ struct CustomShaderNode final : Node
     span<Pin*> GetOutputPins() override { return m_OutputPins; }
     Pin* GetAutoLinkInputFlowPin() override { return &m_Enter; }
     Pin* GetAutoLinkOutputFlowPin() override { return &m_Exit; }
-    vector<Pin*> GetAutoLinkInputDataPin() override { return {&m_MatIn}; }
+    vector<Pin*> GetAutoLinkInputDataPin() override { return {&m_MatIn1, &m_MatIn2}; }
     vector<Pin*> GetAutoLinkOutputDataPin() override { return {&m_MatOut}; }
 
     FlowPin   m_Enter           = { this, "Enter" };
     FlowPin   m_IReset          = { this, "Reset In" };
-    MatPin    m_MatIn           = { this, "In"    };
+    MatPin    m_MatIn1           = { this, "In1"    };
+    MatPin    m_MatIn2           = { this, "In2"    };
 
     FlowPin   m_Exit            = { this, "Exit" };
     FlowPin   m_OReset          = { this, "Reset Out"};
     MatPin    m_MatOut          = { this, "Out"  };
 
-    Pin*      m_InputPins[3] = { &m_Enter, &m_IReset, &m_MatIn };
+    Pin*      m_InputPins[4] = { &m_Enter, &m_IReset, &m_MatIn1, &m_MatIn2 };
     Pin*      m_OutputPins[3] = { &m_Exit, &m_OReset, &m_MatOut };
 
 private:

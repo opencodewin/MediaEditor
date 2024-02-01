@@ -878,7 +878,7 @@ struct MediaSourceNode final : Node
         auto& io = ImGui::GetIO();
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
             io.ConfigViewportsNoDecoration = true;
-        ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal;
+        ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal;
         vflags |= ImGuiFileDialogFlags_ShowBookmark;
         if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose File"))
         {
