@@ -230,7 +230,7 @@ bool MediaItem::Initialize()
         {
             mhParser = MediaCore::MediaParser::CreateInstance();
             if (IS_IMAGESEQ(mMediaType))
-                mhParser->OpenImageSequence({25, 1}, mPath, ".+_([[:digit:]]{1,})\\.png", false, true);
+                mhParser->OpenImageSequence({25000, 1000}, mPath, ".+_([[:digit:]]{1,})\\.png", false, true);
             else
                 mhParser->Open(mPath);
             if (!mhParser->IsOpened())
@@ -5759,7 +5759,7 @@ TimeLine::TimeLine(std::string plugin_path)
     // set default video settings
     mhMediaSettings->SetVideoOutWidth(1920);
     mhMediaSettings->SetVideoOutHeight(1080);
-    mhMediaSettings->SetVideoOutFrameRate({25, 1});
+    mhMediaSettings->SetVideoOutFrameRate({25000, 1000});
     mhMediaSettings->SetVideoOutColorFormat(IM_CF_RGBA);
     mhMediaSettings->SetVideoOutDataType(IM_DT_INT8);
     // set default audio settings

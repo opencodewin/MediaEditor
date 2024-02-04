@@ -410,10 +410,13 @@ struct MediaEditorSettings
     int  MediaBankViewType {0};             // Media bank view type, 0 = Media bank, 1 = embedded browser
 
     bool HardwareCodec {true};              // try HW codec
+    bool isCustomVideoFrameSize {false};    // current frame size is custom
     int VideoWidth  {1920};                 // timeline Media Width
     int VideoHeight {1080};                 // timeline Media Height
     float PreviewScale {0.5};               // timeline Media Video Preview scale
+    bool isCustomVideoFrameRate {false};    // current frame rate is custom
     MediaCore::Ratio VideoFrameRate {25000, 1000};// timeline frame rate
+    bool isCustomPixelAspectRatio {false};  // current pixel aspect ratio is custom
     MediaCore::Ratio PixelAspectRatio {1, 1}; // timeline pixel aspect ratio
     int ColorSpaceIndex {1};                // timeline color space default is bt 709
     int ColorTransferIndex {0};             // timeline color transfer default is bt 709
@@ -1352,10 +1355,10 @@ static void ShowConfigure(MediaEditorSettings & config)
 {
     ImGuiIO &io = ImGui::GetIO();
     static int resolution_index, preview_scale_index, pixel_aspect_index, frame_rate_index, sample_rate_index, channels_index, format_index;
-    resolution_index = GetResolutionIndex(config.VideoWidth, config.VideoHeight);
+    resolution_index = config.isCustomVideoFrameSize ? 0 : GetResolutionIndex(config.VideoWidth, config.VideoHeight);
     preview_scale_index = GetPreviewScaleIndex(config.PreviewScale);
-    pixel_aspect_index = GetPixelAspectRatioIndex(config.PixelAspectRatio);
-    frame_rate_index = GetVideoFrameIndex(config.VideoFrameRate);
+    pixel_aspect_index = config.isCustomPixelAspectRatio ? 0 : GetPixelAspectRatioIndex(config.PixelAspectRatio);
+    frame_rate_index = config.isCustomVideoFrameRate ? 0 : GetVideoFrameIndex(config.VideoFrameRate);
     sample_rate_index = GetSampleRateIndex(config.AudioSampleRate);
     channels_index = GetChannelIndex(config.AudioChannels);
     format_index = GetAudioFormatIndex(config.AudioFormat);
@@ -1442,7 +1445,11 @@ static void ShowConfigure(MediaEditorSettings & config)
                 {
                     config.VideoWidth = atoi(buf_res_x);
                     config.VideoHeight = atoi(buf_res_y);
+                    config.isCustomVideoFrameSize = true;
                 }
+                else
+                    config.isCustomVideoFrameSize = false;
+
                 if (ImGui::Combo("Preview Scale", &preview_scale_index, VideoPreviewScale, IM_ARRAYSIZE(VideoPreviewScale)))
                 {
                     SetPreviewScale(config, preview_scale_index);
@@ -1465,7 +1472,10 @@ static void ShowConfigure(MediaEditorSettings & config)
                     config.PixelAspectRatio.num = atoi(buf_par_x);
                     config.PixelAspectRatio.den = atoi(buf_par_y);
                     if (config.PixelAspectRatio.den) config.PixelAspectRatio.den = 1;
+                    config.isCustomPixelAspectRatio = true;
                 }
+                else
+                    config.isCustomPixelAspectRatio = false;
 
                 if (ImGui::Combo("Video Frame Rate", &frame_rate_index, frame_rate_items, IM_ARRAYSIZE(frame_rate_items)))
                 {
@@ -1485,7 +1495,10 @@ static void ShowConfigure(MediaEditorSettings & config)
                     config.VideoFrameRate.num = atoi(buf_fmr_x);
                     config.VideoFrameRate.den = atoi(buf_fmr_y);
                     if (config.VideoFrameRate.den == 0) config.VideoFrameRate.den = 1;
+                    config.isCustomVideoFrameRate = true;
                 }
+                else
+                    config.isCustomVideoFrameRate = false;
 
                 auto color_getter = [](void* data, int idx, const char** out_text){
                     output_color * color = (output_color *)data;
@@ -3661,13 +3674,13 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
         {
             ImGui::Dummy(ImVec2(0, 20));
             string value = timeline->mOutputName;
-            if (ImGui::InputText("File Name##output_file_name_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+            if (ImGui::InputTextWithHint("File Name##output_file_name_string_value", "Input output file name", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
             {
                 if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
                 {
                     auto& stringValue = *static_cast<string*>(data->UserData);
                     ImVector<char>* my_str = (ImVector<char>*)data->UserData;
-                    IM_ASSERT(stringValue.data() == data->Buf);
+                    //IM_ASSERT(stringValue.data() == data->Buf);
                     stringValue.resize(data->BufSize);
                     data->Buf = (char*)stringValue.data();
                 }
@@ -3685,14 +3698,20 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                     timeline->mOutputName = value;
                 }
             }
+
             value = timeline->mOutputPath;
-            if (ImGui::InputText("File Path##output_file_path_string_value", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
+            bool path_exist = value.empty() ? true : ImGuiHelper::file_exists(value);
+            if (!path_exist)
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 0, 0, 1));
+            else
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1));
+            if (ImGui::InputTextWithHint("File Path##output_file_path_string_value", "Input output path", (char*)value.data(), value.size() + 1, ImGuiInputTextFlags_CallbackEdit | ImGuiInputTextFlags_CallbackResize, [](ImGuiInputTextCallbackData* data) -> int
             {
                 if (data->EventFlag == ImGuiInputTextFlags_CallbackResize)
                 {
                     auto& stringValue = *static_cast<string*>(data->UserData);
                     ImVector<char>* my_str = (ImVector<char>*)data->UserData;
-                    IM_ASSERT(stringValue.data() == data->Buf);
+                    //IM_ASSERT(stringValue.data() == data->Buf);
                     stringValue.resize(data->BufSize);
                     data->Buf = (char*)stringValue.data();
                 }
@@ -3705,14 +3724,26 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             }, &value))
             {
                 value.resize(strlen(value.c_str()));
+                if (!value.empty())
+                {
+                    path_exist = ImGuiHelper::file_exists(value);
+                }
                 if (timeline->mOutputPath.compare(value) != 0)
                 {
                     timeline->mOutputPath = value;
                 }
             }
+            ImGui::PopStyleColor();
+
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) && !timeline->mOutputPath.empty() && ImGui::BeginTooltip())
             {
-                ImGui::TextUnformatted(timeline->mOutputPath.c_str());
+                if (path_exist)
+                    ImGui::TextUnformatted(timeline->mOutputPath.c_str());
+                else
+                {
+                    ImGui::TextUnformatted("Path isn't exist, please create it or select others!!!");
+                    ImGui::TextUnformatted(timeline->mOutputPath.c_str());
+                }
                 ImGui::EndTooltip();
             }
             ImGui::SameLine();
@@ -4007,7 +4038,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                         (int64_t)g_media_editor_settings.OutputVideoFrameRate.num / (int64_t)g_media_editor_settings.OutputVideoFrameRate.den / 10;
                 }
 
-                ImGui::InputInt("Bitrate##video", &g_media_editor_settings.OutputVideoBitrate, 1000, 1000000, ImGuiInputTextFlags_EnterReturnsTrue);
+                ImGui::InputInt("Bitrate##video", &g_media_editor_settings.OutputVideoBitrate, 1000, 1000000, ImGuiInputTextFlags_CharsDecimal);
                 ImGui::Combo("Bitrate Strategy##video", &g_media_editor_settings.OutputVideoBitrateStrategyindex, "CBR\0VBR\0");
             }
             else
@@ -4016,7 +4047,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             {
                 if (g_media_editor_settings.OutputVideoGOPSize == -1)
                     g_media_editor_settings.OutputVideoGOPSize = 12;
-                ImGui::InputInt("GOP Size##video", &g_media_editor_settings.OutputVideoGOPSize, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
+                ImGui::InputInt("GOP Size##video", &g_media_editor_settings.OutputVideoGOPSize, 1, 1, ImGuiInputTextFlags_CharsDecimal);
             }
             else
                 g_media_editor_settings.OutputVideoGOPSize = -1;
@@ -4024,7 +4055,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             {
                 if (g_media_editor_settings.OutputVideoBFrames == 0)
                     g_media_editor_settings.OutputVideoBFrames = 2;
-                ImGui::InputInt("B Frames##video", &g_media_editor_settings.OutputVideoBFrames, 1, 1, ImGuiInputTextFlags_EnterReturnsTrue);
+                ImGui::InputInt("B Frames##video", &g_media_editor_settings.OutputVideoBFrames, 1, 1, ImGuiInputTextFlags_CharsDecimal);
             }
             else
                 g_media_editor_settings.OutputVideoBFrames = 0;
@@ -10965,11 +10996,14 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
         else if (sscanf(line, "ControlPanelWidth=%f", &val_float) == 1) { setting->ControlPanelWidth = val_float; }
         else if (sscanf(line, "MainViewWidth=%f", &val_float) == 1) { setting->MainViewWidth = val_float; }
         else if (sscanf(line, "HWCodec=%d", &val_int) == 1) { setting->HardwareCodec = val_int == 1; }
+        else if (sscanf(line, "CustomVideoFrameSize=%d", &val_int) == 1) { setting->isCustomVideoFrameSize = val_int == 1; }
         else if (sscanf(line, "VideoWidth=%d", &val_int) == 1) { setting->VideoWidth = val_int; }
         else if (sscanf(line, "VideoHeight=%d", &val_int) == 1) { setting->VideoHeight = val_int; }
         else if (sscanf(line, "PreviewScale=%f", &val_float) == 1) { setting->PreviewScale = val_float; }
+        else if (sscanf(line, "CustomVideoFrameRate=%d", &val_int) == 1) { setting->isCustomVideoFrameRate = val_int == 1; }
         else if (sscanf(line, "VideoFrameRateNum=%d", &val_int) == 1) { setting->VideoFrameRate.num = val_int; }
         else if (sscanf(line, "VideoFrameRateDen=%d", &val_int) == 1) { setting->VideoFrameRate.den = val_int; }
+        else if (sscanf(line, "CustomPixelAspectRatio=%d", &val_int) == 1) { setting->isCustomPixelAspectRatio = val_int == 1; }
         else if (sscanf(line, "PixelAspectRatioNum=%d", &val_int) == 1) { setting->PixelAspectRatio.num = val_int; }
         else if (sscanf(line, "PixelAspectRatioDen=%d", &val_int) == 1) { setting->PixelAspectRatio.den = val_int; }
         else if (sscanf(line, "ColorSpaceIndex=%d", &val_int) == 1) { setting->ColorSpaceIndex = val_int; }
@@ -11094,11 +11128,14 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
         out_buf->appendf("ControlPanelWidth=%f\n", g_media_editor_settings.ControlPanelWidth);
         out_buf->appendf("MainViewWidth=%f\n", g_media_editor_settings.MainViewWidth);
         out_buf->appendf("HWCodec=%d\n", g_media_editor_settings.HardwareCodec ? 1 : 0);
+        out_buf->appendf("CustomVideoFrameSize=%d\n", g_media_editor_settings.isCustomVideoFrameSize ? 1 : 0);
         out_buf->appendf("VideoWidth=%d\n", g_media_editor_settings.VideoWidth);
         out_buf->appendf("VideoHeight=%d\n", g_media_editor_settings.VideoHeight);
         out_buf->appendf("PreviewScale=%f\n", g_media_editor_settings.PreviewScale);
+        out_buf->appendf("CustomVideoFrameRate=%d\n", g_media_editor_settings.isCustomVideoFrameRate ? 1 : 0);
         out_buf->appendf("VideoFrameRateNum=%d\n", g_media_editor_settings.VideoFrameRate.num);
         out_buf->appendf("VideoFrameRateDen=%d\n", g_media_editor_settings.VideoFrameRate.den);
+        out_buf->appendf("CustomPixelAspectRatio=%d\n", g_media_editor_settings.isCustomPixelAspectRatio ? 1 : 0);
         out_buf->appendf("PixelAspectRatioNum=%d\n", g_media_editor_settings.PixelAspectRatio.num);
         out_buf->appendf("PixelAspectRatioDen=%d\n", g_media_editor_settings.PixelAspectRatio.den);
         out_buf->appendf("ColorSpaceIndex=%d\n", g_media_editor_settings.ColorSpaceIndex);
