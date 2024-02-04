@@ -5013,14 +5013,7 @@ void MediaTrack::SelectEditingClip(Clip * clip)
         auto item = timeline->mEditingItems[found];
         if (item)
         {
-            if (item->mEditorType == EDITING_CLIP && item->mEditingClip && item->mEditingClip->mCurrentTime != -1)
-            {
-                timeline->Seek(clip->Start() + item->mEditingClip->mCurrentTime);
-            }
-            else
-            {
-                timeline->Seek(clip->Start());
-            }
+            timeline->Seek(item->mEditingClip->GetPreviewTime());
             if (IS_TEXT(item->mMediaType))
             {
                 TextClip* tclip = (TextClip*)clip;
@@ -12667,7 +12660,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     return changed;
 }
 
-bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, bool& show_BP, bool& changed)
+bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int header_height, int custom_height, bool& show_BP, bool& changed)
 {
     /***************************************************************************************
     |------------------------------------------------------------------------------------- 
@@ -12712,22 +12705,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
     bool is_audio_clip = IS_AUDIO(editingClip->mType);
     bool is_video_clip = IS_VIDEO(editingClip->mType);
     //int64_t currentTime = CurrentTime - start;
-    if (editingClip->mCurrentTime == -1) 
-    {
-        editingClip->mCurrentTime = CurrentTime - start;
-        if (editingClip->mCurrentTime < 0) editingClip->mCurrentTime = 0;
-        if (editingClip->mCurrentTime > editingClip->mDuration) editingClip->mCurrentTime = editingClip->mDuration;
-    }
-    else
-    {
-        auto clip_time = CurrentTime - start;
-        if (clip_time >= 0 && clip_time <= editingClip->mDuration)
-        {
-            editingClip->mCurrentTime = clip_time;
-        }
-        else
-            editingClip->mCurrentTime = -1;
-    }
+    editingClip->mCurrentTime = main_timeline->mCurrentTime-start;
     int64_t duration = ImMax(end - start, (int64_t)1);
     static int MovingHorizonScrollBar = -1;
     static bool MovingVerticalScrollBar = false;
@@ -13395,7 +13373,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
         ImGui::PopClipRect();
 
         // time cursor
-        if (!MovingCurrentTime && MovingHorizonScrollBar == -1 && editingClip->mCurrentTime >= 0 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !popupDialog && !mouse_hold && isFocused)
+        if (!MovingCurrentTime && MovingHorizonScrollBar == -1 && topRect.Contains(io.MousePos) && ImGui::IsMouseDown(ImGuiMouseButton_Left) && !menuIsOpened && !popupDialog && !mouse_hold && isFocused)
         {
             MovingCurrentTime = true;
             editingClip->bSeeking = true;
@@ -13451,9 +13429,12 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, in
             if (isAttribute)
             {
                 EditingVideoClip* pEdtVidClip = (EditingVideoClip*)editingClip;
+                const auto pUiClip = (VideoClip*)pEdtVidClip->GetClip();
+                const auto& hDlClip = pUiClip->GetDataLayer();
                 const ImVec2 v2ViewSize(event_track_size.x, curveHeight);
-                const float fViewScaleX = (float)((double)pEdtVidClip->mDuration/pEdtVidClip->visibleTime);
-                const float fViewOffsetX = (float)((double)pEdtVidClip->firstTime*v2ViewSize.x*fViewScaleX/pEdtVidClip->mDuration);
+                const float fViewScaleX = (float)((double)hDlClip->SrcDuration()/pEdtVidClip->visibleTime);
+                const auto i64StartOffsetDiff = pUiClip->StartOffset()-hDlClip->StartOffset();
+                const float fViewOffsetX = (float)((double)(pEdtVidClip->firstTime+i64StartOffsetDiff)*v2ViewSize.x*fViewScaleX/hDlClip->SrcDuration());
                 bool bCurveUpdated;
                 pEdtVidClip->DrawAttributeCurves(v2ViewSize, fViewScaleX, fViewOffsetX, &bCurveUpdated, nullptr);
                 if (bCurveUpdated)

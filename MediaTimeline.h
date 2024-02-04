@@ -791,6 +791,16 @@ struct BaseEditingClip
 
     Clip * GetClip();
     void UpdateCurrent(bool forward, int64_t currentTime);
+    virtual int64_t GetPreviewTime(bool bResetIfOutOfRange = true)
+    {
+        auto i64PreViewTime = mCurrentTime+mStart;
+        if (bResetIfOutOfRange && (mCurrentTime < 0 || mCurrentTime >= mCurrentTime))
+        {
+            i64PreViewTime = mStart;
+            mCurrentTime = 0;
+        }
+        return i64PreViewTime;
+    }
 
     virtual void CalcDisplayParams(int64_t viewWndDur) = 0;
     virtual void UpdateClipRange(Clip* clip) = 0;
@@ -1449,6 +1459,6 @@ struct TimeLine
 };
 
 bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool editable = true);
-bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int64_t CurrentTime, int header_height, int custom_height, bool& show_BP, bool& changed);
+bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * editingClip, int header_height, int custom_height, bool& show_BP, bool& changed);
 bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int header_height, int custom_height);
 } // namespace MediaTimeline

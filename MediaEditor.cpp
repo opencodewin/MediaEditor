@@ -743,7 +743,7 @@ static bool UIPageChanged()
                 int64_t seek_time = -1;
                 if (item->mEditorType == EDITING_CLIP && item->mEditingClip)
                 {
-                    seek_time = item->mEditingClip->mCurrentTime != -1 ? item->mEditingClip->mStart + item->mEditingClip->mCurrentTime : -1;
+                    seek_time = item->mEditingClip->GetPreviewTime();
                 }
                 else if (item->mEditorType == EDITING_TRANSITION && item->mEditingOverlap)
                 {
@@ -5868,7 +5868,7 @@ static bool DrawVideoClipTimelineWindow(bool& show_BP, EditingVideoClip * editin
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
     bool timeline_changed = false;
-    auto mouse_hold = DrawClipTimeLine(timeline, editing_clip, timeline->mCurrentTime, 30, editing_clip->bEditingAttribute ? 40 : 50, show_BP, timeline_changed);
+    auto mouse_hold = DrawClipTimeLine(timeline, editing_clip, 30, editing_clip->bEditingAttribute ? 40 : 50, show_BP, timeline_changed);
     if (!g_project_loading) project_changed |= timeline_changed;
     return mouse_hold;
 }
@@ -5976,12 +5976,14 @@ static bool DrawVideoClipAttributeEditorWindow(ImDrawList* draw_list, EditingVid
         return bIsMouseDown;
 
     const auto i64PosInClip = timeline->mCurrentTime-pVidEditingClip->mStart;
+    const auto pUiVClilp = (VideoClip*)pVidEditingClip->GetClip();
+    const auto i64StartDiff = pUiVClilp->Start()-pUiVClilp->GetDataLayer()->Start();
     ImVec2 v_pos = ImVec2(offset_x, offset_y);
     ImVec2 v_size = ImVec2(tf_x - offset_x, tf_y - offset_y);
     draw_list->PushClipRect(v_pos, v_pos + v_size);
 
     bool bTransFilterParamChanged;
-    bIsMouseDown = pVidEditingClip->GetTransformFilterUiCtrl()->Draw(sub_window_pos, sub_window_size, tImgPosSize.first, tImgPosSize.second, i64PosInClip, &bTransFilterParamChanged);
+    bIsMouseDown = pVidEditingClip->GetTransformFilterUiCtrl()->Draw(sub_window_pos, sub_window_size, tImgPosSize.first, tImgPosSize.second, i64PosInClip+i64StartDiff, &bTransFilterParamChanged);
     if (bTransFilterParamChanged)
     {
         const auto pTrack = timeline->FindTrackByClipID(pVidEditingClip->mID);
@@ -6977,7 +6979,7 @@ static bool DrawAudioClipTimelineWindow(bool& show_BP, EditingAudioClip * editin
     ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
     ImVec2 sub_window_size = ImGui::GetWindowSize();
     bool timeline_changed = false;
-    auto mouse_hild = DrawClipTimeLine(timeline, editing_clip, timeline->mCurrentTime, 30, 50, show_BP, timeline_changed);
+    auto mouse_hild = DrawClipTimeLine(timeline, editing_clip, 30, 50, show_BP, timeline_changed);
     if (!g_project_loading) project_changed |= timeline_changed;
     return mouse_hild;
 }
