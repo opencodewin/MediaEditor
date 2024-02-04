@@ -794,7 +794,7 @@ struct BaseEditingClip
     virtual int64_t GetPreviewTime(bool bResetIfOutOfRange = true)
     {
         auto i64PreViewTime = mCurrentTime+mStart;
-        if (bResetIfOutOfRange && (mCurrentTime < 0 || mCurrentTime >= mCurrentTime))
+        if (bResetIfOutOfRange && (mCurrentTime < 0 || mCurrentTime >= mDuration))
         {
             i64PreViewTime = mStart;
             mCurrentTime = 0;
