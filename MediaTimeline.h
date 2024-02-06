@@ -848,6 +848,45 @@ public:
     void UnselectEditingMask();
     MEC::VideoTransformFilterUiCtrl* GetTransformFilterUiCtrl() { return mpTransFilterUiCtrl; }
     bool DrawAttributeCurves(const ImVec2& v2ViewSize, float fViewScaleX, float fViewOffsetX, bool* pCurveUpdated, ImDrawList* pDrawList);
+    ImGui::ImNewCurve::Editor::Holder GetAttributeCurveEditor() const { return mhAttrCurveEditor; }
+
+    enum {
+        CURVE_IDX_CROP = 0,
+        CURVE_IDX_POSOFFSET = 4,
+        CURVE_IDX_SCALE = 6,
+        CURVE_IDX_ROTATION = 8,
+        CURVE_IDX_OPACITY = 9,
+    };
+    bool IsCurveVisibleOnCrop() const { return mhAttrCurveEditor->IsCurveVisible(CURVE_IDX_CROP); }
+    void SetCurveVisibleOnCrop(bool bVisible)
+    {
+        mhAttrCurveEditor->SetCurveVisible(CURVE_IDX_CROP  , bVisible);
+        mhAttrCurveEditor->SetCurveVisible(CURVE_IDX_CROP+1, bVisible);
+        mhAttrCurveEditor->SetCurveVisible(CURVE_IDX_CROP+2, bVisible);
+        mhAttrCurveEditor->SetCurveVisible(CURVE_IDX_CROP+3, bVisible);
+    }
+    bool IsCurveVisibleOnPosOffset() const { return mhAttrCurveEditor->IsCurveVisible(CURVE_IDX_POSOFFSET); }
+    void SetCurveVisibleOnPosOffset(bool bVisible)
+    {
+        mhAttrCurveEditor->SetCurveVisible(CURVE_IDX_POSOFFSET  , bVisible);
+        mhAttrCurveEditor->SetCurveVisible(CURVE_IDX_POSOFFSET+1, bVisible);
+    }
+    bool IsCurveVisibleOnScale() const { return mhAttrCurveEditor->IsCurveVisible(CURVE_IDX_SCALE); }
+    void SetCurveVisibleOnScale(bool bVisible)
+    {
+        mhAttrCurveEditor->SetCurveVisible(CURVE_IDX_SCALE  , bVisible);
+        mhAttrCurveEditor->SetCurveVisible(CURVE_IDX_SCALE+1, bVisible);
+    }
+    bool IsCurveVisibleOnRotation() const { return mhAttrCurveEditor->IsCurveVisible(CURVE_IDX_ROTATION); }
+    void SetCurveVisibleOnRotation(bool bVisible)
+    {
+        mhAttrCurveEditor->SetCurveVisible(CURVE_IDX_ROTATION, bVisible);
+    }
+    bool IsCurveVisibleOnOpacity() const { return mhAttrCurveEditor->IsCurveVisible(CURVE_IDX_OPACITY); }
+    void SetCurveVisibleOnOpacity(bool bVisible)
+    {
+        mhAttrCurveEditor->SetCurveVisible(CURVE_IDX_OPACITY, bVisible);
+    }
 
 private:
     MEC::VideoTransformFilterUiCtrl* mpTransFilterUiCtrl {nullptr};

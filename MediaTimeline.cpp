@@ -3213,9 +3213,23 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mhAttrCurveEditor = ImGui::ImNewCurve::Editor::CreateInstance();
     mhAttrCurveEditor->SetGraticuleLineCount(5);
     mhAttrCurveEditor->SetGraticuleColor(IM_COL32(80, 80, 80, 150));
-    auto hPosOffsetCurve = mhTransformFilter->GetKeyFramesCurveOnPosOffset();
-    mhAttrCurveEditor->AddCurve(hPosOffsetCurve, ImGui::ImNewCurve::DIM_X, IM_COL32(255, 0, 0, 255));
-    mhAttrCurveEditor->AddCurve(hPosOffsetCurve, ImGui::ImNewCurve::DIM_Y, IM_COL32(0, 255, 0, 255));
+    const auto aCropCurves = mhTransformFilter->GetKeyFramesCurveOnCrop();
+    mhAttrCurveEditor->AddCurve(aCropCurves[0], ImGui::ImNewCurve::DIM_X, IM_COL32(255, 128, 0, 255));  // crop left
+    mhAttrCurveEditor->AddCurve(aCropCurves[0], ImGui::ImNewCurve::DIM_Y, IM_COL32(255, 0, 128, 255));  // crop top
+    mhAttrCurveEditor->AddCurve(aCropCurves[1], ImGui::ImNewCurve::DIM_X, IM_COL32(128, 255, 0, 255));  // crop right
+    mhAttrCurveEditor->AddCurve(aCropCurves[1], ImGui::ImNewCurve::DIM_Y, IM_COL32(0, 255, 128, 255));  // crop bottom
+    const auto hPosOffsetCurve = mhTransformFilter->GetKeyFramesCurveOnPosOffset();
+    mhAttrCurveEditor->AddCurve(hPosOffsetCurve, ImGui::ImNewCurve::DIM_X, IM_COL32(255, 0, 0, 255));  // pos offset x
+    mhAttrCurveEditor->AddCurve(hPosOffsetCurve, ImGui::ImNewCurve::DIM_Y, IM_COL32(0, 255, 0, 255));  // pos offset y
+    const auto hScaleCurve = mhTransformFilter->GetKeyFramesCurveOnScale();
+    mhAttrCurveEditor->AddCurve(hScaleCurve, ImGui::ImNewCurve::DIM_X, IM_COL32(180, 90, 0, 255));  // scale x
+    mhAttrCurveEditor->AddCurve(hScaleCurve, ImGui::ImNewCurve::DIM_Y, IM_COL32(0, 90, 180, 255));  // scale y
+    const auto hRotationCurve = mhTransformFilter->GetKeyFramesCurveOnRotation();
+    mhAttrCurveEditor->AddCurve(hRotationCurve, ImGui::ImNewCurve::DIM_X, IM_COL32(120, 200, 160, 255));  // rotation
+    const auto hOpacity = mhTransformFilter->GetKeyFramesCurveOnOpacity();
+    mhAttrCurveEditor->AddCurve(hOpacity, ImGui::ImNewCurve::DIM_X, IM_COL32(160, 40, 200, 255));  // opacity
+    mhAttrCurveEditor->RestoreStateFromJson(mhTransformFilter->GetUiStateJson());
+    mhAttrCurveEditor->SetShowValueToolTip(true);
 }
 
 EditingVideoClip::~EditingVideoClip()
@@ -3254,6 +3268,7 @@ void EditingVideoClip::Save()
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return;
+    mhTransformFilter->SetUiStateJson(mhAttrCurveEditor->SaveStateAsJson());
     VideoClip * clip = (VideoClip *)timeline->FindClipByID(mID);
     if (!clip || !IS_VIDEO(clip->mType))
         return;

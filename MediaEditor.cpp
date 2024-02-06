@@ -5112,15 +5112,29 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             }
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
             ImGui::PushItemWidth(200);
+            const int iReserveWidth = 80;
+            const float fRightSideBtnStartPos = sub_window_pos.x+sub_window_size.x-iReserveWidth;
             const auto fCtrlSpacing = sub_window_size.x - 80;
             static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
-            bool bShowTreeContent, bIsKeyFramesEnabled;
+            bool bShowTreeContent, bIsKeyFramesEnabled, bCurveVisible;
+            ImVec2 v2TreeWidgetPos;
 
             // Attribute Crop setting
-            bShowTreeContent = ImGui::TreeNodeEx("Crop Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen); ImGui::SameLine();
+            v2TreeWidgetPos = ImGui::GetCursorScreenPos();
+            bShowTreeContent = ImGui::TreeNodeEx("Crop Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowItemOverlap);
             bIsKeyFramesEnabled = hTransformFilter->IsKeyFramesEnabledOnCrop();
+            ImGui::SetCursorScreenPos(ImVec2(fRightSideBtnStartPos, v2TreeWidgetPos.y));
             if (ImGui::DiamondButton("##KeyFramesToggle_Crop", bIsKeyFramesEnabled))
+            {
                 hTransformFilter->EnableKeyFramesOnCrop(!bIsKeyFramesEnabled);
+                RefreshPreview();
+            }
+            ImGui::ShowTooltipOnHover(bIsKeyFramesEnabled ? "Disable key-frames" : "Enable key-frames");
+            ImGui::SetCursorScreenPos(ImVec2(fRightSideBtnStartPos+40, v2TreeWidgetPos.y));
+            bCurveVisible = pEdtVidClip->IsCurveVisibleOnCrop();
+            if (ImGui::Button(bCurveVisible ? (ICON_VIEW "##ShowCropCurve") : (ICON_VIEW_DISABLE "##HideCropCurve")))
+                pEdtVidClip->SetCurveVisibleOnCrop(!bCurveVisible);
+            ImGui::ShowTooltipOnHover(bCurveVisible ? "Hide crop curves" : "Show crop curves");
             if (bShowTreeContent)
             {
                 float fCropRatioL = hTransformFilter->GetCropRatioL();
@@ -5165,7 +5179,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 }
                 ImGui::ShowTooltipOnHover("Reset");
 
-
                 float fCropRatioB = hTransformFilter->GetCropRatioB();
                 if (ImGui::SliderFloat("Crop Bottom", &fCropRatioB, 0.f, 1.f, "%.3f", flags))
                 {
@@ -5193,10 +5206,21 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             }
 
             // Attribute Position setting
+            v2TreeWidgetPos = ImGui::GetCursorScreenPos();
             bShowTreeContent = ImGui::TreeNodeEx("Position Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen); ImGui::SameLine();
             bIsKeyFramesEnabled = hTransformFilter->IsKeyFramesEnabledOnPosOffset();
+            ImGui::SetCursorScreenPos(ImVec2(fRightSideBtnStartPos, v2TreeWidgetPos.y));
             if (ImGui::DiamondButton("##KeyFramesToggle_PosOffset", bIsKeyFramesEnabled))
+            {
                 hTransformFilter->EnableKeyFramesOnPosOffset(!bIsKeyFramesEnabled);
+                RefreshPreview();
+            }
+            ImGui::ShowTooltipOnHover(bIsKeyFramesEnabled ? "Disable pos offset key-frames" : "Enable pos offset key-frames");
+            ImGui::SetCursorScreenPos(ImVec2(fRightSideBtnStartPos+40, v2TreeWidgetPos.y));
+            bCurveVisible = pEdtVidClip->IsCurveVisibleOnPosOffset();
+            if (ImGui::Button(bCurveVisible ? (ICON_VIEW "##ShowPosOffCurve") : (ICON_VIEW_DISABLE "##HidePosOffCurve")))
+                pEdtVidClip->SetCurveVisibleOnPosOffset(!bCurveVisible);
+            ImGui::ShowTooltipOnHover(bCurveVisible ? "Hide pos offset curves" : "Show pos offset curves");
             if (bShowTreeContent)
             {
                 float fPosOffRatioX = hTransformFilter->GetPosOffsetRatioX();
@@ -5240,10 +5264,21 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             }
 
             // Attribute Scale setting
+            v2TreeWidgetPos = ImGui::GetCursorScreenPos();
             bShowTreeContent = ImGui::TreeNodeEx("Scale Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen); ImGui::SameLine();
             bIsKeyFramesEnabled = hTransformFilter->IsKeyFramesEnabledOnScale();
+            ImGui::SetCursorScreenPos(ImVec2(fRightSideBtnStartPos, v2TreeWidgetPos.y));
             if (ImGui::DiamondButton("##KeyFramesToggle_Scale", bIsKeyFramesEnabled))
+            {
                 hTransformFilter->EnableKeyFramesOnScale(!bIsKeyFramesEnabled);
+                RefreshPreview();
+            }
+            ImGui::ShowTooltipOnHover(bIsKeyFramesEnabled ? "Disable scale key-frames" : "Enable scale key-frames");
+            ImGui::SetCursorScreenPos(ImVec2(fRightSideBtnStartPos+40, v2TreeWidgetPos.y));
+            bCurveVisible = pEdtVidClip->IsCurveVisibleOnScale();
+            if (ImGui::Button(bCurveVisible ? (ICON_VIEW "##ShowScaleCurve") : (ICON_VIEW_DISABLE "##HideScaleCurve")))
+                pEdtVidClip->SetCurveVisibleOnScale(!bCurveVisible);
+            ImGui::ShowTooltipOnHover(bCurveVisible ? "Hide scale curves" : "Show scale curves");
             if (bShowTreeContent)
             {
                 // AspectFitType as scale method
@@ -5310,10 +5345,21 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             }
 
             // Attribute Rotation setting
+            v2TreeWidgetPos = ImGui::GetCursorScreenPos();
             bShowTreeContent = ImGui::TreeNodeEx("Rotation Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen); ImGui::SameLine();
             bIsKeyFramesEnabled = hTransformFilter->IsKeyFramesEnabledOnRotation();
+            ImGui::SetCursorScreenPos(ImVec2(fRightSideBtnStartPos, v2TreeWidgetPos.y));
             if (ImGui::DiamondButton("##KeyFramesToggle_Rotation", bIsKeyFramesEnabled))
+            {
                 hTransformFilter->EnableKeyFramesOnRotation(!bIsKeyFramesEnabled);
+                RefreshPreview();
+            }
+            ImGui::ShowTooltipOnHover(bIsKeyFramesEnabled ? "Disable rotation key-frames" : "Enable rotation key-frames");
+            ImGui::SetCursorScreenPos(ImVec2(fRightSideBtnStartPos+40, v2TreeWidgetPos.y));
+            bCurveVisible = pEdtVidClip->IsCurveVisibleOnRotation();
+            if (ImGui::Button(bCurveVisible ? (ICON_VIEW "##ShowRotationCurve") : (ICON_VIEW_DISABLE "##HideRotationCurve")))
+                pEdtVidClip->SetCurveVisibleOnRotation(!bCurveVisible);
+            ImGui::ShowTooltipOnHover(bCurveVisible ? "Hide rotation curves" : "Show rotation curves");
             if (bShowTreeContent)
             {
                 float fAngle = hTransformFilter->GetRotation();
@@ -5343,10 +5389,21 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             }
 
             // Attribute Opacity setting
+            v2TreeWidgetPos = ImGui::GetCursorScreenPos();
             bShowTreeContent = ImGui::TreeNodeEx("Opacity Setting##video_attribute", ImGuiTreeNodeFlags_DefaultOpen); ImGui::SameLine();
             bIsKeyFramesEnabled = hTransformFilter->IsKeyFramesEnabledOnOpacity();
-            if (ImGui::DiamondButton("##KeyFramesToggle_Rotation", bIsKeyFramesEnabled))
+            ImGui::SetCursorScreenPos(ImVec2(fRightSideBtnStartPos, v2TreeWidgetPos.y));
+            if (ImGui::DiamondButton("##KeyFramesToggle_Opacity", bIsKeyFramesEnabled))
+            {
                 hTransformFilter->EnableKeyFramesOnOpacity(!bIsKeyFramesEnabled);
+                RefreshPreview();
+            }
+            ImGui::ShowTooltipOnHover(bIsKeyFramesEnabled ? "Disable opacity key-frames" : "Enable opacity key-frames");
+            ImGui::SetCursorScreenPos(ImVec2(fRightSideBtnStartPos+40, v2TreeWidgetPos.y));
+            bCurveVisible = pEdtVidClip->IsCurveVisibleOnOpacity();
+            if (ImGui::Button(bCurveVisible ? (ICON_VIEW "##ShowOpacityCurve") : (ICON_VIEW_DISABLE "##HideOpacityCurve")))
+                pEdtVidClip->SetCurveVisibleOnOpacity(!bCurveVisible);
+            ImGui::ShowTooltipOnHover(bCurveVisible ? "Hide opacity curves" : "Show opacity curves");
             if (bShowTreeContent)
             {
                 float fOpacity = hTransformFilter->GetOpacity();
@@ -5414,7 +5471,6 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
     };
     for (auto event : event_list)
     {
-
         bool is_selected = event->Status() & EVENT_SELECTED;
         bool is_scrolling = event->Status() & EVENT_SCROLLING;
         bool is_in_range = event->End() > 0 && event->Start() < editing_clip->Length();
