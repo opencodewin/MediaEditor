@@ -5081,7 +5081,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         if (hTransformFilter)
         {
             auto tree_pos = ImGui::GetCursorScreenPos();
-            attrib_tree_open = ImGui::TreeNodeEx("Video Attribute", ImGuiTreeNodeFlags_DefaultOpen);
+            attrib_tree_open = ImGui::TreeNodeEx("Video Attribute", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed);
             int iReserveWidth = is_video_clip ? 80 : 40;
             ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - iReserveWidth, tree_pos.y));
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
@@ -5813,6 +5813,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             {                
                 auto nodes = pBP->m_Document->m_Blueprint.GetNodes();
                 bool need_redraw = false;
+                int node_count = 0;
                 for (auto node : nodes)
                 {
                     if (need_redraw)
@@ -5823,8 +5824,8 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     auto label_name = node->m_Name;
                     std::string lable_id = label_name + "##filter_node" + "@" + std::to_string(node->m_ID);
                     auto node_pos = ImGui::GetCursorScreenPos();
-                    node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(60, 30));
-                    ImGui::SameLine(30);
+                    node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(60, 32));
+                    ImGui::SameLine(32);
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 1.0));
                     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.2, 0.5, 0.2, 0.5));
                     ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(0.1, 0.5, 0.1, 0.5));
@@ -5905,6 +5906,13 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                         need_redraw = true;
                     }
                     if (tree_open) ImGui::TreePop();
+                    node_count ++;
+                    if (node_count < nodes.size() - 1)
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.2,0.2,0.5,0.75));
+                        ImGui::Separator();
+                        ImGui::PopStyleColor();
+                    }
                 }
             }
             // Handle event delete
