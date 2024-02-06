@@ -51,7 +51,7 @@ bool VideoTransformFilterUiCtrl::Draw(const ImVec2& v2ViewPos, const ImVec2& v2V
     const ImVec2 v2ImageViewCenter(v2ImageViewPos.x+v2ImageViewSize.x/2, v2ImageViewPos.y+v2ImageViewSize.y/2);
     m_aUiCornerPoints[0] += v2ImageViewCenter; m_aUiCornerPoints[1] += v2ImageViewCenter;
     m_aUiCornerPoints[2] += v2ImageViewCenter; m_aUiCornerPoints[3] += v2ImageViewCenter;
-    const ImVec2 v2ImageCenter = (m_aUiCornerPoints[0]+m_aUiCornerPoints[2])/2;
+    const ImVec2 v2UiImageCenter = (m_aUiCornerPoints[0]+m_aUiCornerPoints[2])/2;
 
     // draw grad lines
     vector<ImVec2> aEdgeCenters(4);  // left, top, right, bottom
@@ -214,14 +214,14 @@ bool VideoTransformFilterUiCtrl::Draw(const ImVec2& v2ViewPos, const ImVec2& v2V
 
     // draw rotation grabber
     // draw rotation indicator line
-    if (m_ePrevHandleType == HT_CENTER && v2MousePos != v2ImageCenter)
+    if (m_ePrevHandleType == HT_CENTER && v2MousePos != v2UiImageCenter)
     {
-        pDrawList->AddLine(v2ImageCenter, v2MousePos, m_u32RotationGrabberColor, m_fGradLineThickness+1);
+        pDrawList->AddLine(v2UiImageCenter, v2MousePos, m_u32RotationGrabberColor, m_fGradLineThickness+1);
     }
     fRadiusWithBorder = m_fRotationGrabberRadius+m_fGrabberBorderThickness;
     fHoverDetectRadius = fRadiusWithBorder+m_fGrabberHoverDetectExtendRadius;
     v2DetectRectQuad = ImVec2(fHoverDetectRadius, fHoverDetectRadius);
-    v2GrabberCenter = v2ImageCenter;
+    v2GrabberCenter = v2UiImageCenter;
     rDetectRect = ImRect(v2GrabberCenter-v2DetectRectQuad, v2GrabberCenter+v2DetectRectQuad);
     bIsWidgetHovered = !bIsHovering && rDetectRect.Contains(v2MousePos);
     u32WidgetColor = bIsWidgetHovered ? m_u32GrabberBorderHoveredColor : m_u32GrabberBorderColor;
@@ -494,11 +494,10 @@ bool VideoTransformFilterUiCtrl::Draw(const ImVec2& v2ViewPos, const ImVec2& v2V
             }
             else if (eHoveredHandleType == HT_CENTER)
             {
-                if (v2MousePos != v2ImageCenter)
+                if (v2MousePos != v2UiImageCenter)
                 {
-                    const auto v2MouseMovement = v2MousePos-v2ImageCenter;
+                    const auto v2MouseMovement = v2MousePos-v2UiImageCenter;
                     auto fMoveVectorRadian = atan2(v2MouseMovement.y, v2MouseMovement.x);
-                    // if (v2MouseMovement.x < 0) fMoveVectorRadian = M_PI-fMoveVectorRadian;
                     if (isinf(m_v2OpBeginAnchorPos.x))
                     {
                         m_v2OpBeginAnchorPos.x = fMoveVectorRadian;
@@ -507,7 +506,19 @@ bool VideoTransformFilterUiCtrl::Draw(const ImVec2& v2ViewPos, const ImVec2& v2V
                     {
                         const auto fMoveVectorAngleOffset = (fMoveVectorRadian-m_v2OpBeginAnchorPos.x)*180.f/M_PI;
                         const auto fNewRotationAngle = m_fOpBeginParamVal+fMoveVectorAngleOffset;
-                        if (!m_hTransformFilter->SetRotation(i64Tick, fNewRotationAngle, &bParamChanged))
+                        if (m_hTransformFilter->SetRotation(i64Tick, fNewRotationAngle, &bParamChanged) && bParamChanged)
+                        {
+                            ImVec2 aNewCornerPoints[4];
+                            m_hTransformFilter->CalcCornerPoints(i64Tick, aNewCornerPoints);
+                            const auto v2NewCenter = (aNewCornerPoints[0]+aNewCornerPoints[2])/2;
+                            const auto v2OldCenter = (m_aImageCornerPoints[0]+m_aImageCornerPoints[2])/2;
+                            if (v2NewCenter != v2OldCenter)
+                            {
+                                const auto v2MoveOffset = v2OldCenter-v2NewCenter;
+                                m_hTransformFilter->ChangePosOffset(i64Tick, v2MoveOffset.x, v2MoveOffset.y);
+                            }
+                        }
+                        else
                             m_pLogger->Log(Error) << "FAILED to invoke 'VideoTransformFilter::SetRotation()' with arguments: i64Tick=" << i64Tick
                                     << ", fNewRotationAngle=" << fNewRotationAngle << "!" << endl;
                     }
