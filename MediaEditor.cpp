@@ -4789,24 +4789,25 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
             out_of_border = true;
         }
 
-        float region_sz = 360.0f / texture_zoom;
         float pos_x = 0, pos_y = 0;
         bool draw_compare = false;
+        int hoverd_image_width = 0, hoverd_image_height = 0;
         ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
         ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
         float offset_x = 0, offset_y = 0;
         float tf_x = 0, tf_y = 0;
-
+        ImTextureID input_texture = nullptr;
+        ImTextureID output_texture = nullptr;
         if (MonitorIndexVideoFilterOrg == -1)
         {
             // filter input texture area
-            auto tidFilterInput = pVidEditingClip->mhFilterInputTx->TextureID();
-            ShowVideoWindow(draw_list, tidFilterInput, InputVideoPos, InputVideoSize, "Original", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
+            input_texture = pVidEditingClip->mhFilterInputTx->TextureID();
+            ShowVideoWindow(draw_list, input_texture, InputVideoPos, InputVideoSize, "Original", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
-            if (!out_of_border && tidFilterInput && ImGui::IsItemHovered())
+            if (!out_of_border && input_texture && ImGui::IsItemHovered())
             {
-                float image_width = ImGui::ImGetTextureWidth(tidFilterInput);
-                float image_height = ImGui::ImGetTextureHeight(tidFilterInput);
+                float image_width = ImGui::ImGetTextureWidth(input_texture);
+                float image_height = ImGui::ImGetTextureHeight(input_texture);
                 float scale_w = image_width / (tf_x - offset_x);
                 float scale_h = image_height / (tf_y - offset_y);
                 pos_x = (io.MousePos.x - offset_x) * scale_w;
@@ -4815,7 +4816,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
                 {
                     ImGui::SetMouseCursor(ImGuiMouseCursor_Straw);
                     draw_list->AddRect(io.MousePos - ImVec2(2, 2), io.MousePos + ImVec2(2, 2), IM_COL32(255,0, 0,255));
-                    auto pixel = ImGui::ImGetTexturePixel(tidFilterInput, pos_x, pos_y);
+                    auto pixel = ImGui::ImGetTexturePixel(input_texture, pos_x, pos_y);
                     if (ImGui::BeginTooltip())
                     {
                         ImGui::ColorButton("##straw_color", ImVec4(pixel.r, pixel.g, pixel.b, pixel.a), 0, ImVec2(64,64));
@@ -4830,6 +4831,8 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
                 }
                 else
                 {
+                    hoverd_image_width = image_width;
+                    hoverd_image_height = image_height;
                     draw_compare = true;
                 }
             }
@@ -4838,10 +4841,10 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
         if (MonitorIndexVideoFiltered == -1)
         {
             // filter output texture area
-            auto tidFilterOutput = bOutputPreview ? timeline->mhPreviewTx->TextureID() : pVidEditingClip->mhFilterOutputTx->TextureID();
-            ShowVideoWindow(draw_list, tidFilterOutput, OutputVideoPos, OutputVideoSize, bOutputPreview ? "Preview Output" : "Filter Output", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
+            output_texture = bOutputPreview ? timeline->mhPreviewTx->TextureID() : pVidEditingClip->mhFilterOutputTx->TextureID();
+            ShowVideoWindow(draw_list, output_texture, OutputVideoPos, OutputVideoSize, bOutputPreview ? "Preview Output" : "Filter Output", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
             draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
-            if (!out_of_border && tidFilterOutput)
+            if (!out_of_border && output_texture)
             {
                 bool bInMaskEventRange = timeline->mCurrentTime >= start+pVidEditingClip->mMaskEventStart && timeline->mCurrentTime < start+pVidEditingClip->mMaskEventEnd;
                 if (pVidEditingClip->mhMaskCreator && bInMaskEventRange)
@@ -4855,61 +4858,39 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
                 }
                 else if (ImGui::IsItemHovered())
                 {
-                    float image_width = ImGui::ImGetTextureWidth(tidFilterOutput);
-                    float image_height = ImGui::ImGetTextureHeight(tidFilterOutput);
+                    float image_width = ImGui::ImGetTextureWidth(output_texture);
+                    float image_height = ImGui::ImGetTextureHeight(output_texture);
                     float scale_w = image_width / (tf_x - offset_x);
                     float scale_h = image_height / (tf_y - offset_y);
                     pos_x = (io.MousePos.x - offset_x) * scale_w;
                     pos_y = (io.MousePos.y - offset_y) * scale_h;
+                    hoverd_image_width = image_width;
+                    hoverd_image_height = image_height;
                     draw_compare = true;
                 }
             }
         }
-        if (timeline->bCompare && draw_compare)
+
+        if (timeline->bCompare && draw_compare && input_texture && output_texture)
         {
-            auto tidFilterInput = pVidEditingClip->mhFilterInputTx->TextureID();
-            if (tidFilterInput)
+            float region_sz = std::min(360.0f / texture_zoom, (float)std::min(hoverd_image_width, hoverd_image_height));
+            float region_x = pos_x - region_sz * 0.5f;
+            float region_y = pos_y - region_sz * 0.5f;
+            if (region_x < 0.0f) { region_x = 0.0f; }
+            else if (region_x > hoverd_image_width - region_sz) { region_x = hoverd_image_width - region_sz; }
+            if (region_y < 0.0f) { region_y = 0.0f; }
+            else if (region_y > hoverd_image_height - region_sz) { region_y = hoverd_image_height - region_sz; }
+            ImGui::SetNextWindowBgAlpha(1.0);
+            if (ImGui::BeginTooltip())
             {
-                float image_width = ImGui::ImGetTextureWidth(tidFilterInput);
-                float image_height = ImGui::ImGetTextureHeight(tidFilterInput);
-                float region_x = pos_x - region_sz * 0.5f;
-                float region_y = pos_y - region_sz * 0.5f;
-                if (region_x < 0.0f) { region_x = 0.0f; }
-                else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
-                if (region_y < 0.0f) { region_y = 0.0f; }
-                else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
-                //ImGui::SetNextWindowPos(VideoZoomPos);
-                ImGui::SetNextWindowBgAlpha(1.0);
-                if (ImGui::BeginTooltip())
-                {
-                    ImGui::TextUnformatted("Compare View: Mouse wheel up to zoom in, down to zoom out");
-                    ImGui::SameLine(); ImGui::Text("(%.2fx)", texture_zoom);
-                    ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
-                    ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
-                    ImGui::Image(tidFilterInput, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
-                    ImGui::EndTooltip();
-                }
-            }
-            auto tidFilterOutput = bOutputPreview ? timeline->mhPreviewTx->TextureID() : pVidEditingClip->mhFilterOutputTx->TextureID();
-            if (tidFilterOutput)
-            {
-                float image_width = ImGui::ImGetTextureWidth(tidFilterOutput);
-                float image_height = ImGui::ImGetTextureHeight(tidFilterOutput);
-                float region_x = pos_x - region_sz * 0.5f;
-                float region_y = pos_y - region_sz * 0.5f;
-                if (region_x < 0.0f) { region_x = 0.0f; }
-                else if (region_x > image_width - region_sz) { region_x = image_width - region_sz; }
-                if (region_y < 0.0f) { region_y = 0.0f; }
-                else if (region_y > image_height - region_sz) { region_y = image_height - region_sz; }
-                ImGui::SetNextWindowBgAlpha(1.0);
-                if (ImGui::BeginTooltip())
-                {
-                    ImGui::SameLine();
-                    ImVec2 uv0 = ImVec2((region_x) / image_width, (region_y) / image_height);
-                    ImVec2 uv1 = ImVec2((region_x + region_sz) / image_width, (region_y + region_sz) / image_height);
-                    ImGui::Image(tidFilterOutput, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
-                    ImGui::EndTooltip();
-                }
+                ImGui::TextUnformatted("Compare View: Mouse wheel up to zoom in, down to zoom out");
+                ImGui::SameLine(); ImGui::Text("(%.2fx)", texture_zoom);
+                ImVec2 uv0 = ImVec2((region_x) / hoverd_image_width, (region_y) / hoverd_image_height);
+                ImVec2 uv1 = ImVec2((region_x + region_sz) / hoverd_image_width, (region_y + region_sz) / hoverd_image_height);
+                ImGui::Image(input_texture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                ImGui::SameLine();
+                ImGui::Image(output_texture, ImVec2(region_sz * texture_zoom, region_sz * texture_zoom), uv0, uv1, tint_col, border_col);
+                ImGui::EndTooltip();
             }
         }
     }
@@ -5081,7 +5062,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         if (hTransformFilter)
         {
             auto tree_pos = ImGui::GetCursorScreenPos();
-            attrib_tree_open = ImGui::TreeNodeEx("Video Attribute", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed);
+            attrib_tree_open = ImGui::TreeNodeEx("Video Attribute", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_Framed);
             int iReserveWidth = is_video_clip ? 80 : 40;
             ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - iReserveWidth, tree_pos.y));
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
