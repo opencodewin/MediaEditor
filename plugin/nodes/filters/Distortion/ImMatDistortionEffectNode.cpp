@@ -48,7 +48,7 @@ struct DistortionEffectNode final : Node
             }
             m_device = gpu;
             ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
-            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, m_scale);
+            m_NodeTimeMs = m_effect->effect(mat_in, im_RGB, m_scale, m_pow);
             m_MatOut.SetValue(im_RGB);
         }
         return m_Exit;
@@ -83,20 +83,25 @@ struct DistortionEffectNode final : Node
         }
         bool changed = false;
         float _scale = m_scale;
+        float _pow = m_pow;
         static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
-        ImGui::SliderFloat("Scale##Distortion", &_scale, 0.0, 1.f, "%.2f", flags);
-        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##Distortion")) { _scale = 0.5f; changed = true; }
+        ImGui::SliderFloat("Scale##Distortion", &_scale, 0.f, 3.f, "%.2f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##Distortion")) { _scale = 1.01f; changed = true; }
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_scale##Distortion", key, ImGui::ImCurveEdit::DIM_X, m_ScaleIn.IsLinked(), "scale##Distortion@" + std::to_string(m_ID), 0.0f, 1.f, 0.5f, m_ScaleIn.m_ID);
         ImGui::EndDisabled();
+        ImGui::SliderFloat("Pow##BarrelDistortion", &_pow, 0.0, 0.5f, "%.2f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pow##BarrelDistortion")) { _pow = 0.2f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
         ImGui::PopStyleColor();
         if (_scale != m_scale) { m_scale = _scale; changed = true; }
+        if (_pow != m_pow) { m_pow = _pow; changed = true; }
         return m_Enabled ? changed : false;
     }
 
@@ -118,6 +123,12 @@ struct DistortionEffectNode final : Node
             if (val.is_number()) 
                 m_scale = val.get<imgui_json::number>();
         }
+        if (value.contains("pow"))
+        {
+            auto& val = value["pow"];
+            if (val.is_number()) 
+                m_pow = val.get<imgui_json::number>();
+        }
         return ret;
     }
 
@@ -126,6 +137,7 @@ struct DistortionEffectNode final : Node
         Node::Save(value, MapID);
         value["mat_type"] = imgui_json::number(m_mat_data_type);
         value["scale"] = imgui_json::number(m_scale);
+        value["pow"] = imgui_json::number(m_pow);
     }
 
     void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
@@ -153,6 +165,7 @@ private:
     ImDataType m_mat_data_type {IM_DT_UNDEFINED};
     int m_device            {-1};
     float m_scale           {0.5f};
+    float m_pow             {0.25f};
     ImGui::Distortion_vulkan * m_effect   {nullptr};
 };
 } // namespace BluePrint

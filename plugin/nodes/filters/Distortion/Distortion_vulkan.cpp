@@ -38,7 +38,7 @@ Distortion_vulkan::~Distortion_vulkan()
     }
 }
 
-void Distortion_vulkan::upload_param(const VkMat& src, VkMat& dst, float scale)
+void Distortion_vulkan::upload_param(const VkMat& src, VkMat& dst, float scale, float pow)
 {
     std::vector<VkMat> bindings(8);
     if      (dst.type == IM_DT_INT8)     bindings[0] = dst;
@@ -50,7 +50,7 @@ void Distortion_vulkan::upload_param(const VkMat& src, VkMat& dst, float scale)
     else if (src.type == IM_DT_INT16 || src.type == IM_DT_INT16_BE)     bindings[5] = src;
     else if (src.type == IM_DT_FLOAT16)   bindings[6] = src;
     else if (src.type == IM_DT_FLOAT32)   bindings[7] = src;
-    std::vector<vk_constant_type> constants(11);
+    std::vector<vk_constant_type> constants(12);
     constants[0].i = src.w;
     constants[1].i = src.h;
     constants[2].i = src.c;
@@ -62,10 +62,11 @@ void Distortion_vulkan::upload_param(const VkMat& src, VkMat& dst, float scale)
     constants[8].i = dst.color_format;
     constants[9].i = dst.type;
     constants[10].f = scale;
+    constants[11].f = pow;
     cmd->record_pipeline(pipe, bindings, constants, dst);
 }
 
-double Distortion_vulkan::effect(const ImMat& src, ImMat& dst, float scale)
+double Distortion_vulkan::effect(const ImMat& src, ImMat& dst, float scale, float pow)
 {
     double ret = 0.0;
     if (!vkdev || !pipe || !cmd)
@@ -90,7 +91,7 @@ double Distortion_vulkan::effect(const ImMat& src, ImMat& dst, float scale)
     cmd->benchmark_start();
 #endif
 
-    upload_param(src_gpu, dst_gpu, scale);
+    upload_param(src_gpu, dst_gpu, scale, pow);
 
 #ifdef VULKAN_SHADER_BENCHMARK
     cmd->benchmark_end();

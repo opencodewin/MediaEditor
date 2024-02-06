@@ -88,14 +88,14 @@ struct BarrelDistortionEffectNode final : Node
         ImGui::PushStyleColor(ImGuiCol_Button, 0);
         ImGui::PushItemWidth(200);
         ImGui::BeginDisabled(!m_Enabled || m_ScaleIn.IsLinked());
-        ImGui::SliderFloat("Scale##BarrelDistortion", &_scale, 0.0, 3.f, "%.2f", flags);
-        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##BarrelDistortion")) { _scale = 1.5f; changed = true; }
+        ImGui::SliderFloat("Scale##BarrelDistortion", &_scale, 0.f, 3.f, "%.2f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_scale##BarrelDistortion")) { _scale = 1.01f; changed = true; }
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!m_Enabled);
         if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_scale##BarrelDistortion", key, ImGui::ImCurveEdit::DIM_X, m_ScaleIn.IsLinked(), "scale##BarrelDistortion@" + std::to_string(m_ID), 0.0f, 3.f, 1.5f, m_ScaleIn.m_ID);
         ImGui::EndDisabled();
-        ImGui::SliderFloat("Pow##BarrelDistortion", &_pow, 0.0, 1.5f, "%.2f", flags);
+        ImGui::SliderFloat("Pow##BarrelDistortion", &_pow, 0.0, 1.f, "%.2f", flags);
         ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_pow##BarrelDistortion")) { _pow = 0.25f; changed = true; }
         ImGui::ShowTooltipOnHover("Reset");
         ImGui::PopItemWidth();
