@@ -806,6 +806,7 @@ struct BaseEditingClip
     virtual void UpdateClipRange(Clip* clip) = 0;
     virtual void Save() = 0;
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, bool updated = false) = 0;
+    virtual void RefreshDataLayer() {}
 };
 
 struct EditingVideoClip : BaseEditingClip
@@ -839,6 +840,7 @@ public:
     EditingVideoClip(VideoClip* vidclip);
     virtual ~EditingVideoClip();
 
+    void InitAttrCurveEditor();
     void CalcDisplayParams(int64_t viewWndDur) override;
     void UpdateClipRange(Clip* clip) override;
     void Save() override;
@@ -849,6 +851,7 @@ public:
     MEC::VideoTransformFilterUiCtrl* GetTransformFilterUiCtrl() { return mpTransFilterUiCtrl; }
     bool DrawAttributeCurves(const ImVec2& v2ViewSize, float fViewScaleX, float fViewOffsetX, bool* pCurveUpdated, ImDrawList* pDrawList);
     ImGui::ImNewCurve::Editor::Holder GetAttributeCurveEditor() const { return mhAttrCurveEditor; }
+    void RefreshDataLayer() override;
 
     enum {
         CURVE_IDX_CROP = 0,
@@ -1017,6 +1020,12 @@ public:
     EditingItem(uint32_t media_type, BaseEditingClip * clip);
     EditingItem(uint32_t media_type, BaseEditingOverlap * overlap);
     virtual ~EditingItem();
+
+    void RefreshDataLayer()
+    {
+        if (mEditingClip) mEditingClip->RefreshDataLayer();
+        // TODO: wyvern, overlap also needs to refresh data layer
+    }
 };
 
 struct audio_channel_data

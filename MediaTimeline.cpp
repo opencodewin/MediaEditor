@@ -3186,11 +3186,6 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
         mSsViewer = mSsGen->CreateViewer((double)mStartOffset / 1000);
     }
 
-    // create ManagedTexture instances
-    mhTransformOutputTx = timeline->mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
-    mhFilterInputTx = timeline->mTxMgr->GetTextureFromPool(ARBITRARY_SIZE_TEXTURE_POOL_NAME);
-    mhFilterOutputTx = timeline->mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
-
     auto hClip = vidclip->GetDataLayer();
     IM_ASSERT(hClip);
     auto hFilter = hClip->GetFilter();      
@@ -3210,6 +3205,40 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     }
     mhTransformFilter = hClip->GetTransformFilter();
     mpTransFilterUiCtrl = new MEC::VideoTransformFilterUiCtrl(mhTransformFilter);
+    InitAttrCurveEditor();
+
+    // create ManagedTexture instances
+    mhTransformOutputTx = timeline->mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
+    mhFilterInputTx = timeline->mTxMgr->GetTextureFromPool(ARBITRARY_SIZE_TEXTURE_POOL_NAME);
+    mhFilterOutputTx = timeline->mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
+}
+
+EditingVideoClip::~EditingVideoClip()
+{
+    if (mpTransFilterUiCtrl)
+    {
+        delete mpTransFilterUiCtrl;
+        mpTransFilterUiCtrl = nullptr;
+    }
+    if (mSsViewer) mSsViewer->Release();
+    mSsViewer = nullptr;
+    mSsGen = nullptr;
+    mhVideoFilter = nullptr;
+    mhTransformFilter = nullptr;
+    mFilterBp = nullptr;
+    mFilterKp = nullptr;
+    // if (mImgTexture) { ImGui::ImDestroyTexture(mImgTexture); mImgTexture = nullptr; }
+}
+
+void EditingVideoClip::InitAttrCurveEditor()
+{
+    if (!mhTransformFilter)
+    {
+        mhAttrCurveEditor = nullptr;
+        return;
+    }
+    if (mhAttrCurveEditor)
+        mhTransformFilter->SetUiStateJson(mhAttrCurveEditor->SaveStateAsJson());
     mhAttrCurveEditor = ImGui::ImNewCurve::Editor::CreateInstance();
     mhAttrCurveEditor->SetGraticuleLineCount(5);
     mhAttrCurveEditor->SetGraticuleColor(IM_COL32(80, 80, 80, 150));
@@ -3232,23 +3261,6 @@ EditingVideoClip::EditingVideoClip(VideoClip* vidclip)
     mhAttrCurveEditor->SetShowValueToolTip(true);
 }
 
-EditingVideoClip::~EditingVideoClip()
-{
-    if (mpTransFilterUiCtrl)
-    {
-        delete mpTransFilterUiCtrl;
-        mpTransFilterUiCtrl = nullptr;
-    }
-    if (mSsViewer) mSsViewer->Release();
-    mSsViewer = nullptr;
-    mSsGen = nullptr;
-    mhVideoFilter = nullptr;
-    mhTransformFilter = nullptr;
-    mFilterBp = nullptr;
-    mFilterKp = nullptr;
-    // if (mImgTexture) { ImGui::ImDestroyTexture(mImgTexture); mImgTexture = nullptr; }
-}
-
 void EditingVideoClip::UpdateClipRange(Clip* clip)
 {
     if (mStart != clip->Start())
@@ -3268,7 +3280,8 @@ void EditingVideoClip::Save()
     TimeLine * timeline = (TimeLine *)mHandle;
     if (!timeline)
         return;
-    mhTransformFilter->SetUiStateJson(mhAttrCurveEditor->SaveStateAsJson());
+    if (mhAttrCurveEditor)
+        mhTransformFilter->SetUiStateJson(mhAttrCurveEditor->SaveStateAsJson());
     VideoClip * clip = (VideoClip *)timeline->FindClipByID(mID);
     if (!clip || !IS_VIDEO(clip->mType))
         return;
@@ -3278,6 +3291,38 @@ void EditingVideoClip::Save()
     clip->msPixelWidthTarget = msPixelWidthTarget;
     // TODO::Dicky save clip event track?
     timeline->RefreshPreview();
+}
+
+void EditingVideoClip::RefreshDataLayer()
+{
+    TimeLine* pTl = (TimeLine*)mHandle;
+    auto pUiVClip = (VideoClip*)pTl->FindClipByID(mID);
+    auto hDlVClip = pUiVClip->GetDataLayer();
+    auto hFilter = hDlVClip->GetFilter();
+    IM_ASSERT(hFilter);
+    mhVideoFilter = hFilter;
+    auto filterName = hFilter->GetFilterName();
+    if (filterName == "EventStackFilter")
+    {
+        auto pEsf = dynamic_cast<MEC::VideoEventStackFilter*>(mhVideoFilter.get());
+        auto editingEvent = pEsf->GetEditingEvent();
+        if (editingEvent)
+        {
+            mFilterBp = editingEvent->GetBp();
+            auto filterJson = mFilterBp->m_Document->Serialize();
+            mFilterKp = editingEvent->GetKeyPoint();
+        }
+    }
+    mhTransformFilter = hDlVClip->GetTransformFilter();
+    if (mpTransFilterUiCtrl)
+        delete mpTransFilterUiCtrl;
+    mpTransFilterUiCtrl = new MEC::VideoTransformFilterUiCtrl(mhTransformFilter);
+    InitAttrCurveEditor();
+
+    // create ManagedTexture instances
+    mhTransformOutputTx = pTl->mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
+    mhFilterInputTx = pTl->mTxMgr->GetTextureFromPool(ARBITRARY_SIZE_TEXTURE_POOL_NAME);
+    mhFilterOutputTx = pTl->mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
 }
 
 bool EditingVideoClip::UpdatePreviewTexture(bool blocking)
@@ -9168,6 +9213,8 @@ void TimeLine::UpdateVideoSettings(MediaCore::SharedSettings::Holder hSettings, 
     mTxMgr->SetTexturePoolAttributes(PREVIEW_TEXTURE_POOL_NAME, tTxPoolAttrs);
     mhPreviewTx = mTxMgr->GetTextureFromPool(PREVIEW_TEXTURE_POOL_NAME);
     RefreshPreview(false);
+    for (auto& item : mEditingItems)
+        item->RefreshDataLayer();
 }
 
 void TimeLine::UpdateAudioSettings(MediaCore::SharedSettings::Holder hSettings, MediaCore::AudioRender::PcmFormat pcmFormat)
