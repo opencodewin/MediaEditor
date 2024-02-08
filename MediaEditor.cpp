@@ -5011,16 +5011,16 @@ static void DrawClipBlueprintWindow(ImDrawList *draw_list, BaseEditingClip * edi
     ShowClipBluePrintWindow(draw_list, editing);
 }
 
-static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing)
+static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * pEditingClip)
 {
     bool changed = false;
-    if (!editing) return;
-    auto editing_clip = editing->GetClip();
-    const auto i64ClipId = editing_clip->mID;
-    if (!editing_clip || !editing_clip->mEventStack)
+    if (!pEditingClip) return;
+    auto pUiClip = pEditingClip->GetClip();
+    const auto i64ClipId = pUiClip->mID;
+    if (!pUiClip || !pUiClip->mEventStack)
         return;
-    bool is_audio_clip = IS_AUDIO(editing_clip->mType);
-    bool is_video_clip = IS_VIDEO(editing_clip->mType);
+    bool is_audio_clip = IS_AUDIO(pUiClip->mType);
+    bool is_video_clip = IS_VIDEO(pUiClip->mType);
     if (!timeline || (!is_audio_clip && !is_video_clip))
         return;
 
@@ -5028,7 +5028,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
     ImVec2 sub_window_size = ImGui::GetWindowSize();
     EditingVideoClip* pEdtVidClip = nullptr;
     if (is_video_clip)
-        pEdtVidClip = dynamic_cast<EditingVideoClip*>(editing);
+        pEdtVidClip = dynamic_cast<EditingVideoClip*>(pEditingClip);
 
     static const char* buttons[] = { "Delete", "Cancel", NULL };
     static ImGui::MsgBox msgbox_event;
@@ -5038,7 +5038,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
     msgbox_node.Init("Delete Node?", ICON_MD_WARNING, "Are you really sure you want to delete node?", buttons, false);
 
     int64_t trackId = -1;
-    auto track = timeline->FindTrackByClipID(editing_clip->mID);
+    auto track = timeline->FindTrackByClipID(pUiClip->mID);
     if (track) trackId = track->mID;
 
     char ** curve_type_list = nullptr;
@@ -5049,7 +5049,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
     // attribute setting
     if (is_video_clip)
     {
-        EditingVideoClip * vclip = (EditingVideoClip *)editing;
+        EditingVideoClip * vclip = (EditingVideoClip *)pEditingClip;
         auto hTransformFilter = vclip->mhTransformFilter;
         const auto RefreshPreview = [&] ()
         {
@@ -5057,7 +5057,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             project_changed = true;
         };
 
-        const auto i64PosInClip = timeline->mCurrentTime-editing_clip->Start();
+        const auto i64PosInClip = timeline->mCurrentTime-pUiClip->Start();
         bool attrib_tree_open = false;
         if (hTransformFilter)
         {
@@ -5066,7 +5066,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             int iReserveWidth = is_video_clip ? 80 : 40;
             ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - iReserveWidth, tree_pos.y));
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-            ImGui::CheckButton(ICON_CLIP_ATTRIBUTE "##video_attribute", &editing->bEditingAttribute, ImVec4(0.0, 0.5, 0.0, 1.0));
+            ImGui::CheckButton(ICON_CLIP_ATTRIBUTE "##video_attribute", &pEditingClip->bEditingAttribute, ImVec4(0.0, 0.5, 0.0, 1.0));
             ImGui::SameLine();
             if (ImGui::Button(ICON_RETURN_ALL "##video_attribute_reset_all"))
             {
@@ -5086,10 +5086,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
         if (attrib_tree_open)
         {
             // Draw attribute controls
-            if (editing_clip->bAttributeScrolling)
+            if (pUiClip->bAttributeScrolling)
             {
                 ImGui::ScrollToItem(ImGuiScrollFlags_KeepVisibleCenterY);
-                editing_clip->bAttributeScrolling = false;
+                pUiClip->bAttributeScrolling = false;
             }
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
             ImGui::PushItemWidth(200);
@@ -5178,10 +5178,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 {
                     auto aCropCurves = hTransformFilter->GetKeyFramesCurveOnCrop();
                     float fCurrTick = (float)i64PosInClip;
-                    if (ImGui::ImNewCurve::DrawCurveArraySimpleView(0, aCropCurves, fCurrTick, ImVec2(0, editing_clip->Length())))
+                    if (ImGui::ImNewCurve::DrawCurveArraySimpleView(0, aCropCurves, fCurrTick, ImVec2(0, pUiClip->Length())))
                         RefreshPreview();
                     if ((int64_t)fCurrTick != i64PosInClip)
-                        timeline->Seek(editing_clip->Start()+(int64_t)fCurrTick);
+                        timeline->Seek(pUiClip->Start()+(int64_t)fCurrTick);
                 }
                 ImGui::TreePop();
             }
@@ -5236,10 +5236,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 {
                     auto hPosOffsetCurve = hTransformFilter->GetKeyFramesCurveOnPosOffset();
                     float fCurrTick = (float)i64PosInClip;
-                    if (ImGui::ImNewCurve::DrawCurveArraySimpleView(0, { hPosOffsetCurve }, fCurrTick, ImVec2(0, editing_clip->Length())))
+                    if (ImGui::ImNewCurve::DrawCurveArraySimpleView(0, { hPosOffsetCurve }, fCurrTick, ImVec2(0, pUiClip->Length())))
                         RefreshPreview();
                     if ((int64_t)fCurrTick != i64PosInClip)
-                        timeline->Seek(editing_clip->Start()+(int64_t)fCurrTick);
+                        timeline->Seek(pUiClip->Start()+(int64_t)fCurrTick);
                 }
                 ImGui::TreePop();
             }
@@ -5317,10 +5317,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 {
                     auto hScaleCurve = hTransformFilter->GetKeyFramesCurveOnScale();
                     float fCurrTick = (float)i64PosInClip;
-                    if (ImGui::ImNewCurve::DrawCurveArraySimpleView(0, { hScaleCurve }, fCurrTick, ImVec2(0, editing_clip->Length())))
+                    if (ImGui::ImNewCurve::DrawCurveArraySimpleView(0, { hScaleCurve }, fCurrTick, ImVec2(0, pUiClip->Length())))
                         RefreshPreview();
                     if ((int64_t)fCurrTick != i64PosInClip)
-                        timeline->Seek(editing_clip->Start()+(int64_t)fCurrTick);
+                        timeline->Seek(pUiClip->Start()+(int64_t)fCurrTick);
                 }
                 ImGui::TreePop();
             }
@@ -5361,10 +5361,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 {
                     auto hRotationCurve = hTransformFilter->GetKeyFramesCurveOnRotation();
                     float fCurrTick = (float)i64PosInClip;
-                    if (ImGui::ImNewCurve::DrawCurveArraySimpleView(0, { hRotationCurve }, fCurrTick, ImVec2(0, editing_clip->Length())))
+                    if (ImGui::ImNewCurve::DrawCurveArraySimpleView(0, { hRotationCurve }, fCurrTick, ImVec2(0, pUiClip->Length())))
                         RefreshPreview();
                     if ((int64_t)fCurrTick != i64PosInClip)
-                        timeline->Seek(editing_clip->Start()+(int64_t)fCurrTick);
+                        timeline->Seek(pUiClip->Start()+(int64_t)fCurrTick);
                 }
                 ImGui::TreePop();
             }
@@ -5405,10 +5405,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                 {
                     auto hOpacityCurve = hTransformFilter->GetKeyFramesCurveOnOpacity();
                     float fCurrTick = (float)i64PosInClip;
-                    if (ImGui::ImNewCurve::DrawCurveArraySimpleView(0, { hOpacityCurve }, fCurrTick, ImVec2(0, editing_clip->Length())))
+                    if (ImGui::ImNewCurve::DrawCurveArraySimpleView(0, { hOpacityCurve }, fCurrTick, ImVec2(0, pUiClip->Length())))
                         RefreshPreview();
                     if ((int64_t)fCurrTick != i64PosInClip)
-                        timeline->Seek(editing_clip->Start()+(int64_t)fCurrTick);
+                        timeline->Seek(pUiClip->Start()+(int64_t)fCurrTick);
                 }
                 ImGui::TreePop();
             }
@@ -5421,10 +5421,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
 
     ImGui::Separator();
     ImGui::PopStyleColor();
-    if (editing->bEditingAttribute)
+    if (pEditingClip->bEditingAttribute)
         return;
     // event editing
-    auto event_list = editing_clip->mEventStack->GetEventList();
+    auto event_list = pUiClip->mEventStack->GetEventList();
     if (event_list.empty())
     {
         //ImGui::SetWindowFontScale(2);
@@ -5440,7 +5440,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
 
     auto update_track = [&](BluePrint::BluePrintUI* pBP, BluePrint::Node* node)
     {
-        auto track = timeline->FindTrackByClipID(editing_clip->mID);
+        auto track = timeline->FindTrackByClipID(pUiClip->mID);
         if (track) timeline->RefreshTrackView({track->mID});
         pBP->Blueprint_UpdateNode(node->m_ID);
         changed = true;
@@ -5454,7 +5454,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
     {
         bool is_selected = event->Status() & EVENT_SELECTED;
         bool is_scrolling = event->Status() & EVENT_SCROLLING;
-        bool is_in_range = event->End() > 0 && event->Start() < editing_clip->Length();
+        bool is_in_range = event->End() > 0 && event->Start() < pUiClip->Length();
         std::string event_label = ImGuiHelper::MillisecToString(event->Start(), 3) + " -> " + ImGuiHelper::MillisecToString(event->End(), 3) + "##clip_event##" + std::to_string(event->Id());
         std::string event_drag_drop_label = "##event_tree##" + std::to_string(event->Id());
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
@@ -5541,7 +5541,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     bool bMaskSelected = pEdtVidClip->mMaskEventId == event->Id() && pEdtVidClip->mMaskNodeId == -1 && pEdtVidClip->mMaskIndex == idx;
                     if (ImGui::Selectable(label.c_str(), bMaskSelected, 0, selectableItemSize) && !bMaskSelected)
                     {
-                        if (!is_selected) editing_clip->SelectEvent(event);
+                        if (!is_selected) pUiClip->SelectEvent(event);
                         pEdtVidClip->SelectEditingMask(event, -1, idx, hMaskCreator);
                     }
                     ImGui::SameLine();
@@ -5584,6 +5584,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                     if (pEdtVidClip->mMaskEventId == event->Id() && pEdtVidClip->mMaskNodeId == -1 && pEdtVidClip->mMaskIndex == iToDelIdx)
                         pEdtVidClip->UnselectEditingMask();
                     pVidEvt->RemoveMask(iToDelIdx);
+                    RefreshPreview(track);
                 }
                 ImGui::Unindent(30);
             }
@@ -5663,7 +5664,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
                         float curve_min = keypoint->GetCurveMinByDim(i, ImGui::ImCurveEdit::DIM_X);
                         float curve_max = keypoint->GetCurveMaxByDim(i, ImGui::ImCurveEdit::DIM_X);
                         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0,0,0,0));
-                        const auto start_time = editing->mStart;
+                        const auto start_time = pEditingClip->mStart;
                         const auto curve_time = timeline->mCurrentTime - start_time - event->Start();
                         const auto curve_value = keypoint->GetValueByDim(i, curve_time, ImGui::ImCurveEdit::DIM_X);
                         bool in_range = curve_time >= keypoint->GetMin().w && 
@@ -5899,8 +5900,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             // Handle event delete
             if (msgbox_event.Draw() == 1)
             {
-                editing_clip->DeleteEvent(event, &timeline->mUiActions);
-                auto track = timeline->FindTrackByClipID(editing_clip->mID);
+                if (pEdtVidClip && pEdtVidClip->mMaskEventId == event->Id())
+                    pEdtVidClip->UnselectEditingMask();
+                pUiClip->DeleteEvent(event, &timeline->mUiActions);
+                auto track = timeline->FindTrackByClipID(pUiClip->mID);
                 RefreshPreview(track);
             }
             ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
@@ -5911,8 +5914,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * editing
             // Handle event delete
             if (msgbox_event.Draw() == 1)
             {
-                editing_clip->DeleteEvent(event, &timeline->mUiActions);
-                auto track = timeline->FindTrackByClipID(editing_clip->mID);
+                if (pEdtVidClip && pEdtVidClip->mMaskEventId == event->Id())
+                    pEdtVidClip->UnselectEditingMask();
+                pUiClip->DeleteEvent(event, &timeline->mUiActions);
+                auto track = timeline->FindTrackByClipID(pUiClip->mID);
                 RefreshPreview(track);
             }
         }
