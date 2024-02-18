@@ -4849,8 +4849,17 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
                 bool bInMaskEventRange = timeline->mCurrentTime >= start+pVidEditingClip->mMaskEventStart && timeline->mCurrentTime < start+pVidEditingClip->mMaskEventEnd;
                 if (pVidEditingClip->mhMaskCreator && bInMaskEventRange)
                 {
-                    int64_t i64Tick = timeline->mCurrentTime-(start+pVidEditingClip->mMaskEventStart);
-                    if (pVidEditingClip->mhMaskCreator->DrawContent({offset_x, offset_y}, {tf_x-offset_x, tf_y-offset_y}, true, i64Tick))
+                    const auto& hTransFilter = pVidEditingClip->mhTransformFilter;
+                    const int64_t i64TickInClip = timeline->mCurrentTime-start;
+                    const auto v2WaOffsetRatio = MatUtils::ToImVec2(hTransFilter->GetPosOffsetRatio(i64TickInClip));
+                    const auto v2WaScale = MatUtils::ToImVec2(hTransFilter->GetScale(i64TickInClip));
+                    const auto v2OutSize = MatUtils::ToImVec2(hTransFilter->GetOutSize());
+                    const auto v2WaOffset = v2WaOffsetRatio*(v2WaScale+ImVec2(1,1))*v2OutSize/2.f;
+                    const auto fWaRotAngle = hTransFilter->GetRotation(i64TickInClip);
+                    const auto szMaskSize = pVidEditingClip->mhMaskCreator->GetMaskSize();
+                    pVidEditingClip->mhMaskCreator->SetUiWarpAffineParameters(v2WaOffset, v2WaScale, -fWaRotAngle, MatUtils::ToImVec2(szMaskSize)/2.f);
+                    const int64_t i64TickInEvent = timeline->mCurrentTime-(start+pVidEditingClip->mMaskEventStart);
+                    if (pVidEditingClip->mhMaskCreator->DrawContent({offset_x, offset_y}, {tf_x-offset_x, tf_y-offset_y}, true, i64TickInEvent))
                     {
                         auto pTrack = timeline->FindTrackByClipID(pVidEditingClip->mID);
                         timeline->RefreshTrackView({ pTrack->mID });
