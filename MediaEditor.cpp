@@ -4763,7 +4763,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
             }
         }
         
-        bool bTxUpdated = pVidEditingClip->UpdatePreviewTexture();
+        bool bTxUpdated = pVidEditingClip->UpdatePreviewTexture(!timeline->mIsPreviewPlaying);
         const auto& secondMat = bOutputPreview ? timeline->mPreviewMat : pVidEditingClip->mFilterOutputMat;
         if ((bTxUpdated || need_update_scope) && !secondMat.empty())
             CalculateVideoScope(secondMat);
