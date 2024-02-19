@@ -1610,8 +1610,7 @@ static void ShowConfigure(MediaEditorSettings & config)
 
 static inline void ImgSeuqPane(const char* vFilter, const char* currentPath, IGFDUserDatas vUserDatas, bool* vCantContinue)
 {
-    auto file_suffix = ImGuiHelper::path_filename_suffix(std::string(currentPath));
-    bool isDirectory = file_suffix.empty();
+    bool isDirectory = SysUtils::IsDirectory(std::string(currentPath));
     ImageSequenceSetting* setting = &g_media_editor_settings.image_sequence;
     if (setting)
     {
@@ -2384,8 +2383,8 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
                     ImGuiFileDialogFlags_DontShowHiddenFiles |
                     ImGuiFileDialogFlags_CaseInsensitiveExtention | 
                     ImGuiFileDialogFlags_DisableCreateDirectoryButton | 
-                    ImGuiFileDialogFlags_Modal | 
-                    ImGuiFileDialogFlags_AllowDirectorySelect;
+                    ImGuiFileDialogFlags_AllowDirectorySelect |
+                    ImGuiFileDialogFlags_Modal;
         ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Media File", 
                                                         ffilters.c_str(),
                                                         config);
@@ -11823,7 +11822,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             }
             else
             {
-                // conform save to project file
+                // confirm save to project file
                 ImGui::OpenPopup(ICON_FA_CIRCLE_INFO " Save Project File", ImGuiPopupFlags_AnyPopup);
             }
         }
@@ -12265,12 +12264,16 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             auto file_path = ImGuiFileDialog::Instance()->GetFilePathName();
             auto file_name = ImGuiFileDialog::Instance()->GetCurrentFileName();
             auto file_suffix = ImGuiFileDialog::Instance()->GetCurrentFileSuffix();
+            auto sel = ImGuiFileDialog::Instance()->GetSelection(); // multiselection
             if (file_suffix == ".") file_suffix.clear();
             auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
             if (userDatas.compare("Media Source") == 0)
             {
-                InsertMedia(file_path);
-                project_changed = true;
+                //for (auto s : sel)
+				//{
+                //    project_changed |= InsertMedia(s.second);
+                //}
+                project_changed |= InsertMedia(file_path);
             }
             else if (userDatas.compare("ProjectOpen") == 0)
             {
@@ -12302,7 +12305,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
                 auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path));
                 if (err == MEC::Project::OK)
+                {
+                    g_hProject = hNewProj;
                     SaveProject(hNewProj);
+                }
                 app_done = true;
             }
             show_file_dialog = false;
