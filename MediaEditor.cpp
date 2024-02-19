@@ -12291,7 +12291,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             else if (userDatas.compare("ProjectSaveAndNew") == 0)
             {
                 auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
-                auto err = hNewProj->CreateNew(file_name, SysUtils::ExtractDirectoryPath(file_path));
+                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path));
                 if (err == MEC::Project::OK)
                     SaveProject(hNewProj);
                 NewProject();
@@ -12300,7 +12300,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             else if (userDatas.compare("ProjectSaveQuit") == 0)
             {
                 auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
-                auto err = hNewProj->CreateNew(file_name, SysUtils::ExtractDirectoryPath(file_path));
+                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path));
                 if (err == MEC::Project::OK)
                     SaveProject(hNewProj);
                 app_done = true;
