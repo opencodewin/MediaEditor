@@ -536,6 +536,8 @@ struct Clip
     virtual void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated = false) { drawList->AddRect(leftTop, rightBottom, IM_COL32_BLACK); }
     virtual void DrawTooltips() {};
     virtual bool ReloadSource(MediaItem* pMediaItem) = 0;
+    virtual void SyncStateToDataLayer() {}
+    virtual void SyncStateFromDataLayer() {}
     virtual bool LoadFromJson(const imgui_json::value& j);
     virtual imgui_json::value SaveAsJson();
 
@@ -612,8 +614,8 @@ private:
         : Clip(pOwner, MEDIA_VIDEO, strName, i64Start, i64End, i64StartOffset, i64EndOffset)
     {}
     bool UpdateClip(MediaItem* pMediaItem);
-    void SyncStateToDataLayer();
-    void SyncStateFromDataLayer();
+    void SyncStateToDataLayer() override;
+    void SyncStateFromDataLayer() override;
 
 private:
     float mSnapWidth                {0};
@@ -652,8 +654,8 @@ private:
         : Clip(pOwner, MEDIA_AUDIO, strName, i64Start, i64End, i64StartOffset, i64EndOffset)
     {}
     bool UpdateClip(MediaItem* pMediaItem);
-    void SyncStateToDataLayer();
-    void SyncStateFromDataLayer();
+    void SyncStateToDataLayer() override;
+    void SyncStateFromDataLayer() override;
 };
 
 struct TextClip : Clip

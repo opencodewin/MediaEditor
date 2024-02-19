@@ -9215,6 +9215,8 @@ void TimeLine::UpdateVideoSettings(MediaCore::SharedSettings::Holder hSettings, 
     RefreshPreview(false);
     for (auto& item : mEditingItems)
         item->RefreshDataLayer();
+    for (auto& pUiClip : m_Clips)
+        pUiClip->SyncStateFromDataLayer();
 }
 
 void TimeLine::UpdateAudioSettings(MediaCore::SharedSettings::Holder hSettings, MediaCore::AudioRender::PcmFormat pcmFormat)
