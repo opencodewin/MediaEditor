@@ -841,7 +841,7 @@ int64_t Clip::Cropping(int64_t& diffTime, int type)
         return 0;
     if (IS_DUMMY(mType))
         return 0;
-    int64_t diff = diffTime - (type == 0 ? Start() : End()) + mDragAnchorTime;
+    int64_t diff = mDragAnchorTime != -1 ? diffTime - (type == 0 ? Start() : End()) + mDragAnchorTime : diffTime;
     diff = timeline->AlignTime(diff);
     if (diff == 0)
         return 0;
@@ -1144,7 +1144,7 @@ int64_t Clip::Moving(int64_t& diffTime, int mouse_track)
     if (IS_DUMMY(mType))
         return index;
     int track_index = timeline->FindTrackIndexByClipID(mID);
-    int64_t diff = diffTime - Start() + mDragAnchorTime;
+    int64_t diff = mDragAnchorTime != -1 ? diffTime - Start() + mDragAnchorTime : diffTime;
     diff = timeline->AlignTime(diff);
     if (diff == 0 && track_index == mouse_track)
         return index;
@@ -11362,6 +11362,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                                     {
                                         clipMovingEntry = mouse_clip->mID;
                                         clipMovingPart = j + 1;
+                                        if (j <= 1)
+                                        {
+                                            bCropping = true;
+                                        }
                                         clipClickedTriggered = true;
                                     }
                                     break;
@@ -11449,7 +11453,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             }
             else if (clipMovingPart & 1)
             {
-                bCropping = true;
                 // clip left cropping
                 auto offset = clip->Cropping(diffTime, 0);
                 auto mouse_x = (clip->Start() - timeline->firstTime) * timeline->msPixelWidthTarget + contentMin.x + legendWidth;
@@ -11458,7 +11461,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             }
             else if (clipMovingPart & 2)
             {
-                bCropping = true;
                 // clip right cropping
                 clip->Cropping(diffTime, 1);
                 auto mouse_x = (clip->End() - timeline->firstTime) * timeline->msPixelWidthTarget + contentMin.x + legendWidth;
@@ -12330,6 +12332,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     
     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     {
+        for (auto clip : timeline->m_Clips)  clip->mDragAnchorTime = -1; // clear clip mDragAnchorTime status
         auto& ongoingActions = timeline->mOngoingActions;
         if (!ongoingActions.empty())
         {

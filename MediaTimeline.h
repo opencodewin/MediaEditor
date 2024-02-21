@@ -517,7 +517,7 @@ struct Clip
     MEC::EventStack*            mEventStack {nullptr};// clip event stack,
     std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
 
-    int64_t mDragAnchorTime{0};
+    int64_t mDragAnchorTime{-1};
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;
