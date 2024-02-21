@@ -1014,7 +1014,7 @@ void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_
     }
 }
 
-int64_t Clip::Moving(int64_t diff, int mouse_track)
+int64_t Clip::Moving(int64_t& diffTime, int mouse_track)
 {
     int64_t index = -1;
     TimeLine * timeline = (TimeLine *)mHandle;
@@ -1026,10 +1026,11 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     if (IS_DUMMY(mType))
         return index;
     int track_index = timeline->FindTrackIndexByClipID(mID);
+    int64_t diff = diffTime - Start() + mDragAnchorTime;
     diff = timeline->AlignTime(diff);
     if (diff == 0 && track_index == mouse_track)
         return index;
-
+    int64_t offset_time = 0;
     ImGuiIO &io = ImGui::GetIO();
     // [shortcut]: left ctrl into single moving status
     bool single = ImGui::IsKeyDown(ImGuiKey_LeftCtrl);
@@ -1096,30 +1097,35 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     }
 
     // find all connected point between selected clip and unselected clip
-    int64_t attract_docking_gap = timeline->attract_docking_pixels / timeline->msPixelWidthTarget;
+    const auto frameRate = timeline->mhMediaSettings->VideoOutFrameRate();
+    int64_t frame_time = frameTime(frameRate) * 2; // 2 frames ?
+    int64_t attract_docking_gap = std::max((int64_t)(timeline->attract_docking_pixels / timeline->msPixelWidthTarget), frame_time);
     int64_t min_gap = INT64_MAX;
-    int64_t connected_point = -1;
+    timeline->mConnectedPoints = -1;
+    timeline->mConnectingPoints = -1;
     for (auto point_start : selected_start_points)
     {
         for (auto _point_start : unselected_start_points)
         {
-            if (abs(point_start - _point_start) < attract_docking_gap)
+            if (abs(point_start - _point_start) <= attract_docking_gap)
             {
                 if (abs(min_gap) > abs(point_start - _point_start))
                 {
                     min_gap = point_start - _point_start;
-                    connected_point = _point_start;
+                    timeline->mConnectingPoints = point_start;
+                    timeline->mConnectedPoints = _point_start;
                 }
             }
         }
         for (auto _point_end : unselected_end_points)
         {
-            if (abs(point_start - _point_end) < attract_docking_gap)
+            if (abs(point_start - _point_end) <= attract_docking_gap)
             {
                 if (abs(min_gap) > abs(point_start - _point_end))
                 {
                     min_gap = point_start - _point_end;
-                    connected_point = _point_end;
+                    timeline->mConnectingPoints = point_start;
+                    timeline->mConnectedPoints = _point_end;
                 }
             }
         }
@@ -1128,67 +1134,57 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     {
         for (auto _point_start : unselected_start_points)
         {
-            if (abs(point_end - _point_start) < attract_docking_gap)
+            if (abs(point_end - _point_start) <= attract_docking_gap)
             {
                 if (abs(min_gap) > abs(point_end - _point_start))
                 {
                     min_gap = point_end - _point_start;
-                    connected_point = _point_start;
+                    timeline->mConnectingPoints = point_end;
+                    timeline->mConnectedPoints = _point_start;
                 }
             }
         }
         for (auto _point_end : unselected_end_points)
         {
-            if (abs(point_end - _point_end) < attract_docking_gap)
+            if (abs(point_end - _point_end) <= attract_docking_gap)
             {
                 if (abs(min_gap) > abs(point_end - _point_end))
                 {
                     min_gap = point_end - _point_end;
-                    connected_point = _point_end;
+                    timeline->mConnectingPoints = point_end;
+                    timeline->mConnectedPoints = _point_end;
                 }
             }
         }
     }
 
-    if (min_gap != INT64_MAX)
+    if (timeline->mConnectedPoints != -1 && timeline->mConnectingPoints != -1 && min_gap != INT64_MAX)
     {
-        if (diff < 0 && min_gap > 0)
+        auto dist = timeline->mConnectingPoints + diff - timeline->mConnectedPoints;
+        if (abs(dist) > abs(min_gap))
         {
-            // attracting point when clip move left
-            // [AAAAAAA]<-[BBBBBB] or [AAAAAAAA[X<-]BBBBBBB]
-            timeline->mConnectedPoints = connected_point;
-            diff = -min_gap;
-        }
-        else if (diff > 0 && min_gap < 0)
-        {
-            // attracting point when clip move right
-            // [AAAAAAA]->[BBBBBB] or [AAAAAAAA[->X]BBBBBBB]
-            timeline->mConnectedPoints = connected_point;
-            diff = -min_gap;
-        }
-        else if (diff < 0 && min_gap < 0)
-        {
-            // leaving attracted point when clip move left
-            // [AAAAAAAA<-] [BBBBBBBB] or [AAAAAAA[X<-]BBBBBB]
-            if (timeline->mConnectedPoints != -1 && abs(diff) < attract_docking_gap / 5)
+            // leaving attracted point
+            if (abs(dist) < attract_docking_gap / 5)
             {
-                diff = -min_gap;
+                offset_time = -diff;
+                diff = 0;
             }
         }
-        else if (diff > 0 && min_gap > 0)
+        else if (abs(dist) <= abs(min_gap))
         {
-            // leaving attracted point when clip move right
-            // [AAAAAAAA] [->BBBBBBBB] || [AAAAAAA[->X]BBBBBB]
-            if (timeline->mConnectedPoints != -1 && abs(diff) < attract_docking_gap / 5)
+            // closing attracted point
+            offset_time = -min_gap - diff;
+            diff = -min_gap;
+        }
+        else if (timeline->mConnectingPoints == timeline->mConnectedPoints)
+        {
+            // touch attracted point
+            if (abs(diff) < attract_docking_gap / 5)
             {
-                diff = -min_gap;
+                offset_time = -diff;
+                diff = 0;
             }
         }
-        // need alignment mStart to accurate connected_point and calculate new_diff
-    }
-    else
-    {
-        timeline->mConnectedPoints = -1;
     }
 
     // get moving tracks
@@ -1298,10 +1294,10 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
             mEnd = mStart + length;
         }
     }
-    
+
+#if 0 // TODO::Dicky editing item support moving
     auto moving_clip_keypoint = [&](Clip * clip)
     {
-#if 0 // TODO::Dicky editing item support moving
         if (timeline->mVidFilterClip && timeline->mVidFilterClip->mID == clip->mID)
         {
             timeline->mVidFilterClip->mStart = clip->mStart;
@@ -1312,10 +1308,10 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
             timeline->mAudFilterClip->mStart = clip->mStart;
             timeline->mAudFilterClip->mEnd = clip->mEnd;
         }
-#endif
     };
 
     moving_clip_keypoint(this);
+#endif
 
     // check clip is cross track
     if (mouse_track == -2 && track->m_Clips.size() > 1)
@@ -1335,7 +1331,6 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     {
         MediaTrack * track = timeline->m_Tracks[mouse_track];
         auto media_type = track->mType;
-        //if (mType == media_type)
         if (IS_SAME_TYPE(mType, media_type) && !track->mLocked)
         {
             // check clip is suitable for moving cross track base on overlap status
@@ -1367,7 +1362,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
                 int64_t clip_length = clip->mEnd - clip->mStart;
                 clip->mStart += new_diff;
                 clip->mEnd = clip->mStart + clip_length;
-                moving_clip_keypoint(clip);
+                //moving_clip_keypoint(clip);
             }
         }
     }
@@ -1375,7 +1370,7 @@ int64_t Clip::Moving(int64_t diff, int mouse_track)
     // clean clip moving flags
     for (auto& clip : moving_clips)
         clip->bMoving = false;
-    io.MouseDelta.x = new_diff;
+    diffTime += offset_time;
     return index;
 }
 
@@ -2714,7 +2709,7 @@ bool TextClip::ReloadSource(MediaItem* pMediaItem)
     return false;
 }
 
-int64_t TextClip::Moving(int64_t diff, int mouse_track)
+int64_t TextClip::Moving(int64_t& diff, int mouse_track)
 {
     auto ret = Clip::Moving(diff, mouse_track);
     MediaTrack * track = (MediaTrack*)mTrack;
@@ -10396,7 +10391,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     static int64_t clipMenuEntry = -1;
     static int64_t clipMovingEntry = -1;
     static int clipMovingPart = -1;
-    static float diffTime = 0;
+    static int64_t diffTime = 0;
     int delTrackEntry = -1;
     int mouseEntry = -1;
     int legendEntry = -1;
@@ -11314,6 +11309,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 else if (clipMovingPart == 2)
                     clip->mDragAnchorTime = clip->End();
             }
+
             diffTime += io.MouseDelta.x / timeline->msPixelWidthTarget;
 
             if (clipMovingPart == 3)
@@ -11321,8 +11317,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 bClipMoving = true;
                 ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
                 // whole slot moving
-                auto diff = diffTime-clip->Start()+clip->mDragAnchorTime;
-                int dst_entry = clip->Moving(diff, mouseEntry);
+                int dst_entry = clip->Moving(diffTime, mouseEntry);
                 if (dst_entry >= 0)
                     mouseEntry = dst_entry;
             }
