@@ -1066,7 +1066,7 @@ int64_t Clip::Cropping(int64_t& diffTime, int type)
         mEventStack->MoveAllEvents(-diff);
     }
     diffTime += offset_time;
-    return diff;
+    return offset_time;
 }
 
 void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_json::value>* pActionList)
@@ -11295,7 +11295,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                     // it should be at most 2 clips under mouse
                     for (auto clip : track->m_Clips)
                     {
-                        if (clip->IsInClipRange(mouseTime))
+                        if (!bClipMoving && !bCropping && clip->IsInClipRange(mouseTime))
                         {
                             mouseClip.push_back(clip->mID);
                         }
@@ -11451,15 +11451,19 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             {
                 bCropping = true;
                 // clip left cropping
-                ImGui::RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4, 0));
-                clip->Cropping(diffTime, 0);
+                auto offset = clip->Cropping(diffTime, 0);
+                auto mouse_x = (clip->Start() - timeline->firstTime) * timeline->msPixelWidthTarget + contentMin.x + legendWidth;
+                auto mouse_shift = io.MousePos.x - mouse_x;
+                ImGui::RenderMouseCursor(ICON_CROPPING_LEFT, ImVec2(4 + mouse_shift, 0));
             }
             else if (clipMovingPart & 2)
             {
                 bCropping = true;
                 // clip right cropping
-                ImGui::RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12, 0));
                 clip->Cropping(diffTime, 1);
+                auto mouse_x = (clip->End() - timeline->firstTime) * timeline->msPixelWidthTarget + contentMin.x + legendWidth;
+                auto mouse_shift = io.MousePos.x - mouse_x;
+                ImGui::RenderMouseCursor(ICON_CROPPING_RIGHT, ImVec2(12 + mouse_shift, 0));
             }
             changed = true;
         }
