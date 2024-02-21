@@ -4415,16 +4415,16 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
     });
     if (iter_first != frames.end())
         frame_org_first = iter_first->frame;
-    else
-        ret = false;
+    //else
+    //    ret = false;
     ImGui::ImMat frame_org_second;
     auto iter_second = std::find_if(frames.begin(), frames.end(), [ovlp] (auto& cf) {
         return cf.clipId == ovlp->m_Clip.second && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
     });
     if (iter_second != frames.end())
         frame_org_second = iter_second->frame;
-    else
-        ret = false;
+    //else
+    //    ret = false;
     
     if (preview_frame)
     {
