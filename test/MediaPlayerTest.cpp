@@ -106,14 +106,14 @@ static SimplePcmStream* g_pcmStream = nullptr;
 // Application Framework Functions
 static void MediaPlayer_Initialize(void** handle)
 {
-#ifdef USE_BOOKMARK
+#ifdef USE_PLACES_FEATURE
 	// load bookmarks
 	std::ifstream docFile(bookmark_path, std::ios::in);
 	if (docFile.is_open())
 	{
 		std::stringstream strStream;
 		strStream << docFile.rdbuf();//read the file
-		ImGuiFileDialog::Instance()->DeserializeBookmarks(strStream.str());
+		ImGuiFileDialog::Instance()->DeserializePlaces(strStream.str());
 		docFile.close();
 	}
 #endif
@@ -136,12 +136,12 @@ static void MediaPlayer_Finalize(void** handle)
     g_vidrdr = nullptr;
     g_audrdr = nullptr;
 
-#ifdef USE_BOOKMARK
+#ifdef USE_PLACES_FEATURE
 	// save bookmarks
 	std::ofstream configFileWriter(bookmark_path, std::ios::out);
 	if (!configFileWriter.bad())
 	{
-		configFileWriter << ImGuiFileDialog::Instance()->SerializeBookmarks();
+		configFileWriter << ImGuiFileDialog::Instance()->SerializePlaces();
 		configFileWriter.close();
 	}
 #endif

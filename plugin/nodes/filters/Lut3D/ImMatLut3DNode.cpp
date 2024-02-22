@@ -2,7 +2,6 @@
 #include <imgui_extra_widget.h>
 #include <ImVulkanShader.h>
 #include <Lut3D_vulkan.h>
-#define USE_BOOKMARK
 #include <ImGuiFileDialog.h>
 
 #define SDR709_HDR2020_HLG_SIZE 33

@@ -11332,7 +11332,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
     };
     ctx->SettingsHandlers.push_back(setting_ini_handler);
 
-#ifdef USE_BOOKMARK
+#ifdef USE_PLACES_FEATURE
     ImGuiSettingsHandler bookmark_ini_handler;
     bookmark_ini_handler.TypeName = "BookMark";
     bookmark_ini_handler.TypeHash = ImHashStr("BookMark");
@@ -11343,13 +11343,13 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
     bookmark_ini_handler.ReadLineFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line) -> void
     {
         IGFD::FileDialog * dialog = (IGFD::FileDialog *)entry;
-        if (dialog) dialog->DeserializeBookmarks(line);
+        if (dialog) dialog->DeserializePlaces(line);
     };
     bookmark_ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
     {
         ImGuiContext& g = *ctx;
         out_buf->reserve(out_buf->size() + g.SettingsWindows.size() * 6); // ballpark reserve
-        auto bookmark = ImGuiFileDialog::Instance()->SerializeBookmarks();
+        auto bookmark = ImGuiFileDialog::Instance()->SerializePlaces();
         out_buf->appendf("[%s][##%s]\n", handler->TypeName, handler->TypeName);
         out_buf->appendf("%s\n", bookmark.c_str());
         out_buf->append("\n");
@@ -11361,13 +11361,13 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
     bookmark_ini_handler_media_bank.TypeHash = ImHashStr("BookMark_Bank");
     bookmark_ini_handler_media_bank.ReadLineFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, void* entry, const char* line) -> void
     {
-        embedded_filedialog.DeserializeBookmarks(line);
+        embedded_filedialog.DeserializePlaces(line);
     };
     bookmark_ini_handler_media_bank.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* out_buf)
     {
         ImGuiContext& g = *ctx;
         out_buf->reserve(out_buf->size() + g.SettingsWindows.size() * 6); // ballpark reserve
-        auto bookmark = embedded_filedialog.SerializeBookmarks();
+        auto bookmark = embedded_filedialog.SerializePlaces();
         out_buf->appendf("[%s][##%s]\n", handler->TypeName, handler->TypeName);
         out_buf->appendf("%s\n", bookmark.c_str());
         out_buf->append("\n");
