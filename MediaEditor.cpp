@@ -3799,7 +3799,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 return true;
             };
             // video codec select
-            if (ImGui::Combo("Codec##video_codec", &g_media_editor_settings.OutputVideoCodecIndex, codec_getter, (void *)OutputVideoCodec, IM_ARRAYSIZE(OutputVideoCodec)))
+            if (ImGui::Combo("Codec Type##video_codec", &g_media_editor_settings.OutputVideoCodecIndex, codec_getter, (void *)OutputVideoCodec, IM_ARRAYSIZE(OutputVideoCodec)))
             {
                 g_vidEncSelChanged = true;
                 g_media_editor_settings.OutputVideoCodecTypeIndex = 0;  // reset codec type if we change codec
@@ -3812,7 +3812,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             // video codec type select
             if (OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].name.compare("Uncompressed") == 0)
             {
-                ImGui::Combo("Codec Type##uncompressed_video_codec", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_getter, (void *)OutputVideoCodecUncompressed, IM_ARRAYSIZE(OutputVideoCodecUncompressed));
+                ImGui::Combo("Codec Name##uncompressed_video_codec", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_getter, (void *)OutputVideoCodecUncompressed, IM_ARRAYSIZE(OutputVideoCodecUncompressed));
             }
             else
             {
@@ -3829,7 +3829,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                     }
                     g_vidEncSelChanged = false;
                 }
-                if (ImGui::Combo("Codec Type##video_codec_type", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_type_getter, (void *)&g_currVidEncDescList, g_currVidEncDescList.size()))
+                if (ImGui::Combo("Codec Name##video_codec_type", &g_media_editor_settings.OutputVideoCodecTypeIndex, codec_type_getter, (void *)&g_currVidEncDescList, g_currVidEncDescList.size()))
                 {
                     g_media_editor_settings.OutputVideoCodecProfileIndex = -1;
                     g_media_editor_settings.OutputVideoCodecPresetIndex = -1;
