@@ -12543,7 +12543,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             auto pAudInsTrack = track;
             if (!pAudInsTrack || !pAudInsTrack->CanInsertClip(pNewAudioClip, mouseTime))
             {
-                const auto iNewTrackIndex = timeline->NewTrack("", MEDIA_VIDEO, true, -1, -1, &actionList);
+                const auto iNewTrackIndex = timeline->NewTrack("", MEDIA_AUDIO, true, -1, -1, &actionList);
                 pAudInsTrack = timeline->m_Tracks[iNewTrackIndex];
                 bInsertNewTrack = true;
                 InsertHeight += pAudInsTrack->mTrackHeight + trackHeadHeight;
