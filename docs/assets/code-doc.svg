@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="95" height="20" role="img" aria-label="stable: v0.9.8">
-    <title>stable: v0.9.8</title>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="95" height="20" role="img" aria-label="devlop: v0.9.8">
+    <title>devlop: v0.9.8</title>
     <linearGradient id="s" x2="0" y2="100%">
         <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
         <stop offset="1" stop-opacity=".1"/>
@@ -9,12 +9,12 @@
     </clipPath>
     <g clip-path="url(#r)">
         <rect width="48" height="20" fill="#555"/>
-        <rect x="48" width="79" height="20" fill="#4c1"/>
+        <rect x="48" width="79" height="20" fill="#f00"/>
         <rect width="95" height="20" fill="url(#s)"/>
     </g>
     <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110">
-        <text aria-hidden="true" x="255" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="375">stable</text>
-        <text x="255" y="140" transform="scale(.1)" fill="#fff" textLength="375">stable</text>
+        <text aria-hidden="true" x="255" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="375">devlop</text>
+        <text x="255" y="140" transform="scale(.1)" fill="#fff" textLength="375">devlop</text>
         <text aria-hidden="true" x="715" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="375">v0.9.8</text>
         <text x="715" y="140" transform="scale(.1)" fill="#fff" textLength="375">v0.9.8</text>
     </g>

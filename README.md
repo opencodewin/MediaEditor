@@ -6,7 +6,7 @@
   <sub>Available for Linux, macOS and Windows.</sub>
 
   <a href="LICENSE"><img alt="License" src="docs/assets/license.svg"></a>
-  <a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.8"><img alt="Stable" src="docs/assets/code-doc.svg"></a>
+  <a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.8"><img alt="Devlop" src="docs/assets/code-doc.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/pulls"><img alt="PRs Welcome" src="docs/assets/prs.svg"></a>
   <a href="#HOW-TO-CONTRIBUTE"><img alt="Contributions Welcome" src="docs/assets/contribute.svg"></a>
   <a href="https://github.com/opencodewin/MediaEditor/commits/master"><img alt="Commits" src="docs/assets/latest.svg"></a>
@@ -21,31 +21,63 @@
 ## NEWS
 #### ***Note:*** For ease of reading, we'll abbreviate <u>***MediaEditor Community***</u> to <u>***Mec***</u>.
 
+<div>
+<img alt="v0.9.9" src="docs/assets/version_4.svg"></a>
+
+<b>&nbsp;&nbsp;🎉🎉🎉&nbsp; Coming Soon.</b>
+
+  - **🔥 Supported graphic operation mode for video attribute editing.**
+  - **🔥 Supported creating masks to limit the pixel range of events.**
+  - **🔥 Supported scaling, feathering, and key-frame for masks.**
+  - **🔥 Supported multi-dimensional Joint key-frame mode for events.**
+  - **🔥 Supported multi-task mode for running time-consuming tasks in the background.**
+  - **🔥 Supported playing media from media bank and embedded file-browsers.**
+  - **🔥 Supported simple media management, including searching, sorting, and classification.**
+  - **🔥 Supported loading media from embedded file-browser to timeline.**
+  - 💡 Optimized software performance.
+  - 💡 Optimized media output by implementing hardware support.
+  - 💡 Modified a lots of UI elements.
+  - 💡 Added some functional components to the sidebar.
+  - 💡 Fixed some bugs.
 ---
+</div><br>
+
+
+<div>
 <a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.8"><img alt="v0.9.8" src="docs/assets/version_3.svg"></a>
+<details>
+<summary><b>&nbsp;&nbsp;👏👏👏&nbsp; Released on August 28, 2023.</b></summary>
 
-  - **🎉🎉🎉 Released on August 28, 2023.**
   - **🔥 Supported BluePrint-based event mode.**
-  - **🔥 Supported short-term filters and short-term effects.**
-  - **🔥 Optimized the base framework to improve software performance.**
-  - **🔥 Great changes in the User-Interface.**
-  - 💡 Added some new fliters and effects.
-  - 💡 Fixed a lot of bugs.
-  - More ...
----
+  - **🔥 Supported short-term filters or effects.**
+  - 💡 Optimized software performance.
+  - 💡 Modified some UI behaviors.
+  - 💡 Added some fliters.
+  - 💡 Fixed some bugs.
+</details>
+</div><br>
+
+<div>
 <a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.7"><img alt="v0.9.7" src="docs/assets/version_2.svg"></a>
+<details>
+<summary><b>&nbsp;&nbsp;👏👏👏&nbsp; Released on May 19, 2023.</b></summary>
 
-  - ⭐️ Released on May 19, 2023.
-  - 🔥 Supported plug-in frameworks for more Filters, Effects, Transitions and etc.
-  - 💡 Added some new effects and transitions.
+  - **🔥 Supported plug-in mode for Enhanced clip editing.**
+  - 💡 Added some effects and transitions.
   - 💡 Fixed some known bugs.
+</details>
+</div><br>
 
----
+<div>
 <a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.6"><img alt="v0.9.6" src="docs/assets/version_1.svg"></a>
+<details>
+<summary><b>&nbsp;&nbsp;👏👏👏&nbsp; Released on April 20, 2023.</b></summary>
 
-  - ⭐️ Released on April 20, 2023.
-  - 💡 Structured the basic framework for non-linear editing.
----
+  - **🔥 Building the basic framework for non-linear editing.**
+  - 💡 Added some UI components.
+
+</details>
+</div>
 
 ## PREVIEWS
 |<div>Video Filter</div>|<div>Video Transition</div>|
@@ -117,22 +149,23 @@ Mec relies on some of our other projects. If you are interested in how it's buil
 Mec is created by ours and we welcome every contribution. At present, it has achieved quite a lot functions, which also means that it is becoming increasingly large. We don't recommend that you add new functions to this current code. If you really need this functions, please contact us.
 
 In fact, we have some ideas in the works. If you are interested, please contact us or contribute your code through PR. Here are,
-
-* Media Restoration techniques
-  - [ ] inpaint
-  - [ ] defocusing
-  - [ ] deflicker
-  - [ ] denoising
-  - [ ] blind
-* Media Enhancement techniques
-  - [ ] interpolation
-  - [ ] super resolution
-  - [ ] face enhancement
-  - [ ] speech synthesis
-* More Effects
-  - [ ] ...
-  - [ ] ...
-  - [ ] ...
+<table>
+<tr>
+<td>Repair</td>
+<td>&#9989; Denoising<br/>&#9989; Deband<br/>&#9997; Inpaint<br/>&#9997; Defocusing<br/>&#9997; Deflicker</td>
+<td rowspan=3>
+<img src="docs/assets/welcome.png" />
+</td>
+</tr>
+<tr>
+<td>Enhance</td>
+<td>&#9997; Interpolation<br/>&#9997; Super Resolution<br/>&#9997; Face Enhancement</td>
+</tr>
+<tr>
+<td>Effect</td>
+<td>&#9997; Image<br/>&#9997; Audio<br/>&#9997; Subtitle</td>
+</tr>
+</table>
 
 ## PLUGINS
 Mec supports plug-in frameworks, which can expand Filters, Transitions, Effects and AI, according to your own needs. Currently, we offer the following built-in plugins:

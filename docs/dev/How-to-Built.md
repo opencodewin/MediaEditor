@@ -36,12 +36,9 @@ git clone --recurse-submodules https://github.com/opencodewin/MediaEditor.git
 
 ### Step 2 &ensp;❤&ensp; Install Dependencies (MSYS2 commandline)
 ``` sh
-pacman -Syu && pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake \
-                         mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-openmp mingw-w64-x86_64-zlib \
-                         mingw-w64-x86_64-glslang mingw-w64-x86_64-pkgconf mingw-w64-x86_64-spirv-tools \
-                         mingw-w64-x86_64-glew mingw-w64-x86_64-glfw mingw-w64-x86_64-SDL2 \
-                         mingw-w64-x86_64-SDL2_image mingw-w64-x86_64-libass \
-                         mingw-w64-x86_64-fontconfig mingw-w64-x86_64-freetype 
+pacman -Syu && pacman -S mingw-w64-x86_64-clang mingw-w64-x86_64-cmake \
+                         mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-openmp \
+                         mingw-w64-x86_64-glew mingw-w64-x86_64-glfw
 ```
 
 ### Step 3 &ensp;❤&ensp; Build source code (Mingw64 commandline)
