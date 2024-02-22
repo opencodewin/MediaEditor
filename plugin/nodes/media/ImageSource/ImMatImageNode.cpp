@@ -116,7 +116,6 @@ struct MatImageNode final : Node
         ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_Modal;
         if (m_isShowBookmark)       vflags |= ImGuiFileDialogFlags_ShowBookmark;
         if (!m_isShowHiddenFiles)   vflags |= ImGuiFileDialogFlags_DontShowHiddenFiles;
-        if (!m_bookmark.empty())    ImGuiFileDialog::Instance()->DeserializePlaces(m_bookmark);
         if (m_Blueprint->GetStyleLight())
             ImGuiFileDialog::Instance()->SetLightStyle();
         else
@@ -288,6 +287,7 @@ struct MatImageNode final : Node
             auto& val = value["show_hidden"];
             if (val.is_boolean()) m_isShowHiddenFiles = val.get<imgui_json::boolean>();
         }
+        if (!m_bookmark.empty())    ImGuiFileDialog::Instance()->DeserializePlaces(m_bookmark);
         LoadImage();
         return ret;
     }
