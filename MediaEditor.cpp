@@ -3785,7 +3785,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             };
             auto codec_type_getter = [](void* data, int idx, const char** out_text){
                 std::vector<MediaCore::MediaEncoder::Description> * codecs = (std::vector<MediaCore::MediaEncoder::Description>*)data;
-                *out_text = codecs->at(idx).longName.c_str();
+                *out_text = codecs->at(idx).fullName.c_str();
                 return true;
             };
             auto codec_option_getter = [](void* data, int idx, const char** out_text){
@@ -3816,6 +3816,10 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             }
             else
             {
+                if (OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].name.compare("Apple ProRes") == 0)
+                {
+                    g_media_editor_settings.OutputFormatIndex = 0; // Apple prores only support QuickTime format
+                }
                 if (g_vidEncSelChanged)
                 {
                     string codecHint = OutputVideoCodec[g_media_editor_settings.OutputVideoCodecIndex].codec;
@@ -4255,6 +4259,10 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                         break;
                     default:
                         vidEncParams.extraOpts.push_back({"color_primaries", MediaCore::Value((int)AVCOL_PRI_UNSPECIFIED)});
+                    }
+                    if (vidEncParams.codecName.compare("prores_videotoolbox") == 0)
+                    {
+                        vidEncParams.extraOpts.push_back({"allow_sw", MediaCore::Value(1)});
                     }
                     vidEncParams.extraOpts.push_back({"colorspace", MediaCore::Value((int)outColorspaceValue)});
                     vidEncParams.extraOpts.push_back({"color_trc", MediaCore::Value((int)(ColorTransfer[g_media_editor_settings.OutputColorTransferIndex].tag))});
