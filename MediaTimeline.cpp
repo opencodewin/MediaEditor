@@ -9539,6 +9539,7 @@ void TimeLine::_EncodeProc()
     int64_t encpos = 0;
     int64_t vidFrameCount = mEncMtvReader->MillsecToFrameIndex(mEncodingStart);
     int64_t startTimeOffset = mEncMtvReader->FrameIndexToMillsec(vidFrameCount);
+    mEncMtvReader->SetCacheFrameNum(8);
     if (mEncMtvReader) mEncMtvReader->SeekTo(mEncodingStart);
     if (mEncMtaReader) mEncMtaReader->SeekTo(mEncodingStart);
     while (!mQuitEncoding && (!vidInputEof || !audInputEof))
