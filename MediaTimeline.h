@@ -517,7 +517,7 @@ struct Clip
     MEC::EventStack*            mEventStack {nullptr};// clip event stack,
     std::vector<EventTrack*>    mEventTracks;       // clip event tracks, contain event IDs only, project saved
 
-    int64_t mDragAnchorTime{0};
+    int64_t mDragAnchorTime{-1};
     int64_t firstTime = 0;
     int64_t lastTime = 0;
     int64_t visibleTime = 0;
@@ -526,7 +526,7 @@ struct Clip
     virtual ~Clip();
 
     virtual int64_t Moving(int64_t& diff, int mouse_track);
-    virtual int64_t Cropping(int64_t diff, int type);
+    virtual int64_t Cropping(int64_t& diff, int type);
     void Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_json::value>* pActionList = nullptr);
     bool isLinkedWith(Clip * clip);
 
@@ -670,7 +670,7 @@ struct TextClip : Clip
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated = false) override;
     void DrawTooltips() override;
     int64_t Moving(int64_t& diff, int mouse_track) override;
-    int64_t Cropping(int64_t diff, int type) override;
+    int64_t Cropping(int64_t& diff, int type) override;
     bool ReloadSource(MediaItem* pMediaItem) override;
 
     static TextClip* CreateInstanceFromJson(const imgui_json::value& j, TimeLine* pOwner);
@@ -1299,9 +1299,11 @@ struct TimeLine
 
     void CalculateAudioScopeData(ImGui::ImMat& mat);
 
-    int64_t attract_docking_pixels {20};    // clip attract docking sucking in pixels range, pulling range is 1/5
+    int64_t attract_docking_pixels {20};    // clip attract docking sucking in pixels range
+    int disattract_docking_rate {5};        // pulling range is 1/5
     int64_t mConnectedPoints = -1;
     int64_t mConnectingPoints = -1;
+    bool mClipConnected = false;
 
     int64_t mCurrentTime = 0;
     int64_t mFrameIndex = 0;

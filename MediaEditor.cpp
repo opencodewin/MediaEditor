@@ -425,7 +425,7 @@ struct MediaEditorSettings
     int AudioSampleRate {44100};            // timeline audio sample rate
     int AudioFormat {2};                    // timeline audio format 0=unknown 1=s16 2=f32
     std::string project_path;               // Editor Recently project file path
-    int BankViewStyle {0};                  // Bank view style type, 0 = icons, 1 = tree vide, and ... 
+    int BankViewStyle {1};                  // Bank view style type, 0 = icons, 1 = tree vide, and ... 
     bool ShowHelpTooltips {false};          // Show UI help tool tips
 
     // clip filter editor layout
@@ -6572,10 +6572,12 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list, EditingVideo
             (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(pair.first.first.time_stamp * 1000) || need_update_scope))
         {
             CalculateVideoScope(pair.second);
+            if (pair.first.first.empty() && timeline->mVideoTransitionInputFirstTexture) { ImGui::ImDestroyTexture(timeline->mVideoTransitionInputFirstTexture); timeline->mVideoTransitionInputFirstTexture = nullptr; }
+            if (pair.first.second.empty() && timeline->mVideoTransitionInputSecondTexture) { ImGui::ImDestroyTexture(timeline->mVideoTransitionInputSecondTexture); timeline->mVideoTransitionInputSecondTexture = nullptr; }
             ImGui::ImMatToTexture(pair.first.first, timeline->mVideoTransitionInputFirstTexture);
             ImGui::ImMatToTexture(pair.first.second, timeline->mVideoTransitionInputSecondTexture);
             ImGui::ImMatToTexture(pair.second, timeline->mVideoTransitionOutputTexture);
-            timeline->mLastFrameTime = pair.first.first.time_stamp * 1000;
+            timeline->mLastFrameTime = pair.second.time_stamp * 1000;
             timeline->mIsPreviewNeedUpdate = false;
         }
         ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
@@ -6589,16 +6591,14 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list, EditingVideo
             {
                 timeline->Play(false, true);
                 timeline->Seek(editing->mEnd);
-                //out_of_border = true;
             }
             else if (!timeline->mIsPreviewForward && timeline->mCurrentTime <= editing->mStart)
             {
                 timeline->Play(false, false);
                 timeline->Seek(editing->mStart);
-                //out_of_border = true;
             }
         }
-        else if (timeline->mCurrentTime < editing->mStart || timeline->mCurrentTime > editing->mEnd)
+        if (timeline->mCurrentTime < editing->mStart || timeline->mCurrentTime > editing->mEnd)
         {
             out_of_border = true;
         }
