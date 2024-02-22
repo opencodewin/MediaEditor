@@ -273,12 +273,6 @@ struct MatRenderNode final : Node
         }
         ImGui::SameLine(0);
         ImGui::TextUnformatted(file_name.c_str());
-        auto bookmark = ImGuiFileDialog::Instance()->SerializePlaces();
-        if (m_bookmark != bookmark)
-        {
-            m_bookmark = bookmark;
-            changed = true;
-        }
         if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
             io.ConfigViewportsNoDecoration = false;
         return changed;
@@ -447,14 +441,6 @@ struct MatRenderNode final : Node
                 m_filters = val.get<imgui_json::string>();
             }
         }
-        if (value.contains("bookmark"))
-        {
-            auto& val = value["bookmark"];
-            if (val.is_string())
-            {
-                m_bookmark = val.get<imgui_json::string>();
-            }
-        }
         if (value.contains("show_bookmark"))
         {
             auto& val = value["show_bookmark"];
@@ -465,7 +451,6 @@ struct MatRenderNode final : Node
             auto& val = value["show_hidden"];
             if (val.is_boolean()) m_isShowHiddenFiles = val.get<imgui_json::boolean>();
         }
-        if (!m_bookmark.empty())    ImGuiFileDialog::Instance()->DeserializePlaces(m_bookmark);
         return ret;
     }
 
@@ -478,7 +463,6 @@ struct MatRenderNode final : Node
         value["show_bookmark"] = m_isShowBookmark;
         value["show_hidden"] = m_isShowHiddenFiles;
         value["filter"] = m_filters;
-        value["bookmark"] = m_bookmark;
     }
 
     span<Pin*> GetInputPins() override { return m_InputPins; }
@@ -507,7 +491,6 @@ struct MatRenderNode final : Node
     int m_image_height  {0};
     std::string m_save_file_path    {"saved_texture.png"};
     std::string m_filters {".png,.PNG,.jpg,.jpeg,.JPG,.JPEG,.bmp,.BMP,.tga,.TGA"};
-    std::string m_bookmark {""};
     bool m_isShowBookmark {false};
     bool m_isShowHiddenFiles {true};
     std::mutex m_mutex;

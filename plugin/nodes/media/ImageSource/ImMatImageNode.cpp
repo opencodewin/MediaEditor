@@ -149,12 +149,6 @@ struct MatImageNode final : Node
         }
         ImGui::SameLine(0);
         ImGui::TextUnformatted(file_name.c_str());
-        auto bookmark = ImGuiFileDialog::Instance()->SerializePlaces();
-        if (m_bookmark != bookmark)
-        {
-            m_bookmark = bookmark;
-            changed = true;
-        }
         ImGui::Separator();
         // Draw custom layout
         changed |= ImGui::InputInt("Preview Width", &m_preview_width);
@@ -269,14 +263,6 @@ struct MatImageNode final : Node
                 m_filters = val.get<imgui_json::string>();
             }
         }
-        if (value.contains("bookmark"))
-        {
-            auto& val = value["bookmark"];
-            if (val.is_string())
-            {
-                m_bookmark = val.get<imgui_json::string>();
-            }
-        }
         if (value.contains("show_bookmark"))
         {
             auto& val = value["show_bookmark"];
@@ -287,7 +273,6 @@ struct MatImageNode final : Node
             auto& val = value["show_hidden"];
             if (val.is_boolean()) m_isShowHiddenFiles = val.get<imgui_json::boolean>();
         }
-        if (!m_bookmark.empty())    ImGuiFileDialog::Instance()->DeserializePlaces(m_bookmark);
         LoadImage();
         return ret;
     }
@@ -301,7 +286,6 @@ struct MatImageNode final : Node
         value["show_bookmark"] = m_isShowBookmark;
         value["show_hidden"] = m_isShowHiddenFiles;
         value["filter"] = m_filters;
-        value["bookmark"] = m_bookmark;
     }
 
     span<Pin*> GetInputPins() override { return m_InputPins; }
@@ -320,7 +304,6 @@ struct MatImageNode final : Node
     ImTextureID m_textureID {0};
     string  m_path;
     string m_filters {".*"};
-    string m_bookmark {""};
     bool m_isShowBookmark {false};
     bool m_isShowHiddenFiles {false};
     int32_t m_preview_width {240};
