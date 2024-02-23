@@ -3645,6 +3645,9 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     static int encoder_stage = 0; // 0:unknown 1:encoding 2:finished
     static double encoder_start = -1, encoder_end = -1, encode_duration = -1;
+    static const char* buttons[] = { "Overwrite", "Cancel", NULL };
+    static ImGui::MsgBox msgbox_event;
+    msgbox_event.Init("Overwrite Exist File?", ICON_MD_WARNING, "Are you really sure you want to overwrite file?", buttons, false);
 
     if (!timeline)
         return;
@@ -3665,6 +3668,19 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             g_encoderConfigErrorMessage.clear();
             encoder_stage = 0;
             encoder_end = encoder_start = encode_duration = -1;
+            std::string fullpath = timeline->mOutputPath+"/"+timeline->mOutputName
+                +"."+OutFormats[g_media_editor_settings.OutputFormatIndex].suffix;
+            if (ImGuiHelper::file_exists(fullpath))
+            {
+                msgbox_event.Open();
+            }
+            else
+            {
+                ImGui::OpenPopup("Make Media##MakeVideoDlyKey", ImGuiPopupFlags_AnyPopup);
+            }
+        }
+        if (msgbox_event.Draw() == 1)
+        {
             ImGui::OpenPopup("Make Media##MakeVideoDlyKey", ImGuiPopupFlags_AnyPopup);
         }
         ImGui::SetWindowFontScale(1.0);
