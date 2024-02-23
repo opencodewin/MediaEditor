@@ -4186,7 +4186,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             else
                 ImGui::Dummy(ImVec2(32, 32));
             ImGui::SameLine();
-            ImGui::ProgressBar("##encoding_progress",timeline->mEncodingProgress, 0.f, 1.f, "%1.1f%%", ImVec2(540, 16), 
+            ImGui::ProgressBar("##encoding_progress", timeline->mEncodingProgress, 0.f, 1.f, "%1.1f%%", ImVec2(540, 16), 
                                     ImVec4(1.f, 1.f, 1.f, 1.f), ImVec4(0.f, 0.f, 0.f, 1.f), ImVec4(1.f, 1.f, 1.f, 1.f));
 
             auto valid_duration = timeline->ValidDuration();
@@ -4228,6 +4228,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 timeline->StopEncoding();
                 if (timeline->mEncodingPreviewTexture) { ImGui::ImDestroyTexture(timeline->mEncodingPreviewTexture); timeline->mEncodingPreviewTexture = nullptr; }
                 timeline->mEncoder = nullptr;
+                timeline->mEncodingProgress = 0;
                 ImGui::CloseCurrentPopup();
             }
             ImGui::EndDisabled();
