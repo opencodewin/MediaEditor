@@ -520,8 +520,8 @@ if(APPLE)
     set(CPACK_SYSTEM_NAME "macos")
     set(CMAKE_INSTALL_PREFIX ${PROJECT_BINARY_DIR})
     # Bundle target
-    set(CPACK_GENERATOR DragNDrop)
-    set(CPACK_BINARY_DRAGNDROP ON)
+    #set(CPACK_GENERATOR DragNDrop)
+    #set(CPACK_BINARY_DRAGNDROP ON)
     # OSX cpack info
     install(TARGETS mec
             CONFIGURATIONS Release MinSizeRel RelWithDebInfo Debug
@@ -529,9 +529,9 @@ if(APPLE)
             RUNTIME DESTINATION bin COMPONENT Runtime
     )
     set(bindirs mec.app/Contents/MacOS)
-    set(frameworks_dir mec.app/Contents/Frameworks/)
-    set(resources_dir mec.app/Contents/Resources/)
-    set(contents_dir mec.app/Contents/)
+    set(frameworks_dir mec.app/Contents/Frameworks)
+    set(resources_dir mec.app/Contents/Resources)
+    set(contents_dir mec.app/Contents)
 
     # Install Resource File
     install(DIRECTORY  "${PROJECT_SOURCE_DIR}/languages"
