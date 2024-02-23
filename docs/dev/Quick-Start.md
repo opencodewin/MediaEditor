@@ -1,3 +1,5 @@
+*[English](Quick-Start.md) ∙ [简体中文](Quick-Start-zh.md)*
+
 # QuickStart for MediaEditor Community
 ## Downloads
 #### We provide the following release packages for Windows, Linux and macOS.
