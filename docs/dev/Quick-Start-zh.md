@@ -17,4 +17,4 @@
 
 ---
 ### Import media to bank
-<video src="import_media.mp4"></video>
+[![舞蹈剪辑](https://i1.hdslb.com/bfs/archive/b89c2ffeb6111f449d6c481be2d0d500362e6293.jpg)](https://www.bilibili.com/video/BV1V2421M72N?t=15.6 "一段舞蹈剪辑")
