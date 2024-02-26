@@ -1203,7 +1203,7 @@ typedef struct TimeLineCallbackFunctions
 struct TimeLine
 {
 #define MAX_VIDEO_CACHE_FRAMES  3
-    TimeLine(std::string plugin_path = {});
+    TimeLine();
     ~TimeLine();
     IDGenerator m_IDGenerator;              // Timeline ID generator
     std::vector<MediaItem *> media_items;   // Media Bank, project saved

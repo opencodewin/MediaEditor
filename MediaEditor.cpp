@@ -1673,7 +1673,7 @@ static inline void ImgSeuqPane(const char* vFilter, const char* currentPath, IGF
 // Document Framework
 static void NewTimeline()
 {
-    timeline = new TimeLine(g_plugin_path);
+    timeline = new TimeLine();
     if (timeline)
     {
         g_hProject->SetTimelineHandle(timeline);
@@ -1737,12 +1737,16 @@ static void LoadProjectThread(std::string path, bool in_splash)
     g_project_loading_percentage = 0;
     Logger::Log(Logger::DEBUG) << "[MEC] Load project from '" << path << "'." << std::endl;
     g_project_loading_percentage = 0.1;
-    auto projErr = g_hProject->Load(path);
-    if (projErr != MEC::Project::OK)
+
+    if (!path.empty())
     {
-        g_project_loading_percentage = 1.0f;
-        g_project_loading = false;
-        return;
+        auto projErr = g_hProject->Load(path);
+        if (projErr != MEC::Project::OK)
+        {
+            g_project_loading_percentage = 1.0f;
+            g_project_loading = false;
+            return;
+        }
     }
     g_project_loading_percentage = 0.2;
     timeline->m_in_threads = true;
@@ -1819,7 +1823,10 @@ static void LoadProjectThread(std::string path, bool in_splash)
         Logger::Log(Logger::WARN) << "CANNOT find '" << attrName << "' attribute in MEC project content json at '" << path << "'!" << std::endl;
     }
 
-    quit_save_confirm = false;
+    if (path.empty())
+        quit_save_confirm = true;
+    else
+        quit_save_confirm = false;
     project_need_save = true;
     project_changed = false;
     g_project_loading_percentage = 1.0;
@@ -1883,6 +1890,42 @@ static void OpenProject(const std::string& projectPath)
     CleanProject();
     set_context_in_splash = false;
     g_loading_project_thread = new std::thread(LoadProjectThread, projectPath, set_context_in_splash);
+}
+
+static void ReloadProject()
+{
+    if (!timeline)
+        return;
+    timeline->Play(false, true);
+
+    // store current project
+    imgui_json::value projContent;
+    // first save media bank info
+    imgui_json::value media_bank;
+    for (auto media : timeline->media_items)
+    {
+        imgui_json::value item;
+        item["id"] = imgui_json::number(media->mID);
+        item["name"] = media->mName;
+        item["path"] = media->mPath;
+        item["type"] = imgui_json::number(media->mMediaType);
+        media_bank.push_back(item);
+    }
+    projContent["MediaBank"] = media_bank;
+    // second save Timeline
+    imgui_json::value timeline_val;
+    timeline->Save(timeline_val);
+    projContent["TimeLine"] = timeline_val;
+
+    g_hProject->SetContentJson(projContent);
+
+    delete timeline;
+    timeline = nullptr;
+
+    NewTimeline();
+
+    set_context_in_splash = false;
+    g_loading_project_thread = new std::thread(LoadProjectThread, g_media_editor_settings.project_path , set_context_in_splash);
 }
 
 /****************************************************************************************
@@ -11696,8 +11739,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     timeline->mPreviewScale = g_media_editor_settings.PreviewScale;
                     timeline->mhMediaSettings->SyncAudioSettingsFrom(hNewSettings.get());
                     timeline->mAudioRenderFormat = pcmFormat;
-                    //timeline->Reload();
-                    OpenProject(g_media_editor_settings.project_path);
+                    //OpenProject(g_media_editor_settings.project_path);
+                    ReloadProject();
                 }
                 else
                 {
@@ -12335,6 +12378,10 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 {
                     g_hProject = hNewProj;
                     SaveProject(hNewProj);
+                }
+                else if (err == MEC::Project::ALREADY_EXISTS)
+                {
+                    // TODO::Dicky need deel with exist project
                 }
                 app_done = true;
             }

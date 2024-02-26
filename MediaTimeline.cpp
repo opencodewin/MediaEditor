@@ -5902,7 +5902,7 @@ int TimeLine::OnBluePrintChange(int type, std::string name, void* handle)
     return ret;
 }
 
-TimeLine::TimeLine(std::string plugin_path)
+TimeLine::TimeLine()
     : mStart(0), mEnd(0), mPcmStream(this)
 {
     std::srand(std::time(0)); // init std::rand
