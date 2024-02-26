@@ -13,8 +13,10 @@
 ## 使用教程
 #### ***注意：<u>软件仍然处于开发阶段，该教程中涉及的行为可能与最新版本软件中的行为存在明显差异.</u>***
 #### 该教程通过一个实例（剪辑一组舞蹈短片）来展示如何使用本软件来制作视频，整体大纲如下: 
-- [导入素材到媒体库](#import-media-to-bank)
+【视频演示】https://www.bilibili.com/video/BV1V2421M72N?t=15.6
+- [导入素材到媒体库](#导入素材到媒体库)
 
 ---
-### Import media to bank
-[![舞蹈剪辑](https://i1.hdslb.com/bfs/archive/b89c2ffeb6111f449d6c481be2d0d500362e6293.jpg)](https://www.bilibili.com/video/BV1V2421M72N?t=15.6 "一段舞蹈剪辑")
+### 导入素材到媒体库
+https://github.com/opencodewin/MediaEditor/assets/26289650/8d5c7cad-f625-4e77-921c-c2ca5f28d4b4
+
