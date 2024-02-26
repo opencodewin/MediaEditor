@@ -6991,7 +6991,6 @@ void TimeLine::Play(bool play, bool forward)
 
 void TimeLine::Seek(int64_t msPos, bool enterSeekingState)
 {
-    msPos = AlignTime(msPos);
     if (enterSeekingState && !bSeeking)
     {
         // begin to seek
@@ -7000,9 +6999,12 @@ void TimeLine::Seek(int64_t msPos, bool enterSeekingState)
             mAudioRender->Resume();
     }
 
-    auto targetFrameIndex = mMtvReader->MillsecToFrameIndex(msPos);
+    auto targetFrameIndex = mMtvReader->MillsecToFrameIndex(msPos, 1);
     if (targetFrameIndex == mFrameIndex)
+    {
+        mCurrentTime = mMtvReader->FrameIndexToMillsec(mFrameIndex);
         return;
+    }
     mFrameIndex = targetFrameIndex;
     mCurrentTime = mMtvReader->FrameIndexToMillsec(mFrameIndex);
 
@@ -7016,7 +7018,7 @@ void TimeLine::Seek(int64_t msPos, bool enterSeekingState)
     {
         mPlayTriggerTp = PlayerClock::now();
         mMtaReader->SeekTo(msPos, false);
-        mMtvReader->SeekTo(msPos);
+        mMtvReader->SeekToByIdx(mFrameIndex);
         mAudioRender->Flush();
         mPreviewResumePos = mCurrentTime;
     }
@@ -12273,8 +12275,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                     timeline->firstTime = mouseTime;
                 if (mouseTime > timeline->lastTime)
                     timeline->firstTime = mouseTime - timeline->visibleTime;
-                timeline->mCurrentTime = timeline->AlignTime(mouseTime, 1);
-                timeline->Seek(timeline->mCurrentTime, true);
+                timeline->Seek(mouseTime, true);
                 need_save = true;
             }
         }
