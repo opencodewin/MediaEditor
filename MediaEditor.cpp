@@ -1031,7 +1031,7 @@ static bool Show_Version(ImDrawList* draw_list, int32_t start_time)
         auto mark_size = ImGui::CalcTextSize(str.c_str());
         float xoft = (logo_texture ? 32 + 256 : 0) + (window_size.x - mark_size.x - (logo_texture ? 256 : 0)) / 2;
         float yoft = (window_size.y - mark_size.y - 32) / 2 - 32;
-        draw_list->AddTextComplex(window_pos + ImVec2(xoft, yoft), str.c_str(), 4.f, IM_COL32(255, 255, 255, title_alpha * 255), 0.f, 0, ImVec2(4, 4), IM_COL32(0, 0, 0, 255));
+        draw_list->AddTextComplex(window_pos + ImVec2(xoft, yoft), str.c_str(), 4.f, IM_COL32(255, 255, 255, title_alpha * 255), 4.f, IM_COL32(64, 64, 128, title_alpha * 255), ImVec2(4, 4), IM_COL32(0, 0, 0, 255));
         ImGui::SetWindowFontScale(2.0);
         std::string cstr = "Community";
         auto csize = ImGui::CalcTextSize(cstr.c_str());
@@ -1715,6 +1715,7 @@ static void NewProject()
     quit_save_confirm = true;
     project_need_save = true;
     project_changed = false;
+    g_media_editor_settings.project_path.clear();
 }
 
 static void LoadProjectThread(std::string path, bool in_splash)
@@ -11695,6 +11696,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     timeline->mPreviewScale = g_media_editor_settings.PreviewScale;
                     timeline->mhMediaSettings->SyncAudioSettingsFrom(hNewSettings.get());
                     timeline->mAudioRenderFormat = pcmFormat;
+                    //timeline->Reload();
                     OpenProject(g_media_editor_settings.project_path);
                 }
                 else
