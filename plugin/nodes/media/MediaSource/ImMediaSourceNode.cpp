@@ -147,6 +147,7 @@ extern "C" {
     format == AV_PIX_FMT_GRAY14BE || \
     format == AV_PIX_FMT_GRAY14LE || \
     format == AV_PIX_FMT_GRAY16LE || \
+    format == AV_PIX_FMT_PAL8 || \
     format == AV_PIX_FMT_GRAY16BE)
 
 static inline std::string PrintTimeStamp(double time_stamp)
