@@ -4921,15 +4921,22 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
                 bool bInMaskEventRange = timeline->mCurrentTime >= start+pVidEditingClip->mMaskEventStart && timeline->mCurrentTime < start+pVidEditingClip->mMaskEventEnd;
                 if (pVidEditingClip->mhMaskCreator && bInMaskEventRange)
                 {
-                    const auto& hTransFilter = pVidEditingClip->mhTransformFilter;
-                    const int64_t i64TickInClip = timeline->mCurrentTime-start;
-                    const auto v2WaOffsetRatio = MatUtils::ToImVec2(hTransFilter->GetPosOffsetRatio(i64TickInClip));
-                    const auto v2WaScale = MatUtils::ToImVec2(hTransFilter->GetScale(i64TickInClip));
-                    const auto v2OutSize = MatUtils::ToImVec2(hTransFilter->GetOutSize());
-                    const auto v2WaOffset = v2WaOffsetRatio*(v2WaScale+ImVec2(1,1))*v2OutSize/2.f;
-                    const auto fWaRotAngle = hTransFilter->GetRotation(i64TickInClip);
-                    const auto szMaskSize = pVidEditingClip->mhMaskCreator->GetMaskSize();
-                    pVidEditingClip->mhMaskCreator->SetUiWarpAffineParameters(v2WaOffset, v2WaScale, -fWaRotAngle, MatUtils::ToImVec2(szMaskSize)/2.f);
+                    if (bOutputPreview)
+                    {
+                        const auto& hTransFilter = pVidEditingClip->mhTransformFilter;
+                        const int64_t i64TickInClip = timeline->mCurrentTime-start;
+                        const auto v2WaOffsetRatio = MatUtils::ToImVec2(hTransFilter->GetPosOffsetRatio(i64TickInClip));
+                        const auto v2WaScale = MatUtils::ToImVec2(hTransFilter->GetScale(i64TickInClip));
+                        const auto v2OutSize = MatUtils::ToImVec2(hTransFilter->GetOutSize());
+                        const auto v2WaOffset = v2WaOffsetRatio*(v2WaScale+ImVec2(1,1))*v2OutSize/2.f;
+                        const auto fWaRotAngle = hTransFilter->GetRotation(i64TickInClip);
+                        const auto szMaskSize = pVidEditingClip->mhMaskCreator->GetMaskSize();
+                        pVidEditingClip->mhMaskCreator->SetUiWarpAffineParameters(v2WaOffset, v2WaScale, -fWaRotAngle, MatUtils::ToImVec2(szMaskSize)/2.f);
+                    }
+                    else
+                    {
+                        pVidEditingClip->mhMaskCreator->SetUiWarpAffineParameters({0, 0}, {1, 1}, 0);
+                    }
                     const int64_t i64TickInEvent = timeline->mCurrentTime-(start+pVidEditingClip->mMaskEventStart);
                     if (pVidEditingClip->mhMaskCreator->DrawContent({offset_x, offset_y}, {tf_x-offset_x, tf_y-offset_y}, true, i64TickInEvent))
                     {
@@ -5130,8 +5137,8 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * pEditin
     // attribute setting
     if (is_video_clip)
     {
-        EditingVideoClip * vclip = (EditingVideoClip *)pEditingClip;
-        auto hTransformFilter = vclip->mhTransformFilter;
+        EditingVideoClip * pVidEdtClip = (EditingVideoClip *)pEditingClip;
+        auto hTransformFilter = pVidEdtClip->mhTransformFilter;
         const auto RefreshPreview = [&] ()
         {
             timeline->RefreshTrackView({trackId});
@@ -5147,7 +5154,12 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * pEditin
             int iReserveWidth = is_video_clip ? 80 : 40;
             ImGui::SetCursorScreenPos(ImVec2(sub_window_pos.x + sub_window_size.x - iReserveWidth, tree_pos.y));
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-            ImGui::CheckButton(ICON_CLIP_ATTRIBUTE "##video_attribute", &pEditingClip->bEditingAttribute, ImVec4(0.0, 0.5, 0.0, 1.0));
+            if (ImGui::CheckButton(ICON_CLIP_ATTRIBUTE "##video_attribute", &pVidEdtClip->bEditingAttribute, ImVec4(0.0, 0.5, 0.0, 1.0)))
+            {
+                if (pVidEdtClip->bEditingAttribute)
+                    pVidEdtClip->UnselectEditingMask();
+            }
+            ImGui::ShowTooltipOnHover(pVidEdtClip->bEditingAttribute ? "Event editing mode" : "Attribute editing mode");
             ImGui::SameLine();
             if (ImGui::Button(ICON_RETURN_ALL "##video_attribute_reset_all"))
             {
