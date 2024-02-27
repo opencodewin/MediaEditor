@@ -1740,11 +1740,13 @@ static void LoadProjectThread(std::string path, bool in_splash)
 
     if (!path.empty())
     {
+        g_media_editor_settings.project_path = path;
         auto projErr = g_hProject->Load(path);
         if (projErr != MEC::Project::OK)
         {
             g_project_loading_percentage = 1.0f;
             g_project_loading = false;
+            g_media_editor_settings.project_path = "";
             return;
         }
     }
@@ -1826,7 +1828,9 @@ static void LoadProjectThread(std::string path, bool in_splash)
     if (path.empty())
         quit_save_confirm = true;
     else
+    {
         quit_save_confirm = false;
+    }
     project_need_save = true;
     project_changed = false;
     g_project_loading_percentage = 1.0;
@@ -11601,7 +11605,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
         g.LanguageName = g_media_editor_settings.UILanguage;
-    static std::string project_name = g_media_editor_settings.project_path.empty() ? "Untitled" : ImGuiHelper::path_filename_prefix(g_media_editor_settings.project_path);
+    std::string project_name = g_media_editor_settings.project_path.empty() ? "Untitled" : ImGuiHelper::path_filename_prefix(g_media_editor_settings.project_path);
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
     const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite | ImGuiFileDialogFlags_Modal;
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -11861,7 +11865,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             show_file_dialog = true;
             std::string project_path = g_media_editor_settings.project_path.empty() ? "." : ImGuiHelper::path_url(g_media_editor_settings.project_path);
             IGFD::FileDialogConfig config;
-            config.path = project_path.c_str();
+            config.filePathName = project_path.c_str();
             config.countSelectionMax = 1;
             config.userDatas = IGFDUserDatas("ProjectOpen");
             config.flags = fflags;
@@ -11882,7 +11886,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             {
                 show_file_dialog = true;
                 IGFD::FileDialogConfig config;
-                config.path = "Untitled.mep";
+                config.fileName = "Untitled.mep";
                 config.countSelectionMax = 1;
                 config.userDatas = IGFDUserDatas("ProjectSaveAndNew");
                 config.flags = pflags;
@@ -11907,7 +11911,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             {
                 show_file_dialog = true;
                 IGFD::FileDialogConfig config;
-                config.path = "Untitled.mep";
+                config.fileName = "Untitled.mep";
                 config.countSelectionMax = 1;
                 config.userDatas = IGFDUserDatas("ProjectSave");
                 config.flags = pflags;
@@ -11923,7 +11927,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             show_file_dialog = true;
             std::string project_path = g_media_editor_settings.project_path.empty() ? "Untitled.mep" : g_media_editor_settings.project_path;
             IGFD::FileDialogConfig config;
-            config.path = project_path.c_str();
+            config.filePathName = project_path.c_str();
             config.countSelectionMax = 1;
             config.userDatas = IGFDUserDatas("ProjectSave");
             config.flags = pflags;
@@ -12352,8 +12356,9 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             }
             else if (userDatas.compare("ProjectSave") == 0)
             {
+                auto overwrited = ImGuiFileDialog::Instance()->IsOkWithOverWrite();
                 auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
-                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path));
+                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path), overwrited);
                 if (err == MEC::Project::OK)
                 {
                     g_hProject = hNewProj;

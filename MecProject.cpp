@@ -21,7 +21,7 @@ Project::Project(SysUtils::ThreadPoolExecutor::Holder hBgtaskExctor)
     m_pLogger = GetLogger("MecProject");
 }
 
-Project::ErrorCode Project::CreateNew(const string& name, const string& baseDir)
+Project::ErrorCode Project::CreateNew(const string& name, const string& baseDir, bool overwrite)
 {
     lock_guard<recursive_mutex> _lk(m_mtxApiLock);
     if (m_bOpened)
@@ -33,7 +33,7 @@ Project::ErrorCode Project::CreateNew(const string& name, const string& baseDir)
             return errcode;
         }
     }
-    auto projDir = SysUtils::JoinPath(baseDir, name);
+    auto projDir = overwrite ? baseDir : SysUtils::JoinPath(baseDir, name);
     if (SysUtils::Exists(projDir))
     {
         m_pLogger->Log(Error) << "Project directory path '" << projDir << "' already exists! Can NOT create new project at this location." << endl;

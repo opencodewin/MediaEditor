@@ -37,7 +37,7 @@ public:
         TL_INVALID,
     };
 
-    ErrorCode CreateNew(const std::string& name, const std::string& baseDir);
+    ErrorCode CreateNew(const std::string& name, const std::string& baseDir, bool overwrite = false);
     ErrorCode Load(const std::string& projFilePath);
     ErrorCode Save();
     ErrorCode Close(bool bSaveBeforeClose = true);
