@@ -10844,6 +10844,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                 ImGui::EndPopup();
             }
         }
+        if (timeline->bSeeking && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+            timeline->StopSeek();
+        }
     }
     else
     {
