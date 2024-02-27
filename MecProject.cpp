@@ -34,15 +34,18 @@ Project::ErrorCode Project::CreateNew(const string& name, const string& baseDir,
         }
     }
     auto projDir = overwrite ? baseDir : SysUtils::JoinPath(baseDir, name);
-    if (SysUtils::Exists(projDir))
+    if (!overwrite && SysUtils::Exists(projDir))
     {
         m_pLogger->Log(Error) << "Project directory path '" << projDir << "' already exists! Can NOT create new project at this location." << endl;
         return ALREADY_EXISTS;
     }
-    if (!SysUtils::CreateDirectoryCstm(projDir, true))
+    if (!SysUtils::Exists(projDir))
     {
-        m_pLogger->Log(Error) << "FAILED to create project directory at '" << projDir << "'!" << endl;
-        return MKDIR_FAILED;
+        if (!SysUtils::CreateDirectoryCstm(projDir, true))
+        {
+            m_pLogger->Log(Error) << "FAILED to create project directory at '" << projDir << "'!" << endl;
+            return MKDIR_FAILED;
+        }
     }
     m_projName = name;
     m_projDir = projDir;

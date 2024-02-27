@@ -11611,6 +11611,15 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     static bool show_configure = false;
     static bool show_debug = false;
     static bool show_file_dialog = false;
+    static bool show_overwrite_msg = false;
+    static bool show_overwrite_new_msg = false;
+    static bool show_overwrite_quit_msg = false;
+    static std::string overwrite_project_name;
+    static std::string overwrite_project_path;
+    static ImGui::MsgBox msgbox_overwrite;
+    static const char* buttons_quit[] = { "Overwrite", "Quit", "Cancel", NULL };
+    msgbox_overwrite.Init("Overwrite Exist Project?", ICON_MD_WARNING, "Are you really sure you want to overwrite project?", buttons_quit, false);
+
     auto platform_io = ImGui::GetPlatformIO();
     bool is_splitter_hold = false;
     if (!timeline) return app_will_quit;
@@ -11990,6 +11999,11 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                 ImGui::CloseCurrentPopup();
                 NewProject();
                 project_name = "Untitled";
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(40, 0)))
+            {
+                ImGui::CloseCurrentPopup();
             }
             ImGui::SetItemDefaultFocus();
             ImGui::EndPopup();
@@ -12377,30 +12391,59 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     SaveProject(g_hProject);
                     project_name = g_hProject->GetProjectName();
                 }
+                else if (err == MEC::Project::ALREADY_EXISTS && !show_overwrite_msg)
+                {
+                    show_overwrite_msg = true;
+                    auto name = SysUtils::ExtractFileBaseName(file_name);
+                    auto base_path = SysUtils::ExtractDirectoryPath(file_path);
+                    overwrite_project_name = name;
+                    overwrite_project_path = SysUtils::JoinPath(base_path, name);;
+                    msgbox_overwrite.Open();
+                }
             }
             else if (userDatas.compare("ProjectSaveAndNew") == 0)
             {
+                auto overwrited = ImGuiFileDialog::Instance()->IsOkWithOverWrite();
                 auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
-                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path));
+                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path), overwrited);
                 if (err == MEC::Project::OK)
                     SaveProject(hNewProj);
-                NewProject();
-                project_name = "Untitled";
+                else if (err == MEC::Project::ALREADY_EXISTS && !show_overwrite_new_msg)
+                {
+                    show_overwrite_new_msg = true;
+                    auto name = SysUtils::ExtractFileBaseName(file_name);
+                    auto base_path = SysUtils::ExtractDirectoryPath(file_path);
+                    overwrite_project_name = name;
+                    overwrite_project_path = SysUtils::JoinPath(base_path, name);;
+                    msgbox_overwrite.Open();
+                }
+                if (!show_overwrite_new_msg)
+                {
+                    NewProject();
+                    project_name = "Untitled";
+                }
             }
             else if (userDatas.compare("ProjectSaveQuit") == 0)
             {
+                auto overwrited = ImGuiFileDialog::Instance()->IsOkWithOverWrite();
                 auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
-                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path));
+                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path), overwrited);
                 if (err == MEC::Project::OK)
                 {
                     g_hProject = hNewProj;
                     SaveProject(hNewProj);
                 }
-                else if (err == MEC::Project::ALREADY_EXISTS)
+                else if (err == MEC::Project::ALREADY_EXISTS && !show_overwrite_quit_msg)
                 {
-                    // TODO::Dicky need deel with exist project
+                    show_overwrite_quit_msg = true;
+                    auto name = SysUtils::ExtractFileBaseName(file_name);
+                    auto base_path = SysUtils::ExtractDirectoryPath(file_path);
+                    overwrite_project_name = name;
+                    overwrite_project_path = SysUtils::JoinPath(base_path, name);;
+                    msgbox_overwrite.Open();
                 }
-                app_done = true;
+                if (!show_overwrite_quit_msg)
+                    app_done = true;
             }
             show_file_dialog = false;
         }
@@ -12413,10 +12456,60 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         }
         ImGuiFileDialog::Instance()->Close();
     }
-    else if (!quit_save_confirm)
+    else if (!quit_save_confirm && !show_overwrite_quit_msg)
     {
         app_done = app_will_quit;
     }
+
+    if (show_overwrite_msg || show_overwrite_new_msg || show_overwrite_quit_msg)
+    {
+        auto msg_ret = msgbox_overwrite.Draw();
+        if (msg_ret == 1)
+        {
+            if (!overwrite_project_name.empty() && !overwrite_project_path.empty())
+            {
+                auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
+                auto err = hNewProj->CreateNew(overwrite_project_name, overwrite_project_path, true);
+                if (err == MEC::Project::OK)
+                {
+                    g_hProject = hNewProj;
+                    SaveProject(hNewProj);
+                }
+                if (show_overwrite_quit_msg)
+                    app_done = true;
+                else if (show_overwrite_new_msg)
+                {
+                    NewProject();
+                    project_name = "Untitled";
+                }
+                show_overwrite_msg = false;
+                show_overwrite_new_msg = false;
+                show_overwrite_quit_msg = false;
+            }
+        }
+        else if (msg_ret == 2)
+        {
+            if (show_overwrite_quit_msg)
+                app_done = true;
+            else if (show_overwrite_new_msg)
+            {
+                NewProject();
+                project_name = "Untitled";
+            }
+            show_overwrite_msg = false;
+            show_overwrite_new_msg = false;
+            show_overwrite_quit_msg = false;
+        }
+        else if (msg_ret == 3)
+        {
+            show_overwrite_msg = false;
+            show_overwrite_new_msg = false;
+            show_overwrite_quit_msg = false;
+            overwrite_project_name = "";
+            overwrite_project_path = "";
+        }
+    }
+
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {
         mouse_hold = false;
