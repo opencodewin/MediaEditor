@@ -6,11 +6,11 @@
 
 | System | Stable / Nightly |
 | ------ | ---------------- |
-| Windows 10 / 11 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/mec_SDL2_OpenGL3_win-x86_64-0.9.8.exe"><img src="../../docs/assets/download.svg"></a> |
-| Ubuntu 20.04 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-ubuntu2004-x86_64-0.9.8.AppImage"><img src="../../docs/assets/download.svg"></a> |
-| Ubuntu 22.04 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-ubuntu2204-x86_64-0.9.8.AppImage"><img src="../../docs/assets/download.svg"></a> |
-| MacOS x86 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-MacOS-x86_64-0.9.8.dmg"><img src="../../docs/assets/download.svg"></a> |
-| MacOS ARM | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.8/MEC_SDL2_OpenGL3-MacOS-arm64-0.9.8.dmg"><img src="../../docs/assets/download.svg"></a> |
+| Windows 10 / 11 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.9/mec_SDL2_OpenGL3_win-x86_64-0.9.9.exe"><img src="../../docs/assets/download.svg"></a> |
+| Ubuntu 20.04 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.9/MEC_SDL2_OpenGL3-ubuntu2004-x86_64-0.9.9.AppImage"><img src="../../docs/assets/download.svg"></a> |
+| Ubuntu 22.04 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.9/MEC_SDL2_OpenGL3-ubuntu2204-x86_64-0.9.9.AppImage"><img src="../../docs/assets/download.svg"></a> |
+| MacOS x86 | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.9/MEC_SDL2_OpenGL3-MacOS-x86_64-0.9.9.dmg"><img src="../../docs/assets/download.svg"></a> |
+| MacOS ARM | <a href="https://github.com/opencodewin/MediaEditor/releases/download/v0.9.9/MEC_SDL2_OpenGL3-MacOS-arm64-0.9.9.dmg"><img src="../../docs/assets/download.svg"></a> |
 
 ## Tutorials
 #### ***Note: <u>The software is still in development, this tutorial maybe has quite different from the actual situation.</u>***
