@@ -84,7 +84,7 @@
   >>> </tr></table>
   - <h4>【New 🔥】Some new features for Events.</h4>
   >>> <img src="docs/assets/event_list.png" style="width:100%;height:auto;" />
-    >>> <table><tr>
+  >>> <table><tr>
   >>> <td width="55%"><ul style="list-style-type: circle">
   >>> <li>Support Multi-filters mode for Event</li>
   >>> <li>Add toolbar for clip timeline</li>
