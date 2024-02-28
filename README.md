@@ -24,41 +24,88 @@
 <div>
 <a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.9"><img alt="v0.9.9" src="docs/assets/version_4.svg" /></a>
 
-<b>&nbsp;&nbsp;🎉🎉🎉&nbsp; Released on February 27, 2024.</b>
+<h3>&nbsp;&nbsp;🎉🎉🎉&nbsp; Released on February 28, 2024.</h3>
 
-  - **🔥 Supported graphic operation mode for video attribute editing.**
-  >>><img src="docs/assets/graphic_op.png" style="width:auto;height:165;" />
-  - **🔥 Supported creating masks to limit the pixel range of events.**
-  >>><img src="docs/assets/mask.png" style="width:auto;height:160;" />
-  - **🔥 Supported scaling, feathering, and key-frame for masks.**
-  >>><img src="docs/assets/mask_zoom.png" style="width:auto;height:160;" />
-  - **🔥 Supported multi-dimensional Joint key-frame mode for events.**
-  >>><img src="docs/assets/keyframe.png" style="width:auto;height:132;" />
-  - **🔥 Supported loading media from embedded file-browser to timeline.**
-  - **🔥 Supported media preview from media bank and embedded file-browsers.**
-  >>><img src="docs/assets/media_bank_preview.png" style="width:auto;height:275;" />
-  - **🔥 Supported simple media management, including searching, sorting, and classification.**
-  - 💡 Optimized software performance.
-  - 💡 Optimized media output by implementing hardware support.
-  - 💡 Added toolbar and slidebar for timeline.
-  >>><img src="docs/assets/timeline_new.png" style="width:auto;height:120;" />
-  - 💡 Added graphic event list for filter Editing.
-  >>><img src="docs/assets/event_list.png" style="width:auto;height:165;" />
+  - <h4>【New 🔥】Graphic operation mode for video attribute editing.</h4>
+  >>> <table><tr>
+  >>> <td width="55%"><img src="docs/assets/graphic_op.png" /></td>
+  >>> <td><ul style="list-style-type: circle">
+  >>> <li>Support Scaling</li>
+  >>> <li>Support Cropping</li>
+  >>> <li>Support Moving</li>
+  >>> <li>Support Rotating</li>
+  >>> </ul></td>
+  >>> </tr></table>
+  - <h4>【New 🔥】Multi-dimensional Joint Key-Frame mode for video attribute editing.</h4>
+  >>> <img src="docs/assets/keyframe.png" style="width:100%;height:auto;" />
+  >>> <table><tr>
+  >>> <td width="55%"><ul style="list-style-type: circle">
+  >>> <li>Support Key-Frame for Scale</li>
+  >>> <li>Support Key-Frame for Crop</li>
+  >>> <li>Support Key-Frame for Position</li>
+  >>> </ul></td>
+  >>> <td><ul style="list-style-type: circle">
+  >>> <li>Support Key-Frame for Rotate</li>
+  >>> <li>Support Key-Frame for Opacity</li>
+  >>> </ul></td>
+  >>> </tr></table>
+  - <h4>【New 🔥】Mask mode for video filter editing.</h4>
+  >>> <img src="docs/assets/mask.png" style="width:100%;height:auto;" />
+  >>> <table><tr>
+  >>> <td width="55%"><ul style="list-style-type: circle">
+  >>> <li>Support drawing the outline of Mask</li>
+  >>> <li>Support Moving Mask or Points on Mask</li>
+  >>> <li>Support Deleting Points on Mask</li>
+  >>> <li>Support Adding Points on Mask</li>
+  >>> </ul></td>
+  >>> <td><ul style="list-style-type: circle">
+  >>> <li>Support Feathering for Mask</li>
+  >>> <li>Support Dilatation for Mask</li>
+  >>> <li>Support Corrosion for Mask</li>
+  >>> <li>Support Key-Frame Curve for Mask</li>
+  >>> </ul></td>
+  >>> </tr></table>
+  - <h4>【New 🔥】Some new features for Media Bank and Embedded File-Browser.</h4>
+  >>> <img src="docs/assets/media_bank_preview.png" style="width:100%;height:auto;" />
+  >>> <table><tr>
+  >>> <td width="55%"><ul style="list-style-type: circle">
+  >>> <li>Support Media Preview from Media Bank and Embedded File-Browser</li>
+  >>> <li>Support Media Management, including Searching, Sorting, and Classification</li>
+  >>> <li>Support Loading Media from Embedded File-Browser to Timeline</li>
+  >>> </ul></td>
+  >>> </tr></table>
+  - <h4>【New 🔥】Some new features for Timeline.</h4>
+  >>> <img src="docs/assets/timeline_new.png" style="width:100%;height:auto;" />
+  >>> <table><tr>
+  >>> <td width="55%"><ul style="list-style-type: circle">
+  >>> <li>Add toolbar for timeline</li>
+  >>> <li>Refine magnetic snapping, support cropped clip, overlapped clip, and based clip</li>
+  >>> </ul></td>
+  >>> </tr></table>
+  - <h4>【New 🔥】Some new features for Events.</h4>
+  >>> <img src="docs/assets/event_list.png" style="width:100%;height:auto;" />
+    >>> <table><tr>
+  >>> <td width="55%"><ul style="list-style-type: circle">
+  >>> <li>Support Multi-filters mode for Event</li>
+  >>> <li>Add toolbar for clip timeline</li>
+  >>> <li>Add graphic event list for filter Editing</li>
+  >>> </ul></td>
+  >>> </tr></table>
+  - 💡 Optimized software performance at Media Output by implementing hardware support.
   - 💡 Fixed a lot of bugs.
 ---
 </div><br>
-
 
 <div>
 <a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.8"><img alt="v0.9.8" src="docs/assets/version_3.svg" /></a>
 <details>
 <summary><b>&nbsp;&nbsp;👏👏👏&nbsp; Released on August 28, 2023.</b></summary>
 
-  - **🔥 Supported BluePrint-based event mode.**
-  - **🔥 Supported short-term filters or effects.**
-  - 💡 Optimized software performance.
-  - 💡 Modified some UI behaviors.
-  - 💡 Added some fliters.
+  - **【New 🔥】Supported BluePrint-based event mode.**
+  - **【New 🔥】Supported Short-Term filters or effects.**
+  - 💡 Optimized software performance at Timeline Preview.
+  - 💡 Refined some unreasonable behaviors at UI Level.
+  - 💡 Added some fliters and transitions.
   - 💡 Fixed some bugs.
 </details>
 </div><br>
@@ -68,7 +115,7 @@
 <details>
 <summary><b>&nbsp;&nbsp;👏👏👏&nbsp; Released on May 19, 2023.</b></summary>
 
-  - **🔥 Supported plug-in mode for Enhanced clip editing.**
+  - **【New 🔥】Supported plug-in mode for Enhanced clip editing.**
   - 💡 Added some effects and transitions.
   - 💡 Fixed some known bugs.
 </details>
@@ -79,7 +126,7 @@
 <details>
 <summary><b>&nbsp;&nbsp;👏👏👏&nbsp; Released on April 20, 2023.</b></summary>
 
-  - **🔥 Building the basic framework for non-linear editing.**
+  - **【New 🔥】Building the basic framework for non-linear editing.**
   - 💡 Added some UI components.
 
 </details>
@@ -107,20 +154,20 @@
 ## FEATURES
 * Support complete timeline editing functions, including move, crop, cut, thumbnail preview, scale and delete.
 * Support more flexible and easily blueprint system. Blueprint is represented in the form of nodes, which can handle complex functions through nodes and flows.
->>><img src="docs/assets/blueprint.gif" style="width:auto;height:140;" />
+>>> <img src="docs/assets/blueprint.gif" style="width:100%;height:auto;" />
 * Support about 45+ built-in media filters and 70+ built-in media transitions.
->>><img src="docs/assets/video-transition_new.png" style="width:auto;height:315;"/>
+>>> <img src="docs/assets/video-transition_new.png" style="width:100%;height:auto;"/>
 * Support about 10 video and audio analysis tools.
->>><table><tr><td><img src="docs/assets/cie.gif" style="width:auto;height:170;" /></td><td><img src="docs/assets/waveform.gif" style="width:auto;height:170;" /></td><td><img src="docs/assets/spec.gif" style="width:auto;height:170;" /></td></tr></table>
+>>> <table><tr><td><img src="docs/assets/cie.gif" style="width:100%;height:auto;" /></td><td><img src="docs/assets/waveform.gif" style="width:100%;height:auto;" /></td><td><img src="docs/assets/spec.gif" style="width:100%;height:auto;" /></td></tr></table>
 * Support multiple audio and video codecs, including ProRes, H.264, H.265, VP9, etc.
 * Support import and edit videos from standard definition to 4K resolution.
 * Support magnetic snapping, which can smoothly adjust adjacent clips when arranging them to eliminate gaps, conflicts, and synchronization issues.
 * Support frame-by-frame preview mode, including forward playback and reverse playback.
 * Support multi-monitor mode, making it easy to preview and process media through external monitors.
 * Support video attribute-editing, including cropping, moving, scaling and rotating video frames.
->>><img src="docs/assets/video-filter_new.png" style="width:auto;height:315;" />
+>>> <img src="docs/assets/video-filter_new.png" style="width:100%;height:auto;" />
 * Support audio mixing, including mixer, pan, equalizer, gate, limiter and compressor.
->>><img src="docs/assets/audio-mixing_new.png" style="width:auto;height:345;"/>
+>>> <img src="docs/assets/audio-mixing_new.png" style="width:100%;height:auto;"/>
 * Support curve and keypoint, applied in video filter, video transition, audio filter, audio transition, video attribute and text subtitle.
 * Support subtitle editing, including font, position, scale, rotate, oytline width, font attribute, alignment, etc.
 * Support customized blueprint nodes, allowing for free expansion of filter and transition effects.
