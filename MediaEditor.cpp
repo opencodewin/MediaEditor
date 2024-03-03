@@ -357,18 +357,6 @@ static const method_property FilterMethodItems[] = {
 };
 // Add by Jimmy, End
 
-const std::string video_file_dis = "*.mp4 *.mov *.mkv *.mxf *.avi *.webm *.ts";
-const std::string video_file_suffix = ".mp4,.mov,.mkv,.mxf,.avi,.webm,.ts";
-const std::string audio_file_dis = "*.wav *.mp3 *.aac *.ogg *.ac3 *.dts";
-const std::string audio_file_suffix = ".wav,.mp3,.aac,.ogg,.ac3,.dts";
-const std::string image_file_dis = "*.png *.gif *.jpg *.jpeg *.tiff *.webp";
-const std::string image_file_suffix = ".png,.gif,.jpg,.jpeg,.tiff,.webp";
-const std::string text_file_dis = "*.txt *.srt *.ass *.stl *.lrc *.xml";
-const std::string text_file_suffix = ".txt,.srt,.ass,.stl,.lrc,.xml";
-const std::string video_filter = "Video files (" + video_file_dis + "){" + video_file_suffix + "}";
-const std::string audio_filter = "Audio files (" + audio_file_dis + "){" + audio_file_suffix + "}";
-const std::string image_filter = "Image files (" + image_file_dis + "){" + image_file_suffix + "}";
-const std::string text_filter = "SubTitle files (" + text_file_dis + "){" + text_file_suffix + "}";
 const std::string ffilters = "All Support Files (" + video_file_dis + " " + audio_file_dis + " " + image_file_dis + " " + text_file_dis + ")" + "{" +
                                                     video_file_suffix + "," + audio_file_suffix + "," + image_file_suffix + "," + text_file_suffix + "}" + "," +
                                                     video_filter + "," +

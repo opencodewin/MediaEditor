@@ -12,10 +12,6 @@
 #define ICON_RESET "r"
 #endif
 
-std::string image_file_dis = "*.bmp,*.png *.gif *.jpg *.jpeg *.tiff *.webp";
-std::string image_file_suffix = ".bmp,.png,.gif,.jpg,.jpeg,.tiff,.webp";
-std::string image_filter = "Image files (" + image_file_dis + "){" + image_file_suffix + "}" + "," + ".*";
-
 const char* Dot_Diffusion_items[] = {
     "Knuth",
     "Mini-Knuth",
