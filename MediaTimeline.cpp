@@ -1946,16 +1946,6 @@ VideoClip* VideoClip::CreateInstance(TimeLine* pOwner, MediaItem* pMediaItem, in
     return CreateInstance(pOwner, strClipName, pMediaItem, tClipRange.first, tClipRange.second, 0, 0);
 }
 
-VideoClip* VideoClip::CreateDummyInstance(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End)
-{
-    auto pNewClip = new VideoClip(pOwner);
-    pNewClip->mName = strName;
-    pNewClip->mType |= MEDIA_DUMMY;
-    pNewClip->mStart = i64Start;
-    pNewClip->mEnd = i64End;
-    return pNewClip;
-}
-
 imgui_json::value VideoClip::SaveAsJson()
 {
     imgui_json::value j = Clip::SaveAsJson();
@@ -2003,6 +1993,11 @@ VideoClip* VideoClip::CreateInstanceFromJson(const imgui_json::value& j, TimeLin
         Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
         delete pNewClip;
         return nullptr;
+    }
+    if (!pMediaItem->mValid)
+    {
+        pNewClip->mType |= MEDIA_DUMMY;
+        return pNewClip;
     }
     if (!pNewClip->UpdateClip(pMediaItem))
     {
@@ -2291,6 +2286,8 @@ void VideoClip::SyncStateToDataLayer()
 
 void VideoClip::SyncStateFromDataLayer()
 {
+    if (IS_DUMMY(mType))
+        return;
     // sync 'VideoFilter' from data-layer to clip json
     mEventTracks.clear();
     auto hVFilter = mhDataLayerClip->GetFilter();
@@ -2392,16 +2389,6 @@ AudioClip* AudioClip::CreateInstance(TimeLine* pOwner, MediaItem* pMediaItem, in
     return CreateInstance(pOwner, strClipName, pMediaItem, tClipRange.first, tClipRange.second, 0, 0);
 }
 
-AudioClip* AudioClip::CreateDummyInstance(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End)
-{
-    auto pNewClip = new AudioClip(pOwner);
-    pNewClip->mName = strName;
-    pNewClip->mType |= MEDIA_DUMMY;
-    pNewClip->mStart = i64Start;
-    pNewClip->mEnd = i64End;
-    return pNewClip;
-}
-
 imgui_json::value AudioClip::SaveAsJson()
 {
     imgui_json::value j = Clip::SaveAsJson();
@@ -2441,6 +2428,11 @@ AudioClip* AudioClip::CreateInstanceFromJson(const imgui_json::value& j, TimeLin
         Logger::Log(Logger::Error) << j.dump() << std::endl << std::endl;
         delete pNewClip;
         return nullptr;
+    }
+    if (!pMediaItem->mValid)
+    {
+        pNewClip->mType |= MEDIA_DUMMY;
+        return pNewClip;
     }
     if (!pNewClip->UpdateClip(pMediaItem))
     {
@@ -2518,6 +2510,8 @@ void AudioClip::SyncStateToDataLayer()
 
 void AudioClip::SyncStateFromDataLayer()
 {
+    if (IS_DUMMY(mType))
+        return;
     // sync 'AudioFilter' from data-layer to clip json
     mEventTracks.clear();
     auto hAFilter = mhDataLayerClip->GetFilter();
@@ -9270,12 +9264,8 @@ MediaCore::Snapshot::Generator::Holder TimeLine::GetSnapshotGenerator(int64_t me
     return hSsGen;
 }
 
-void TimeLine::ConfigSnapshotWindow(int64_t viewWndDur)
+void TimeLine::ReflashSnapshotWindow(bool forceRefresh)
 {
-    if (visibleTime == viewWndDur)
-        return;
-
-    visibleTime = viewWndDur;
     for (auto& elem : m_VidSsGenTable)
     {
         auto& ssGen = elem.second;
@@ -9288,13 +9278,22 @@ void TimeLine::ConfigSnapshotWindow(int64_t viewWndDur)
         if (windowSize > video_stream->duration)
             windowSize = video_stream->duration;
         double snapsInViewWindow = std::max((float)((double)msPixelWidthTarget*windowSize * 1000 / snapWidth), 1.f);
-        if (!ssGen->ConfigSnapWindow(windowSize, snapsInViewWindow))
+        if (!ssGen->ConfigSnapWindow(windowSize, snapsInViewWindow, forceRefresh))
             throw std::runtime_error(ssGen->GetError());
     }
     for (auto& track : m_Tracks)
         track->ConfigViewWindow(visibleTime, msPixelWidthTarget);
     MediaCore::Ratio timelineAspectRatio = { (int32_t)mhMediaSettings->VideoOutWidth(), (int32_t)mhMediaSettings->VideoOutHeight() };
     mSnapShotWidth = DEFAULT_VIDEO_TRACK_HEIGHT * (float)timelineAspectRatio.num / (float)timelineAspectRatio.den;
+}
+
+void TimeLine::ConfigSnapshotWindow(int64_t viewWndDur)
+{
+    if (visibleTime == viewWndDur)
+        return;
+
+    visibleTime = viewWndDur;
+    ReflashSnapshotWindow();
 }
 
 MatUtils::Size2i TimeLine::CalcPreviewSize(const MatUtils::Size2i& videoSize, float previewScale)

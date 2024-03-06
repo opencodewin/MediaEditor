@@ -589,7 +589,6 @@ struct VideoClip : Clip
 
     static VideoClip* CreateInstance(TimeLine* pOwner, const std::string& strName, MediaItem* pMediaItem, int64_t i64Start, int64_t i64End, int64_t i64StartOffset = 0, int64_t i64EndOffset = 0);
     static VideoClip* CreateInstance(TimeLine* pOwner, MediaItem* pMediaItem, int64_t i64Start);
-    static VideoClip* CreateDummyInstance(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End);
     virtual ~VideoClip();
 
     void CalcDisplayParams();
@@ -636,7 +635,6 @@ struct AudioClip : Clip
 
     static AudioClip* CreateInstance(TimeLine* pOwner, const std::string& strName, MediaItem* pMediaItem, int64_t i64Start, int64_t i64End, int64_t i64StartOffset = 0, int64_t i64EndOffset = 0);
     static AudioClip* CreateInstance(TimeLine* pOwner, MediaItem* pMediaItem, int64_t i64Start);
-    static AudioClip* CreateDummyInstance(TimeLine* pOwner, const std::string& strName, int64_t i64Start, int64_t i64End);
     virtual ~AudioClip();
 
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated = false) override;
@@ -1498,6 +1496,7 @@ struct TimeLine
     void SyncDataLayer(bool forceRefresh = false);
     MediaCore::Snapshot::Generator::Holder GetSnapshotGenerator(int64_t mediaItemId);
     void ConfigSnapshotWindow(int64_t viewWndDur);
+    void ReflashSnapshotWindow(bool forceRefresh = false);
     MatUtils::Size2i CalcPreviewSize(const MatUtils::Size2i& videoSize, float previewScale);
     void UpdateVideoSettings(MediaCore::SharedSettings::Holder hSettings, float previewScale);
     void UpdateAudioSettings(MediaCore::SharedSettings::Holder hSettings, MediaCore::AudioRender::PcmFormat pcmFormat);
