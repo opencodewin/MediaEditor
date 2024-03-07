@@ -437,7 +437,7 @@ struct MediaEditorSettings
     bool WaveformMirror {true};
     bool WaveformSeparate {false};
     bool WaveformShowY {false};
-    float WaveformIntensity {2.0};
+    float WaveformIntensity {10.0};
 #if IMGUI_VULKAN_SHADER
     // CIE Scope tools
     int CIEColorSystem {ImGui::Rec709system};
@@ -9810,7 +9810,7 @@ static void ShowMediaScopeSetting(int index, bool show_tooltips = true)
             ImGui::TextUnformatted("Show Y:"); ImGui::SameLine();
             if (ImGui::ToggleButton("##waveform_separate", &g_media_editor_settings.WaveformShowY))
                 need_update_scope = true;
-            if (ImGui::DragFloat("Intensity##WaveformIntensity", &g_media_editor_settings.WaveformIntensity, 0.05f, 0.f, 4.f, "%.1f"))
+            if (ImGui::DragFloat("Intensity##WaveformIntensity", &g_media_editor_settings.WaveformIntensity, 0.05f, 0.f, 20.f, "%.1f"))
                 need_update_scope = true;
             if (show_tooltips)
             {
@@ -10126,8 +10126,8 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 else if (io.MouseWheel > FLT_EPSILON)
                 {
                     g_media_editor_settings.WaveformIntensity *= 1.1f;
-                    if (g_media_editor_settings.WaveformIntensity > 4.0f)
-                        g_media_editor_settings.WaveformIntensity = 4.0;
+                    if (g_media_editor_settings.WaveformIntensity > 20.0f)
+                        g_media_editor_settings.WaveformIntensity = 20.0;
                     need_update_scope = true;
                     if (ImGui::BeginTooltip())
                     {
@@ -10137,7 +10137,7 @@ static void ShowMediaScopeView(int index, ImVec2 pos, ImVec2 size)
                 }
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
-                    g_media_editor_settings.WaveformIntensity = 2.0;
+                    g_media_editor_settings.WaveformIntensity = 10.0;
                     need_update_scope = true;
                 }
             }

@@ -350,6 +350,9 @@ endif(BUILD_TEST)
 endif(IMGUI_APPS)
 
 ## build plugins
+if(VKSHADER_VULKAN_BENCHMARK)
+    add_definitions(-DVULKAN_SHADER_BENCHMARK)
+endif(VKSHADER_VULKAN_BENCHMARK)
 
 add_subdirectory(plugin/nodes/media/SDLAudioRender)
 add_subdirectory(plugin/nodes/filters/AudioEqualizer)
