@@ -2018,6 +2018,7 @@ static bool ReloadMedia(std::string path, MediaItem* item)
             {
                 clip->ReloadSource(item);
                 auto track = timeline->FindTrackByClipID(clip->mID);
+                if (item->mValid) clip->mType &= ~MEDIA_DUMMY;
                 if (track && !IS_DUMMY(clip->mType))
                 {
                     // build data layer multi-track media reader
@@ -2065,6 +2066,10 @@ static bool ReloadMedia(std::string path, MediaItem* item)
             item->ReleaseItem();
             item->mName = old_name;
             item->mPath = old_path;
+        }
+        else
+        {
+            timeline->ReflashSnapshotWindow(updated);
         }
         // update preview
         timeline->RefreshPreview();
