@@ -3610,11 +3610,11 @@ void EditingVideoClip::CalcDisplayParams(int64_t viewWndDur)
 void EditingVideoClip::SelectEditingMask(MEC::Event::Holder hEvent, int64_t nodeId, int maskIndex, ImGui::MaskCreator::Holder hMaskCreator)
 {
     mhMaskCreator = hMaskCreator;
-    mMaskEventId = hEvent->Id();
+    mMaskEventId = hEvent ? hEvent->Id() : -1;
     mMaskNodeId = nodeId;
     mMaskIndex = maskIndex;
-    mMaskEventStart = hEvent->Start();
-    mMaskEventEnd = hEvent->End();
+    mMaskEventStart = hEvent ? hEvent->Start() : 0;
+    mMaskEventEnd = hEvent ? hEvent->End() : mDuration;
 }
 
 void EditingVideoClip::UnselectEditingMask()

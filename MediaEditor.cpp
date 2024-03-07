@@ -5480,7 +5480,85 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * pEditin
                     hTransformFilter->SetOpacity(1.f);
                     RefreshPreview();
                 }
-                ImGui::ShowTooltipOnHover("Reset");
+                ImGui::ShowTooltipOnHover("Reset"); ImGui::SameLine(0, 15);
+                auto szOpacityMaskCnt = hTransformFilter->GetOpacityMaskCount();
+                if (ImGui::Button(ICON_MASK "##add_opacity_mask"))
+                {
+                    std::ostringstream oss; oss << "Mask " << szOpacityMaskCnt;
+                    std::string maskName = oss.str();
+                    auto hMaskCreator = hTransformFilter->CreateNewOpacityMask(maskName);
+                    assert(hMaskCreator); szOpacityMaskCnt++;
+                }
+                ImGui::ShowTooltipOnHover("Add mask");
+                if (szOpacityMaskCnt > 0)
+                {
+                    ImGui::Indent(30);
+                    int iToDelIdx = -1;
+                    auto currPos = ImGui::GetCursorScreenPos();
+                    const float iconWidth = 30;
+                    const int iconCnt = 2;
+                    auto rightIconPosX = sub_window_pos.x+sub_window_size.x-iconWidth*iconCnt-60;
+                    const ImVec2 selectableItemSize = { rightIconPosX-currPos.x-20, 20 };
+                    for (auto idx = 0; idx < szOpacityMaskCnt; idx++)
+                    {
+                        auto hMaskCreator = hTransformFilter->GetOpacityMaskCreator(idx);
+                        if (!hMaskCreator)
+                        {
+                            Logger::Log(Logger::WARN) << hTransformFilter->GetError() << std::endl;
+                            continue;
+                        }
+                        std::string maskName = hMaskCreator->GetName();
+                        std::ostringstream oss; oss << maskName << "##clip" << pEdtVidClip->mID << "_opacity_mask@" << idx;
+                        std::string label = oss.str();
+                        bool bMaskSelected = pEdtVidClip->mMaskEventId == -1 && pEdtVidClip->mMaskNodeId == -1 && pEdtVidClip->mMaskIndex == idx;
+                        if (ImGui::Selectable(label.c_str(), bMaskSelected, 0, selectableItemSize) && !bMaskSelected)
+                        {
+                            pEdtVidClip->SelectEditingMask(nullptr, -1, idx, hMaskCreator);
+                        }
+                        ImGui::SameLine();
+                        currPos = ImGui::GetCursorScreenPos();
+                        int iconIdx = 0;
+                        ImGui::SetCursorScreenPos({rightIconPosX+(iconIdx++)*iconWidth, currPos.y});
+                        oss.str(""); oss << ICON_FA_CLOCK << "##enable_opacity_mask_keyframe@clip" << pEdtVidClip->mID << "_index" << idx;
+                        label = oss.str();
+                        bool bKeyFrameEnabled = hMaskCreator->IsKeyFrameEnabled();
+                        const ImColor tChkbtnColor(100, 100, 100);
+                        bool bKeyFrameEnabled_ = !bKeyFrameEnabled;
+                        ImGui::BeginDisabled(!bMaskSelected);
+                        if (ImGui::CheckButton(label.c_str(), &bKeyFrameEnabled_, tChkbtnColor))
+                        {
+                            bKeyFrameEnabled = !bKeyFrameEnabled_;
+                            pEdtVidClip->mhMaskCreator->EnableKeyFrames(bKeyFrameEnabled);
+                        }
+                        ImGui::EndDisabled();
+                        ImGui::SetCursorScreenPos({rightIconPosX+(iconIdx++)*iconWidth, currPos.y});
+                        oss.str(""); oss << ICON_DELETE << "##delete_opacity_mask@clip" << pEdtVidClip->mID << "_index" << idx;
+                        label = oss.str();
+                        if (ImGui::Button(label.c_str()))
+                            iToDelIdx = idx;
+                        ImGui::ShowTooltipOnHover("Delete Mask");
+
+                        // draw mask key-frame timeline
+                        if (bMaskSelected && bKeyFrameEnabled)
+                        {
+                            currPos = ImGui::GetCursorScreenPos();
+                            auto wdgWidth = sub_window_pos.x+sub_window_size.x-currPos.x-60;
+                            const int64_t i64Tick = timeline->mCurrentTime-(pEdtVidClip->mStart+pEdtVidClip->mMaskEventStart);
+                            int64_t i64Tick_ = i64Tick;
+                            pEdtVidClip->mhMaskCreator->DrawContourPointKeyFrames(i64Tick_, nullptr, wdgWidth);
+                            if (i64Tick != i64Tick_)
+                                timeline->Seek(i64Tick_+pEdtVidClip->mStart+pEdtVidClip->mMaskEventStart);
+                        }
+                    }
+                    if (iToDelIdx >= 0)
+                    {
+                        if (pEdtVidClip->mMaskEventId == -1 && pEdtVidClip->mMaskNodeId == -1 && pEdtVidClip->mMaskIndex == iToDelIdx)
+                            pEdtVidClip->UnselectEditingMask();
+                        hTransformFilter->RemoveOpacityMask(iToDelIdx);
+                        RefreshPreview();
+                    }
+                    ImGui::Unindent(30);
+                }
 
                 if (bIsKeyFramesEnabled)
                 {
@@ -5576,8 +5654,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * pEditin
                 auto newMaskIdx = pVidEvt->GetMaskCount();
                 std::ostringstream oss; oss << "Mask " << newMaskIdx;
                 std::string maskName = oss.str();
-                const MatUtils::Size2i vidPreviewSize(timeline->mhPreviewSettings->VideoOutWidth(), timeline->mhPreviewSettings->VideoOutHeight());
-                auto hMaskCreator = pVidEvt->CreateNewMask(maskName, vidPreviewSize);
+                auto hMaskCreator = pVidEvt->CreateNewMask(maskName);
                 assert(hMaskCreator);
                 if (is_selected)
                     pEdtVidClip->SelectEditingMask(event, -1, newMaskIdx, hMaskCreator);

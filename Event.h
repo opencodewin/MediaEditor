@@ -44,7 +44,7 @@ namespace MEC
     {
         virtual ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) = 0;
 
-        virtual ImGui::MaskCreator::Holder CreateNewMask(const std::string& name, const MatUtils::Size2i& szMaskSize) = 0;
+        virtual ImGui::MaskCreator::Holder CreateNewMask(const std::string& name) = 0;
         virtual int GetMaskCount() const = 0;
         virtual int GetMaskCount(int64_t nodeId) const = 0;
         virtual const ImGui::MaskCreator::Holder GetMaskCreator(size_t index) const = 0;

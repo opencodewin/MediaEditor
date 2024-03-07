@@ -560,8 +560,11 @@ public:
                 hMaskCreator->SetTickRange(0, Length());
         }
 
-        ImGui::MaskCreator::Holder CreateNewMask(const string& name, const MatUtils::Size2i& szMaskSize) override
+        ImGui::MaskCreator::Holder CreateNewMask(const string& name) override
         {
+            const auto pEsf = dynamic_cast<VideoEventStackFilter_Impl*>(m_owner);
+            const auto pVidClip = pEsf->GetVideoClip();
+            const MatUtils::Size2i szMaskSize(pVidClip->OutWidth(), pVidClip->OutHeight());
             auto hMaskCreator = ImGui::MaskCreator::CreateInstance(szMaskSize, name);
             hMaskCreator->SetTickRange(0, Length());
             m_ahMaskCreators.push_back(hMaskCreator);
