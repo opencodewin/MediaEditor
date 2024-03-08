@@ -593,7 +593,6 @@ struct VideoClip : Clip
 
     void CalcDisplayParams();
 
-    void ConfigViewWindow(int64_t wndDur, float pixPerMs) override;
     void SetTrackHeight(int trackHeight) override;
     void SetViewWindowStart(int64_t millisec) override;
     void DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const ImVec2& rightBottom, const ImRect& clipRect, bool updated = false) override;

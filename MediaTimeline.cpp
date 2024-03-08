@@ -2057,6 +2057,7 @@ bool VideoClip::UpdateClip(MediaItem* pMediaItem)
     mPath = mMediaParser->GetUrl();
     mWidth = pVidstm->width;
     mHeight = pVidstm->height;
+    CalcDisplayParams();
     return true;
 }
 
@@ -2065,20 +2066,10 @@ bool VideoClip::ReloadSource(MediaItem* pMediaItem)
     return UpdateClip(pMediaItem);
 }
 
-void VideoClip::ConfigViewWindow(int64_t wndDur, float pixPerMs)
-{
-    Clip::ConfigViewWindow(wndDur, pixPerMs);
-
-    if (mTrackHeight > 0)
-        CalcDisplayParams();
-}
-
 void VideoClip::SetTrackHeight(int trackHeight)
 {
     Clip::SetTrackHeight(trackHeight);
-
-    if (mViewWndDur > 0 && mPixPerMs > 0)
-        CalcDisplayParams();
+    CalcDisplayParams();
 }
 
 void VideoClip::SetViewWindowStart(int64_t millisec)
@@ -2226,10 +2217,12 @@ void VideoClip::DrawContent(ImDrawList* drawList, const ImVec2& leftTop, const I
 
 void VideoClip::CalcDisplayParams()
 {
-    const MediaCore::VideoStream* video_stream = mMediaParser->GetBestVideoStream();
+    if (!mMediaParser) return;
+    const MediaCore::VideoStream* pVidStream = mMediaParser->GetBestVideoStream();
+    if (!pVidStream) return;
     mSnapHeight = mTrackHeight;
     MediaCore::Ratio displayAspectRatio = {
-        (int32_t)(video_stream->width * video_stream->sampleAspectRatio.num), (int32_t)(video_stream->height * video_stream->sampleAspectRatio.den) };
+        (int32_t)(pVidStream->width * pVidStream->sampleAspectRatio.num), (int32_t)(pVidStream->height * pVidStream->sampleAspectRatio.den) };
     mSnapWidth = (float)mTrackHeight * displayAspectRatio.num / displayAspectRatio.den;
 }
 
