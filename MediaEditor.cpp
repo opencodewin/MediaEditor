@@ -4914,7 +4914,10 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
                 bool bInMaskEventRange = timeline->mCurrentTime >= start+pVidEditingClip->mMaskEventStart && timeline->mCurrentTime < start+pVidEditingClip->mMaskEventEnd;
                 if (pVidEditingClip->mhMaskCreator && bInMaskEventRange)
                 {
-                    if (bOutputPreview)
+                    // when 'mMaskEventId' is -1, the selected mask is an opacity mask. Opacity mask has already been applied
+                    // with warp affine matrix (post-warpaffine mask), so there's no need to apply UI-warpaffine matrix
+                    const bool bApplyUiWarpAfine = bOutputPreview && pVidEditingClip->mMaskEventId != -1;
+                    if (bApplyUiWarpAfine)
                     {
                         const auto& hTransFilter = pVidEditingClip->mhTransformFilter;
                         const int64_t i64TickInClip = timeline->mCurrentTime-start;
