@@ -173,8 +173,8 @@ struct Lut3DNode final : Node
             m_NodeTimeMs = m_filter->filter(mat_in, im_RGB);
             im_RGB.color_space = (is_hdr_pq || is_hdr_hlg) ? IM_CS_BT2020 : 
                                 is_sdr_709 ? IM_CS_BT709 : IM_CS_SRGB; // 601?
-            if (is_hdr_pq) im_RGB.flags |= IM_MAT_FLAGS_VIDEO_HDR_PQ;
-            if (is_hdr_hlg) im_RGB.flags |= IM_MAT_FLAGS_VIDEO_HDR_HLG;
+            if (is_hdr_pq) im_RGB.flags |= IM_MAT_FLAGS_VIDEO_FRAME | IM_MAT_FLAGS_VIDEO_HDR_PQ;
+            if (is_hdr_hlg) im_RGB.flags |= IM_MAT_FLAGS_VIDEO_FRAME | IM_MAT_FLAGS_VIDEO_HDR_HLG;
             m_MatOut.SetValue(im_RGB);
         }
         return m_Exit;
@@ -183,23 +183,32 @@ struct Lut3DNode final : Node
     bool DrawSettingLayout(ImGuiContext * ctx) override
     {
         // Draw Setting
-        int lut_mode = m_lut_mode;
         auto changed = Node::DrawSettingLayout(ctx);
         ImGui::Separator();
-        ImGui::RadioButton("SDR->HLG",  (int *)&lut_mode, SDR709_HDRHLG); ImGui::SameLine();
-        ImGui::RadioButton("SDR->PQ",   (int *)&lut_mode, SDR709_HDRPQ); ImGui::SameLine();
-        ImGui::RadioButton("HLG->SDR",  (int *)&lut_mode, HDRHLG_SDR709); ImGui::SameLine();
-        ImGui::RadioButton("PQ->SDR",   (int *)&lut_mode, HDRPQ_SDR709); ImGui::SameLine();
-        ImGui::RadioButton("HLG->PQ",   (int *)&lut_mode, HDRHLG_HDRPQ); ImGui::SameLine();
-        ImGui::RadioButton("PQ->HLG",   (int *)&lut_mode, HDRPQ_HDRHLG); ImGui::SameLine();
+        changed |= Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);        
+        return changed;
+    }
+
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
+    {
+        ImGui::SetCurrentContext(ctx);
+        // Draw custom layout
+        int lut_mode = m_lut_mode;
+        bool changed = false;
+        ImGui::TextUnformatted("Lut Mode:");
+        ImGui::RadioButton("SDR->HLG",  (int *)&lut_mode, SDR709_HDRHLG);
+        ImGui::RadioButton("SDR->PQ",   (int *)&lut_mode, SDR709_HDRPQ);
+        ImGui::RadioButton("HLG->SDR",  (int *)&lut_mode, HDRHLG_SDR709);
+        ImGui::RadioButton("PQ->SDR",   (int *)&lut_mode, HDRPQ_SDR709);
+        ImGui::RadioButton("HLG->PQ",   (int *)&lut_mode, HDRHLG_HDRPQ);
+        ImGui::RadioButton("PQ->HLG",   (int *)&lut_mode, HDRPQ_HDRHLG);
         ImGui::RadioButton("File",      (int *)&lut_mode, NO_DEFAULT);
-        ImGui::Separator();
-        ImGui::RadioButton("Nearest",       (int *)&m_interpolation_mode, IM_INTERPOLATE_NEAREST); ImGui::SameLine();
-        ImGui::RadioButton("Trilinear",     (int *)&m_interpolation_mode, IM_INTERPOLATE_TRILINEAR); ImGui::SameLine();
+        if (!embedded) ImGui::Separator();
+        ImGui::TextUnformatted("Interpolation:");
+        ImGui::RadioButton("Nearest",       (int *)&m_interpolation_mode, IM_INTERPOLATE_NEAREST);
+        ImGui::RadioButton("Trilinear",     (int *)&m_interpolation_mode, IM_INTERPOLATE_TRILINEAR);
         ImGui::RadioButton("Teteahedral",   (int *)&m_interpolation_mode, IM_INTERPOLATE_TETRAHEDRAL);
-        ImGui::Separator();
-        changed |= Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
-        ImGui::Separator();
+        if (!embedded) ImGui::Separator();
         if (m_lut_mode != lut_mode)
         {
             m_lut_mode = lut_mode;
@@ -224,6 +233,7 @@ struct Lut3DNode final : Node
                                                     filters.c_str(), 
                                                     config);
         }
+        if (embedded) ed::Suspend();
         if (ImGuiFileDialog::Instance()->Display("##NodeChooseLutFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
         {
 	        // action if OK
@@ -237,53 +247,18 @@ struct Lut3DNode final : Node
             // close
             ImGuiFileDialog::Instance()->Close();
         }
+        if (embedded)  ed::Resume();
         if (m_lut_mode != NO_DEFAULT)
         {
             m_path.clear();
             m_file_name.clear();
         }
         ImGui::SameLine(0);
-        ImGui::TextUnformatted(m_file_name.c_str());
-        ImGui::EndDisabled();
-        return changed;
-    }
-
-    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
-    {
-        ImGui::SetCurrentContext(ctx);
-        // Draw custom layout
-        bool changed = false;
-        int lut_mode = m_lut_mode;
-        ImGui::PushItemWidth(200);
-        ImGui::BeginDisabled(!m_Enabled);
-        ImGui::TextUnformatted("Please using Node Setting to change mode");
-        ImGui::TextUnformatted("Current mode:");
         if (!m_file_name.empty())
-            ImGui::Text("Lut from file: %s", m_file_name.c_str());
+            ImGui::TextUnformatted(m_file_name.c_str());
         else
-        {
-            switch (m_lut_mode)
-            {
-                case SDR709_HDRHLG: ImGui::TextUnformatted("SDR to HLG"); break;
-                case SDR709_HDRPQ: ImGui::TextUnformatted("SDR to PQ"); break;
-                case HDRHLG_SDR709: ImGui::TextUnformatted("HLG to SDR"); break;
-                case HDRPQ_SDR709: ImGui::TextUnformatted("PQ to SDR"); break;
-                case HDRHLG_HDRPQ: ImGui::TextUnformatted("HLG to PQ"); break;
-                case HDRPQ_HDRHLG: ImGui::TextUnformatted("PQ to HDR"); break;
-                default: ImGui::TextUnformatted("Unknown Lut"); break;
-            }
-        }
-
-        switch (m_interpolation_mode)
-        {
-            case IM_INTERPOLATE_NEAREST: ImGui::TextUnformatted("Interpolate Nearest"); break;
-            case IM_INTERPOLATE_TRILINEAR: ImGui::TextUnformatted("Interpolate Trilinear"); break;
-            case IM_INTERPOLATE_TETRAHEDRAL: ImGui::TextUnformatted("Interpolate Tetrahedral"); break;
-            default: ImGui::TextUnformatted("Unknown Interpolate"); break;
-        }   
-
+            ImGui::TextUnformatted("Noselected file");
         ImGui::EndDisabled();
-        ImGui::PopItemWidth();
         return changed;
     }
 
