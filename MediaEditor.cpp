@@ -5170,8 +5170,10 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * pEditin
                 hTransformFilter->SetScaleX(1.f);
                 hTransformFilter->SetScaleY(1.f);
                 hTransformFilter->SetRotation(0.f);
+                hTransformFilter->SetOpacity(1.f);
                 RefreshPreview();
             }
+            ImGui::ShowTooltipOnHover("Reset all attributes");
             ImGui::PopStyleColor();
         }
         if (attrib_tree_open)
