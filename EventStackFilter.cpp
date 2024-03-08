@@ -537,9 +537,11 @@ public:
                         auto& hMaskCreator = m_ahMaskCreators[i];
                         if (szImageSize != hMaskCreator->GetMaskSize())
                             hMaskCreator->ChangeMaskSize(szImageSize, true);
+                        if (!hMaskCreator->IsMaskReady())
+                            continue;
                         auto mMask = m_ahMaskCreators[i]->GetMask(ImGui::MaskCreator::AA, true, IM_DT_FLOAT32, 1, 0, i64Tick);
                         if (mCombinedMask.empty())
-                            mCombinedMask = mMask;
+                            mCombinedMask = mMask.clone();
                         else
                             MatUtils::Max(mCombinedMask, mMask);
                     }

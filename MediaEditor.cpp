@@ -4914,10 +4914,7 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
                 bool bInMaskEventRange = timeline->mCurrentTime >= start+pVidEditingClip->mMaskEventStart && timeline->mCurrentTime < start+pVidEditingClip->mMaskEventEnd;
                 if (pVidEditingClip->mhMaskCreator && bInMaskEventRange)
                 {
-                    // when 'mMaskEventId' is -1, the selected mask is an opacity mask. Opacity mask has already been applied
-                    // with warp affine matrix (post-warpaffine mask), so there's no need to apply UI-warpaffine matrix
-                    const bool bApplyUiWarpAfine = bOutputPreview && pVidEditingClip->mMaskEventId != -1;
-                    if (bApplyUiWarpAfine)
+                    if (bOutputPreview)
                     {
                         const auto& hTransFilter = pVidEditingClip->mhTransformFilter;
                         const int64_t i64TickInClip = timeline->mCurrentTime-start;
@@ -4927,7 +4924,12 @@ static void ShowVideoPreviewWindow(ImDrawList *draw_list, EditingVideoClip* pVid
                         const auto v2WaOffset = v2WaOffsetRatio*(v2WaScale+ImVec2(1,1))*v2OutSize/2.f;
                         const auto fWaRotAngle = hTransFilter->GetRotation(i64TickInClip);
                         const auto szMaskSize = pVidEditingClip->mhMaskCreator->GetMaskSize();
-                        pVidEditingClip->mhMaskCreator->SetUiWarpAffineParameters(v2WaOffset, v2WaScale, -fWaRotAngle, MatUtils::ToImVec2(szMaskSize)/2.f);
+                        // when 'mMaskEventId' is -1, the selected mask is an opacity mask. Opacity mask has already been applied
+                        // with warp affine matrix (post-warpaffine mask), so there's no need to apply UI-warpaffine matrix
+                        if (pVidEditingClip->mMaskEventId != -1)
+                            pVidEditingClip->mhMaskCreator->SetUiWarpAffineParameters(v2WaOffset, v2WaScale, -fWaRotAngle, MatUtils::ToImVec2(szMaskSize)/2.f);
+                        else
+                            pVidEditingClip->mhMaskCreator->SetMaskWarpAffineParameters(v2WaOffset, v2WaScale, -fWaRotAngle, MatUtils::ToImVec2(szMaskSize)/2.f);
                     }
                     else
                     {
@@ -5495,7 +5497,9 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * pEditin
                     std::ostringstream oss; oss << "Mask " << szOpacityMaskCnt;
                     std::string maskName = oss.str();
                     auto hMaskCreator = hTransformFilter->CreateNewOpacityMask(maskName);
-                    assert(hMaskCreator); szOpacityMaskCnt++;
+                    assert(hMaskCreator);
+                    pVidEdtClip->SelectEditingMask(nullptr, -1, szOpacityMaskCnt, hMaskCreator);
+                    szOpacityMaskCnt++;
                 }
                 ImGui::ShowTooltipOnHover("Add mask");
                 if (szOpacityMaskCnt > 0)
