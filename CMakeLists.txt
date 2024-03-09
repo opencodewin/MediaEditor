@@ -355,6 +355,8 @@ if(VKSHADER_VULKAN_BENCHMARK)
 endif(VKSHADER_VULKAN_BENCHMARK)
 
 add_subdirectory(plugin/nodes/media/SDLAudioRender)
+add_subdirectory(plugin/nodes/media/MatRGB2YUV)
+add_subdirectory(plugin/nodes/media/MatYUV2RGB)
 add_subdirectory(plugin/nodes/filters/AudioEqualizer)
 add_subdirectory(plugin/nodes/filters/AudioGain)
 add_subdirectory(plugin/nodes/filters/AudioAecho)
