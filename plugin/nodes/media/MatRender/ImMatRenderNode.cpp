@@ -316,7 +316,8 @@ struct MatRenderNode final : Node
                         ImVec2(m_preview_width,m_preview_height),
                         ImVec2(0.0f, 0.0f), 
                         ImVec2(1.0f, 1.0f));
-            if (ImGui::IsItemHovered())
+            bool zoom = ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift);
+            if (zoom && ImGui::IsItemHovered())
             {
                 ImVec2 scale_range = ImVec2(2.0 , 8.0);
                 float zoom_size = 384;
