@@ -13561,21 +13561,24 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
         {
             if (overCustomDraw || overHorizonScrollBar || overTopBar || overTrackView)
             {
-                // left-right wheel over blank area, moving canvas view
-                if (io.MouseWheelH < -FLT_EPSILON)
+                if (io.MouseWheel == 0)
                 {
-                    pEditingClip->firstTime -= pEditingClip->visibleTime / view_frames;
-                    pEditingClip->firstTime = ImClamp(pEditingClip->firstTime, (int64_t)0, ImMax(duration - pEditingClip->visibleTime, (int64_t)0));
-                    need_update = true;
-                }
-                else if (io.MouseWheelH > FLT_EPSILON)
-                {
-                    pEditingClip->firstTime += pEditingClip->visibleTime / view_frames;
-                    pEditingClip->firstTime = ImClamp(pEditingClip->firstTime, (int64_t)0, ImMax(duration - pEditingClip->visibleTime, (int64_t)0));
-                    need_update = true;
+                    // left-right wheel over blank area, moving canvas view
+                    if (io.MouseWheelH < -FLT_EPSILON)
+                    {
+                        pEditingClip->firstTime -= pEditingClip->visibleTime / view_frames;
+                        pEditingClip->firstTime = ImClamp(pEditingClip->firstTime, (int64_t)0, ImMax(duration - pEditingClip->visibleTime, (int64_t)0));
+                        need_update = true;
+                    }
+                    else if (io.MouseWheelH > FLT_EPSILON)
+                    {
+                        pEditingClip->firstTime += pEditingClip->visibleTime / view_frames;
+                        pEditingClip->firstTime = ImClamp(pEditingClip->firstTime, (int64_t)0, ImMax(duration - pEditingClip->visibleTime, (int64_t)0));
+                        need_update = true;
+                    }
                 }
             }
-            if ((overHorizonScrollBar || overTopBar) && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            if ((overHorizonScrollBar || overTopBar) && io.MouseWheelH == 0 && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 // up-down wheel over scrollbar, scale canvas view
                 if (io.MouseWheel < -FLT_EPSILON && pEditingClip->visibleTime <= duration)
