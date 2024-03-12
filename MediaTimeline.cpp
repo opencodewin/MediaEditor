@@ -11950,17 +11950,20 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             }
             if (overCustomDraw || overTrackView || overHorizonScrollBar || overTopBar)
             {
-                // up-down wheel to scroll vertical
-                if (io.MouseWheel < -FLT_EPSILON || io.MouseWheel > FLT_EPSILON)
+                if (!overHorizonScrollBar && !overTopBar)
                 {
-                    auto scroll_y = VerticalScrollPos;
-                    float offset = -io.MouseWheel * 5 / VerticalBarHeightRatio + scroll_y;
-                    offset = ImClamp(offset, 0.f, VerticalScrollMax);
-                    ImGui::SetScrollY(VerticalWindow, offset);
-                    panningViewVerticalPos = offset;
+                    // up-down wheel to scroll vertical
+                    if (io.MouseWheel < -FLT_EPSILON || io.MouseWheel > FLT_EPSILON)
+                    {
+                        auto scroll_y = VerticalScrollPos;
+                        float offset = -io.MouseWheel * 5 / VerticalBarHeightRatio + scroll_y;
+                        offset = ImClamp(offset, 0.f, VerticalScrollMax);
+                        ImGui::SetScrollY(VerticalWindow, offset);
+                        panningViewVerticalPos = offset;
+                    }
                 }
                 // left-right wheel over blank area, moving canvas view
-                else if (io.MouseWheelH < -FLT_EPSILON)
+                if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     timeline->firstTime -= timeline->visibleTime / view_frames;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
@@ -11973,7 +11976,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                     need_save = true;
                 }
             }
-            if (overHorizonScrollBar && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            if ((overHorizonScrollBar || overTopBar) && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 // up-down wheel over scrollbar, scale canvas view
                 if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
@@ -13567,7 +13570,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
                     need_update = true;
                 }
             }
-            if (overHorizonScrollBar && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            if ((overHorizonScrollBar || overTopBar) && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 // up-down wheel over scrollbar, scale canvas view
                 if (io.MouseWheel < -FLT_EPSILON && pEditingClip->visibleTime <= duration)
