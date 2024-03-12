@@ -11155,8 +11155,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             bool baseIndex = ((i % modTimeCount) == 0) || (i == timeline->GetEnd() || i == timeline->GetStart());
             bool halfIndex = (i % halfModTime) == 0;
             int px = (int)contentMin.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
-            int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-            int timeEnd = baseIndex ? regionHeight : HeadHeight - 8;
+            int timeStart = baseIndex ? 8 : (halfIndex ? 14 : 18);
+            int timeEnd = regionHeight;
             if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
                 draw_list->AddLine(ImVec2((float)px, HeaderAreaRect.Min.y + (float)timeStart), ImVec2((float)px, HeaderAreaRect.Min.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
@@ -11165,7 +11165,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             {
                 auto time_str = ImGuiHelper::MillisecToString(i, 2);
                 ImGui::SetWindowFontScale(0.8);
-                draw_list->AddText(ImVec2((float)px + 3.f, HeaderAreaRect.Min.y + 8), COL_RULE_TEXT, time_str.c_str());
+                auto str_size = ImGui::CalcTextSize(time_str.c_str());
+                draw_list->AddText(ImVec2((float)px - str_size.x / 2, HeaderAreaRect.Min.y), COL_RULE_TEXT, time_str.c_str());
                 ImGui::SetWindowFontScale(1.0);
             }
         };
@@ -11824,12 +11825,30 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         else if (inHorizonScrollThumbLeft && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
             ImGui::CaptureMouseFromApp();
-            MovingHorizonScrollBar = 1;
+            if (inHorizonScrollThumbRight)
+            {
+                inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
+                inHorizonScrollHandle = true;
+                MovingHorizonScrollBar = 0;
+                panningViewHorizonSource = io.MousePos;
+                panningViewHorizonTime = - timeline->firstTime;
+            }
+            else
+                MovingHorizonScrollBar = 1;
         }
         else if (inHorizonScrollThumbRight && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
             ImGui::CaptureMouseFromApp();
-            MovingHorizonScrollBar = 2;
+            if (inHorizonScrollThumbLeft)
+            {
+                inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
+                inHorizonScrollHandle = true;
+                MovingHorizonScrollBar = 0;
+                panningViewHorizonSource = io.MousePos;
+                panningViewHorizonTime = - timeline->firstTime;
+            }
+            else
+                MovingHorizonScrollBar = 2;
         }
         else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
@@ -11932,17 +11951,20 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             }
             if (overCustomDraw || overTrackView || overHorizonScrollBar || overTopBar)
             {
-                // up-down wheel to scroll vertical
-                if (io.MouseWheel < -FLT_EPSILON || io.MouseWheel > FLT_EPSILON)
+                if (!overHorizonScrollBar && !overTopBar)
                 {
-                    auto scroll_y = VerticalScrollPos;
-                    float offset = -io.MouseWheel * 5 / VerticalBarHeightRatio + scroll_y;
-                    offset = ImClamp(offset, 0.f, VerticalScrollMax);
-                    ImGui::SetScrollY(VerticalWindow, offset);
-                    panningViewVerticalPos = offset;
+                    // up-down wheel to scroll vertical
+                    if (io.MouseWheel < -FLT_EPSILON || io.MouseWheel > FLT_EPSILON)
+                    {
+                        auto scroll_y = VerticalScrollPos;
+                        float offset = -io.MouseWheel * 5 / VerticalBarHeightRatio + scroll_y;
+                        offset = ImClamp(offset, 0.f, VerticalScrollMax);
+                        ImGui::SetScrollY(VerticalWindow, offset);
+                        panningViewVerticalPos = offset;
+                    }
                 }
                 // left-right wheel over blank area, moving canvas view
-                else if (io.MouseWheelH < -FLT_EPSILON)
+                if (io.MouseWheelH < -FLT_EPSILON)
                 {
                     timeline->firstTime -= timeline->visibleTime / view_frames;
                     timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
@@ -11955,7 +11977,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                     need_save = true;
                 }
             }
-            if (overHorizonScrollBar && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            if ((overHorizonScrollBar || overTopBar) && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 // up-down wheel over scrollbar, scale canvas view
                 if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
@@ -13319,8 +13341,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
             bool baseIndex = ((i % modTimeCount) == 0) || (i == end - start || i == 0);
             bool halfIndex = (i % halfModTime) == 0;
             int px = (int)contentMin.x + int(i * pEditingClip->msPixelWidthTarget) - int(pEditingClip->firstTime * pEditingClip->msPixelWidthTarget);
-            int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-            int timeEnd = baseIndex ? regionHeight : header_height - 8;
+            int timeStart = baseIndex ? 8 : (halfIndex ? 14 : 18);
+            int timeEnd = regionHeight;
             if (px <= (timline_size.x + contentMin.x) && px >= contentMin.x)
             {
                 draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)timeStart), ImVec2((float)px, canvas_pos.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
@@ -13329,7 +13351,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
             {
                 auto time_str = ImGuiHelper::MillisecToString(i, 2);
                 ImGui::SetWindowFontScale(0.8);
-                draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y + 8), COL_RULE_TEXT, time_str.c_str());
+                auto str_size = ImGui::CalcTextSize(time_str.c_str());
+                draw_list->AddText(ImVec2((float)px - str_size.x / 2, canvas_pos.y), COL_RULE_TEXT, time_str.c_str());
                 ImGui::SetWindowFontScale(1.0);
             }
         };
@@ -13473,12 +13496,30 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
         else if (inHorizonScrollThumbLeft && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
         {
             ImGui::CaptureMouseFromApp();
-            MovingHorizonScrollBar = 1;
+            if (inHorizonScrollThumbRight)
+            {
+                inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
+                inHorizonScrollHandle = true;
+                MovingHorizonScrollBar = 0;
+                panningViewHorizonSource = io.MousePos;
+                panningViewHorizonTime = - pEditingClip->firstTime;
+            }
+            else
+                MovingHorizonScrollBar = 1;
         }
         else if (inHorizonScrollThumbRight && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
         {
             ImGui::CaptureMouseFromApp();
-            MovingHorizonScrollBar = 2;
+            if (inHorizonScrollThumbLeft)
+            {
+                inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
+                inHorizonScrollHandle = true;
+                MovingHorizonScrollBar = 0;
+                panningViewHorizonSource = io.MousePos;
+                panningViewHorizonTime = - pEditingClip->firstTime;
+            }
+            else
+                MovingHorizonScrollBar = 2;
         }
         else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
         {
@@ -13531,7 +13572,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
                     need_update = true;
                 }
             }
-            if (overHorizonScrollBar && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            if ((overHorizonScrollBar || overTopBar) && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 // up-down wheel over scrollbar, scale canvas view
                 if (io.MouseWheel < -FLT_EPSILON && pEditingClip->visibleTime <= duration)
@@ -14062,8 +14103,8 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         bool baseIndex = ((i % modTimeCount) == 0) || (i == 0 || i == duration);
         bool halfIndex = (i % halfModTime) == 0;
         int px = (int)window_pos.x + int(i * overlap->msPixelWidth);
-        int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-        int timeEnd = baseIndex ? regionHeight : header_height;
+        int timeStart = baseIndex ? 8 : (halfIndex ? 14 : 18);
+        int timeEnd = regionHeight;
         if (px <= (window_size.x + window_pos.x) && px >= window_pos.x)
         {
             draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)timeStart), ImVec2((float)px, window_pos.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
@@ -14072,7 +14113,8 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         {
             auto time_str = ImGuiHelper::MillisecToString(i + start, 2);
             ImGui::SetWindowFontScale(0.8);
-            draw_list->AddText(ImVec2((float)px + 3.f, window_pos.y), COL_RULE_TEXT, time_str.c_str());
+            auto str_size = ImGui::CalcTextSize(time_str.c_str());
+            draw_list->AddText(ImVec2((float)px - str_size.x / 2, window_pos.y), COL_RULE_TEXT, time_str.c_str());
             ImGui::SetWindowFontScale(1.0);
         }
     };
