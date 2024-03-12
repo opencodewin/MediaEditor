@@ -350,7 +350,7 @@ Project::ErrorCode Project::Load(const string& projFilePath)
     }
     else
     {
-        m_jnProjContent = move(jnProj);
+        m_jnProjContent = std::move(jnProj);
         m_projName = SysUtils::ExtractFileBaseName(projFilePath);
     }
     m_projFilePath = projFilePath;

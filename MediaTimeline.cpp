@@ -11188,7 +11188,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         }
 
         // cursor Arrow
-        if (timeline->mCurrentTime >= timeline->firstTime && timeline->mCurrentTime <= timeline->GetEnd())
+        if (timeline->mCurrentTime >= timeline->firstTime && timeline->mCurrentTime <= timeline->lastTime)
         {
             const float arrowWidth = draw_list->_Data->FontSize;
             float arrowOffset = contentMin.x + legendWidth + (timeline->mCurrentTime - timeline->firstTime) * timeline->msPixelWidthTarget - arrowWidth * 0.5f + 1;
@@ -11951,7 +11951,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             }
             if (overCustomDraw || overTrackView || overHorizonScrollBar || overTopBar)
             {
-                if (!overHorizonScrollBar && !overTopBar)
+                if (!overHorizonScrollBar && !overTopBar && io.MouseWheelH == 0)
                 {
                     // up-down wheel to scroll vertical
                     if (io.MouseWheel < -FLT_EPSILON || io.MouseWheel > FLT_EPSILON)
@@ -11963,21 +11963,24 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                         panningViewVerticalPos = offset;
                     }
                 }
-                // left-right wheel over blank area, moving canvas view
-                if (io.MouseWheelH < -FLT_EPSILON)
+                if (io.MouseWheel == 0)
                 {
-                    timeline->firstTime -= timeline->visibleTime / view_frames;
-                    timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
-                    need_save = true;
-                }
-                else if (io.MouseWheelH > FLT_EPSILON)
-                {
-                    timeline->firstTime += timeline->visibleTime / view_frames;
-                    timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
-                    need_save = true;
+                    // left-right wheel over blank area, moving canvas view
+                    if (io.MouseWheelH < -FLT_EPSILON)
+                    {
+                        timeline->firstTime -= timeline->visibleTime / view_frames;
+                        timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+                        need_save = true;
+                    }
+                    else if (io.MouseWheelH > FLT_EPSILON)
+                    {
+                        timeline->firstTime += timeline->visibleTime / view_frames;
+                        timeline->firstTime = ImClamp(timeline->firstTime, timeline->GetStart(), ImMax(timeline->GetEnd() - timeline->visibleTime, timeline->GetStart()));
+                        need_save = true;
+                    }
                 }
             }
-            if ((overHorizonScrollBar || overTopBar) && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            if ((overHorizonScrollBar || overTopBar) && io.MouseWheelH == 0 && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 // up-down wheel over scrollbar, scale canvas view
                 if (io.MouseWheel < -FLT_EPSILON && timeline->visibleTime <= timeline->GetEnd())
