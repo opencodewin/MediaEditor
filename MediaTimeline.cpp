@@ -11824,12 +11824,30 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         else if (inHorizonScrollThumbLeft && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
             ImGui::CaptureMouseFromApp();
-            MovingHorizonScrollBar = 1;
+            if (inHorizonScrollThumbRight)
+            {
+                inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
+                inHorizonScrollHandle = true;
+                MovingHorizonScrollBar = 0;
+                panningViewHorizonSource = io.MousePos;
+                panningViewHorizonTime = - timeline->firstTime;
+            }
+            else
+                MovingHorizonScrollBar = 1;
         }
         else if (inHorizonScrollThumbRight && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
             ImGui::CaptureMouseFromApp();
-            MovingHorizonScrollBar = 2;
+            if (inHorizonScrollThumbLeft)
+            {
+                inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
+                inHorizonScrollHandle = true;
+                MovingHorizonScrollBar = 0;
+                panningViewHorizonSource = io.MousePos;
+                panningViewHorizonTime = - timeline->firstTime;
+            }
+            else
+                MovingHorizonScrollBar = 2;
         }
         else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
@@ -13473,12 +13491,30 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
         else if (inHorizonScrollThumbLeft && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
         {
             ImGui::CaptureMouseFromApp();
-            MovingHorizonScrollBar = 1;
+            if (inHorizonScrollThumbRight)
+            {
+                inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
+                inHorizonScrollHandle = true;
+                MovingHorizonScrollBar = 0;
+                panningViewHorizonSource = io.MousePos;
+                panningViewHorizonTime = - pEditingClip->firstTime;
+            }
+            else
+                MovingHorizonScrollBar = 1;
         }
         else if (inHorizonScrollThumbRight && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
         {
             ImGui::CaptureMouseFromApp();
-            MovingHorizonScrollBar = 2;
+            if (inHorizonScrollThumbLeft)
+            {
+                inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
+                inHorizonScrollHandle = true;
+                MovingHorizonScrollBar = 0;
+                panningViewHorizonSource = io.MousePos;
+                panningViewHorizonTime = - pEditingClip->firstTime;
+            }
+            else
+                MovingHorizonScrollBar = 2;
         }
         else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
         {
