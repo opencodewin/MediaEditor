@@ -11155,8 +11155,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             bool baseIndex = ((i % modTimeCount) == 0) || (i == timeline->GetEnd() || i == timeline->GetStart());
             bool halfIndex = (i % halfModTime) == 0;
             int px = (int)contentMin.x + int(i * timeline->msPixelWidthTarget) + legendWidth - int(timeline->firstTime * timeline->msPixelWidthTarget);
-            int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-            int timeEnd = baseIndex ? regionHeight : HeadHeight - 8;
+            int timeStart = baseIndex ? 8 : (halfIndex ? 14 : 18);
+            int timeEnd = regionHeight;
             if (px <= (timline_size.x + contentMin.x) && px >= (contentMin.x + legendWidth))
             {
                 draw_list->AddLine(ImVec2((float)px, HeaderAreaRect.Min.y + (float)timeStart), ImVec2((float)px, HeaderAreaRect.Min.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
@@ -11165,7 +11165,8 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             {
                 auto time_str = ImGuiHelper::MillisecToString(i, 2);
                 ImGui::SetWindowFontScale(0.8);
-                draw_list->AddText(ImVec2((float)px + 3.f, HeaderAreaRect.Min.y + 8), COL_RULE_TEXT, time_str.c_str());
+                auto str_size = ImGui::CalcTextSize(time_str.c_str());
+                draw_list->AddText(ImVec2((float)px - str_size.x / 2, HeaderAreaRect.Min.y), COL_RULE_TEXT, time_str.c_str());
                 ImGui::SetWindowFontScale(1.0);
             }
         };
@@ -13340,8 +13341,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
             bool baseIndex = ((i % modTimeCount) == 0) || (i == end - start || i == 0);
             bool halfIndex = (i % halfModTime) == 0;
             int px = (int)contentMin.x + int(i * pEditingClip->msPixelWidthTarget) - int(pEditingClip->firstTime * pEditingClip->msPixelWidthTarget);
-            int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-            int timeEnd = baseIndex ? regionHeight : header_height - 8;
+            int timeStart = baseIndex ? 8 : (halfIndex ? 14 : 18);
+            int timeEnd = regionHeight;
             if (px <= (timline_size.x + contentMin.x) && px >= contentMin.x)
             {
                 draw_list->AddLine(ImVec2((float)px, canvas_pos.y + (float)timeStart), ImVec2((float)px, canvas_pos.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
@@ -13350,7 +13351,8 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
             {
                 auto time_str = ImGuiHelper::MillisecToString(i, 2);
                 ImGui::SetWindowFontScale(0.8);
-                draw_list->AddText(ImVec2((float)px + 3.f, canvas_pos.y + 8), COL_RULE_TEXT, time_str.c_str());
+                auto str_size = ImGui::CalcTextSize(time_str.c_str());
+                draw_list->AddText(ImVec2((float)px - str_size.x / 2, canvas_pos.y), COL_RULE_TEXT, time_str.c_str());
                 ImGui::SetWindowFontScale(1.0);
             }
         };
@@ -14101,8 +14103,8 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         bool baseIndex = ((i % modTimeCount) == 0) || (i == 0 || i == duration);
         bool halfIndex = (i % halfModTime) == 0;
         int px = (int)window_pos.x + int(i * overlap->msPixelWidth);
-        int timeStart = baseIndex ? 4 : (halfIndex ? 10 : 14);
-        int timeEnd = baseIndex ? regionHeight : header_height;
+        int timeStart = baseIndex ? 8 : (halfIndex ? 14 : 18);
+        int timeEnd = regionHeight;
         if (px <= (window_size.x + window_pos.x) && px >= window_pos.x)
         {
             draw_list->AddLine(ImVec2((float)px, window_pos.y + (float)timeStart), ImVec2((float)px, window_pos.y + (float)timeEnd - 1), halfIndex ? COL_MARK : COL_MARK_HALF, halfIndex ? 2 : 1);
@@ -14111,7 +14113,8 @@ bool DrawOverlapTimeLine(BaseEditingOverlap * overlap, int64_t CurrentTime, int 
         {
             auto time_str = ImGuiHelper::MillisecToString(i + start, 2);
             ImGui::SetWindowFontScale(0.8);
-            draw_list->AddText(ImVec2((float)px + 3.f, window_pos.y), COL_RULE_TEXT, time_str.c_str());
+            auto str_size = ImGui::CalcTextSize(time_str.c_str());
+            draw_list->AddText(ImVec2((float)px - str_size.x / 2, window_pos.y), COL_RULE_TEXT, time_str.c_str());
             ImGui::SetWindowFontScale(1.0);
         }
     };
