@@ -367,6 +367,10 @@ const std::string ffilters = "All Support Files (" + video_file_dis + " " + audi
 const std::string abbr_ffilters = "All Support Files{" + video_file_suffix + "," + audio_file_suffix + "," + image_file_suffix + "}";
 const std::string pfilters = "Project files (*.mep){.mep},.*";
 
+const std::string FILE_DLG_USERDATAS__PROJECT_SAVE = "ProjectSave";
+const std::string FILE_DLG_USERDATAS__PROJECT_SAVE_THEN_NEW = "ProjectSaveThenNew";
+const std::string FILE_DLG_USERDATAS__PROJECT_SAVE_THEN_QUIT = "ProjectSaveThenQuit";
+
 struct ImageSequenceSetting
 {
     bool bPng {true};
@@ -1661,45 +1665,81 @@ static inline void ImgSeuqPane(const char* vFilter, const char* currentPath, IGF
 // Document Framework
 static void NewTimeline()
 {
-    timeline = new TimeLine();
     if (timeline)
-    {
-        g_hProject->SetTimelineHandle(timeline);
-        g_media_editor_settings.SyncSettingsFromTimeline(timeline);
-        timeline->mhProject = g_hProject;
-        timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
-        timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
-        timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
-        timeline->mAudioAttribute.mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
-        timeline->mAudioAttribute.mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
-        timeline->mAudioAttribute.mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
-        timeline->mAudioAttribute.mAudioVectorMode = g_media_editor_settings.AudioVectorMode;
-        timeline->mFontName = g_media_editor_settings.FontName;
+        delete timeline;
 
-        // init callbacks
-        timeline->m_CallBacks.EditingClip = EditingClip;
-        timeline->m_CallBacks.EditingOverlap = EditingOverlap;
+    timeline = new TimeLine();
+    if (!timeline)
+        return;
 
-        // set global variables
-        MediaCore::VideoClip::USE_HWACCEL = timeline->mHardwareCodec;
-    }
+    g_hProject->SetTimelineHandle(timeline);
+    g_media_editor_settings.SyncSettingsFromTimeline(timeline);
+    timeline->mhProject = g_hProject;
+    timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
+    timeline->mMaxCachedVideoFrame = g_media_editor_settings.VideoFrameCacheSize > 0 ? g_media_editor_settings.VideoFrameCacheSize : MAX_VIDEO_CACHE_FRAMES;
+    timeline->mShowHelpTooltips = g_media_editor_settings.ShowHelpTooltips;
+    timeline->mAudioAttribute.mAudioSpectrogramLight = g_media_editor_settings.AudioSpectrogramLight;
+    timeline->mAudioAttribute.mAudioSpectrogramOffset = g_media_editor_settings.AudioSpectrogramOffset;
+    timeline->mAudioAttribute.mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
+    timeline->mAudioAttribute.mAudioVectorMode = g_media_editor_settings.AudioVectorMode;
+    timeline->mFontName = g_media_editor_settings.FontName;
+
+    // init callbacks
+    timeline->m_CallBacks.EditingClip = EditingClip;
+    timeline->m_CallBacks.EditingOverlap = EditingOverlap;
+
+    // set global variables
+    MediaCore::VideoClip::USE_HWACCEL = timeline->mHardwareCodec;
 }
 
 static void CleanProject()
 {
-    g_hProject->Close(false);
+    if (g_hProject)
+    {
+        if (g_hProject->IsUntitled())
+            g_hProject->Delete();
+        else
+            g_hProject->Close(false);
+    }
     if (timeline)
     {
         delete timeline;
         timeline = nullptr;
     }
-    NewTimeline();
+}
+
+static void SaveProject()
+{
+    if (!timeline || !g_hProject || !g_hProject->IsOpened())
+        return;
+
+    timeline->Play(false, true);
+    const auto errcode = g_hProject->Save();
+    if (errcode == MEC::Project::OK)
+    {
+        project_need_save = false;
+        project_changed = false;
+        timeline->mIsBluePrintChanged = false;
+    }
+    else
+    {
+        Logger::Log(Logger::Error) << "FAILED to save current project! Project name is '" << g_hProject->GetProjectName()
+                << "', save op error code is " << (int)errcode << "." << std::endl;
+    }
 }
 
 static void NewProject()
 {
-    Logger::Log(Logger::DEBUG) << "[Project] Create new project!!!" << std::endl;
+    SaveProject();
     CleanProject();
+
+    Logger::Log(Logger::DEBUG) << "[Project] Create new project!!!" << std::endl;
+    MEC::Project::ErrorCode ec;
+    g_hProject = MEC::Project::CreateUntitledProject(ec);
+    if (ec != MEC::Project::OK)
+        throw std::runtime_error("FAILED to create untitled project!");
+    g_hProject->SetBgtaskExecutor(g_hBgtaskExctor);
+    NewTimeline();
     quit_save_confirm = true;
     project_need_save = true;
     project_changed = false;
@@ -1708,11 +1748,8 @@ static void NewProject()
 
 static void LoadProjectThread(std::string path, bool in_splash)
 {
-    if (!timeline)
-    {
-        Logger::Log(Logger::Error) << "FAILED to load MEC project at '" << path << "'! 'timeline' is null." << std::endl;
-        return;
-    }
+    if (path.empty())
+        throw std::runtime_error("Project path is EMPTY!");
 
     // waiting plugin loading
     while (g_plugin_loading || !g_plugin_loaded || g_env_scanning || !g_env_scanned)
@@ -1726,19 +1763,23 @@ static void LoadProjectThread(std::string path, bool in_splash)
     Logger::Log(Logger::DEBUG) << "[MEC] Load project from '" << path << "'." << std::endl;
     g_project_loading_percentage = 0.1;
 
-    if (!path.empty())
+    MEC::Project::ErrorCode ec;
+    auto hProj = MEC::Project::OpenProjectFile(ec, path);
+    if (!hProj)
     {
-        g_media_editor_settings.project_path = path;
-        auto projErr = g_hProject->Load(path);
-        if (projErr != MEC::Project::OK)
-        {
-            g_project_loading_percentage = 1.0f;
-            g_project_loading = false;
-            g_media_editor_settings.project_path = "";
-            return;
-        }
+        Logger::Log(Logger::Error) << "FAILED to load mec project from '" << path << "', abort project loading thread!" << std::endl;
+        if (!g_hProject || !g_hProject->IsOpened())
+            NewProject();
+        g_project_loading_percentage = 1.0f;
+        g_project_loading = false;
+        return;
     }
+    hProj->SetBgtaskExecutor(g_hBgtaskExctor);
+    g_hProject = hProj;
+    g_media_editor_settings.project_path = path;
     g_project_loading_percentage = 0.2;
+
+    NewTimeline();
     timeline->m_in_threads = true;
     const auto& jnProjContent = g_hProject->GetProjectContentJson();
     string attrName = "MediaBank";
@@ -1826,52 +1867,8 @@ static void LoadProjectThread(std::string path, bool in_splash)
     timeline->m_in_threads = false;
 }
 
-static void SaveProject(MEC::Project::Holder hProject)
-{
-    if (!timeline)
-        return;
-    timeline->Play(false, true);
-
-    imgui_json::value jnProjContent;
-    // first save media bank info
-    imgui_json::value media_bank;
-    for (auto media : timeline->media_items)
-    {
-        imgui_json::value item;
-        item["id"] = imgui_json::number(media->mID);
-        item["name"] = media->mName;
-        item["path"] = media->mPath;
-        item["type"] = imgui_json::number(media->mMediaType);
-        media_bank.push_back(item);
-    }
-    jnProjContent["MediaBank"] = media_bank;
-
-    // second save Timeline
-    imgui_json::value timeline_val;
-    timeline->Save(timeline_val);
-    jnProjContent["TimeLine"] = timeline_val;
-
-    hProject->SetContentJson(jnProjContent);
-    const auto errcode = hProject->Save();
-    if (errcode == MEC::Project::OK)
-    {
-        project_need_save = false;
-        project_changed = false;
-        timeline->mIsBluePrintChanged = false;
-    }
-    else
-    {
-        Logger::Log(Logger::Error) << "FAILED to save current project! Project name is '" << hProject->GetProjectName()
-                << "', save op error code is " << (int)errcode << "." << std::endl;
-    }
-}
-
 static void OpenProject(const std::string& projectPath)
 {
-    if (g_hProject->IsOpened())
-    {
-        SaveProject(g_hProject);
-    }
     if (g_project_loading)
     {
         if (g_loading_project_thread && g_loading_project_thread->joinable())
@@ -1879,42 +1876,21 @@ static void OpenProject(const std::string& projectPath)
         g_project_loading = false;
         g_loading_project_thread = nullptr;
     }
+
+    SaveProject();
     CleanProject();
+
     set_context_in_splash = false;
     g_loading_project_thread = new std::thread(LoadProjectThread, projectPath, set_context_in_splash);
 }
 
 static void ReloadProject()
 {
-    if (!timeline)
+    if (!timeline || !g_hProject || !g_hProject->IsOpened())
         return;
-    timeline->Play(false, true);
 
-    // store current project
-    imgui_json::value projContent;
-    // first save media bank info
-    imgui_json::value media_bank;
-    for (auto media : timeline->media_items)
-    {
-        imgui_json::value item;
-        item["id"] = imgui_json::number(media->mID);
-        item["name"] = media->mName;
-        item["path"] = media->mPath;
-        item["type"] = imgui_json::number(media->mMediaType);
-        media_bank.push_back(item);
-    }
-    projContent["MediaBank"] = media_bank;
-    // second save Timeline
-    imgui_json::value timeline_val;
-    timeline->Save(timeline_val);
-    projContent["TimeLine"] = timeline_val;
-
-    g_hProject->SetContentJson(projContent);
-
-    delete timeline;
-    timeline = nullptr;
-
-    NewTimeline();
+    SaveProject();
+    CleanProject();
 
     set_context_in_splash = false;
     g_loading_project_thread = new std::thread(LoadProjectThread, g_media_editor_settings.project_path , set_context_in_splash);
@@ -11174,6 +11150,19 @@ static void ShowMediaAnalyseWindow(TimeLine *timeline)
     ImGui::End();
 }
 
+static void ShowSaveProjectDialogue(const std::string& defaultFilePath, IGFDUserDatas userDatas)
+{
+    IGFD::FileDialogConfig config;
+    config.filePathName = defaultFilePath.empty() ? SysUtils::JoinPath(MEC::Project::GetDefaultProjectBaseDir(), ".") : defaultFilePath;
+    config.countSelectionMax = 1;
+    config.userDatas = userDatas;
+    config.flags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_CaseInsensitiveExtention |
+            ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_AllowDirectorySelect;
+    ImGuiFileDialog::Instance()->OpenDialog("##SaveProjectFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project", 
+                                        pfilters.c_str(),
+                                        config);
+}
+
 /****************************************************************************************
  * 
  * Application Framework
@@ -11475,7 +11464,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
         else
         {
             g_project_loading = false;
-            NewTimeline();
+            NewProject();
         }
 #if IMGUI_VULKAN_SHADER
         if (m_cie) 
@@ -11564,6 +11553,14 @@ static void MediaEditor_Initialize(void** handle)
     // GetSubtitleTrackLogger()->SetShowLevels(Logger::DEBUG);
 #endif
 
+    // create default MEC project base dir if not exists
+    const auto defaultMecProjBaseDir = MEC::Project::GetDefaultProjectBaseDir();
+    if (!SysUtils::Exists(defaultMecProjBaseDir))
+    {
+        if (!SysUtils::CreateDirectoryAt(defaultMecProjBaseDir, true))
+            throw std::runtime_error("FAILED to create default mec project base directory!");
+    }
+
     if (!MediaCore::InitializeSubtitleLibrary())
         std::cout << "FAILED to initialize the subtitle library!" << std::endl;
     else
@@ -11578,7 +11575,6 @@ static void MediaEditor_Initialize(void** handle)
     }
 
     g_hBgtaskExctor = SysUtils::ThreadPoolExecutor::CreateInstance("MecBgtaskExctor");
-    g_hProject = MEC::Project::CreateInstance(g_hBgtaskExctor);
 #if IMGUI_VULKAN_SHADER
     int gpu = ImGui::get_default_gpu_index();
     m_histogram = new ImGui::Histogram_vulkan(gpu);
@@ -11587,7 +11583,6 @@ static void MediaEditor_Initialize(void** handle)
     m_vector = new ImGui::Vector_vulkan(gpu);
 #endif
     g_project_loading = true;
-    if (!ImGuiHelper::file_exists(io.IniFilename) && !timeline)  NewTimeline();
 }
 
 static void MediaEditor_Finalize(void** handle)
@@ -11694,7 +11689,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     static bool show_overwrite_new_msg = false;
     static bool show_overwrite_quit_msg = false;
     static std::string overwrite_project_name;
-    static std::string overwrite_project_path;
+    static std::string overwrite_project_dir;
     static ImGui::MsgBox msgbox_overwrite;
     static const char* buttons_quit[] = { "Overwrite", "Quit", "Cancel", NULL };
     msgbox_overwrite.Init("Overwrite Exist Project?", ICON_MD_WARNING, "Are you really sure you want to overwrite project?", buttons_quit, false);
@@ -11705,7 +11700,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
         g.LanguageName = g_media_editor_settings.UILanguage;
-    std::string project_name = g_media_editor_settings.project_path.empty() ? "Untitled" : ImGuiHelper::path_filename_prefix(g_media_editor_settings.project_path);
+    const auto project_name = g_hProject && g_hProject->IsOpened() ? g_hProject->GetProjectName() : MEC::Project::UNTITLED_PROJECT_NAME;
     const ImGuiFileDialogFlags fflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_DisableCreateDirectoryButton | ImGuiFileDialogFlags_Modal;
     const ImGuiFileDialogFlags pflags = ImGuiFileDialogFlags_ShowBookmark | ImGuiFileDialogFlags_DontShowHiddenFiles | ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_ConfirmOverwrite | ImGuiFileDialogFlags_Modal;
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -11980,19 +11975,11 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             if (!project_need_save)
             {
                 NewProject();
-                project_name = "Untitled";
             }
             else if (g_media_editor_settings.project_path.empty())
             {
                 show_file_dialog = true;
-                IGFD::FileDialogConfig config;
-                config.fileName = "Untitled.mep";
-                config.countSelectionMax = 1;
-                config.userDatas = IGFDUserDatas("ProjectSaveAndNew");
-                config.flags = pflags;
-                ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
-                                                    pfilters.c_str(),
-                                                    config);
+                ShowSaveProjectDialogue("", IGFDUserDatas(FILE_DLG_USERDATAS__PROJECT_SAVE_THEN_NEW.c_str()));
             }
             else
             {
@@ -12003,37 +11990,21 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         ImGui::ShowTooltipOnHover("New Project");
         if (ImGui::Button(ICON_MD_SAVE "##SaveProject", ImVec2(tool_icon_size, tool_icon_size)))
         {
-            if (g_hProject->IsOpened())
+            if (g_hProject->IsUntitled())
             {
-                SaveProject(g_hProject);
+                show_file_dialog = true;
+                ShowSaveProjectDialogue("", IGFDUserDatas(FILE_DLG_USERDATAS__PROJECT_SAVE.c_str()));
             }
             else
             {
-                show_file_dialog = true;
-                IGFD::FileDialogConfig config;
-                config.fileName = "Untitled.mep";
-                config.countSelectionMax = 1;
-                config.userDatas = IGFDUserDatas("ProjectSave");
-                config.flags = pflags;
-                ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
-                                                    pfilters.c_str(),
-                                                    config);
+                SaveProject();
             }
         }
         ImGui::ShowTooltipOnHover("Save Project");
         if (ImGui::Button(ICON_MD_SAVE_AS "##SaveProjectAs", ImVec2(tool_icon_size, tool_icon_size)))
         {
-            // Save Project
             show_file_dialog = true;
-            std::string project_path = g_media_editor_settings.project_path.empty() ? "Untitled.mep" : g_media_editor_settings.project_path;
-            IGFD::FileDialogConfig config;
-            config.filePathName = project_path.c_str();
-            config.countSelectionMax = 1;
-            config.userDatas = IGFDUserDatas("ProjectSave");
-            config.flags = pflags;
-            ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
-                                                    pfilters.c_str(),
-                                                    config);
+            ShowSaveProjectDialogue(g_media_editor_settings.project_path, IGFDUserDatas(FILE_DLG_USERDATAS__PROJECT_SAVE.c_str()));
         }
         ImGui::ShowTooltipOnHover("Save Project As...");
 
@@ -12067,17 +12038,15 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImGui::TextUnformatted("Do you need save current project?");
             if (ImGui::Button("OK", ImVec2(40, 0)))
             {
-                SaveProject(g_hProject);
+                SaveProject();
                 ImGui::CloseCurrentPopup();
                 NewProject();
-                project_name = "Untitled";
             }
             ImGui::SameLine();
             if (ImGui::Button("NO", ImVec2(40, 0)))
             {
                 ImGui::CloseCurrentPopup();
                 NewProject();
-                project_name = "Untitled";
             }
             ImGui::SameLine();
             if (ImGui::Button("Cancel", ImVec2(40, 0)))
@@ -12395,19 +12364,11 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             if (quit_save_confirm || g_media_editor_settings.project_path.empty())
             {
                 show_file_dialog = true;
-                IGFD::FileDialogConfig config;
-                config.path = ".";
-                config.countSelectionMax = 1;
-                config.userDatas = IGFDUserDatas("ProjectSaveQuit");
-                config.flags = pflags;
-                ImGuiFileDialog::Instance()->OpenDialog("##MediaEditFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save Project File", 
-                                                        pfilters.c_str(),
-                                                        config);
+                ShowSaveProjectDialogue("", IGFDUserDatas(FILE_DLG_USERDATAS__PROJECT_SAVE_THEN_QUIT.c_str()));
             }
-            else if (g_hProject->IsOpened())
+            else
             {
-                SaveProject(g_hProject);
-                app_done = app_will_quit;
+                app_done = true;
             }
         }
         else
@@ -12445,7 +12406,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             auto file_suffix = ImGuiFileDialog::Instance()->GetCurrentFileSuffix();
             auto sel = ImGuiFileDialog::Instance()->GetSelection(); // multiselection
             if (file_suffix == ".") file_suffix.clear();
-            auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
+            const auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
             if (userDatas.compare("Media Source") == 0)
             {
                 //for (auto s : sel)
@@ -12457,82 +12418,107 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             else if (userDatas.compare("ProjectOpen") == 0)
             {
                 OpenProject(file_path);
-                project_name = g_hProject->GetProjectName();
             }
-            else if (userDatas.compare("ProjectSave") == 0)
+        }
+        show_file_dialog = false;
+        ImGuiFileDialog::Instance()->Close();
+    }
+    else if (ImGuiFileDialog::Instance()->Display("##SaveProjectFileDlgKey", ImGuiWindowFlags_NoCollapse, minSize, maxSize))
+    {
+        if (ImGuiFileDialog::Instance()->IsOk())
+        {
+            const auto savePath = ImGuiFileDialog::Instance()->GetFilePathName(0);
+            const auto fileExt = SysUtils::ExtractFileExtName(savePath);
+            MEC::Project::ErrorCode ec;
+            if (SysUtils::IsDirectory(savePath) || (!SysUtils::Exists(savePath) && fileExt.empty()))
+            {  // treat returned path as directory
+                if (SysUtils::CheckEquivalent(savePath, g_hProject->GetProjectDir()))
+                    g_hProject->Save();
+                else
+                {
+                    const auto newProjName = SysUtils::PopLastComponent(savePath);
+                    if (g_hProject->IsUntitled())
+                    {
+                        ec = g_hProject->Move(savePath, false);
+                        if (ec == MEC::Project::OK)
+                        {
+                            ec = g_hProject->ChangeProjectName(newProjName);
+                            if (ec != MEC::Project::OK)
+                                throw std::runtime_error("Change project name FAILED!");
+                        }
+                    }
+                    else
+                    {
+                        ec = g_hProject->SaveAs(newProjName, savePath, false);
+                    }
+                    if (ec == MEC::Project::ALREADY_EXISTS && !show_overwrite_msg)
+                    {  // open overwrite confirm dialogue
+                        show_overwrite_msg = true;
+                        overwrite_project_dir = savePath;
+                        overwrite_project_name = newProjName;
+                        msgbox_overwrite.Open();
+                    }
+                    else if (ec != MEC::Project::OK)
+                        throw std::runtime_error("Move project FAILED!");
+                }
+            }
+            else
+            {  // treat returned path as file
+                if (SysUtils::CheckEquivalent(savePath, g_hProject->GetProjectFilePath()))
+                    g_hProject->Save();
+                else
+                {
+                    const auto newProjName = SysUtils::ExtractFileBaseName(savePath);
+                    const auto newProjDir = SysUtils::ExtractDirectoryPath(savePath);
+                    if (g_hProject->IsUntitled())
+                    {
+                        ec = g_hProject->Move(newProjDir, false);
+                        if (ec == MEC::Project::OK)
+                        {
+                            ec = g_hProject->ChangeProjectName(newProjName);
+                            if (ec != MEC::Project::OK)
+                                throw std::runtime_error("Change project name FAILED!");
+                        }
+                    }
+                    else
+                    {
+                        ec = g_hProject->SaveAs(newProjName, newProjDir, false);
+                    }
+                    if (ec == MEC::Project::ALREADY_EXISTS && !show_overwrite_msg)
+                    {  // open overwrite confirm dialogue
+                        show_overwrite_msg = true;
+                        overwrite_project_dir = newProjDir;
+                        overwrite_project_name = newProjName;
+                        msgbox_overwrite.Open();
+                    }
+                    else if (ec != MEC::Project::OK)
+                        throw std::runtime_error("Move project FAILED!");
+                }
+            }
+            project_changed = false;
+
+            const auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
+            if (userDatas == FILE_DLG_USERDATAS__PROJECT_SAVE_THEN_NEW)
             {
-                auto overwrited = ImGuiFileDialog::Instance()->IsOkWithOverWrite();
-                auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
-                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path), overwrited);
-                if (err == MEC::Project::OK)
+                g_hProject = MEC::Project::CreateUntitledProject(ec);
+                if (ec == MEC::Project::OK)
                 {
-                    g_hProject = hNewProj;
-                    SaveProject(g_hProject);
-                    project_name = g_hProject->GetProjectName();
+                    g_hProject->SetTimelineHandle(timeline);
+                    g_hProject->SetBgtaskExecutor(g_hBgtaskExctor);
                 }
-                else if (err == MEC::Project::ALREADY_EXISTS && !show_overwrite_msg)
-                {
-                    show_overwrite_msg = true;
-                    auto name = SysUtils::ExtractFileBaseName(file_name);
-                    auto base_path = SysUtils::ExtractDirectoryPath(file_path);
-                    overwrite_project_name = name;
-                    overwrite_project_path = SysUtils::JoinPath(base_path, name);;
-                    msgbox_overwrite.Open();
-                }
+                else
+                    throw std::runtime_error("FAILED to create untitled project!");
             }
-            else if (userDatas.compare("ProjectSaveAndNew") == 0)
-            {
-                auto overwrited = ImGuiFileDialog::Instance()->IsOkWithOverWrite();
-                auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
-                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path), overwrited);
-                if (err == MEC::Project::OK)
-                    SaveProject(hNewProj);
-                else if (err == MEC::Project::ALREADY_EXISTS && !show_overwrite_new_msg)
-                {
-                    show_overwrite_new_msg = true;
-                    auto name = SysUtils::ExtractFileBaseName(file_name);
-                    auto base_path = SysUtils::ExtractDirectoryPath(file_path);
-                    overwrite_project_name = name;
-                    overwrite_project_path = SysUtils::JoinPath(base_path, name);;
-                    msgbox_overwrite.Open();
-                }
-                if (!show_overwrite_new_msg)
-                {
-                    NewProject();
-                    project_name = "Untitled";
-                }
-            }
-            else if (userDatas.compare("ProjectSaveQuit") == 0)
-            {
-                auto overwrited = ImGuiFileDialog::Instance()->IsOkWithOverWrite();
-                auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
-                auto err = hNewProj->CreateNew(SysUtils::ExtractFileBaseName(file_name), SysUtils::ExtractDirectoryPath(file_path), overwrited);
-                if (err == MEC::Project::OK)
-                {
-                    g_hProject = hNewProj;
-                    SaveProject(hNewProj);
-                }
-                else if (err == MEC::Project::ALREADY_EXISTS && !show_overwrite_quit_msg)
-                {
-                    show_overwrite_quit_msg = true;
-                    auto name = SysUtils::ExtractFileBaseName(file_name);
-                    auto base_path = SysUtils::ExtractDirectoryPath(file_path);
-                    overwrite_project_name = name;
-                    overwrite_project_path = SysUtils::JoinPath(base_path, name);;
-                    msgbox_overwrite.Open();
-                }
-                if (!show_overwrite_quit_msg)
-                    app_done = true;
-            }
-            show_file_dialog = false;
+            else if (userDatas == FILE_DLG_USERDATAS__PROJECT_SAVE_THEN_QUIT)
+                app_done = true;
         }
         else
         {
             auto userDatas = std::string((const char*)ImGuiFileDialog::Instance()->GetUserDatas());
-            if (userDatas.compare("ProjectSaveQuit") == 0)
+            if (userDatas == FILE_DLG_USERDATAS__PROJECT_SAVE_THEN_QUIT)
                 app_done = true;
-            show_file_dialog = false;
         }
+        show_file_dialog = false;
         ImGuiFileDialog::Instance()->Close();
     }
     else if (!quit_save_confirm && !show_overwrite_quit_msg)
@@ -12545,22 +12531,20 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         auto msg_ret = msgbox_overwrite.Draw();
         if (msg_ret == 1)
         {
-            if (!overwrite_project_name.empty() && !overwrite_project_path.empty())
+            if (!overwrite_project_name.empty() && !overwrite_project_dir.empty())
             {
-                auto hNewProj = MEC::Project::CreateInstance(g_hBgtaskExctor);
-                auto err = hNewProj->CreateNew(overwrite_project_name, overwrite_project_path, true);
-                if (err == MEC::Project::OK)
+                auto ec = g_hProject->Move(overwrite_project_dir, true);
+                if (ec == MEC::Project::OK)
                 {
-                    g_hProject = hNewProj;
-                    SaveProject(hNewProj);
+                    ec = g_hProject->ChangeProjectName(overwrite_project_name);
+                    if (ec != MEC::Project::OK)
+                        throw std::runtime_error("Change project name FAILED!");
                 }
                 if (show_overwrite_quit_msg)
                     app_done = true;
                 else if (show_overwrite_new_msg)
-                {
                     NewProject();
-                    project_name = "Untitled";
-                }
+
                 show_overwrite_msg = false;
                 show_overwrite_new_msg = false;
                 show_overwrite_quit_msg = false;
@@ -12571,10 +12555,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             if (show_overwrite_quit_msg)
                 app_done = true;
             else if (show_overwrite_new_msg)
-            {
                 NewProject();
-                project_name = "Untitled";
-            }
+
             show_overwrite_msg = false;
             show_overwrite_new_msg = false;
             show_overwrite_quit_msg = false;
@@ -12585,7 +12567,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             show_overwrite_new_msg = false;
             show_overwrite_quit_msg = false;
             overwrite_project_name = "";
-            overwrite_project_path = "";
+            overwrite_project_dir = "";
         }
     }
 
@@ -12601,13 +12583,14 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     if (app_done)
     {
         // before app quit, close the current project
-        g_media_editor_settings.project_path = g_hProject->IsOpened() ? g_hProject->GetProjectFilePath() : "";
-        g_hProject->Close(false);
-        if (timeline)
+        if (g_hProject && g_hProject->IsOpened() && !g_hProject->IsUntitled())
         {
-            delete timeline;
-            timeline = nullptr;
+            g_hProject->Save();
+            g_media_editor_settings.project_path = g_hProject->GetProjectFilePath();
         }
+        else
+            g_media_editor_settings.project_path = "";
+        CleanProject();
     }
     return app_done;
 }
@@ -12651,7 +12634,7 @@ static bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
     ImGuiContext& g = *GImGui;
     if (!g_media_editor_settings.UILanguage.empty() && g.LanguageName != g_media_editor_settings.UILanguage)
         g.LanguageName = g_media_editor_settings.UILanguage;
-    std::string project_name = g_media_editor_settings.project_path.empty() ? "Untitled" : ImGuiHelper::path_filename_prefix(g_media_editor_settings.project_path);
+    std::string project_name = g_media_editor_settings.project_path.empty() ? MEC::Project::UNTITLED_PROJECT_NAME : ImGuiHelper::path_filename_prefix(g_media_editor_settings.project_path);
     ImGuiCond cond = ImGuiCond_None;
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | 

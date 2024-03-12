@@ -5896,13 +5896,13 @@ TimeLine::TimeLine()
 
     mTxMgr = RenderUtils::TextureManager::GetDefaultInstance();
     if (!mTxMgr->CreateTexturePool(PREVIEW_TEXTURE_POOL_NAME, {1920, 1080}, IM_DT_INT8, 0))
-        Logger::Log(Logger::Error) << "FAILED to create texture pool '" << PREVIEW_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+        Logger::Log(Logger::WARN) << "FAILED to create texture pool '" << PREVIEW_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
     if (!mTxMgr->CreateTexturePool(ARBITRARY_SIZE_TEXTURE_POOL_NAME, {0, 0}, IM_DT_INT8, 0))
-        Logger::Log(Logger::Error) << "FAILED to create texture pool '" << ARBITRARY_SIZE_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+        Logger::Log(Logger::WARN) << "FAILED to create texture pool '" << ARBITRARY_SIZE_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
     MatUtils::Size2i snapshotGridTextureSize;
     snapshotGridTextureSize = {64*16/9, 64};
     if (!mTxMgr->CreateGridTexturePool(VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
-        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+        Logger::Log(Logger::WARN) << "FAILED to create grid texture pool '" << VIDEOITEM_OVERVIEW_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
     else
     {
         RenderUtils::TextureManager::TexturePoolAttributes tTxPoolAttrs;
@@ -5912,10 +5912,10 @@ TimeLine::TimeLine()
     }
     snapshotGridTextureSize = {DEFAULT_VIDEO_TRACK_HEIGHT*16/9, DEFAULT_VIDEO_TRACK_HEIGHT};
     if (!mTxMgr->CreateGridTexturePool(VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
-        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+        Logger::Log(Logger::WARN) << "FAILED to create grid texture pool '" << VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
     snapshotGridTextureSize = {50*16/9, 50};
     if (!mTxMgr->CreateGridTexturePool(EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME, snapshotGridTextureSize, IM_DT_INT8, {8, 8}, 1))
-        Logger::Log(Logger::Error) << "FAILED to create grid texture pool '" << EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
+        Logger::Log(Logger::WARN) << "FAILED to create grid texture pool '" << EDITING_VIDEOCLIP_SNAPSHOT_GRID_TEXTURE_POOL_NAME << "'! Error is '" << mTxMgr->GetError() << "'." << std::endl;
 
     mhMediaSettings = MediaCore::SharedSettings::CreateInstance();
     mhMediaSettings->SetHwaccelManager(MediaCore::HwaccelManager::GetDefaultInstance());
