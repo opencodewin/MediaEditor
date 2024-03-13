@@ -11479,7 +11479,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             {
                 timeline->mark_in = mouse_time;
                 if (timeline->mark_in < timeline->GetStart()) timeline->mark_in = timeline->GetStart();
-                if (timeline->mark_in >= timeline->mark_out) timeline->mark_out = -1;
+                if (timeline->mark_in >= timeline->mark_out) timeline->mark_out = timeline->mark_out == -1 ? -1 : ImClamp(timeline->mark_in, timeline->mark_in, timeline->GetEnd());
                 if (timeline->mark_in < timeline->firstTime)
                     timeline->firstTime = timeline->mark_in;
                 if (timeline->mark_in > timeline->lastTime)
@@ -11490,7 +11490,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             {
                 timeline->mark_out = mouse_time;
                 if (timeline->mark_out > timeline->GetEnd()) timeline->mark_out = timeline->GetEnd();
-                if (timeline->mark_out <= timeline->mark_in) timeline->mark_in = -1;
+                if (timeline->mark_out <= timeline->mark_in) timeline->mark_in = timeline->mark_in == -1 ? -1 : ImClamp(timeline->mark_out, timeline->GetStart(), timeline->mark_out);
                 if (timeline->mark_out < timeline->firstTime)
                     timeline->firstTime = timeline->mark_out;
                 if (timeline->mark_out > timeline->lastTime)
@@ -12193,6 +12193,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         if (timeline->mark_in >= timeline->firstTime && timeline->mark_in <= timeline->lastTime)
         {
             float mark_in_offset = (timeline->mark_in - timeline->firstTime) * timeline->msPixelWidthTarget;
+            // add left area shadow
+            draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_in_offset, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
+            mark_rect.Min = HeaderAreaRect.Min + ImVec2(mark_in_offset, 0);
+            mark_in_view = true;
             if (timeline->mark_out >= timeline->lastTime)
             {
                 draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset, 0), HeaderAreaRect.Max - ImVec2(0, HeadHeight - 8), COL_MARK_BAR, 0);
@@ -12217,14 +12221,14 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             {
                 draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_in_offset + 2, 4), 4, COL_MARK_DOT);
             }
-            // add left area shadow
-            draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_in_offset, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
-            mark_rect.Min = HeaderAreaRect.Min + ImVec2(mark_in_offset, 0);
-            mark_in_view = true;
         }
         if (timeline->mark_out >= timeline->firstTime && timeline->mark_out <= timeline->lastTime)
         {
             float mark_out_offset = (timeline->mark_out - timeline->firstTime) * timeline->msPixelWidthTarget;
+            // add right area shadow
+            draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 0), HeaderAreaRect.Min + ImVec2(timline_size.x + 8, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
+            mark_rect.Max = HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 8);
+            mark_in_view = true;
             if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime)
             {
                 draw_list->AddRectFilled(HeaderAreaRect.Min, HeaderAreaRect.Min + ImVec2(mark_out_offset, 8), COL_MARK_BAR, 0);
@@ -12249,10 +12253,6 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             {
                 draw_list->AddCircleFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 2, 4), 4, COL_MARK_DOT);
             }
-            // add right area shadow
-            draw_list->AddRectFilled(HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 0), HeaderAreaRect.Min + ImVec2(timline_size.x + 8, timline_size.y - scrollSize), IM_COL32(0,0,0,128));
-            mark_rect.Max = HeaderAreaRect.Min + ImVec2(mark_out_offset + 4, 8);
-            mark_in_view = true;
         }
         if (timeline->mark_in != -1 && timeline->mark_in < timeline->firstTime && timeline->mark_out >= timeline->lastTime)
         {
