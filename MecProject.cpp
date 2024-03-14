@@ -263,7 +263,7 @@ Project::ErrorCode Project::Move(const string& newProjDir, bool overwrite)
         return IO_ERROR;
     }
     m_projDir = newProjDir;
-    m_projFilePath = SysUtils::JoinPath(m_projDir, m_projName+".mep");
+    m_projFilePath = SysUtils::JoinPath(m_projDir, m_projName+s_PROJ_FILE_EXT);
     m_bUntitled = false;
     return OK;
 }
@@ -390,7 +390,7 @@ Project::ErrorCode Project::SaveAs(const string& newProjName, const string& newP
     }
     m_projName = newProjName;
     m_projDir = newProjDir;
-    m_projFilePath = SysUtils::JoinPath(m_projDir, m_projName+".mep");
+    m_projFilePath = SysUtils::JoinPath(m_projDir, m_projName+s_PROJ_FILE_EXT);
     m_bUntitled = false;
     return Save();
 }
