@@ -48,6 +48,9 @@
 #include <sstream>
 #include <iomanip>
 #include <getopt.h>
+#if !IMGUI_APPLICATION_PLATFORM_SDL2
+#include <SDL.h>
+#endif
 
 //#define DEBUG_IMGUI
 #define DEFAULT_MAIN_VIEW_WIDTH     1680
@@ -3210,7 +3213,8 @@ static void ShowTransitionBankIconWindow(ImDrawList *_draw_list)
                         ImGui::TextUnformatted("Help:");
                         ImGui::TextUnformatted("    Drag transition to blue print");
                         ImGui::PopStyleVar();
-                        ImGui::EndTooltip();                }
+                        ImGui::EndTooltip();
+                    }
                 }
                 ImGui::SetCursorScreenPos(icon_pos + ImVec2(2, 2));
                 node->DrawNodeLogo(ImGui::GetCurrentContext(), transition_icon_size); 
@@ -11523,6 +11527,9 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
 
 static void MediaEditor_Initialize(void** handle)
 {
+#if !IMGUI_APPLICATION_PLATFORM_SDL2
+    SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER);
+#endif
     ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImFontAtlas* atlas = io.Fonts;
@@ -11611,6 +11618,9 @@ static void MediaEditor_Finalize(void** handle)
     MediaCore::ReleaseSubtitleLibrary();
     RenderUtils::TextureManager::ReleaseDefaultInstance();
     SysUtils::ThreadPoolExecutor::ReleaseDefaultInstance();
+#if !IMGUI_APPLICATION_PLATFORM_SDL2
+    SDL_Quit();
+#endif
 }
 
 /****************************************************************************************
@@ -12523,7 +12533,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     }
     else if (!quit_save_confirm && !show_overwrite_quit_msg)
     {
-        app_done = app_will_quit;
+        app_done |= app_will_quit;
     }
 
     if (show_overwrite_msg || show_overwrite_new_msg || show_overwrite_quit_msg)
@@ -12627,7 +12637,7 @@ static void EnvScanThread()
     g_env_scanning = false;
 }
 
-static bool MediaEditor_Splash_Screen(void* handle, bool app_will_quit)
+static bool MediaEditor_Splash_Screen(void* handle, bool& app_will_quit)
 {
     static int32_t splash_start_time = ImGui::get_current_time_msec();
     auto& io = ImGui::GetIO();
