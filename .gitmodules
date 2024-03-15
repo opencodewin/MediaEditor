@@ -7,3 +7,6 @@
 [submodule "MediaCore"]
 	path = MediaCore
 	url = git@github.com:opencodewin/MediaCore.git
+[submodule "plugin"]
+	path = plugin
+	url = git@github.com:opencodewin/plugin.git
