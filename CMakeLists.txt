@@ -163,6 +163,7 @@ set(MEDIA_EDITOR_SRCS
     EventStackFilter.cpp
     MediaPlayer.cpp
     BackgroundTask.cpp
+    BgtaskSceneDetect.cpp
     BgtaskVidstab.cpp
     VideoTransformFilterUiCtrl.cpp
     ${IMGUI_APP_ENTRY_SRC}
@@ -284,7 +285,7 @@ target_link_libraries(
 )
 endif(APPLE)
 
-option(DEV_BACKGROUND_TASK "Developping background task feature" OFF)
+option(DEV_BACKGROUND_TASK "Developping background task feature" ON)
 if(DEV_BACKGROUND_TASK)
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE ENABLE_BACKGROUND_TASK)
 endif()

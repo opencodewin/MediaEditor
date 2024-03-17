@@ -8,6 +8,7 @@ using namespace std;
 namespace MEC
 {
 BackgroundTask::Holder CreateBgtask_Vidstab(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings);
+BackgroundTask::Holder CreateBgtask_SceneDetect(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings);
 
 BackgroundTask::Holder BackgroundTask::CreateBackgroundTask(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings)
 {
@@ -19,6 +20,8 @@ BackgroundTask::Holder BackgroundTask::CreateBackgroundTask(const json::value& j
     const string strTaskType = jnTask["type"].get<json::string>();
     if (strTaskType == "Vidstab")
         return CreateBgtask_Vidstab(jnTask, hSettings);
+    else if (strTaskType == "SceneDetect")
+        return CreateBgtask_SceneDetect(jnTask, hSettings);
     else
     {
         Log(Error) << "FAILED to create 'BackgroundTask'! Unsupported task type '" << strTaskType << "'." << endl;
