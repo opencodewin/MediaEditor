@@ -6,13 +6,14 @@
 #include <Logger.h>
 #include <SharedSettings.h>
 #include <MediaParser.h>
+#include <TextureManager.h>
 
 namespace MEC
 {
     struct BackgroundTask : public SysUtils::BaseAsyncTask
     {
         using Holder = std::shared_ptr<BackgroundTask>;
-        static Holder CreateBackgroundTask(const imgui_json::value& jnTask, MediaCore::SharedSettings::Holder hSettings);
+        static Holder CreateBackgroundTask(const imgui_json::value& jnTask, MediaCore::SharedSettings::Holder hSettings, RenderUtils::TextureManager::Holder hTxMgr);
 
         struct Callbacks
         {

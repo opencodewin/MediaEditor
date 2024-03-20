@@ -1416,7 +1416,7 @@ static const auto _BGTASK_VIDSTAB_DELETER = [] (BackgroundTask* p) {
     delete ptr;
 };
 
-BackgroundTask::Holder CreateBgtask_Vidstab(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings)
+BackgroundTask::Holder CreateBgtask_Vidstab(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings, RenderUtils::TextureManager::Holder hTxMgr)
 {
     string strTaskName;
     string strAttrName = "name";

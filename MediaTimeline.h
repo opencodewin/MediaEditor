@@ -403,6 +403,7 @@ struct MediaItem
     void* mHandle;
     bool mValid {false};                    // Media source is valid
     bool mSelected {false};                 // Media source is selected by double clicked
+    bool mShowContextMenu {false};          // shwo context menu
     int64_t mSrcLength  {0};                // whole Media end in ms
     uint32_t mMediaType {MEDIA_UNKNOWN};
     MediaCore::MediaParser::Holder mhParser;
@@ -1471,6 +1472,8 @@ struct TimeLine
     void FilterMediaItemByType(uint32_t mediaType);     // Media Bank, filter
     MEC::MediaPlayer * mMediaPlayer;                    // Media Player
     // Add By Jimmy: End
+
+    MediaItem* mOpenCtxMenuMediaItem {nullptr};         // save the pointer to the MediaItem which its context menu is opened
 
     MediaTrack * FindTrackByID(int64_t id);             // Find track by ID
     MediaTrack * FindTrackByClipID(int64_t id);         // Find track by clip ID

@@ -28,7 +28,6 @@ public:
     BgtaskSceneDetect(const string& name) : m_name(name)
     {
         m_pLogger = GetLogger(name);
-        m_i64ParsedPts = numeric_limits<int64_t>::min();
     }
 
     ~BgtaskSceneDetect()
@@ -36,7 +35,7 @@ public:
         ReleaseFilterGraph();
     }
 
-    bool Initialize(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings)
+    bool Initialize(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings, RenderUtils::TextureManager::Holder hTxMgr)
     {
         string strAttrName;
         // read 'task_dir'
@@ -107,12 +106,12 @@ public:
             return false;
         }
         m_bIsImageSeq = jnTask[strAttrName].get<json::boolean>();
-        // read 'clip_id'
-        strAttrName = "clip_id";
+        // read 'media_item_id'
+        strAttrName = "media_item_id";
         if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_number())
-            m_i64ClipId = jnTask[strAttrName].get<json::number>();
+            m_i64MediaItemId = jnTask[strAttrName].get<json::number>();
         else
-            m_i64ClipId = -1;
+            m_i64MediaItemId = -1;
         // check source url validity
         if (m_bIsImageSeq && !SysUtils::IsDirectory(m_strSrcUrl))
         {
@@ -217,6 +216,7 @@ public:
                 return false;
             }
         }
+        m_hParser = hParser;
         m_pVidstm = hParser->GetBestVideoStream();
         if (!m_pVidstm)
         {
@@ -269,34 +269,40 @@ public:
             }
         }
         // create VideoClip instance
-        strAttrName = "clip_start_offset";
+        strAttrName = "parse_start_offset";
         if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_number())
         {
             ostringstream oss; oss << "Task json must has a '" << strAttrName << "' attribute of 'number' type!";
             m_errMsg = oss.str();
             return false;
         }
-        const int64_t i64ClipStartOffset = jnTask[strAttrName].get<json::number>();
-        strAttrName = "clip_length";
+        m_i64ParseStartOffset = jnTask[strAttrName].get<json::number>();
+        strAttrName = "parse_length";
         if (!jnTask.contains(strAttrName) || !jnTask[strAttrName].is_number())
         {
             ostringstream oss; oss << "Task json must has a '" << strAttrName << "' attribute of 'number' type!";
             m_errMsg = oss.str();
             return false;
         }
-        const int64_t i64ClipLength = jnTask[strAttrName].get<json::number>();
+        m_i64ParseLength = jnTask[strAttrName].get<json::number>();
         const int64_t i64SrcDuration = static_cast<int64_t>(m_pVidstm->duration*1000);
-        const int64_t i64ClipEndOffset = i64SrcDuration-i64ClipStartOffset-i64ClipLength;
-        MediaCore::VideoClip::Holder hVclip = MediaCore::VideoClip::CreateVideoInstance(m_i64ClipId, hParser, m_hSettings,
-                0, i64ClipLength, i64ClipStartOffset, i64ClipEndOffset, 0, true);
+        const int64_t i64ClipEndOffset = i64SrcDuration-m_i64ParseStartOffset-m_i64ParseLength;
+        MediaCore::VideoClip::Holder hVclip = MediaCore::VideoClip::CreateVideoInstance(m_i64MediaItemId, hParser, m_hSettings,
+                0, m_i64ParseLength, m_i64ParseStartOffset, i64ClipEndOffset, 0, true);
         if (!hVclip)
         {
             ostringstream oss; oss << "FAILED to create VideoClip instance for '" << m_strSrcUrl << "' with (start, end, startOffset, endOffset) = ("
-                    << 0 << ", " << i64ClipLength << ", " << i64ClipStartOffset << ", " << i64ClipEndOffset << ").";
+                    << 0 << ", " << m_i64ParseLength << ", " << m_i64ParseStartOffset << ", " << i64ClipEndOffset << ").";
             m_errMsg = oss.str();
             return false;
         }
-        m_hVclip = hVclip;
+        m_hParseVclip = hVclip;
+        auto hPreviewSettings = m_hSettings->Clone();
+        hPreviewSettings->SetVideoOutWidth(m_u32PreviewWidth); hPreviewSettings->SetVideoOutHeight(m_u32PreviewHeight);
+        m_hPreviewVclip = hVclip->Clone(hPreviewSettings);
+        const auto tOutputFrameRate = m_hSettings->VideoOutFrameRate();
+        m_tVidTimeBase = { tOutputFrameRate.den, tOutputFrameRate.num };
+        m_hTxMgr = hTxMgr ? hTxMgr : RenderUtils::TextureManager::GetDefaultInstance();
         // read scene detect arguments
         strAttrName = "scene_detect_thresh";
         if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_number())
@@ -313,7 +319,19 @@ public:
             }
         }
         // read task status
+        strAttrName = "parsed_frame_idx";
+        if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_number())
+            m_i64ParsedFrameIdx = (int64_t)jnTask[strAttrName].get<json::number>();
+        strAttrName = "scene_cut_points";
+        if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_array())
+        {
+            const auto& jnSceneCutPoints = jnTask[strAttrName].get<json::array>();
+            for (const auto& jnElem : jnSceneCutPoints)
+                m_aSceneCutPoints.push_back(_SceneCutPoint::FromJson(jnElem));
+        }
+
         bool bFailed = false;
+        bool bDone = false;
         strAttrName = "is_task_failed";
         if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_boolean())
             bFailed = jnTask[strAttrName].get<json::boolean>();
@@ -322,10 +340,34 @@ public:
             strAttrName = "error_message";
             if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_string())
                 m_errMsg = jnTask[strAttrName].get<json::string>();
-            SetState(DONE);
+            SetState(FAILED);
+        }
+        else
+        {
+            strAttrName = "is_task_done";
+            if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_boolean())
+                bDone = jnTask[strAttrName].get<json::boolean>();
+            if (bDone)
+                SetState(DONE);
         }
 
-        m_strOutputPath = SysUtils::JoinPath(m_strTaskDir, "TaskOutput.mp4");
+        // initialize ui vars
+        if (bDone)
+        {
+            m_fProgress = 1.f;
+        }
+        else
+        {
+            if (m_i64ParsedFrameIdx > 0)
+                m_i64ParsedFrameIdx--;
+            const auto i64ParsedTimeMts = av_rescale_q(m_i64ParsedFrameIdx, m_tVidTimeBase, MILLISEC_TIMEBASE);
+            m_fProgress = (double)i64ParsedTimeMts/m_hParseVclip->Duration();
+        }
+        ostringstream oss; oss << "##" << m_name << "-" << setw(16) << setfill('0') << hex << m_szHash;
+        m_strTaskNameWithHash = oss.str();
+        oss.str(""); oss << "##ShowResultPopupDlg" << m_strTaskNameWithHash;
+        m_strShowResultPopupLabel = oss.str();
+
         m_bInited = true;
         return true;
     }
@@ -363,10 +405,11 @@ public:
     bool DrawContent(const ImVec2& v2ViewSize) override
     {
         bool bRemoveThisTask = false;
-        ostringstream oss; oss << "##" << m_name << "-" << setw(16) << setfill('0') << hex << m_szHash;
-        const auto strTaskNameWithHash = oss.str();
-        auto strLabel = strTaskNameWithHash;
+        ostringstream oss;
+        auto strLabel = m_strTaskNameWithHash;
         ImGui::BeginChild(strLabel.c_str(), v2ViewSize, ImGuiChildFlags_Border|ImGuiChildFlags_AutoResizeY);
+        const auto v2AreaPos = ImGui::GetCursorPos();
+        const auto v2AreaAvailSize = ImGui::GetContentRegionAvail();
         const ImColor tTaskTitleClr(KNOWNIMGUICOLOR_WHITESMOKE);
         const auto v2TextPadding = ImGui::GetStyle().FramePadding;
         const auto orgFontScale = ImGui::GetFont()->Scale;
@@ -375,11 +418,10 @@ public:
         ImGui::TextColoredWithPadding(tTaskTitleClr, v2TextPadding, "%s", TASK_TYPE_NAME.c_str()); ImGui::SameLine();
         ImGui::GetFont()->Scale = orgFontScale;
         ImGui::PopFont();
-        auto v2AvailSize = ImGui::GetContentRegionAvail();
         auto v2CurrPos = ImGui::GetCursorPos();
-        ImGui::SetCursorPos(v2CurrPos+ImVec2(v2AvailSize.x-30*3, 0));
+        ImGui::SetCursorPos({v2AreaPos.x+v2AreaAvailSize.x-60, v2CurrPos.y});
         bool bDisableThisWidget;
-        oss.str(""); oss << (IsPaused() ? ICON_PLAY_FORWARD : ICON_PAUSE) << strTaskNameWithHash;
+        oss.str(""); oss << (IsPaused() ? ICON_PLAY_FORWARD : ICON_PAUSE) << m_strTaskNameWithHash;
         strLabel = oss.str();
         bDisableThisWidget = !CanPause();
         ImGui::BeginDisabled(bDisableThisWidget);
@@ -391,12 +433,12 @@ public:
                 Pause();
         } ImGui::SameLine();
         ImGui::ShowTooltipOnHover(bDisableThisWidget
-                ? (m_eState == WAITING ? "Task hasn't started yet." : "Task is already stopped.")
+                ? (IsWaiting() ? "Task hasn't started yet." : "Task is already stopped.")
                 : (m_bPause ? "Resume task" : "Pause task"));
         ImGui::EndDisabled();
-        oss.str(""); oss << ICON_DELETE << strTaskNameWithHash;
+        oss.str(""); oss << ICON_DELETE << m_strTaskNameWithHash;
         strLabel = oss.str();
-        oss.str(""); oss << ICON_TRASH << " Task Deletion" << strTaskNameWithHash;
+        oss.str(""); oss << ICON_TRASH << " Task Deletion" << m_strTaskNameWithHash;
         const auto strDelLabel = oss.str();
         bDisableThisWidget = false;
         ImGui::BeginDisabled(bDisableThisWidget);
@@ -414,7 +456,10 @@ public:
             ImGui::TextColoredWithPadding(ImColor(0.8f, 0.8f, 0.1f), v2TextPadding, "Waiting");
             break;
         case PROCESSING:
-            ImGui::TextColoredWithPadding(ImColor(0.3f, 0.3f, 0.85f), v2TextPadding, "Processing");
+            if (m_bPause)
+                ImGui::TextColoredWithPadding(ImColor(0.8f, 0.8f, 0.1f), v2TextPadding, "Paused");
+            else
+                ImGui::TextColoredWithPadding(ImColor(0.3f, 0.3f, 0.85f), v2TextPadding, "Processing");
             break;
         case DONE:
             ImGui::TextColoredWithPadding(ImColor(0.3f, 0.85f, 0.3f), v2TextPadding, "Done");
@@ -430,6 +475,16 @@ public:
         }
         ImGui::TextColoredWithPadding(tTagClr, v2TextPadding, "Progress: "); ImGui::SameLine(0, 10);
         ImGui::TextColoredWithPadding(ImColor(0.3f, 0.85f, 0.3f), v2TextPadding, "%.02f%%", m_fProgress*100);
+        ImGui::SameLine(); v2CurrPos = ImGui::GetCursorPos();
+        ImGui::SetCursorPos({v2AreaPos.x+v2AreaAvailSize.x-126, v2CurrPos.y});
+        oss.str(""); oss << ICON_WATCH << " Show Result" << m_strTaskNameWithHash;
+        strLabel = oss.str();
+        if (ImGui::Button(strLabel.c_str()))
+        {
+            const auto bIsPopupOpen = ImGui::IsPopupOpen(m_strShowResultPopupLabel.c_str());
+            if (!bIsPopupOpen)
+                ImGui::OpenPopup(m_strShowResultPopupLabel.c_str());
+        }
 
         if (ImGui::BeginPopupModal(strDelLabel.c_str(), nullptr, ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoSavedSettings))
         {
@@ -448,6 +503,116 @@ public:
                 ImGui::CloseCurrentPopup();
             ImGui::EndPopup();
         }
+
+        ImGui::SetNextWindowSize({1200, 0});
+        if (ImGui::BeginPopupModal(m_strShowResultPopupLabel.c_str(), nullptr, ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoSavedSettings))
+        {
+            bool bClosePopup = false;
+
+            // >>>> Show scene detect cut point frame pair
+            const auto aSceneCutPoints = m_aSceneCutPoints;
+            int64_t i64PreviewFrmIdx = -1;
+            if (!aSceneCutPoints.empty())
+            {
+                if (m_iSelPrevwSceneCutIdx >= aSceneCutPoints.size()) m_iSelPrevwSceneCutIdx = aSceneCutPoints.size()-1;
+                i64PreviewFrmIdx = aSceneCutPoints[m_iSelPrevwSceneCutIdx].i64FrameIdx;
+            }
+            const int64_t i64ReadPos0 = av_rescale_q(i64PreviewFrmIdx-1, m_tVidTimeBase, MILLISEC_TIMEBASE);
+            const int64_t i64ReadPos1 = av_rescale_q(i64PreviewFrmIdx, m_tVidTimeBase, MILLISEC_TIMEBASE);
+            if (i64PreviewFrmIdx > 0 && m_i64PrevwFrameIdx != i64PreviewFrmIdx)
+            {
+                m_hPreviewVclip->SeekTo(i64ReadPos0);
+                vector<MediaCore::CorrelativeFrame> frames;
+                bool eof;
+                auto hVfrm1 = m_hPreviewVclip->ReadVideoFrame(i64ReadPos0, frames, eof);
+                ImGui::ImMat vmat;
+                if (hVfrm1->GetMat(vmat))
+                {
+                    if (m_hPrevwTx1)
+                        m_hPrevwTx1->RenderMatToTexture(vmat);
+                    else
+                    {
+                        MatUtils::Size2i prevwSize;
+                        m_hPrevwTx1 = m_hTxMgr->CreateManagedTextureFromMat(vmat, prevwSize);
+                    }
+                }
+                auto hVfrm2 = m_hPreviewVclip->ReadVideoFrame(i64ReadPos1, frames, eof);
+                if (hVfrm2->GetMat(vmat))
+                {
+                    if (m_hPrevwTx2)
+                        m_hPrevwTx2->RenderMatToTexture(vmat);
+                    else
+                    {
+                        MatUtils::Size2i prevwSize;
+                        m_hPrevwTx2 = m_hTxMgr->CreateManagedTextureFromMat(vmat, prevwSize);
+                    }
+                }
+                m_i64PrevwFrameIdx = i64PreviewFrmIdx;
+            }
+            const auto tid1 = m_hPrevwTx1 ? m_hPrevwTx1->TextureID() : 0;
+            const auto tid2 = m_hPrevwTx2 ? m_hPrevwTx2->TextureID() : 0;
+            const ImVec2 v2PrevwImgSize(m_u32PreviewWidth, m_u32PreviewHeight);
+            if (tid1)
+                ImGui::Image(tid1, v2PrevwImgSize);
+            else
+                ImGui::Dummy(v2PrevwImgSize);
+            ImGui::SameLine(0, 20);
+            if (tid2)
+                ImGui::Image(tid2, v2PrevwImgSize);
+            else
+                ImGui::Dummy(v2PrevwImgSize);
+            // <<<<
+
+            // >>>> show scene detect cut points
+            ImGui::SameLine(0, 20);
+            ImGuiTableFlags uiTableFlags = ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Sortable | ImGuiTableFlags_SortMulti
+                | ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders | ImGuiTableFlags_NoBordersInBody | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY
+                | ImGuiTableFlags_SizingFixedFit;
+            if (ImGui::BeginTable("Scene cut points", 6, uiTableFlags, ImVec2(0, m_u32SceneCutTableHeight)))
+            {
+                ImGui::TableSetupColumn("Index", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoHide);
+                ImGui::TableSetupColumn("Time",  ImGuiTableColumnFlags_WidthFixed);
+                ImGui::TableHeadersRow();
+
+                if (!aSceneCutPoints.empty())
+                {
+                    ImGuiListClipper clipper;
+                    clipper.Begin(aSceneCutPoints.size());
+                    while (clipper.Step())
+                    {
+                        for (int rowIdx = clipper.DisplayStart; rowIdx < clipper.DisplayEnd; rowIdx++)
+                        {
+                            ImGui::PushID(rowIdx);
+                            ImGui::TableNextRow();
+                            ImGui::TableSetColumnIndex(0);
+                            oss.str(""); oss << rowIdx;
+                            strLabel = oss.str();
+                            auto bIsSelected = rowIdx == m_iSelPrevwSceneCutIdx;
+                            if (ImGui::Selectable(strLabel.c_str(), bIsSelected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap))
+                                m_iSelPrevwSceneCutIdx = rowIdx;
+                            ImGui::TableSetColumnIndex(1);
+                            const int64_t i64Pos = av_rescale_q(aSceneCutPoints[rowIdx].i64FrameIdx, m_tVidTimeBase, MILLISEC_TIMEBASE);
+                            strLabel = MillisecToString(i64Pos);
+                            ImGui::TextUnformatted(strLabel.c_str());
+                            ImGui::PopID();
+                        }
+                    }
+                }
+                ImGui::EndTable();
+            }
+
+            // <<<<
+
+            ImGui::Spacing();
+            if (ImGui::Button("  OK  "))
+            {
+                bClosePopup = true;
+            }
+            if (bClosePopup)
+                ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+        }
+
         ImGui::EndChild();
         return bRemoveThisTask;
     }
@@ -467,7 +632,7 @@ public:
         jnTask["task_dir"] = m_strTaskDir;
         jnTask["source_url"] = m_strSrcUrl;
         jnTask["is_image_seq"] = m_bIsImageSeq;
-        jnTask["clip_id"] = json::number(m_i64ClipId);
+        jnTask["media_item_id"] = json::number(m_i64MediaItemId);
         json::value jnSettings;
         if (!m_hSettings->SaveAsJson(jnSettings))
         {
@@ -475,11 +640,10 @@ public:
             return false;
         }
         jnTask["media_settings"] = jnSettings;
-        auto hParser = m_hVclip->GetMediaParser();
         if (m_bIsImageSeq)
         {
             const auto& tFrameRate = m_pVidstm->realFrameRate;
-            auto hFileIter = hParser->GetImageSequenceIterator();
+            auto hFileIter = m_hParser->GetImageSequenceIterator();
             jnTask["frame_rate_num"] = json::number(tFrameRate.num);
             jnTask["frame_rate_den"] = json::number(tFrameRate.den);
             bool bIsRegexPattern;
@@ -488,11 +652,17 @@ public:
             jnTask["case_sensitive"] = hFileIter->IsCaseSensitive();
             jnTask["include_sub_dir"] = hFileIter->IsRecursive();
         }
-        jnTask["clip_start_offset"] = json::number(m_hVclip->StartOffset());
-        jnTask["clip_length"] = json::number(m_hVclip->Duration());
+        jnTask["parse_start_offset"] = json::number(m_i64ParseStartOffset);
+        jnTask["parse_length"] = json::number(m_i64ParseLength);
         // save scene detect parameters
         jnTask["scene_detect_thresh"] = json::number(m_fSceneDetectThresh);
         // save task status
+        jnTask["parsed_frame_idx"] = json::number(m_i64ParsedFrameIdx);
+        json::array jnSceneCutPoints;
+        for (const auto& elem : m_aSceneCutPoints)
+            jnSceneCutPoints.push_back(elem.SaveAsJson());
+        jnTask["scene_cut_points"] = jnSceneCutPoints;
+        jnTask["is_task_done"] = IsDone();
         jnTask["is_task_failed"] = IsFailed();
         jnTask["error_message"] = m_errMsg;
         return true;
@@ -534,6 +704,33 @@ public:
     static const string TASK_TYPE_NAME;
 
 protected:
+    struct _SceneCutPoint
+    {
+        int64_t i64FrameIdx;
+        float fScore;
+
+        json::value SaveAsJson() const
+        {
+            json::value j;
+            j["frame_index"] = json::number(i64FrameIdx);
+            j["score"] = json::number(fScore);
+            return std::move(j);
+        }
+
+        static _SceneCutPoint FromJson(const json::value& j)
+        {
+            _SceneCutPoint newinst;
+            string strAttrName;
+            strAttrName = "frame_index";
+            if (j.contains(strAttrName) && j[strAttrName].is_number())
+                newinst.i64FrameIdx = (int64_t)j[strAttrName].get<json::number>();
+            strAttrName = "score";
+            if (j.contains(strAttrName) && j[strAttrName].is_number())
+                newinst.fScore = (float)j[strAttrName].get<json::number>();
+            return std::move(newinst);
+        }
+    };
+
     bool _TaskProc () override
     {
         m_pLogger->Log(INFO) << "Start background task 'SceneDetect' for '" << m_strSrcUrl << "'." << endl;
@@ -544,15 +741,19 @@ protected:
             return false;
         }
 
-        m_fProgress = 0.f;
         float fStageProgress = 0.f, fStageShare = 0.5f, fAccumShares = 0.f;
         bool bFilterGraphInited = false;
-        int64_t i64FrmIdx = 0;
-        const int64_t i64ClipDur = m_hVclip->Duration();
+        const int64_t i64ClipDur = m_hParseVclip->Duration();
         ImMatToAVFrameConverter tMat2AvfrmCvter;
         tMat2AvfrmCvter.SetOutPixelFormat(m_eFgInputPixfmt);
         const auto tFrameRate = m_hSettings->VideoOutFrameRate();
         const AVRational tb = { tFrameRate.den, tFrameRate.num };
+        int64_t i64FrmIdx = m_i64ParsedFrameIdx;
+        if (i64FrmIdx > 0)
+        {
+            const int64_t i64ReadPos = round((double)i64FrmIdx*1000*tFrameRate.den/tFrameRate.num);
+            m_hParseVclip->SeekTo(i64ReadPos);
+        }
 
         SelfFreeAVFramePtr hFgOutfrmPtr = AllocSelfFreeAVFramePtr();
         while (!IsCancelled())
@@ -568,7 +769,7 @@ protected:
             SelfFreeAVFramePtr hFgInfrmPtr;
             const int64_t i64ReadPos = round((double)i64FrmIdx*1000*tFrameRate.den/tFrameRate.num);
             bool bEof = false;
-            auto hVfrm = m_hVclip->ReadSourceFrame(i64ReadPos, bEof, true);
+            auto hVfrm = m_hParseVclip->ReadSourceFrame(i64ReadPos, bEof, true);
             ImMatWrapper_AVFrame tAvfrmWrapper;
             if (hVfrm)
             {
@@ -613,6 +814,7 @@ protected:
                     m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
                     return false;
                 }
+                m_i64ParsedFrameIdx = i64FrmIdx;
                 i64FrmIdx++;
 
                 av_frame_unref(hFgOutfrmPtr.get());
@@ -621,8 +823,10 @@ protected:
                 {
                     if (fferr == 0)
                     {
+                        av_dict_get(hFgOutfrmPtr->metadata, "lavfi.scene_score", nullptr, 0);
+                        m_aSceneCutPoints.push_back({hFgOutfrmPtr->pts, 0});
                         int64_t mts = av_rescale_q(hFgOutfrmPtr->pts, tb, MILLISEC_TIMEBASE);
-                        m_pLogger->Log(INFO) << "Scene detect output: frame#" << (i64FrmIdx-1) << ", time=" << MillisecToString(mts) << endl;
+                        m_pLogger->Log(INFO) << "Scene detect output: frame#" << hFgOutfrmPtr->pts << ", time=" << MillisecToString(mts) << endl;
                     }
                     else
                     {
@@ -639,6 +843,7 @@ protected:
                 break;
         }
         ReleaseFilterGraph();
+        m_hParseVclip = nullptr;
 
         m_fProgress = 1.f;
         m_pLogger->Log(INFO) << "Quit background task 'SceneDetect' for '" << m_strSrcUrl << "'." << endl;
@@ -786,21 +991,35 @@ private:
     AVPixelFormat m_eFgInputPixfmt;
     string m_strTrfPath;
     string m_strSrcUrl;
-    int64_t m_i64ClipId;
-    MediaCore::VideoClip::Holder m_hVclip;
+    int64_t m_i64MediaItemId;
+    int64_t m_i64ParseStartOffset, m_i64ParseLength;
+    MediaCore::MediaParser::Holder m_hParser;
+    MediaCore::VideoClip::Holder m_hParseVclip;
+    MediaCore::VideoClip::Holder m_hPreviewVclip;
+    RenderUtils::TextureManager::Holder m_hTxMgr;
+    RenderUtils::ManagedTexture::Holder m_hPrevwTx1, m_hPrevwTx2;
     const MediaCore::VideoStream* m_pVidstm{nullptr};
     MediaCore::SharedSettings::Holder m_hSettings;
+    AVRational m_tVidTimeBase;
     bool m_bIsImageSeq{false};
     bool m_bUseSrcAttr;
     // scene detect parameters
     float m_fSceneDetectThresh{0.4f};
     // output
     string m_strOutputPath;
+    vector<_SceneCutPoint> m_aSceneCutPoints;
     // task control
-    int64_t m_i64ParsedPts;
+    int64_t m_i64ParsedFrameIdx{0};
     float m_fProgress{0.f};
     bool m_bPause{false};
     bool m_bPauseCheckPointHit{false};
+    // ui vars
+    string m_strTaskNameWithHash;
+    uint32_t m_u32PreviewWidth{480}, m_u32PreviewHeight{270};
+    string m_strShowResultPopupLabel;
+    int m_iSelPrevwSceneCutIdx{0};
+    int64_t m_i64PrevwFrameIdx{-1};
+    uint32_t m_u32SceneCutTableHeight{350};
 };
 
 const string BgtaskSceneDetect::TASK_TYPE_NAME = "Scene Detect";
@@ -810,7 +1029,7 @@ static const auto _BGTASK_SCENEDETECT_DELETER = [] (BackgroundTask* p) {
     delete ptr;
 };
 
-BackgroundTask::Holder CreateBgtask_SceneDetect(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings)
+BackgroundTask::Holder CreateBgtask_SceneDetect(const json::value& jnTask, MediaCore::SharedSettings::Holder hSettings, RenderUtils::TextureManager::Holder hTxMgr)
 {
     string strTaskName;
     string strAttrName = "name";
@@ -819,7 +1038,7 @@ BackgroundTask::Holder CreateBgtask_SceneDetect(const json::value& jnTask, Media
     else
         strTaskName = "BgtskSceneDetect";
     auto p = new BgtaskSceneDetect(strTaskName);
-    if (!p->Initialize(jnTask, hSettings))
+    if (!p->Initialize(jnTask, hSettings, hTxMgr))
     {
         Log(Error) << "FAILED to create new 'SceneDetect' background task! Error is '" << p->GetError() << "'." << endl;
         delete p; 

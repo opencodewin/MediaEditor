@@ -56,7 +56,7 @@ public:
     ErrorCode SaveTo(const std::string& projFilePath);
     ErrorCode Close(bool bSaveBeforeClose = true);
     ErrorCode Delete();
-    void SetBgtaskExecutor(SysUtils::ThreadPoolExecutor::Holder hBgtaskExctor) { m_hBgtaskExctor = hBgtaskExctor; }
+    void SetBgtaskExecutor(SysUtils::ThreadPoolExecutor::Holder hBgtaskExctor);
     std::string GetProjectName() const { return m_projName; }
     ErrorCode ChangeProjectName(const std::string& newName);
     std::string GetProjectDir() const { return m_projDir; }

@@ -10462,7 +10462,7 @@ bool TimeLine::isURLInTimeline(std::string url)
 
 namespace MediaTimeline
 {
-struct BgtaskMenuItem
+struct _BgtaskMenuItem
 {
     std::string label;
     std::string taskType;
@@ -10576,7 +10576,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     static int markMovingEntry = -1;
     static int64_t markMovingShift = 0;
 
-    static const std::vector<BgtaskMenuItem> s_aBgtaskMenuItems = {
+    static const std::vector<_BgtaskMenuItem> s_aBgtaskMenuItems = {
         {
             "Video Stabilization", "Vidstab",
             [timeline] (Clip* pClip) {
@@ -10754,58 +10754,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                     jnTask["vidstab_arg_zoomspeed"] = imgui_json::number(m_vidstabParam_fAutoZoomSpeed);
                     jnTask["vidstab_arg_interp"] = imgui_json::number(m_vidstabParam_iInterpolationMode);
                     auto hSettings = timeline->mhMediaSettings->Clone();
-                    hTask = MEC::BackgroundTask::CreateBackgroundTask(jnTask, hSettings);
-                    bCloseDlg = true;
-                } ImGui::SameLine(0, 10);
-                if (ImGui::Button(" Cancel "))
-                    bCloseDlg = true;
-                return hTask;
-            },
-        },
-        {
-            "Scene Detect", "SceneDetect",
-            [timeline] (Clip* pClip) {
-                if (!(timeline && timeline->IsProjectDirReady()))
-                    return false;
-                const auto clipType = pClip->mType;
-                return IS_VIDEO(clipType)&&!IS_IMAGE(clipType);
-            },
-            [timeline] (Clip* pClip, bool& bCloseDlg) {
-                auto hParser = pClip->mMediaParser;
-                ImColor tTagColor(KNOWNIMGUICOLOR_LIGHTGRAY);
-                ImColor tTextColor(KNOWNIMGUICOLOR_LIGHTGREEN);
-                ImGui::TextColored(tTagColor, "Source File: ");
-                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", SysUtils::ExtractFileName(hParser->GetUrl()).c_str());
-                ImGui::ShowTooltipOnHover("Path: '%s'", hParser->GetUrl().c_str());
-                ImGui::TextColored(tTagColor, "Duration: ");
-                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", ImGuiHelper::MillisecToString(pClip->Length()).c_str());
-                ImGui::SameLine(0, 25); ImGui::TextColored(tTagColor, "Start Offset: ");
-                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", ImGuiHelper::MillisecToString(pClip->StartOffset()).c_str());
-                ImGui::SameLine(0, 25); ImGui::TextColored(tTagColor, "End Offset: ");
-                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", ImGuiHelper::MillisecToString(pClip->EndOffset()).c_str());
-                ImGui::TextColored(tTagColor, "Work Dir: ");
-                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", timeline->mhProject->GetProjectDir().c_str());
-
-                static float m_sceneDetectParam_fThresh = 0.4;
-                ImGui::SliderFloat("##SceneDetectParamThresh", &m_sceneDetectParam_fThresh, 0, 1, "%.3f", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick);
-
-                bCloseDlg = false;
-                MEC::BackgroundTask::Holder hTask;
-                if (ImGui::Button("   OK   "))
-                {
-                    imgui_json::value jnTask;
-                    jnTask["type"] = "SceneDetect";
-                    jnTask["project_dir"] = timeline->mhProject->GetProjectDir();
-                    jnTask["source_url"] = hParser->GetUrl();
-                    jnTask["is_image_seq"] = IS_IMAGESEQ(pClip->mType);
-                    jnTask["clip_id"] = imgui_json::number(pClip->mID);
-                    jnTask["clip_start_offset"] = imgui_json::number(pClip->StartOffset());
-                    jnTask["clip_length"] = imgui_json::number(pClip->Length());
-                    jnTask["use_src_attr"] = true;
-                    // send scene detect params
-                    jnTask["scene_detect_thresh"] = imgui_json::number(m_sceneDetectParam_fThresh);
-                    auto hSettings = timeline->mhMediaSettings->Clone();
-                    hTask = MEC::BackgroundTask::CreateBackgroundTask(jnTask, hSettings);
+                    hTask = MEC::BackgroundTask::CreateBackgroundTask(jnTask, hSettings, timeline->mTxMgr);
                     bCloseDlg = true;
                 } ImGui::SameLine(0, 10);
                 if (ImGui::Button(" Cancel "))

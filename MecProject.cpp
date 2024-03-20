@@ -323,7 +323,7 @@ Project::ErrorCode Project::Load(const string& projFilePath)
                     const auto tLoadRes = imgui_json::value::load(jnItem.get<imgui_json::string>());
                     if (tLoadRes.second)
                     {
-                        auto hTask = BackgroundTask::CreateBackgroundTask(tLoadRes.first, hDummySettings);
+                        auto hTask = BackgroundTask::CreateBackgroundTask(tLoadRes.first, hDummySettings, nullptr);
                         if (hTask)
                         {
                             hTask->SetCallbacks(this);
@@ -494,6 +494,23 @@ Project::ErrorCode Project::Delete()
         }
     }
     return OK;
+}
+
+void Project::SetBgtaskExecutor(SysUtils::ThreadPoolExecutor::Holder hBgtaskExctor)
+{
+    lock_guard<recursive_mutex> _lk(m_mtxApiLock);
+    m_hBgtaskExctor = hBgtaskExctor;
+    if (!hBgtaskExctor)
+        return;
+    lock_guard<mutex> _lk2(m_mtxBgtaskLock);
+    for (auto& hTask : m_aBgtasks)
+    {
+        if (hTask->IsWaiting())
+        {
+            if (!hBgtaskExctor->EnqueueTask(hTask))
+                m_pLogger->Log(Error) << "Enqueue background task FAILED!" << endl;
+        }
+    }
 }
 
 Project::ErrorCode Project::ChangeProjectName(const string& newName)

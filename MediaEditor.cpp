@@ -2482,6 +2482,17 @@ static std::vector<MediaItem *>::iterator InsertMediaIcon(std::vector<MediaItem 
                 timeline->mMediaPlayer->Play();
             }
 
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+            {
+                bool bIsCtxMenuOpen = ImGui::IsPopupOpen("##media-item-context-menu-popup");
+                bIsCtxMenuOpen = !bIsCtxMenuOpen;
+                if (bIsCtxMenuOpen)
+                {
+                    ImGui::OpenPopup("##media-item-context-menu-popup");
+                    timeline->mOpenCtxMenuMediaItem = *item;
+                }
+            }
+
             // Show help tooltip
             if (timeline->mShowHelpTooltips && ImGui::BeginTooltip())
             {
@@ -2802,6 +2813,68 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     static std::vector<std::string> failed_items;
     static bool show_player = false;
+
+    struct _BgtaskMenuItem
+    {
+        std::string label;
+        std::string taskType;
+        std::function<bool(MediaItem*)> checkUsable;
+        std::function<MEC::BackgroundTask::Holder(MediaItem*,bool&)> drawCreateTaskDialog;
+    };
+    static const std::vector<_BgtaskMenuItem> s_aBgtaskMenuItems = {
+        {
+            "Scene Detect", "SceneDetect",
+            [] (MediaItem* pMediaItem) {
+                if (!(timeline && timeline->IsProjectDirReady()))
+                    return false;
+                const auto clipType = pMediaItem->mMediaType;
+                return IS_VIDEO(clipType)&&!IS_IMAGE(clipType);
+            },
+            [] (MediaItem* pMediaItem, bool& bCloseDlg) {
+                auto hParser = pMediaItem->mhParser;
+                ImColor tTagColor(KNOWNIMGUICOLOR_LIGHTGRAY);
+                ImColor tTextColor(KNOWNIMGUICOLOR_LIGHTGREEN);
+                ImGui::TextColored(tTagColor, "Source File: ");
+                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", SysUtils::ExtractFileName(hParser->GetUrl()).c_str());
+                ImGui::ShowTooltipOnHover("Path: '%s'", hParser->GetUrl().c_str());
+                ImGui::TextColored(tTagColor, "Duration: ");
+                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", ImGuiHelper::MillisecToString(pMediaItem->mSrcLength).c_str());
+                ImGui::TextColored(tTagColor, "Work Dir: ");
+                ImGui::SameLine(); ImGui::TextColored(tTextColor, "%s", timeline->mhProject->GetProjectDir().c_str());
+
+                static float m_sceneDetectParam_fThresh = 0.4;
+                ImGui::SliderFloat("##SceneDetectParamThresh", &m_sceneDetectParam_fThresh, 0, 1, "%.3f", ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick);
+
+                bCloseDlg = false;
+                MEC::BackgroundTask::Holder hTask;
+                if (ImGui::Button("   OK   "))
+                {
+                    imgui_json::value jnTask;
+                    jnTask["type"] = "SceneDetect";
+                    jnTask["project_dir"] = timeline->mhProject->GetProjectDir();
+                    jnTask["source_url"] = hParser->GetUrl();
+                    jnTask["is_image_seq"] = IS_IMAGESEQ(pMediaItem->mMediaType);
+                    jnTask["media_item_id"] = imgui_json::number(pMediaItem->mID);
+                    jnTask["parse_start_offset"] = imgui_json::number(0);
+                    jnTask["parse_length"] = imgui_json::number(pMediaItem->mSrcLength);
+                    jnTask["use_src_attr"] = true;
+                    // send scene detect params
+                    jnTask["scene_detect_thresh"] = imgui_json::number(m_sceneDetectParam_fThresh);
+                    auto hSettings = timeline->mhMediaSettings->Clone();
+                    hTask = MEC::BackgroundTask::CreateBackgroundTask(jnTask, hSettings, timeline->mTxMgr);
+                    bCloseDlg = true;
+                } ImGui::SameLine(0, 10);
+                if (ImGui::Button(" Cancel "))
+                    bCloseDlg = true;
+                return hTask;
+            },
+        },
+    };
+    static size_t s_szBgtaskSelIdx;
+    static string s_strBgtaskCreateDlgLabel;
+    static int64_t s_i64BgtaskSrcItemId;
+    bool bOpenCreateBgtaskDialog = false;
+
     bool changed = false;
     bool filtered = false; // 'true' indicates that the media_items is filtered
     bool searched = false; // 'true' indicates that the media_items is searched
@@ -3077,6 +3150,60 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
                         failed_items.clear();
                         ImGui::CloseCurrentPopup();
                     }
+                    ImGui::EndPopup();
+                }
+
+                bool bCloseMediaItemCtxMenu = false;
+                if (ImGui::BeginPopup("##media-item-context-menu-popup"))
+                {
+                    if (ImGui::BeginMenu(ICON_NODE " Background Task"))
+                    {
+                        const auto szSubItemCnt = s_aBgtaskMenuItems.size();
+                        for (auto i = 0; i < szSubItemCnt; i++)
+                        {
+                            const auto& menuItem = s_aBgtaskMenuItems[i];
+                            bool bDisableMenuItem = !menuItem.checkUsable(timeline->mOpenCtxMenuMediaItem);
+                            ImGui::BeginDisabled(bDisableMenuItem);
+                            if (ImGui::MenuItem(menuItem.label.c_str()))
+                            {
+                                bOpenCreateBgtaskDialog = true;
+                                s_szBgtaskSelIdx = i;
+                                std::ostringstream oss; oss << "Create " << menuItem.label << " Task";
+                                s_strBgtaskCreateDlgLabel = oss.str();
+                                s_i64BgtaskSrcItemId = timeline->mOpenCtxMenuMediaItem->mID;
+                                bCloseMediaItemCtxMenu = true;
+                            }
+                            ImGui::EndDisabled();
+                        }
+                        ImGui::EndMenu();
+                    }
+                    ImGui::EndPopup();
+                }
+                else if (timeline->mOpenCtxMenuMediaItem)
+                {
+                    timeline->mOpenCtxMenuMediaItem = nullptr;
+                }
+                if (bCloseMediaItemCtxMenu)
+                    ImGui::CloseCurrentPopup();
+
+                // back ground task creation popup dialog
+                if (bOpenCreateBgtaskDialog)
+                    ImGui::OpenPopup(s_strBgtaskCreateDlgLabel.c_str(), ImGuiPopupFlags_AnyPopup);
+                if (ImGui::BeginPopupModal(s_strBgtaskCreateDlgLabel.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+                {
+                    const auto& bgtaskSubMenuItem = s_aBgtaskMenuItems[s_szBgtaskSelIdx];
+                    bool bCloseDlg;
+                    auto pMediaItem = timeline->FindMediaItemByID(s_i64BgtaskSrcItemId);
+                    if (pMediaItem)
+                    {
+                        auto hTask = bgtaskSubMenuItem.drawCreateTaskDialog(pMediaItem, bCloseDlg);
+                        if (hTask)
+                            timeline->mhProject->EnqueueBackgroundTask(hTask);
+                    }
+                    else
+                        bCloseDlg = true;
+                    if (bCloseDlg)
+                        ImGui::CloseCurrentPopup();
                     ImGui::EndPopup();
                 }
             }
