@@ -1369,7 +1369,7 @@ static void ShowConfigure(MediaEditorSettings & config)
     if (ImGui::BeginChild("##ConfigureView", ImVec2(800, 600), false, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 table_size;
-        ImGui::TabLabels(ConfigureTabNames, ConfigureIndex, table_size, std::vector<std::string>() , false, false, nullptr, nullptr, false, false, nullptr, nullptr);
+        ImGui::TabLabels(ConfigureTabNames, ConfigureIndex, table_size, std::vector<std::string>(), std::vector<std::pair<int, int>>(), false, false, nullptr, nullptr, false, false, nullptr, nullptr);
         switch (ConfigureIndex)
         {
             case 0:
@@ -3260,7 +3260,7 @@ static void ShowMediaBankWindow(ImDrawList *_draw_list, float media_icon_size)
     }
     ImGui::EndChild();
     ImGui::SameLine(0,0);
-    if (ImGui::TabLabelsVertical(MediaBankTabNames,g_media_editor_settings.MediaBankViewType,MediaBankTabTooltips, false, nullptr, nullptr, false, false, nullptr, nullptr, true, false))
+    if (ImGui::TabLabelsVertical(MediaBankTabNames, g_media_editor_settings.MediaBankViewType, MediaBankTabTooltips, std::vector<std::pair<int, int>>(), false, nullptr, nullptr, false, false, nullptr, nullptr, true, false))
     {
         StopTimelineMediaPlay();
         show_player = false;
@@ -9700,7 +9700,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect, Editi
             if (ImGui::BeginChild("##text_sytle_window", style_view_size - ImVec2(8, 0), false, child_flags))
             {
                 ImVec2 table_size;
-                if (ImGui::TabLabels(TextEditorTabNames, StyleWindowIndex, table_size, std::vector<std::string>() , false, !power_saving_mode, nullptr, nullptr, false, false, nullptr, nullptr))
+                if (ImGui::TabLabels(TextEditorTabNames, StyleWindowIndex, table_size, std::vector<std::string>(), std::vector<std::pair<int, int>>(), false, !power_saving_mode, nullptr, nullptr, false, false, nullptr, nullptr))
                 {
                 }
 
@@ -12204,7 +12204,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         {
             ImVec2 bank_window_size = ImGui::GetWindowSize();
             ImVec2 table_size;
-            if (ImGui::TabLabels(ControlPanelTabNames, ControlPanelIndex, table_size, ControlPanelTabTooltips , false, !power_saving_mode, nullptr, nullptr, false, false, nullptr, nullptr))
+            if (ImGui::TabLabels(ControlPanelTabNames, ControlPanelIndex, table_size, ControlPanelTabTooltips, std::vector<std::pair<int, int>>(), false, !power_saving_mode, nullptr, nullptr, false, false, nullptr, nullptr))
             {
             }
 
@@ -12291,7 +12291,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
             ImDrawList *draw_list = ImGui::GetWindowDrawList();
             ImVec2 table_size;
             int window_index = MainWindowIndex;
-            if (ImGui::TabLabels(MainWindowTabNames, window_index, table_size, MainWindowTabTooltips, false, !power_saving_mode, nullptr, nullptr, false, false, nullptr, nullptr))
+            if (ImGui::TabLabels(MainWindowTabNames, window_index, table_size, MainWindowTabTooltips, std::vector<std::pair<int, int>>(), false, !power_saving_mode, nullptr, nullptr, false, false, nullptr, nullptr))
             {
                 MainWindowIndex = window_index;
                 timeline->mSelectedItem = -1;
@@ -12338,7 +12338,7 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     tab_index.push_back(item->mIndex);
                 }
                 ImGui::SetCursorScreenPos(ImGui::GetCursorScreenPos() - ImVec2(0, 4));
-                if (ImGui::TabImageLabels(tab_names, timeline->mSelectedItem, clip_table_size, tab_tooltips, tab_textures, ImVec2(64,36), false, false, &optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true))
+                if (ImGui::TabImageLabels(tab_names, timeline->mSelectedItem, clip_table_size, tab_tooltips, std::vector<std::pair<int, int>>(), tab_textures, ImVec2(64,36), false, false, &optionalHoveredTab, tab_index.data(), true, true, &justClosedTabIndex, &justClosedTabIndexInsideTabItemOrdering, true))
                 {
                     MainWindowIndex = MAIN_PAGE_CLIP_EDITOR;
                     UIPageChanged();
