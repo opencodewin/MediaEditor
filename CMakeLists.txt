@@ -621,10 +621,22 @@ elseif(WIN32)
             string (REGEX REPLACE "^.* => | \(.*\)" "" pruned ${line})
             string (STRIP ${pruned} dep_filename)
             if (IS_ABSOLUTE ${dep_filename})
-                string (REGEX MATCH "SYSTEM32|System32|WinSxS" system_lib ${dep_filename})
+                string (REGEX MATCH "SYSTEM32|System32|WinSxS|MediaEditor" system_lib ${dep_filename})
                 if ("${system_lib}" STREQUAL "")
                     set(dep_path "")
                     string (PREPEND dep_path "C:/msys64" ${dep_filename})
+                    message("Link librarys: " ${dep_path})
+                    file(INSTALL 
+                        DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" 
+                        FOLLOW_SYMLINK_CHAIN
+                        FILES ${dep_path}
+                    )
+                endif()
+                string (REGEX MATCH "SYSTEM32|System32|WinSxS|mingw64" custom_lib ${dep_filename})
+                if ("${custom_lib}" STREQUAL "")
+                    set(dep_path "")
+                    #string (PREPEND dep_path "" ${dep_filename})
+                    string (REPLACE "/c/" "C:/" dep_path ${dep_filename})
                     message("Link librarys: " ${dep_path})
                     file(INSTALL 
                         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" 
@@ -647,7 +659,7 @@ elseif(WIN32)
     install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
             DESTINATION resources COMPONENT Resource)
     # Install Plugins
-    install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins"
+    install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins/"
             DESTINATION plugins COMPONENT Runtime)
 
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL OFF)
