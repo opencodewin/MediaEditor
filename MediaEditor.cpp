@@ -6085,7 +6085,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * pEditin
                     auto label_name = node->m_Name;
                     std::string lable_id = label_name + "##filter_node" + "@" + std::to_string(node->m_ID);
                     auto node_pos = ImGui::GetCursorScreenPos();
-                    node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(60, 32));
+                    node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(32, 32));
                     ImGui::SameLine(32);
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0, 1.0, 1.0, 1.0));
                     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.2, 0.5, 0.2, 0.5));
@@ -6171,6 +6171,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * pEditin
                     if (node_count < nodes.size() - 1)
                     {
                         ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.2,0.2,0.5,0.75));
+                        ImGui::Dummy({0, 4});
                         ImGui::Separator();
                         ImGui::PopStyleColor();
                     }
