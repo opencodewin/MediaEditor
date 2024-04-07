@@ -478,7 +478,7 @@ bool EventTrack::DrawContent(ImDrawList *draw_list, ImRect rect, int event_heigh
                         if (!IS_ENTRY_EXIT_NODE(node->GetType()))
                         {
                             ImGui::SetCursorScreenPos(event_pos_min + ImVec2(16 * count, 0));
-                            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(26, 24));
+                            node->DrawNodeLogo(ImGui::GetCurrentContext(), ImVec2(24, 24));
                             count ++;
                         }
                     }

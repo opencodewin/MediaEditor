@@ -224,7 +224,7 @@ target_link_libraries(
 # set the Info.plist file
 set(MACOSX_BUNDLE_PLIST_FILE ${CMAKE_SOURCE_DIR}/resources/Info.plist)
 set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${MACOSX_BUNDLE_PLIST_FILE})
-set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE TRUE MACOSX_FRAMEWORK_IDENTIFIER com.Code-Win.mec RESOURCE "${RESOURCE_FILES}")
+set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE TRUE MACOSX_FRAMEWORK_IDENTIFIER com.Code-Win.${MEDIA_EDITOR_BINARY} RESOURCE "${RESOURCE_FILES}")
 
 elseif(WIN32)
 add_executable(
@@ -493,7 +493,7 @@ add_subdirectory(plugin/nodes/effects/WaterRipple)
 endif(IMGUI_VULKAN_SHADER)
 
 ### DEFINE THE PACKAGING (OS specific)
-set(CPACK_PACKAGE_NAME  "mec")
+set(CPACK_PACKAGE_NAME  ${MEDIA_EDITOR_BINARY})
 if (IMGUI_VULKAN)
     if (IMGUI_SDL2)
         set(CPACK_PACKAGE_NAME  "MEC_SDL2_Vulkan")
@@ -529,15 +529,15 @@ if(APPLE)
     #set(CPACK_GENERATOR DragNDrop)
     #set(CPACK_BINARY_DRAGNDROP ON)
     # OSX cpack info
-    install(TARGETS mec
+    install(TARGETS ${MEDIA_EDITOR_BINARY}
             CONFIGURATIONS Release MinSizeRel RelWithDebInfo Debug
             BUNDLE  DESTINATION . COMPONENT Runtime
             RUNTIME DESTINATION bin COMPONENT Runtime
     )
-    set(bindirs mec.app/Contents/MacOS)
-    set(frameworks_dir mec.app/Contents/Frameworks)
-    set(resources_dir mec.app/Contents/Resources)
-    set(contents_dir mec.app/Contents)
+    set(bindirs ${MEDIA_EDITOR_BINARY}.app/Contents/MacOS)
+    set(frameworks_dir ${MEDIA_EDITOR_BINARY}.app/Contents/Frameworks)
+    set(resources_dir ${MEDIA_EDITOR_BINARY}.app/Contents/Resources)
+    set(contents_dir ${MEDIA_EDITOR_BINARY}.app/Contents)
 
     # Install Resource File
     install(DIRECTORY  "${PROJECT_SOURCE_DIR}/languages"
@@ -549,10 +549,14 @@ if(APPLE)
     install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins"
             DESTINATION "${contents_dir}" COMPONENT Runtime)
 
-    INSTALL(CODE [[
-        set(plugins_dir "mec.app/Contents/plugins")
+    install(CODE "
+        set(APP_NAME ${MEDIA_EDITOR_BINARY})
+        set(FRAMEWORKS_PATH ${frameworks_dir})
+        ")
+    install(CODE [[
+        set(plugins_dir "${APP_NAME}.app/Contents/plugins")
         file(GLOB_RECURSE PLUGINS ${plugins_dir} "*.node")
-        set(APPS "${CMAKE_INSTALL_PREFIX}/mec.app")
+        set(APPS "${CMAKE_INSTALL_PREFIX}/${APP_NAME}.app")
         set(DIRS ${FRAMEWORKS_PATH})
         list (APPEND DIRS "/usr/local/lib/")
         list (APPEND DIRS "${CMAKE_INSTALL_PREFIX}")
@@ -574,7 +578,7 @@ if(APPLE)
                 codesign -vvv --deep --force
                 --entitlements \"${APPLE_CODESIGN_ENTITLEMENTS}\"
                 --sign \"${APPLE_CODESIGN_IDENTITY}\"
-                \"mec.app\" )
+                \"${MEDIA_EDITOR_BINARY}.app\" )
                 "
                 COMPONENT Runtime
         )
@@ -586,7 +590,7 @@ elseif(UNIX)
         include(../cmake/appimage.cmake)
         make_appimage(
             PROJECT_DIR \"${PROJECT_SOURCE_DIR}\"
-            EXE \"mec\"
+            EXE \"${MEDIA_EDITOR_BINARY}\"
             NAME \"Media Editor Community\"
             OUTPUT_NAME \"${CPACK_PACKAGE_NAME}-${CPACK_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}-${CPACK_PACKAGE_VERSION}\"
             DESKTOP_SRC \"${PROJECT_SOURCE_DIR}/resources/mec.desktop\"
@@ -612,7 +616,7 @@ elseif(WIN32)
     endmacro()
 
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
-    install( CODE "set(APPS \"${CMAKE_BINARY_DIR}/mec.exe\")" )
+    install( CODE "set(APPS \"${CMAKE_BINARY_DIR}/${MEDIA_EDITOR_BINARY}.exe\")" )
     install( CODE [[
         file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}")
         execute_process(COMMAND ldd ${APPS} OUTPUT_VARIABLE ldd_out)
@@ -648,7 +652,7 @@ elseif(WIN32)
         endforeach()
     ]])
 
-    install(TARGETS mec
+    install(TARGETS ${MEDIA_EDITOR_BINARY}
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION bin
             COMPONENT applications)
@@ -665,13 +669,13 @@ elseif(WIN32)
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL OFF)
     set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/mec_logo.ico")
     set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/mec_logo.ico")
-    set(CPACK_NSIS_INSTALLED_ICON_NAME bin\\\\mec.exe)
+    set(CPACK_NSIS_INSTALLED_ICON_NAME bin\\\\${MEDIA_EDITOR_BINARY}.exe)
     set(CPACK_NSIS_MODIFY_PATH OFF)
-    set(CPACK_PACKAGE_NAME mec)
-    set(CPACK_NSIS_DISPLAY_NAME mec)
-    set(CPACK_PACKAGE_INSTALL_DIRECTORY mec)
+    set(CPACK_PACKAGE_NAME ${MEDIA_EDITOR_BINARY})
+    set(CPACK_NSIS_DISPLAY_NAME ${MEDIA_EDITOR_BINARY})
+    set(CPACK_PACKAGE_INSTALL_DIRECTORY ${MEDIA_EDITOR_BINARY})
     
-    prepareNSIS_Link("mec" "mec" "")
+    prepareNSIS_Link("${MEDIA_EDITOR_BINARY}" "${MEDIA_EDITOR_BINARY}" "")
 endif(APPLE)
 endif(IMGUI_APPS)
 
