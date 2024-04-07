@@ -1,5 +1,6 @@
 #include <iomanip>
 #include <limits>
+#include <list>
 #include <TimeUtils.h>
 #include <MediaParser.h>
 #include <VideoClip.h>
@@ -329,6 +330,13 @@ public:
             for (const auto& jnElem : jnSceneCutPoints)
                 m_aSceneCutPoints.push_back(_SceneCutPoint::FromJson(jnElem));
         }
+        strAttrName = "diff_scores";
+        if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_array())
+        {
+            const auto& jnDiffScores = jnTask[strAttrName].get<json::array>();
+            for (const auto& jnElem : jnDiffScores)
+                m_aDiffScores.push_back((float)jnElem.get<json::number>());
+        }
 
         bool bFailed = false;
         bool bDone = false;
@@ -340,7 +348,7 @@ public:
             strAttrName = "error_message";
             if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_string())
                 m_errMsg = jnTask[strAttrName].get<json::string>();
-            SetState(FAILED);
+            SetState(FAILED, true);
         }
         else
         {
@@ -348,7 +356,7 @@ public:
             if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_boolean())
                 bDone = jnTask[strAttrName].get<json::boolean>();
             if (bDone)
-                SetState(DONE);
+                SetState(DONE, true);
         }
 
         // initialize ui vars
@@ -662,6 +670,10 @@ public:
         for (const auto& elem : m_aSceneCutPoints)
             jnSceneCutPoints.push_back(elem.SaveAsJson());
         jnTask["scene_cut_points"] = jnSceneCutPoints;
+        json::array jnDiffScores;
+        for (const auto& elem : m_aDiffScores)
+            jnDiffScores.push_back(json::number(elem));
+        jnTask["diff_scores"] = jnDiffScores;
         jnTask["is_task_done"] = IsDone();
         jnTask["is_task_failed"] = IsFailed();
         jnTask["error_message"] = m_errMsg;
@@ -823,14 +835,21 @@ protected:
                 {
                     if (fferr == 0)
                     {
-                        av_dict_get(hFgOutfrmPtr->metadata, "lavfi.scene_score", nullptr, 0);
-                        m_aSceneCutPoints.push_back({hFgOutfrmPtr->pts, 0});
-                        int64_t mts = av_rescale_q(hFgOutfrmPtr->pts, tb, MILLISEC_TIMEBASE);
-                        m_pLogger->Log(INFO) << "Scene detect output: frame#" << hFgOutfrmPtr->pts << ", time=" << MillisecToString(mts) << endl;
+                        float fScore = 0;
+                        auto dictEntry = av_dict_get(hFgOutfrmPtr->metadata, "lavfi.scene_score", nullptr, 0);
+                        if (dictEntry)
+                            fScore = stof(dictEntry->value);
+                        m_aDiffScores.push_back(fScore);
+                        if (fScore >= m_fSceneDetectThresh)
+                        {
+                            m_aSceneCutPoints.push_back({hFgOutfrmPtr->pts, fScore});
+                            int64_t mts = av_rescale_q(hFgOutfrmPtr->pts, tb, MILLISEC_TIMEBASE);
+                            m_pLogger->Log(INFO) << "Scene detect output: frame#" << hFgOutfrmPtr->pts << ", time=" << MillisecToString(mts) << ", score=" << fScore << endl;
+                        }
                     }
                     else
                     {
-                        ostringstream oss; oss << "Background task 'SceneDetect' FAILED when invoking 'av_buff5ersink_get_frame()' at frame #" << (i64FrmIdx-1)
+                        ostringstream oss; oss << "Background task 'SceneDetect' FAILED when invoking 'av_buffersink_get_frame()' at frame #" << (i64FrmIdx-1)
                                 << ". fferr=" << fferr << ".";
                         m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
                         return false;
@@ -928,7 +947,7 @@ private:
         {
             oss << "format=rgb24,";
         }
-        oss << "select='gt(scene\\," << m_fSceneDetectThresh << ")'";
+        oss << "select='gte(scene\\,0)'";
         string filterArgs = oss.str();
         fferr = avfilter_graph_parse_ptr(m_pFilterGraph, filterArgs.c_str(), &m_pFilterInputs, &m_pFilterOutputs, nullptr);
         if (fferr < 0)
@@ -1008,6 +1027,7 @@ private:
     // output
     string m_strOutputPath;
     vector<_SceneCutPoint> m_aSceneCutPoints;
+    list<float> m_aDiffScores;
     // task control
     int64_t m_i64ParsedFrameIdx{0};
     float m_fProgress{0.f};
