@@ -16,6 +16,7 @@ namespace MEC
         virtual bool ChangeEventRange(int64_t id, int64_t start, int64_t end) = 0;
         virtual bool MoveEvent(int64_t id, int64_t start, int32_t z) = 0;
         virtual bool MoveAllEvents(int64_t offset) = 0;
+        virtual bool MoveEventTrack(int32_t oldZ, int32_t newZ) = 0;
         virtual bool SetEditingEvent(int64_t id) = 0;
         virtual Event::Holder GetEditingEvent() = 0;
         virtual std::list<Event::Holder> GetEventList() const = 0;

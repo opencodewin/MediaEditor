@@ -238,12 +238,49 @@ public:
     {
         for (auto e : m_eventList)
         {
-        Event_Base* pEvtBase = dynamic_cast<Event_Base*>(e.get());
+            Event_Base* pEvtBase = dynamic_cast<Event_Base*>(e.get());
             auto newStart = pEvtBase->Start()+offset;
             auto newEnd = pEvtBase->End()+offset;
             pEvtBase->SetStart(newStart);
             pEvtBase->SetEnd(newEnd);
         }
+        return true;
+    }
+
+    bool MoveEventTrack(int32_t oldZ, int32_t newZ) override
+    {
+        if (oldZ == newZ)
+            return false;
+        // find target events those have z of value 'oldZ'
+        list<Event::Holder> targetTrack;
+        for (const auto& elem : m_eventList)
+        {
+            if (elem->Z() == oldZ)
+                targetTrack.push_back(elem);
+        }
+        // move tracks from z=oldZ+step to newZ, one by one
+        const int32_t step = oldZ > newZ ? -1 : 1;
+        int32_t moveToZ = oldZ, moveFromZ = oldZ+step;
+        while (moveToZ != newZ)
+        {
+            for (auto& elem : m_eventList)
+            {
+                if (elem->Z() == moveFromZ)
+                {
+                    Event_Base* pEvtBase = dynamic_cast<Event_Base*>(elem.get());
+                    pEvtBase->SetZ(moveToZ);
+                }
+            }
+            moveToZ = moveFromZ;
+            moveFromZ += step;
+        }
+        // set the original 'oldZ' track to 'newZ'
+        for (auto& elem : targetTrack)
+        {
+            Event_Base* pEvtBase = dynamic_cast<Event_Base*>(elem.get());
+            pEvtBase->SetZ(newZ);
+        }
+        m_eventList.sort(EVENTLIST_COMPARATOR);
         return true;
     }
 
