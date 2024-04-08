@@ -76,6 +76,8 @@ public:
 
     bool OnAddMediaItem(MediaCore::MediaParser::Holder hParser) override;
     bool OnCheckMediaItemImported(const std::string& strPath) override;
+    bool OnOutputMediaItemMetaData(const std::string& fileUrl, const std::string& metaName, const imgui_json::value& metaValue) override;
+    const imgui_json::value& OnCheckMediaItemMetaData(const std::string& fileUrl, const std::string& metaName) override;
 
     void SetTimelineHandle(void* pHandle) { m_pTlHandle = pHandle; }
     void SetLogLevel(Logger::Level l) { m_pLogger->SetShowLevels(l); }

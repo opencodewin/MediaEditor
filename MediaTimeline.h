@@ -418,6 +418,27 @@ struct MediaItem
     bool ChangeSource(const std::string& name, const std::string& path);
     void ReleaseItem();
     void UpdateThumbnail();
+
+    imgui_json::value mMetaData;
+
+    bool HasMetaData(const std::string& name) const
+    { return mMetaData.contains(name); }
+
+    bool FindMetaData(const std::string& name, imgui_json::value& value) const
+    {
+        if (!mMetaData.contains(name))
+            return false;
+        value = mMetaData[name];
+        return true;
+    }
+
+    bool AddMetaData(const std::string& name, const imgui_json::value& value, bool overwrite = false)
+    {
+        if (mMetaData.contains(name) && !overwrite)
+            return false;
+        mMetaData[name] = value;
+    return true;
+    }
 };
 
 struct VideoSnapshotInfo
@@ -1239,6 +1260,8 @@ struct TimeLine
 
     bool AddMediaItem(MediaCore::MediaParser::Holder hParser);
     bool CheckMediaItemImported(const std::string& strPath);
+    bool UpdateMediaItemMetaData(const std::string& fileUrl, const std::string& metaName, const imgui_json::value& metaValue);
+    const imgui_json::value& CheckMediaItemMetaData(const std::string& fileUrl, const std::string& metaName);
 
     // sutitle Setting
     std::string mFontName;

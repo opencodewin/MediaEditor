@@ -418,6 +418,7 @@ Project::ErrorCode Project::SaveTo(const string& projFilePath)
             item["name"] = media->mName;
             item["path"] = media->mPath;
             item["type"] = imgui_json::number(media->mMediaType);
+            item["meta_data"] = media->mMetaData;
             aMediaItems.push_back(item);
         }
         imgui_json::value jnProjContent;
@@ -595,6 +596,23 @@ bool Project::OnCheckMediaItemImported(const string& strPath)
         return false;
     MediaTimeline::TimeLine* pTl = (MediaTimeline::TimeLine*)m_pTlHandle;
     return pTl->CheckMediaItemImported(strPath);
+}
+
+bool Project::OnOutputMediaItemMetaData(const std::string& fileUrl, const std::string& metaName, const imgui_json::value& metaValue)
+{
+    if (!m_pTlHandle)
+        return false;
+    MediaTimeline::TimeLine* pTl = (MediaTimeline::TimeLine*)m_pTlHandle;
+    return pTl->UpdateMediaItemMetaData(fileUrl, metaName, metaValue);
+}
+
+const imgui_json::value& Project::OnCheckMediaItemMetaData(const std::string& fileUrl, const std::string& metaName)
+{
+    static const imgui_json::value EMPTY_JSON;
+    if (!m_pTlHandle)
+        return EMPTY_JSON;
+    MediaTimeline::TimeLine* pTl = (MediaTimeline::TimeLine*)m_pTlHandle;
+    return pTl->CheckMediaItemMetaData(fileUrl, metaName);
 }
 
 const uint8_t Project::VER_MAJOR = 1;

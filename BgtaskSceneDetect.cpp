@@ -76,7 +76,7 @@ public:
                 return false;
             }
             m_szHash = SysUtils::GetTickHash();
-            ostringstream oss; oss << m_name << "-" << setw(16) << setfill('0') << hex << m_szHash;
+            ostringstream oss; oss << m_name << "-" << setw(16) << setfill('0') << hex << m_szHash << dec;
             const auto strWorkDirName = oss.str();
             m_strTaskDir = SysUtils::JoinPath(strAttrValue, strWorkDirName);
             if (!SysUtils::IsDirectory(m_strTaskDir))
@@ -337,6 +337,13 @@ public:
             for (const auto& jnElem : jnDiffScores)
                 m_aDiffScores.push_back((float)jnElem.get<json::number>());
         }
+        strAttrName = "result_hash";
+        if (jnTask.contains(strAttrName) && jnTask[strAttrName].is_number())
+            m_resultHash = (size_t)jnTask[strAttrName].get<json::number>();
+        {
+            ostringstream oss; oss << setw(16) << setfill('0') << hex << m_szHash << '.' << setw(16) << setfill('0') << m_resultHash << dec;
+            m_resultId = oss.str();
+        }
 
         bool bFailed = false;
         bool bDone = false;
@@ -371,7 +378,7 @@ public:
             const auto i64ParsedTimeMts = av_rescale_q(m_i64ParsedFrameIdx, m_tVidTimeBase, MILLISEC_TIMEBASE);
             m_fProgress = (double)i64ParsedTimeMts/m_hParseVclip->Duration();
         }
-        ostringstream oss; oss << "##" << m_name << "-" << setw(16) << setfill('0') << hex << m_szHash;
+        ostringstream oss; oss << "##" << m_name << "-" << setw(16) << setfill('0') << hex << m_szHash << dec;
         m_strTaskNameWithHash = oss.str();
         oss.str(""); oss << "##ShowResultPopupDlg" << m_strTaskNameWithHash;
         m_strShowResultPopupLabel = oss.str();
@@ -426,9 +433,40 @@ public:
         ImGui::TextColoredWithPadding(tTaskTitleClr, v2TextPadding, "%s", TASK_TYPE_NAME.c_str()); ImGui::SameLine();
         ImGui::GetFont()->Scale = orgFontScale;
         ImGui::PopFont();
+
+        // >> draw top right control buttons
         auto v2CurrPos = ImGui::GetCursorPos();
-        ImGui::SetCursorPos({v2AreaPos.x+v2AreaAvailSize.x-60, v2CurrPos.y});
+        ImGui::SetCursorPos({v2AreaPos.x+v2AreaAvailSize.x-90, v2CurrPos.y});
         bool bDisableThisWidget;
+        oss << ICON_SAVE << m_strTaskNameWithHash;
+        strLabel = oss.str(); oss.str("");
+        const auto& jnSceneDetectResult = m_pCb->OnCheckMediaItemMetaData(m_strSrcUrl, TASK_RESULT_META_NAME);
+        bool bSameResultId = false;
+        if (jnSceneDetectResult.contains("result_id") && jnSceneDetectResult["result_id"].is_string())
+        {
+            const string currResultId = jnSceneDetectResult["result_id"].get<json::string>();
+            if (m_resultId == currResultId)
+                bSameResultId = true;
+        }
+        bDisableThisWidget = !IsDone() || bSameResultId;
+        ImGui::BeginDisabled(bDisableThisWidget);
+        if (ImGui::Button(strLabel.c_str()))
+        {
+            json::value jnMetaValue;
+            json::array jnSceneCutPoints;
+            for (const auto& elem : m_aSceneCutPoints)
+                jnSceneCutPoints.push_back(elem.SaveAsJson());
+            jnMetaValue["scene_cut_points"] = jnSceneCutPoints;
+            json::array jnDiffScores;
+            for (const auto& elem : m_aDiffScores)
+                jnDiffScores.push_back(json::number(elem));
+            jnMetaValue["diff_scores"] = jnDiffScores;
+            jnMetaValue["result_id"] = m_resultId;
+            m_pCb->OnOutputMediaItemMetaData(m_strSrcUrl, TASK_RESULT_META_NAME, jnMetaValue);
+        } ImGui::SameLine();
+        ImGui::ShowTooltipOnHover("Save the result as a META data of the source video file.");
+        ImGui::EndDisabled();
+
         oss.str(""); oss << (IsPaused() ? ICON_PLAY_FORWARD : ICON_PAUSE) << m_strTaskNameWithHash;
         strLabel = oss.str();
         bDisableThisWidget = !CanPause();
@@ -674,6 +712,7 @@ public:
         for (const auto& elem : m_aDiffScores)
             jnDiffScores.push_back(json::number(elem));
         jnTask["diff_scores"] = jnDiffScores;
+        jnTask["result_hash"] = json::number(m_resultHash);
         jnTask["is_task_done"] = IsDone();
         jnTask["is_task_failed"] = IsFailed();
         jnTask["error_message"] = m_errMsg;
@@ -714,6 +753,7 @@ public:
 
 public:
     static const string TASK_TYPE_NAME;
+    static const string TASK_RESULT_META_NAME;
 
 protected:
     struct _SceneCutPoint
@@ -864,6 +904,10 @@ protected:
         ReleaseFilterGraph();
         m_hParseVclip = nullptr;
 
+        m_resultHash = SysUtils::GetTickHash();
+        ostringstream oss;
+        oss << setw(16) << setfill('0') << hex << m_szHash << '.' << setw(16) << setfill('0') << m_resultHash << dec;
+        m_resultId = oss.str();
         m_fProgress = 1.f;
         m_pLogger->Log(INFO) << "Quit background task 'SceneDetect' for '" << m_strSrcUrl << "'." << endl;
         return true;
@@ -1025,6 +1069,8 @@ private:
     // scene detect parameters
     float m_fSceneDetectThresh{0.4f};
     // output
+    size_t m_resultHash;
+    string m_resultId;
     string m_strOutputPath;
     vector<_SceneCutPoint> m_aSceneCutPoints;
     list<float> m_aDiffScores;
@@ -1043,6 +1089,7 @@ private:
 };
 
 const string BgtaskSceneDetect::TASK_TYPE_NAME = "Scene Detect";
+const string BgtaskSceneDetect::TASK_RESULT_META_NAME = "SceneDetectResult";
 
 static const auto _BGTASK_SCENEDETECT_DELETER = [] (BackgroundTask* p) {
     BgtaskSceneDetect* ptr = dynamic_cast<BgtaskSceneDetect*>(p);

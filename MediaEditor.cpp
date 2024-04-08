@@ -1829,10 +1829,12 @@ static void LoadProjectThread(std::string path, bool in_splash)
                     type = val.get<imgui_json::number>();
                 }
             }
-            
+
             MediaItem* item = new MediaItem(name, path, type, timeline);
             if (id != -1) item->mID = id;
             item->Initialize();
+            if (jnItem.contains("meta_data"))
+                item->mMetaData = jnItem["meta_data"];
             timeline->media_items.push_back(item);
             g_project_loading_percentage += percentage;
         }

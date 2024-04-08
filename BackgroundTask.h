@@ -19,6 +19,8 @@ namespace MEC
         {
             virtual bool OnAddMediaItem(MediaCore::MediaParser::Holder hParser) = 0;
             virtual bool OnCheckMediaItemImported(const std::string& strPath) = 0;
+            virtual bool OnOutputMediaItemMetaData(const std::string& fileUrl, const std::string& metaName, const imgui_json::value& metaValue) = 0;
+            virtual const imgui_json::value& OnCheckMediaItemMetaData(const std::string& fileUrl, const std::string& metaName) = 0;
         };
         virtual void SetCallbacks(Callbacks* pCb) = 0;
 

@@ -6032,6 +6032,32 @@ bool TimeLine::CheckMediaItemImported(const std::string& strPath)
     return iter != media_items.end();
 }
 
+bool TimeLine::UpdateMediaItemMetaData(const std::string& fileUrl, const std::string& metaName, const imgui_json::value& metaValue)
+{
+    auto iter = std::find_if(media_items.begin(), media_items.end(), [fileUrl] (const MediaItem* pExistMitem)
+    {
+        return  fileUrl == pExistMitem->mPath;
+    });
+    if (iter == media_items.end())
+        return false;
+    return (*iter)->AddMetaData(metaName, metaValue, true);
+}
+
+const imgui_json::value& TimeLine::CheckMediaItemMetaData(const std::string& fileUrl, const std::string& metaName)
+{
+    auto iter = std::find_if(media_items.begin(), media_items.end(), [fileUrl] (const MediaItem* pExistMitem)
+    {
+        return  fileUrl == pExistMitem->mPath;
+    });
+    static const imgui_json::value EMPTY_JSON;
+    if (iter == media_items.end())
+        return EMPTY_JSON;
+    const auto& jnMetaData = (*iter)->mMetaData;
+    if (jnMetaData.contains(metaName))
+        return jnMetaData[metaName];
+    return EMPTY_JSON;
+}
+
 int64_t TimeLine::AlignTime(int64_t time, int mode)
 {
     const auto frameRate = mhMediaSettings->VideoOutFrameRate();
@@ -10470,6 +10496,14 @@ struct _BgtaskMenuItem
     std::function<MEC::BackgroundTask::Holder(Clip*,bool&)> drawCreateTaskDialog;
 };
 
+struct _ActionMenuItem
+{
+    std::string label;
+    std::string actionType;
+    std::function<bool(Clip*)> checkUsable;
+    std::function<std::list<imgui_json::value>(Clip*,bool&)> drawActionStartDialog;
+};
+
 /***********************************************************************************************************
  * Draw Main Timeline
  ***********************************************************************************************************/
@@ -10763,6 +10797,29 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             },
         },
     };
+
+    static const std::vector<_ActionMenuItem> s_aActionMenuItems = {
+        {
+            "Apply Scene Detect Cut", "SceneDetectCut",
+            [timeline] (Clip* pClip) {
+                if (!timeline)
+                    return false;
+                const auto clipType = pClip->mType;
+                const auto isVideo = IS_VIDEO(clipType)&&!IS_IMAGE(clipType);
+                if (!isVideo)
+                    return false;
+                auto pMediaItem = timeline->FindMediaItemByID(pClip->mMediaID);
+                if (!pMediaItem)
+                    return false;
+                return pMediaItem->HasMetaData("SceneDetectResult");
+            },
+            [timeline] (Clip* pClip, bool& bCloseDlg) {
+                std::list<imgui_json::value> actionList;
+                return actionList;
+            },
+        },
+    };
+
     static size_t s_szBgtaskSelIdx;
     static string s_strBgtaskCreateDlgLabel;
     static int64_t s_i64BgtaskSrcClipId;
@@ -11652,6 +11709,21 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                             std::ostringstream oss; oss << "Create " << menuItem.label << " Task";
                             s_strBgtaskCreateDlgLabel = oss.str();
                             s_i64BgtaskSrcClipId = clipMenuEntry;
+                        }
+                        ImGui::EndDisabled();
+                    }
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu("Action"))
+                {
+                    const auto szSubItemCnt = s_aActionMenuItems.size();
+                    for (auto i = 0; i < szSubItemCnt; i++)
+                    {
+                        const auto& menuItem = s_aActionMenuItems[i];
+                        bool bDisableMenuItem = !menuItem.checkUsable(clip);
+                        ImGui::BeginDisabled(bDisableMenuItem);
+                        if (ImGui::MenuItem(menuItem.label.c_str()))
+                        {
                         }
                         ImGui::EndDisabled();
                     }
