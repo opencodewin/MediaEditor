@@ -1603,7 +1603,7 @@ static void ShowConfigure(MediaEditorSettings & config)
     ImGui::Separator();
 }
 
-static inline void ImgSeuqPane(const char* vFilter, const char* currentPath, IGFDUserDatas vUserDatas, bool* vCantContinue)
+static inline void ImgSeuqPane(const char* vFilter, const char* currentPath, IGFDUserDatas vUserDatas, bool* vCantContinue, bool* bOK)
 {
     bool isDirectory = SysUtils::IsDirectory(std::string(currentPath));
     ImageSequenceSetting* setting = &g_media_editor_settings.image_sequence;
@@ -2398,7 +2398,7 @@ static bool InsertMediaAddIcon(ImDrawList *draw_list, ImVec2 icon_pos, float med
         IGFD::FileDialogConfig config;
         config.path = ".";
         config.countSelectionMax = 1;
-        config.sidePane = std::bind(&ImgSeuqPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+        config.sidePane = std::bind(&ImgSeuqPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
         config.sidePaneWidth = 200;
         config.userDatas = IGFDUserDatas("Media Source");
         config.flags = ImGuiFileDialogFlags_ShowBookmark | 

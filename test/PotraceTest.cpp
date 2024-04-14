@@ -180,7 +180,7 @@ static void Potrace_Finalize(void **handle)
 {
 }
 
-inline void SVGPane(const char* vFilter, const char* currentPath, IGFDUserDatas vUserDatas, bool* vCantContinue)
+inline void SVGPane(const char* vFilter, const char* currentPath, IGFDUserDatas vUserDatas, bool* vCantContinue, bool* bOK)
 {
     ImGui::RadioButton("Flat as Single", &info.grouping, 0);
     ImGui::RadioButton("Auto Group", &info.grouping, 1);
@@ -397,7 +397,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
             IGFD::FileDialogConfig config;
             config.path = ".";
             config.countSelectionMax = 1;
-            config.sidePane = std::bind(&SVGPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+            config.sidePane = std::bind(&SVGPane, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
             config.sidePaneWidth = 200;
             config.userDatas = IGFDUserDatas("SVGPane");
             config.flags = ImGuiFileDialogFlags_ShowBookmark |
