@@ -6909,9 +6909,19 @@ bool TimeLine::UpdatePreviewTexture(bool blocking)
 {
     bool bTxUpdated = false;
     maCurrFrames = GetPreviewFrame(blocking);
-    if (maCurrFrames.empty() || maCurrFrames[0].frame.empty())
+    if (maCurrFrames.empty())
         return bTxUpdated;
-    const auto& mainPreviewMat = maCurrFrames[0].frame;
+    int preview_index = -1;
+    for (int i = 0; i < maCurrFrames.size(); i++)
+    {
+        if (maCurrFrames[i].phase == MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING)
+        {
+            preview_index = i;
+            break;
+        }
+    }
+    if (preview_index == -1) return bTxUpdated;
+    const auto& mainPreviewMat = maCurrFrames[preview_index].frame;
     const auto i64Timestamp = (int64_t)(mainPreviewMat.time_stamp*1000);
     if (mIsPreviewNeedUpdate || mLastFrameTime == -1 || mLastFrameTime != i64Timestamp || !mhPreviewTx->IsValid())
     {
