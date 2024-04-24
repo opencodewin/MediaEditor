@@ -42,7 +42,7 @@ namespace MEC
 
     struct VideoEvent : virtual Event
     {
-        virtual ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) = 0;
+        virtual ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos, const std::unordered_map<std::string, std::string>* pExtraArgs = nullptr) = 0;
 
         virtual ImGui::MaskCreator::Holder CreateNewMask(const std::string& name) = 0;
         virtual int GetMaskCount() const = 0;

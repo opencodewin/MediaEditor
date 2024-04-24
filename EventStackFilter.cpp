@@ -473,7 +473,7 @@ public:
         // TODO: handle clip range changed
     }
 
-    ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override
+    ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos, const std::unordered_map<std::string, std::string>* pExtraArgs) override
     {
         list<Event::Holder> effectiveEvents;
         for (auto e : m_eventList)
@@ -485,7 +485,7 @@ public:
         for (auto& e : effectiveEvents)
         {
             VideoEvent_Impl* pEvtImpl = dynamic_cast<VideoEvent_Impl*>(e.get());
-            outM = pEvtImpl->FilterImage(outM, pos-pEvtImpl->Start());
+            outM = pEvtImpl->FilterImage(outM, pos-pEvtImpl->Start(), pExtraArgs);
         }
         return outM;
     }
@@ -547,7 +547,7 @@ public:
 
         static Event::Holder LoadFromJson(VideoEventStackFilter_Impl* owner, const imgui_json::value& bpJson, const BluePrint::BluePrintCallbackFunctions& bpCallbacks, SharedSettings::Holder hSettings = nullptr);
 
-        ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos) override
+        ImGui::ImMat FilterImage(const ImGui::ImMat& vmat, int64_t pos, const std::unordered_map<std::string, std::string>* pExtraArgs) override
         {
             ImGui::ImMat outMat(vmat);
             if (m_pBp->Blueprint_IsExecutable())
@@ -561,7 +561,14 @@ public:
                     m_pBp->Blueprint_SetFilter(name, value);
                 }
                 ImGui::ImMat inMat(vmat);
-                m_pBp->Blueprint_RunFilter(inMat, outMat, pos, Length());
+                bool bBypassBgNode = false;
+                if (pExtraArgs)
+                {
+                    auto iter = pExtraArgs->find("bypass_bg_node");
+                    if (iter != pExtraArgs->end())
+                        bBypassBgNode = iter->second == "true";
+                }
+                m_pBp->Blueprint_RunFilter(inMat, outMat, pos, Length(), bBypassBgNode);
 
                 if (!m_ahMaskCreators.empty())
                 {
