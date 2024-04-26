@@ -1132,6 +1132,19 @@ void Clip::Cutting(int64_t pos, int64_t gid, int64_t newClipId, std::list<imgui_
     }
 }
 
+void Clip::Cutting(std::vector<int64_t>& cutPosAry, int64_t gid, std::list<imgui_json::value>* pActionList)
+{
+    std::sort(cutPosAry.begin(), cutPosAry.end(), [](const int64_t& a, const int64_t& b) {
+        return a > b;
+    });
+    for (const auto& pos : cutPosAry)
+    {
+        if (pos <= mStart || pos >= mEnd)
+            continue;
+        Cutting(pos, gid, -1, pActionList);
+    }
+}
+
 int64_t Clip::Moving(int64_t& diffTime, int mouse_track)
 {
     int64_t index = -1;
@@ -10808,6 +10821,11 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         },
     };
 
+    static size_t s_szBgtaskSelIdx;
+    static string s_strBgtaskCreateDlgLabel;
+    static int64_t s_i64BgtaskSrcClipId;
+    bool bOpenCreateBgtaskDialog = false;
+
     static const std::vector<_ActionMenuItem> s_aActionMenuItems = {
         {
             "Apply Scene Detect Cut", "SceneDetectCut",
@@ -10825,15 +10843,48 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             },
             [timeline] (Clip* pClip, bool& bCloseDlg) {
                 std::list<imgui_json::value> actionList;
+                if (ImGui::Button(" Apply Scene Cut "))
+                {
+                    auto pMediaItem = timeline->FindMediaItemByID(pClip->mMediaID);
+                    imgui_json::value jnSceneDetectResult;
+                    if (pMediaItem->FindMetaData("SceneDetectResult", jnSceneDetectResult))
+                    {
+                        std::vector<int64_t> cutPosAry;
+                        string strAttrName;
+                        strAttrName = "scene_cut_points";
+                        if (jnSceneDetectResult.contains(strAttrName) && jnSceneDetectResult[strAttrName].is_array())
+                        {
+                            const auto& jnSceneCutPoints = jnSceneDetectResult[strAttrName].get<imgui_json::array>();
+                            int i = 0;
+                            for (const auto& jnElem : jnSceneCutPoints)
+                            {
+                                const int64_t mts = (int64_t)(jnElem["mts"].get<imgui_json::number>());
+                                cutPosAry.push_back(mts+pClip->Start()-pClip->StartOffset());
+                                // break;
+                                // i++;
+                                // if (i >= 2) break;
+                            }
+                        }
+                        ClipGroup newGroup(timeline);
+                        timeline->m_Groups.push_back(newGroup);
+                        pClip->Cutting(cutPosAry, newGroup.mID, &actionList);
+                        timeline->mUiActions = actionList;
+                    }
+                    bCloseDlg = true;
+                } ImGui::SameLine(0, 20);
+                if (ImGui::Button(" Cancel "))
+                {
+                    bCloseDlg = true;
+                }
                 return actionList;
             },
         },
     };
 
-    static size_t s_szBgtaskSelIdx;
-    static string s_strBgtaskCreateDlgLabel;
-    static int64_t s_i64BgtaskSrcClipId;
-    bool bOpenCreateBgtaskDialog = false;
+    static size_t s_szActlstSelIdx;
+    static string s_strActlstCreateDlgLabel;
+    static int64_t s_i64ActlstSrcClipId;
+    bool bOpenCreateActlstDialog = false;
 
     float minPixelWidthTarget = ImMin(timeline->msPixelWidthTarget, (float)(timline_size.x - legendWidth) / (float)duration);
     const auto frameRate = timeline->mhMediaSettings->VideoOutFrameRate();
@@ -11734,6 +11785,10 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
                         ImGui::BeginDisabled(bDisableMenuItem);
                         if (ImGui::MenuItem(menuItem.label.c_str()))
                         {
+                            bOpenCreateActlstDialog = true;
+                            s_szActlstSelIdx = i;
+                            s_strActlstCreateDlgLabel = menuItem.label;
+                            s_i64ActlstSrcClipId = clipMenuEntry;
                         }
                         ImGui::EndDisabled();
                     }
@@ -12866,6 +12921,20 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         auto hTask = bgtaskSubMenuItem.drawCreateTaskDialog(pClip, bCloseDlg);
         if (hTask)
             timeline->mhProject->EnqueueBackgroundTask(hTask);
+        if (bCloseDlg)
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+
+    // handle popup dialog
+    if (bOpenCreateActlstDialog)
+        ImGui::OpenPopup(s_strActlstCreateDlgLabel.c_str(), ImGuiPopupFlags_AnyPopup);
+    if (ImGui::BeginPopupModal(s_strActlstCreateDlgLabel.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+    {
+        const auto& actlstSubMenuItem = s_aActionMenuItems[s_szActlstSelIdx];
+        auto pClip = timeline->FindClipByID(s_i64ActlstSrcClipId);
+        bool bCloseDlg;
+        auto actionList = actlstSubMenuItem.drawActionStartDialog(pClip, bCloseDlg);
         if (bCloseDlg)
             ImGui::CloseCurrentPopup();
         ImGui::EndPopup();

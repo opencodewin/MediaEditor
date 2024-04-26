@@ -759,12 +759,14 @@ protected:
     struct _SceneCutPoint
     {
         int64_t i64FrameIdx;
+        int64_t mts;
         float fScore;
 
         json::value SaveAsJson() const
         {
             json::value j;
             j["frame_index"] = json::number(i64FrameIdx);
+            j["mts"] = json::number(mts);
             j["score"] = json::number(fScore);
             return std::move(j);
         }
@@ -776,6 +778,9 @@ protected:
             strAttrName = "frame_index";
             if (j.contains(strAttrName) && j[strAttrName].is_number())
                 newinst.i64FrameIdx = (int64_t)j[strAttrName].get<json::number>();
+            strAttrName = "mts";
+            if (j.contains(strAttrName) && j[strAttrName].is_number())
+                newinst.mts = (int64_t)j[strAttrName].get<json::number>();
             strAttrName = "score";
             if (j.contains(strAttrName) && j[strAttrName].is_number())
                 newinst.fScore = (float)j[strAttrName].get<json::number>();
@@ -882,8 +887,8 @@ protected:
                         m_aDiffScores.push_back(fScore);
                         if (fScore >= m_fSceneDetectThresh)
                         {
-                            m_aSceneCutPoints.push_back({hFgOutfrmPtr->pts, fScore});
                             int64_t mts = av_rescale_q(hFgOutfrmPtr->pts, tb, MILLISEC_TIMEBASE);
+                            m_aSceneCutPoints.push_back({hFgOutfrmPtr->pts, mts, fScore});
                             m_pLogger->Log(INFO) << "Scene detect output: frame#" << hFgOutfrmPtr->pts << ", time=" << MillisecToString(mts) << ", score=" << fScore << endl;
                         }
                     }
