@@ -4411,7 +4411,7 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
     auto frames = timeline->GetPreviewFrame();
     ImGui::ImMat frame_org_first;
     auto iter_first = std::find_if(frames.begin(), frames.end(), [ovlp] (auto& cf) {
-        return cf.clipId == ovlp->m_Clip.first && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
+        return cf.clipId == ovlp->m_Clip.first && cf.phase == MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM;
     });
     if (iter_first != frames.end())
         frame_org_first = iter_first->frame;
@@ -4419,7 +4419,7 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
     //    ret = false;
     ImGui::ImMat frame_org_second;
     auto iter_second = std::find_if(frames.begin(), frames.end(), [ovlp] (auto& cf) {
-        return cf.clipId == ovlp->m_Clip.second && cf.phase == MediaCore::CorrelativeFrame::PHASE_SOURCE_FRAME;
+        return cf.clipId == ovlp->m_Clip.second && cf.phase == MediaCore::CorrelativeFrame::PHASE_AFTER_TRANSFORM;
     });
     if (iter_second != frames.end())
         frame_org_second = iter_second->frame;
@@ -4428,8 +4428,11 @@ bool EditingVideoOverlap::GetFrame(std::pair<std::pair<ImGui::ImMat, ImGui::ImMa
     
     if (preview_frame)
     {
-        if (!frames.empty())
-            in_out_frame.second = frames[0].frame;
+        auto iter_out = std::find_if(frames.begin(), frames.end(), [this] (auto& cf) {
+            return cf.phase == MediaCore::CorrelativeFrame::PHASE_AFTER_MIXING;
+        });
+        if (iter_out != frames.end())
+            in_out_frame.second = iter_out->frame;
         else
             ret = false;
     }

@@ -6883,9 +6883,8 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list, EditingVideo
         ShowVideoWindow(draw_list, timeline->mVideoTransitionInputSecondTexture, InputSecondVideoPos, InputSecondVideoSize, "2", 1.2f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(128,128,128,128), 0, 0, 1.0);
         // filter output texture area
-        ShowVideoWindow(draw_list, timeline->mVideoTransitionOutputTexture, OutputVideoPos, OutputVideoSize, timeline->bTransitionOutputPreview ? "Transition Output" : "Preview Output", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
+        ShowVideoWindow(draw_list, timeline->mVideoTransitionOutputTexture, OutputVideoPos, OutputVideoSize, timeline->bTransitionOutputPreview ? "Preview Output" : "Transition Output", 1.5f, offset_x, offset_y, tf_x, tf_y, true, out_of_border);
         draw_list->AddRect(ImVec2(offset_x, offset_y), ImVec2(tf_x, tf_y), IM_COL32(192, 192, 192, 128), 0, 0, 2.0);
-        
     }
     ImGui::PopStyleColor(3);
 }

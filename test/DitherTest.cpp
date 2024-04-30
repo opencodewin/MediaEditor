@@ -4,7 +4,7 @@
 #include <application.h>
 #include <ImGuiFileDialog.h>
 #include <immat.h>
-#include "libdither.h"
+#include <libdither.h>
 
 #if IMGUI_ICONS
 #define ICON_RESET u8"\ue042"
