@@ -6108,6 +6108,7 @@ static void DrawClipEventWindow(ImDrawList *draw_list, BaseEditingClip * pEditin
                             if (src_node)
                             {
                                 pBP->Blueprint_SwapNode(src_node->m_ID, node->m_ID);
+                                update_track(pBP, node);
                                 need_redraw = true;
                             }
                         }
