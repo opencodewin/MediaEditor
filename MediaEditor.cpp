@@ -11934,6 +11934,8 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
     }
     if (multiviewport)
         ImGui::SetNextWindowViewport(viewport->ID);
+
+    bool needReloadProject = false;
     if (ImGui::BeginPopupModal(ICON_FA_WHMCS " Configure", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
     {
         ShowConfigure(g_new_setting);
@@ -11942,10 +11944,15 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button("OK", ImVec2(60, 0)))
         {
             show_configure = false;
+            if (g_new_setting.VideoWidth != g_media_editor_settings.VideoWidth ||
+                g_new_setting.VideoHeight != g_media_editor_settings.VideoHeight ||
+                g_new_setting.PreviewScale != g_media_editor_settings.PreviewScale)
+            {
+                needReloadProject = true;
+            }
             g_media_editor_settings = g_new_setting;
             if (timeline)
             {
-                bool needReloadProject = false;
                 if (timeline->mHardwareCodec != g_media_editor_settings.HardwareCodec)
                 {
                     timeline->mHardwareCodec = g_media_editor_settings.HardwareCodec;
@@ -11978,8 +11985,6 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
                     timeline->mPreviewScale = g_media_editor_settings.PreviewScale;
                     timeline->mhMediaSettings->SyncAudioSettingsFrom(hNewSettings.get());
                     timeline->mAudioRenderFormat = pcmFormat;
-                    //OpenProject(g_media_editor_settings.project_path);
-                    ReloadProject();
                 }
                 else
                 {
@@ -11999,6 +12004,16 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         }
         ImGui::EndPopup();
     }
+
+    if (needReloadProject)
+    {
+        ReloadProject();
+        if (multiviewport) ImGui::PopStyleVar(2);
+        ImGui::PopStyleVar(2);
+        ImGui::End();
+        return app_will_quit;
+    }
+    
     ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(0.f, 0.f, 0.f, 0.f));
     ImVec2 window_pos = ImGui::GetWindowPos();
     ImVec2 window_size = ImGui::GetWindowSize();
