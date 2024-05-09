@@ -1044,7 +1044,8 @@ protected:
                             bEncoderInited = true;
                         }
                         auto hVfrm = FFUtils::CreateVideoFrameFromAVFrame(CloneSelfFreeAVFramePtr(hFgOutfrmPtr.get()), i64ReadPos);
-                        if (!m_hEncoder->EncodeVideoFrame(hVfrm))
+                        bool consumed = false;
+                        if (!m_hEncoder->EncodeVideoFrame(hVfrm, consumed))
                         {
                             ostringstream oss; oss << "Background task 'Vidstab-transform' FAILED to encode video frame! pos=" << i64ReadPos;
                             m_errMsg = oss.str(); m_pLogger->Log(Error) << m_errMsg << endl;
