@@ -9730,11 +9730,13 @@ void TimeLine::_EncodeProc()
                         break;
                     }
                     if (!vmat.empty())
+                    {
+                        vmat.time_stamp = (double)(vidpos-startTimeOffset)/1000.;
                         vidFrameCount++;
+                    }
                 }
                 if (!vmat.empty())
                 {
-                    vmat.time_stamp = (double)(vidpos-startTimeOffset)/1000.;
                     {
                         std::lock_guard<std::mutex> lk(mEncodingMutex);
                         mEncodingVFrame = vmat;
