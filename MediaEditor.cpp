@@ -9781,7 +9781,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect, Editi
                 }
                 if (MovingTextPos && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
                 {
-                    ImGui::CaptureMouseFromApp();
+                    ImGui::SetNextFrameWantCaptureMouse();
                     mouse_is_dragging = true;
                     editing_clip->mFontOffsetH += io.MouseDelta.x / video_rect.GetWidth();
                     editing_clip->mhDataLayerClip->SetOffsetH(editing_clip->mFontOffsetH);
@@ -9883,7 +9883,7 @@ static void ShowTextEditorWindow(ImDrawList *draw_list, ImRect title_rect, Editi
     {
         MovingTextPos = false;
         mouse_is_dragging = false;
-        ImGui::CaptureMouseFromApp(false);
+        ImGui::SetNextFrameWantCaptureMouse(false);
     }
     if (!g_project_loading) project_changed |= changed;
 }

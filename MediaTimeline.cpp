@@ -11534,7 +11534,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         // track moving
         if (trackMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         {
-            ImGui::CaptureMouseFromApp();
+            ImGui::SetNextFrameWantCaptureMouse();
             bTrackMoving = true;
             trackEntry = -1;
             ImGui::SetNextWindowViewport(ImGui::GetWindowViewport()->ID);
@@ -11578,7 +11578,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         if (clipMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         {
             Clip * clip = timeline->FindClipByID(clipMovingEntry);
-            ImGui::CaptureMouseFromApp();
+            ImGui::SetNextFrameWantCaptureMouse();
             if (diffTime == 0)
             {
                 if (clipMovingPart == 3 || clipMovingPart == 1)
@@ -11620,7 +11620,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         // mark moving
         if (markMovingEntry != -1 && !MovingCurrentTime && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
         {
-            ImGui::CaptureMouseFromApp();
+            ImGui::SetNextFrameWantCaptureMouse();
             int64_t mouse_time = (int64_t)((io.MousePos.x - timeMeterRect.Min.x) / timeline->msPixelWidthTarget) + timeline->firstTime;
             if (markMovingEntry == 0)
             {
@@ -11990,7 +11990,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         }
         else if (inHorizonScrollThumbLeft && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
-            ImGui::CaptureMouseFromApp();
+            ImGui::SetNextFrameWantCaptureMouse();
             if (inHorizonScrollThumbRight)
             {
                 inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
@@ -12004,7 +12004,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         }
         else if (inHorizonScrollThumbRight && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
-            ImGui::CaptureMouseFromApp();
+            ImGui::SetNextFrameWantCaptureMouse();
             if (inHorizonScrollThumbLeft)
             {
                 inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
@@ -12018,7 +12018,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         }
         else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
-            ImGui::CaptureMouseFromApp();
+            ImGui::SetNextFrameWantCaptureMouse();
             MovingHorizonScrollBar = 0;
             panningViewHorizonSource = io.MousePos;
             panningViewHorizonTime = - timeline->firstTime;
@@ -12063,7 +12063,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         }
         else if (inVerticalScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && clipMovingEntry == -1 && !menuIsOpened && editable)
         {
-            ImGui::CaptureMouseFromApp();
+            ImGui::SetNextFrameWantCaptureMouse();
             MovingVerticalScrollBar = true;
             panningViewVerticalSource = io.MousePos;
             panningViewVerticalPos = VerticalScrollPos;
@@ -12623,7 +12623,7 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
         timeline->mConnectedPoints = -1;
         timeline->mConnectingPoints = -1;
         timeline->mClipConnected = false;
-        ImGui::CaptureMouseFromApp(false);
+        ImGui::SetNextFrameWantCaptureMouse(false);
     }
 
     // Show help tips
@@ -13678,7 +13678,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
         }
         else if (inHorizonScrollThumbLeft && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
         {
-            ImGui::CaptureMouseFromApp();
+            ImGui::SetNextFrameWantCaptureMouse();
             if (inHorizonScrollThumbRight)
             {
                 inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
@@ -13692,7 +13692,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
         }
         else if (inHorizonScrollThumbRight && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
         {
-            ImGui::CaptureMouseFromApp();
+            ImGui::SetNextFrameWantCaptureMouse();
             if (inHorizonScrollThumbLeft)
             {
                 inHorizonScrollThumbLeft = inHorizonScrollThumbRight = false;
@@ -13706,7 +13706,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
         }
         else if (inHorizonScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !menuIsOpened && !mouse_hold)
         {
-            ImGui::CaptureMouseFromApp();
+            ImGui::SetNextFrameWantCaptureMouse();
             MovingHorizonScrollBar = 0;
             panningViewHorizonSource = io.MousePos;
             panningViewHorizonTime = - pEditingClip->firstTime;
@@ -13989,7 +13989,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
                 // event cropping or moving
                 if (!mouse_hold && eventMovingEntry != -1 && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
                 {
-                    ImGui::CaptureMouseFromApp();
+                    ImGui::SetNextFrameWantCaptureMouse();
                     diffTime += io.MouseDelta.x / pEditingClip->msPixelWidthTarget;
                     const auto frameRate = main_timeline->mhMediaSettings->VideoOutFrameRate();
                     if (diffTime > frameTime(frameRate) || diffTime < -frameTime(frameRate))
@@ -14117,7 +14117,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
                 }
                 else if (inVerticalScrollHandle && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !MovingCurrentTime && !bEventMoving && !menuIsOpened && !mouse_hold)
                 {
-                    ImGui::CaptureMouseFromApp();
+                    ImGui::SetNextFrameWantCaptureMouse();
                     MovingVerticalScrollBar = true;
                     panningViewVerticalSource = io.MousePos;
                     panningViewVerticalPos = VerticalScrollPos;
@@ -14177,7 +14177,7 @@ bool DrawClipTimeLine(TimeLine* main_timeline, BaseEditingClip * pEditingClip, i
         eventMovingEntry = -1;
         eventMovingPart = -1;
         bNewDragOp = false;
-        ImGui::CaptureMouseFromApp(false);
+        ImGui::SetNextFrameWantCaptureMouse(false);
     }
     return mouse_hold;
 }
