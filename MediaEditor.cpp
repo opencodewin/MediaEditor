@@ -11799,7 +11799,7 @@ static void ShowEditingItemWindow(ImDrawList *draw_list, ImRect title_rect)
 
 static void MediaEditor_DropFromSystem(std::vector<std::string>& drops)
 {
-    if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceExtern | ImGuiDragDropFlags_SourceNoPreviewTooltip | ImGuiDragDropFlags_AcceptPeekOnly))
+    if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceExtern | ImGuiDragDropFlags_SourceNoPreviewTooltip | ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect))
 	{
         if (timeline)
         {
