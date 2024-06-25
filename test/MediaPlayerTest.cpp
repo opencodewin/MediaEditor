@@ -132,7 +132,7 @@ static void MediaPlayer_Finalize(void** handle)
 {
     if (g_audrnd) { g_audrnd->CloseDevice(); MediaCore::AudioRender::ReleaseInstance(&g_audrnd); }
     if (g_pcmStream) { delete g_pcmStream; g_pcmStream = nullptr; }
-    if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
+    if (g_texture) { ImGui::ImDestroyTexture(&g_texture); }
     g_vidrdr = nullptr;
     g_audrdr = nullptr;
 
@@ -494,7 +494,7 @@ static bool MediaPlayer_Frame(void * handle, bool app_will_quit)
             g_audrdr->Close();
             g_audioStreamCount = 0;
             g_chooseAudioIndex = -1;
-            if (g_texture) { ImGui::ImDestroyTexture(g_texture); g_texture = nullptr; }
+            ImGui::ImDestroyTexture(&g_texture);
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             g_mediaParser = MediaCore::MediaParser::CreateInstance();
             g_mediaParser->Open(filePathName);

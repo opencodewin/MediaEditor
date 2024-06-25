@@ -228,7 +228,7 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
 
     auto process_image = [&](std::string output_path = std::string())
     {
-        if (m_bm_texture) { ImGui::ImDestroyTexture(m_bm_texture); m_bm_texture = 0; }
+        ImGui::ImDestroyTexture(&m_bm_texture);
         m_result.create_type(m_gray.w, m_gray.h, 1, IM_DT_INT8);
         switch (m_dither_type)
         {
@@ -455,11 +455,7 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
                 ImGui::ImLoadImageToMat(m_file_path.c_str(), m_mat);
                 if (!m_mat.empty())
                 {
-                    if (m_texture)
-                    {
-                        ImGui::ImDestroyTexture(m_texture);
-                        m_texture = 0;
-                    }
+                    ImGui::ImDestroyTexture(&m_texture);
                     ImGui::ImMatToTexture(m_mat, m_texture);
                     int width = m_mat.w & 0xFFFFFFFC;
                     m_gray.create_type(width, m_mat.h, IM_DT_INT8);
@@ -483,16 +479,8 @@ static bool Dither_Frame(void *handle, bool app_will_quit)
 
     if (app_will_quit)
     {
-        if (m_texture)
-        {
-            ImGui::ImDestroyTexture(m_texture);
-            m_texture = 0;
-        }
-        if (m_bm_texture)
-        {
-            ImGui::ImDestroyTexture(m_bm_texture);
-            m_bm_texture = 0;
-        }
+        ImGui::ImDestroyTexture(&m_texture);
+        ImGui::ImDestroyTexture(&m_bm_texture);
         app_done = true;
     }
     ImGui::End();

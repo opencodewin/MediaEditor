@@ -4376,7 +4376,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             if (ImGui::Button(btnText.c_str(), btnTxtSize + btnPaddingSize))
             {
                 timeline->StopEncoding();
-                if (timeline->mEncodingPreviewTexture) { ImGui::ImDestroyTexture(timeline->mEncodingPreviewTexture); timeline->mEncodingPreviewTexture = nullptr; }
+                ImGui::ImDestroyTexture(&timeline->mEncodingPreviewTexture);
                 timeline->mEncoder = nullptr;
                 timeline->mEncodingProgress = 0;
                 ImGui::CloseCurrentPopup();
@@ -6847,8 +6847,8 @@ static void ShowVideoTransitionPreviewWindow(ImDrawList *draw_list, EditingVideo
             (timeline->mIsPreviewNeedUpdate || timeline->mLastFrameTime == -1 || timeline->mLastFrameTime != (int64_t)(pair.first.first.time_stamp * 1000) || need_update_scope))
         {
             CalculateVideoScope(pair.second);
-            if (pair.first.first.empty() && timeline->mVideoTransitionInputFirstTexture) { ImGui::ImDestroyTexture(timeline->mVideoTransitionInputFirstTexture); timeline->mVideoTransitionInputFirstTexture = nullptr; }
-            if (pair.first.second.empty() && timeline->mVideoTransitionInputSecondTexture) { ImGui::ImDestroyTexture(timeline->mVideoTransitionInputSecondTexture); timeline->mVideoTransitionInputSecondTexture = nullptr; }
+            if (pair.first.first.empty() && timeline->mVideoTransitionInputFirstTexture) ImGui::ImDestroyTexture(&timeline->mVideoTransitionInputFirstTexture);
+            if (pair.first.second.empty() && timeline->mVideoTransitionInputSecondTexture) ImGui::ImDestroyTexture(&timeline->mVideoTransitionInputSecondTexture);
             ImGui::ImMatToTexture(pair.first.first, timeline->mVideoTransitionInputFirstTexture);
             ImGui::ImMatToTexture(pair.first.second, timeline->mVideoTransitionInputSecondTexture);
             ImGui::ImMatToTexture(pair.second, timeline->mVideoTransitionOutputTexture);
@@ -11731,15 +11731,15 @@ static void MediaEditor_Finalize(void** handle)
     if (m_cie) { delete m_cie; m_cie = nullptr; }
     if (m_vector) {delete m_vector; m_vector = nullptr; }
 #endif
-    if (histogram_texture) { ImGui::ImDestroyTexture(histogram_texture); histogram_texture = nullptr; }
-    if (video_waveform_texture) { ImGui::ImDestroyTexture(video_waveform_texture); video_waveform_texture = nullptr; }
-    if (cie_texture) { ImGui::ImDestroyTexture(cie_texture); cie_texture = nullptr; }
-    if (vector_texture) { ImGui::ImDestroyTexture(vector_texture); vector_texture = nullptr; }
-    if (wave_texture) { ImGui::ImDestroyTexture(wave_texture); wave_texture = nullptr; }
-    if (fft_texture) { ImGui::ImDestroyTexture(fft_texture); fft_texture = nullptr; }
-    if (db_texture) { ImGui::ImDestroyTexture(db_texture); db_texture = nullptr; }
-    if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
-    if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
+    ImGui::ImDestroyTexture(&histogram_texture);
+    ImGui::ImDestroyTexture(&video_waveform_texture);
+    ImGui::ImDestroyTexture(&cie_texture);
+    ImGui::ImDestroyTexture(&vector_texture);
+    ImGui::ImDestroyTexture(&wave_texture);
+    ImGui::ImDestroyTexture(&fft_texture);
+    ImGui::ImDestroyTexture(&db_texture);
+    ImGui::ImDestroyTexture(&logo_texture);
+    ImGui::ImDestroyTexture(&codewin_texture);
 
     g_hProject = nullptr;
     g_hBgtaskExctor = nullptr;
@@ -12844,8 +12844,8 @@ static bool MediaEditor_Splash_Screen(void* handle, bool& app_will_quit)
 
 static void MediaEditor_Splash_Finalize(void** handle)
 {
-    if (logo_texture) { ImGui::ImDestroyTexture(logo_texture); logo_texture = nullptr; }
-    if (codewin_texture) { ImGui::ImDestroyTexture(codewin_texture); codewin_texture = nullptr; }
+    ImGui::ImDestroyTexture(&logo_texture);
+    ImGui::ImDestroyTexture(&codewin_texture);
 }
 
 void Application_Setup(ApplicationWindowProperty& property)

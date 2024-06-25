@@ -157,9 +157,9 @@ static void TransitionMake_SetupContext(ImGuiContext* ctx, void* handle, bool in
 
 static void TransitionMake_Finalize(void** handle)
 {
-    if (g_texture_1) ImGui::ImDestroyTexture(g_texture_1);
-    if (g_texture_2) ImGui::ImDestroyTexture(g_texture_2);
-    if (g_texture_d) ImGui::ImDestroyTexture(g_texture_d);
+    ImGui::ImDestroyTexture(&g_texture_1);
+    ImGui::ImDestroyTexture(&g_texture_2);
+    ImGui::ImDestroyTexture(&g_texture_d);
 }
 
 static void transition(int col, int row, int cols, int rows, int type, ImGui::ImMat& mat_a, ImGui::ImMat& mat_b, ImGui::ImMat& result)
@@ -383,18 +383,18 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
 
     if (need_update)
     {
-        if (g_texture_1) { ImGui::ImDestroyTexture(g_texture_1); g_texture_1 = nullptr; }
-        if (g_texture_2) { ImGui::ImDestroyTexture(g_texture_2); g_texture_2 = nullptr; }
-        if (g_texture_d) { ImGui::ImDestroyTexture(g_texture_d); g_texture_d = nullptr; }
+        ImGui::ImDestroyTexture(&g_texture_1);
+        ImGui::ImDestroyTexture(&g_texture_2);
+        ImGui::ImDestroyTexture(&g_texture_d);
     }
 
     ImGui::End();
 
     if (app_will_quit)
     {
-        if (g_texture_1) { ImGui::ImDestroyTexture(g_texture_1); g_texture_1 = nullptr; }
-        if (g_texture_2) { ImGui::ImDestroyTexture(g_texture_2); g_texture_2 = nullptr; }
-        if (g_texture_d) { ImGui::ImDestroyTexture(g_texture_d); g_texture_d = nullptr; }
+        ImGui::ImDestroyTexture(&g_texture_1);
+        ImGui::ImDestroyTexture(&g_texture_2);
+        ImGui::ImDestroyTexture(&g_texture_d);
         if (g_copy) { delete g_copy; g_copy = nullptr; }
         if (data_memory) { free(data_memory); data_memory = nullptr; }
         app_done = true;

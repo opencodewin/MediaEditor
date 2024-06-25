@@ -198,7 +198,7 @@ MediaItem::MediaItem(MediaCore::MediaParser::Holder hParser, void* handle)
 
 MediaItem::~MediaItem()
 {
-    for (auto texture : mWaveformTextures) ImGui::ImDestroyTexture(texture);
+    for (auto texture : mWaveformTextures) ImGui::ImDestroyTexture(&texture);
     mWaveformTextures.clear();
     mMediaOverview = nullptr;
     mMediaThumbnail.clear();
@@ -2336,7 +2336,7 @@ namespace MediaTimeline
 // AudioClip Struct Member Functions
 AudioClip::~AudioClip()
 {
-    if (mWaveformTexture) { ImGui::ImDestroyTexture(mWaveformTexture); mWaveformTexture = nullptr; }
+    ImGui::ImDestroyTexture(&mWaveformTexture);
 }
 
 AudioClip* AudioClip::CreateInstance(TimeLine* pOwner, const std::string& strName, MediaItem* pMediaItem, int64_t i64Start, int64_t i64End, int64_t i64StartOffset, int64_t i64EndOffset)
@@ -3343,7 +3343,6 @@ EditingVideoClip::~EditingVideoClip()
     mhTransformFilter = nullptr;
     mFilterBp = nullptr;
     mFilterKp = nullptr;
-    // if (mImgTexture) { ImGui::ImDestroyTexture(mImgTexture); mImgTexture = nullptr; }
 }
 
 void EditingVideoClip::InitAttrCurveEditor()
@@ -3668,7 +3667,7 @@ EditingAudioClip::EditingAudioClip(AudioClip* audclip)
 
 EditingAudioClip::~EditingAudioClip()
 {
-    for (auto texture : mWaveformTextures) ImGui::ImDestroyTexture(texture);
+    for (auto texture : mWaveformTextures) ImGui::ImDestroyTexture(&texture);
     mWaveformTextures.clear();
     mhAudioFilter = nullptr;
     mFilterBp = nullptr;
@@ -4509,8 +4508,8 @@ EditingAudioOverlap::EditingAudioOverlap(int64_t id, void* handle)
 
 EditingAudioOverlap::~EditingAudioOverlap()
 {
-    for (auto texture : mClip1WaveformTextures) ImGui::ImDestroyTexture(texture);
-    for (auto texture : mClip2WaveformTextures) ImGui::ImDestroyTexture(texture);
+    for (auto texture : mClip1WaveformTextures) ImGui::ImDestroyTexture(&texture);
+    for (auto texture : mClip2WaveformTextures) ImGui::ImDestroyTexture(&texture);
     mClip1WaveformTextures.clear();
     mClip2WaveformTextures.clear();
     mTransition = nullptr;
@@ -5827,11 +5826,7 @@ EditingItem::EditingItem(uint32_t media_type, BaseEditingOverlap * overlap)
 
 EditingItem::~EditingItem()
 {
-    if (mTexture)
-    {
-        ImGui::ImDestroyTexture(mTexture);
-        mTexture = nullptr;
-    }
+    ImGui::ImDestroyTexture(&mTexture);
     if (mEditingClip)
     {
         mEditingClip->Save();
@@ -5975,10 +5970,9 @@ TimeLine::TimeLine()
 
 TimeLine::~TimeLine()
 {    
-    if (mEncodingPreviewTexture) { ImGui::ImDestroyTexture(mEncodingPreviewTexture); mEncodingPreviewTexture = nullptr; }
+    ImGui::ImDestroyTexture(&mEncodingPreviewTexture);
     mAudioAttribute.channel_data.clear();
-
-    if (mAudioAttribute.m_audio_vector_texture) { ImGui::ImDestroyTexture(mAudioAttribute.m_audio_vector_texture); mAudioAttribute.m_audio_vector_texture = nullptr; }
+    ImGui::ImDestroyTexture(&mAudioAttribute.m_audio_vector_texture);
     
     m_BP_UI.Finalize();
 
@@ -5988,9 +5982,9 @@ TimeLine::~TimeLine()
     for (auto overlap : m_Overlaps)  delete overlap;
     for (auto item : media_items) delete item;
 
-    if (mVideoTransitionInputFirstTexture) { ImGui::ImDestroyTexture(mVideoTransitionInputFirstTexture); mVideoTransitionInputFirstTexture = nullptr; }
-    if (mVideoTransitionInputSecondTexture) { ImGui::ImDestroyTexture(mVideoTransitionInputSecondTexture); mVideoTransitionInputSecondTexture = nullptr; }
-    if (mVideoTransitionOutputTexture) { ImGui::ImDestroyTexture(mVideoTransitionOutputTexture); mVideoTransitionOutputTexture = nullptr;  }
+    ImGui::ImDestroyTexture(&mVideoTransitionInputFirstTexture);
+    ImGui::ImDestroyTexture(&mVideoTransitionInputSecondTexture);
+    ImGui::ImDestroyTexture(&mVideoTransitionOutputTexture);
 
     if (mAudioRender)
     {

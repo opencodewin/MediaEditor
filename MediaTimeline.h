@@ -1061,7 +1061,7 @@ struct audio_channel_data
     ImTextureID texture_spectrogram {nullptr};
     float m_decibel {0};
     int m_DBMaxIndex {-1};
-    ~audio_channel_data() { if (texture_spectrogram) ImGui::ImDestroyTexture(texture_spectrogram); }
+    ~audio_channel_data() { ImGui::ImDestroyTexture(&texture_spectrogram); }
 };
 
 #define MAX_GAIN 12
