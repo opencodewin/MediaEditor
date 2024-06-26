@@ -4115,6 +4115,8 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 }
             }
 
+            // Video codec global
+            ImGui::TextUnformatted("Video Setting: "); ImGui::SameLine(0.f, 0.f);
             ImGui::Checkbox("as Timeline##video_setting", &g_media_editor_settings.OutputVideoSettingAsTimeline);
             if (g_media_editor_settings.OutputVideoSettingAsTimeline)
             {
@@ -4129,8 +4131,6 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 g_media_editor_settings.OutputColorTransferIndex = g_media_editor_settings.ColorTransferIndex;
             }
 
-            // Video codec global
-            ImGui::TextUnformatted("Video Setting: "); ImGui::SameLine(0.f, 0.f);
             static char buf_res_x[64] = {0}; snprintf(buf_res_x, 64, "%d", g_media_editor_settings.OutputVideoResolutionWidth);
             static char buf_res_y[64] = {0}; snprintf(buf_res_y, 64, "%d", g_media_editor_settings.OutputVideoResolutionHeight);
             static char buf_par_x[64] = {0}; snprintf(buf_par_x, 64, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.num);
