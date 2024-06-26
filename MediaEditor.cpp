@@ -4115,15 +4115,6 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 }
             }
 
-            // Video codec global
-            ImGui::TextUnformatted("Video Setting: "); ImGui::SameLine(0.f, 0.f);
-            static char buf_res_x[64] = {0}; snprintf(buf_res_x, 64, "%d", g_media_editor_settings.OutputVideoResolutionWidth);
-            static char buf_res_y[64] = {0}; snprintf(buf_res_y, 64, "%d", g_media_editor_settings.OutputVideoResolutionHeight);
-            static char buf_par_x[64] = {0}; snprintf(buf_par_x, 64, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.num);
-            static char buf_par_y[64] = {0}; snprintf(buf_par_y, 64, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.den);
-            static char buf_fmr_x[64] = {0}; snprintf(buf_fmr_x, 64, "%d", g_media_editor_settings.OutputVideoFrameRate.num);
-            static char buf_fmr_y[64] = {0}; snprintf(buf_fmr_y, 64, "%d", g_media_editor_settings.OutputVideoFrameRate.den);
-
             ImGui::Checkbox("as Timeline##video_setting", &g_media_editor_settings.OutputVideoSettingAsTimeline);
             if (g_media_editor_settings.OutputVideoSettingAsTimeline)
             {
@@ -4137,6 +4128,16 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 g_media_editor_settings.OutputColorSpaceIndex = g_media_editor_settings.ColorSpaceIndex;
                 g_media_editor_settings.OutputColorTransferIndex = g_media_editor_settings.ColorTransferIndex;
             }
+
+            // Video codec global
+            ImGui::TextUnformatted("Video Setting: "); ImGui::SameLine(0.f, 0.f);
+            static char buf_res_x[64] = {0}; snprintf(buf_res_x, 64, "%d", g_media_editor_settings.OutputVideoResolutionWidth);
+            static char buf_res_y[64] = {0}; snprintf(buf_res_y, 64, "%d", g_media_editor_settings.OutputVideoResolutionHeight);
+            static char buf_par_x[64] = {0}; snprintf(buf_par_x, 64, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.num);
+            static char buf_par_y[64] = {0}; snprintf(buf_par_y, 64, "%d", g_media_editor_settings.OutputVideoPixelAspectRatio.den);
+            static char buf_fmr_x[64] = {0}; snprintf(buf_fmr_x, 64, "%d", g_media_editor_settings.OutputVideoFrameRate.num);
+            static char buf_fmr_y[64] = {0}; snprintf(buf_fmr_y, 64, "%d", g_media_editor_settings.OutputVideoFrameRate.den);
+
             ImGui::BeginDisabled(g_media_editor_settings.OutputVideoSettingAsTimeline);
                 if (ImGui::Combo("Resolution", &g_media_editor_settings.OutputVideoResolutionIndex, resolution_items, IM_ARRAYSIZE(resolution_items)))
                 {

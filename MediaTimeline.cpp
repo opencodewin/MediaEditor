@@ -9650,7 +9650,7 @@ bool TimeLine::ConfigEncoder(const std::string& outputPath, VideoEncoderParams& 
         errMsg = mEncoder->GetError();
         return false;
     }
-    mEncMtaReader = mMtaReader->CloneAndConfigure(audEncParams.channels, audEncParams.sampleRate, audEncParams.samplesPerFrame);
+    mEncMtaReader = mMtaReader->CloneAndConfigure(audEncParams.channels, audEncParams.sampleRate, audEncParams.sampleFormat, audEncParams.samplesPerFrame);
     return true;
 }
 
