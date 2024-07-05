@@ -1277,6 +1277,7 @@ struct TimeLine
 
     struct VideoEncoderParams
     {
+        bool encodeVideo{ true };
         std::string codecName;
         std::string imageFormat;
         uint32_t width;
@@ -1288,6 +1289,7 @@ struct TimeLine
 
     struct AudioEncoderParams
     {
+        bool encodeAudio{ true };
         std::string codecName;
         std::string sampleFormat;
         uint32_t channels;

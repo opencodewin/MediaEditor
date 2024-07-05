@@ -9626,31 +9626,43 @@ void TimeLine::CalculateAudioScopeData(ImGui::ImMat& mat_in)
 
 bool TimeLine::ConfigEncoder(const std::string& outputPath, VideoEncoderParams& vidEncParams, AudioEncoderParams& audEncParams, std::string& errMsg)
 {
+    if (!vidEncParams.encodeVideo && !audEncParams.encodeAudio)
+    {
+        errMsg = "At least one video or audio stream is going to be encoded!";
+        return false;
+    }
     mEncoder = MediaCore::MediaEncoder::CreateInstance();
     if (!mEncoder->Open(outputPath))
     {
         errMsg = mEncoder->GetError();
         return false;
     }
-    // Video
-    if (!mEncoder->ConfigureVideoStream(
-        vidEncParams.codecName, vidEncParams.imageFormat, vidEncParams.width, vidEncParams.height,
-        vidEncParams.frameRate, vidEncParams.bitRate, &vidEncParams.extraOpts))
-    {
-        errMsg = mEncoder->GetError();
-        return false;
-    }
-    mEncMtvReader = mMtvReader->CloneAndConfigure(vidEncParams.width, vidEncParams.height, vidEncParams.frameRate);
 
-    // Audio
-    if (!mEncoder->ConfigureAudioStream(
-        audEncParams.codecName, audEncParams.sampleFormat, audEncParams.channels,
-        audEncParams.sampleRate, audEncParams.bitRate))
+    if (vidEncParams.encodeVideo)
     {
-        errMsg = mEncoder->GetError();
-        return false;
+        // Video
+        if (!mEncoder->ConfigureVideoStream(
+            vidEncParams.codecName, vidEncParams.imageFormat, vidEncParams.width, vidEncParams.height,
+            vidEncParams.frameRate, vidEncParams.bitRate, &vidEncParams.extraOpts))
+        {
+            errMsg = mEncoder->GetError();
+            return false;
+        }
+        mEncMtvReader = mMtvReader->CloneAndConfigure(vidEncParams.width, vidEncParams.height, vidEncParams.frameRate);
     }
-    mEncMtaReader = mMtaReader->CloneAndConfigure(audEncParams.channels, audEncParams.sampleRate, audEncParams.sampleFormat, audEncParams.samplesPerFrame);
+
+    if (audEncParams.encodeAudio)
+    {
+        // Audio
+        if (!mEncoder->ConfigureAudioStream(
+            audEncParams.codecName, audEncParams.sampleFormat, audEncParams.channels,
+            audEncParams.sampleRate, audEncParams.bitRate))
+        {
+            errMsg = mEncoder->GetError();
+            return false;
+        }
+        mEncMtaReader = mMtaReader->CloneAndConfigure(audEncParams.channels, audEncParams.sampleRate, audEncParams.sampleFormat, audEncParams.samplesPerFrame);
+    }
     return true;
 }
 
@@ -9700,11 +9712,20 @@ void TimeLine::_EncodeProc()
     uint8_t* pcmbuf = new uint8_t[pcmbufSize];
     auto dur = ValidDuration();
     int64_t encpos = 0;
-    int64_t vidFrameCount = mEncMtvReader->MillsecToFrameIndex(mEncodingStart);
-    int64_t startTimeOffset = mEncMtvReader->FrameIndexToMillsec(vidFrameCount);
-    mEncMtvReader->SetCacheFrameNum(8);
-    if (mEncMtvReader) mEncMtvReader->SeekTo(mEncodingStart);
-    if (mEncMtaReader) mEncMtaReader->SeekTo(mEncodingStart);
+    int64_t vidFrameCount = 0;
+    int64_t startTimeOffset = 0;
+    if (mEncMtvReader) {
+        mEncMtvReader->SeekTo(mEncodingStart);
+        vidFrameCount = mEncMtvReader->MillsecToFrameIndex(mEncodingStart);
+        startTimeOffset = mEncMtvReader->FrameIndexToMillsec(vidFrameCount);
+        mEncMtvReader->SetCacheFrameNum(8);
+    }
+    else
+        vidInputEof = true;
+    if (mEncMtaReader)
+        mEncMtaReader->SeekTo(mEncodingStart);
+    else
+        audInputEof = true;
     while (!mQuitEncoding && (!vidInputEof || !audInputEof))
     {
         bool idleLoop = true;
@@ -12976,9 +12997,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
     if (ImGui::IsKeyPressed(ImGuiKey_Z, false))
     {
 #ifdef __APPLE__
-        if (io.KeyMods == ImGuiModFlags_Super)
+        if (io.KeySuper)
 #else
-        if (io.KeyMods == ImGuiModFlags_Ctrl)
+        if (io.KeyCtrl)
 #endif
         {
             if (!actionList.empty())
@@ -12989,9 +13010,9 @@ bool DrawTimeLine(TimeLine *timeline, bool *expanded, bool& need_save, bool edit
             timeline->UndoOneRecord();
         }
 #ifdef __APPLE__
-        else if (io.KeyMods == (ImGuiModFlags_Super|ImGuiModFlags_Shift))
+        else if (io.KeySuper || io.KeyShift)
 #else
-        else if (io.KeyMods == (ImGuiModFlags_Ctrl|ImGuiModFlags_Shift))
+        else if (io.KeyCtrl || io.KeyShift)
 #endif
         {
             if (!actionList.empty())

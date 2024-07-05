@@ -3940,7 +3940,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             ImGui::Dummy(ImVec2(0, 20));
             ImGui::Checkbox("Export Video##export_video", &timeline->bExportVideo);
             ImGui::Separator();
-            if (timeline->bExportVideo) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
+            ImGui::BeginDisabled(!timeline->bExportVideo);
             bool has_bit_rate = false;
             bool has_gop_size = false;
             bool has_b_frame = false;
@@ -4236,7 +4236,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
             ImGui::Dummy(ImVec2(0, 20));
             ImGui::Checkbox("Export Audio##export_audio", &timeline->bExportAudio);
             ImGui::Separator();
-            if (timeline->bExportAudio) ImGui::BeginDisabled(false); else ImGui::BeginDisabled(true);
+            ImGui::BeginDisabled(!timeline->bExportAudio);
 
             // audio codec select
             if (ImGui::Combo("Codec##audio_codec", &g_media_editor_settings.OutputAudioCodecIndex, codec_getter, (void *)OutputAudioCodec, IM_ARRAYSIZE(OutputAudioCodec)))
@@ -4398,6 +4398,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 {
                     // config encoders
                     TimeLine::VideoEncoderParams vidEncParams;
+                    vidEncParams.encodeVideo = timeline->bExportVideo;
                     vidEncParams.codecName = g_currVidEncDescList[g_media_editor_settings.OutputVideoCodecTypeIndex].codecName;
                     vidEncParams.width = g_media_editor_settings.OutputVideoResolutionWidth;
                     vidEncParams.height = g_media_editor_settings.OutputVideoResolutionHeight;
@@ -4435,6 +4436,7 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                     vidEncParams.extraOpts.push_back({"colorspace", MediaCore::Value((int)outColorspaceValue)});
                     vidEncParams.extraOpts.push_back({"color_trc", MediaCore::Value((int)(ColorTransfer[g_media_editor_settings.OutputColorTransferIndex].tag))});
                     TimeLine::AudioEncoderParams audEncParams;
+                    audEncParams.encodeAudio = timeline->bExportAudio;
                     audEncParams.codecName = g_currAudEncDescList[g_media_editor_settings.OutputAudioCodecTypeIndex].codecName;
                     audEncParams.channels = g_media_editor_settings.OutputAudioChannels;
                     audEncParams.sampleRate = g_media_editor_settings.OutputAudioSampleRate;
