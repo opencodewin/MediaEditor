@@ -376,7 +376,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
             config.countSelectionMax = 1;
             config.userDatas = IGFDUserDatas("OpenImage");
             config.flags = ImGuiFileDialogFlags_ShowBookmark |
-                        ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                        ImGuiFileDialogFlags_CaseInsensitiveExtentionFiltering |
                         ImGuiFileDialogFlags_DisableCreateDirectoryButton |
                         ImGuiFileDialogFlags_Modal;
             ImGuiFileDialog::Instance()->OpenDialog("##PotraceFileDlgKey", ICON_IGFD_FOLDER_OPEN " Choose File",
@@ -397,7 +397,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
             config.sidePaneWidth = 200;
             config.userDatas = IGFDUserDatas("SVGPane");
             config.flags = ImGuiFileDialogFlags_ShowBookmark |
-                        ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                        ImGuiFileDialogFlags_CaseInsensitiveExtentionFiltering |
                         ImGuiFileDialogFlags_Modal |
                         ImGuiFileDialogFlags_ConfirmOverwrite;
             ImGuiFileDialog::Instance()->OpenDialog("##PotraceFileDlgKey", ICON_IGFD_FOLDER_OPEN " Save File",
@@ -781,7 +781,7 @@ static bool Potrace_Frame(void *handle, bool app_will_quit)
                     config.path = ".";
                     config.countSelectionMax = 1;
                     config.flags = ImGuiFileDialogFlags_ShowBookmark |
-                                ImGuiFileDialogFlags_CaseInsensitiveExtention |
+                                ImGuiFileDialogFlags_CaseInsensitiveExtentionFiltering |
                                 ImGuiFileDialogFlags_ConfirmOverwrite |
                                 ImGuiFileDialogFlags_Modal;
                     ImGuiFileDialog::Instance()->OpenDialog(dialog_id.c_str(), ICON_IGFD_FOLDER_OPEN " Choose File", 

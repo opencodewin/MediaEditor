@@ -200,7 +200,7 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
     const char *dst_filters = "Image Files(*.jpg){.jpg,.HPG},.*";
     ImVec2 minSize = ImVec2(600, 800);
 	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
-    ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_CaseInsensitiveExtention | ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_ShowBookmark;
+    ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_CaseInsensitiveExtentionFiltering | ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_ShowBookmark;
     if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose Source One File"))
     {
         IGFD::FileDialogConfig config;
