@@ -200,12 +200,11 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
     const char *dst_filters = "Image Files(*.jpg){.jpg,.HPG},.*";
     ImVec2 minSize = ImVec2(600, 800);
 	ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
-    ImGuiFileDialogFlags vflags = ImGuiFileDialogFlags_CaseInsensitiveExtentionFiltering | ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_ShowBookmark;
     if (ImGui::Button(ICON_IGFD_FOLDER_OPEN " Choose Source One File"))
     {
         IGFD::FileDialogConfig config;
         config.path = g_source_1.empty() ? "." : g_source_1;
-        config.flags = vflags;
+        config.flags = ImGuiFileDialogFlags_OpenFile_Default;
         config.countSelectionMax = 1;
         config.UserDatas = IGFDUserDatas("Source 1")
         ImGuiFileDialog::Instance()->OpenDialog("##MediaSourceDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Source One File", 
@@ -219,7 +218,7 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
     {
         IGFD::FileDialogConfig config;
         config.path = g_source_2.empty() ? "." : g_source_2;
-        config.flags = vflags;
+        config.flags = ImGuiFileDialogFlags_OpenFile_Default;
         config.countSelectionMax = 1;
         config.UserDatas = IGFDUserDatas("Source 2")
         ImGuiFileDialog::Instance()->OpenDialog("##MediaSourceDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Source Two File", 
@@ -233,7 +232,7 @@ static bool TransitionMake_Frame(void * handle, bool app_will_quit)
     {
         IGFD::FileDialogConfig config;
         config.path = g_dist.empty() ? "." : g_dist;
-        config.flags = vflags | ImGuiFileDialogFlags_ConfirmOverwrite;
+        config.flags = ImGuiFileDialogFlags_SaveFile_Default;
         config.countSelectionMax = 1;
         config.UserDatas = IGFDUserDatas("Dist")
         ImGuiFileDialog::Instance()->OpenDialog("##MediaDistDlgKey", ICON_IGFD_FOLDER_OPEN " Choose Dist File", 

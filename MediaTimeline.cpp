@@ -230,7 +230,7 @@ bool MediaItem::Initialize()
         {
             mhParser = MediaCore::MediaParser::CreateInstance();
             if (IS_IMAGESEQ(mMediaType))
-                mhParser->OpenImageSequence({25000, 1000}, mPath, ".+_([[:digit:]]{1,})\\.png", false, true);
+                mhParser->OpenImageSequence({25000, 1000}, mPath, ".+[_\\-]([[:digit:]]{1,})\\.(png|jpg|tiff|webp|jpeg|bmp)", false, true);
             else
                 mhParser->Open(mPath);
             if (!mhParser->IsOpened())

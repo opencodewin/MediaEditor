@@ -310,32 +310,6 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# Potrace Test
-if(IMGUI_BUILD_POTRACE AND IMGUI_BUILD_EXAMPLE)
-add_executable(
-    PotraceTest
-    test/PotraceTest.cpp
-    ${IMGUI_APP_ENTRY_SRC}
-)
-target_link_libraries(
-    PotraceTest
-    ${IMGUI_LIBRARYS}
-)
-endif()
-
-# Dither Test
-if(IMGUI_BUILD_DITHER AND IMGUI_BUILD_EXAMPLE)
-add_executable(
-    DitherTest
-    test/DitherTest.cpp
-    ${IMGUI_APP_ENTRY_SRC}
-)
-
-target_link_libraries(
-    DitherTest
-    ${IMGUI_LIBRARYS}
-)
-endif()
 #if(IMGUI_VULKAN_SHADER)
 #add_executable(
 #    transition_make
