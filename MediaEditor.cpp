@@ -3907,7 +3907,11 @@ static void ShowMediaOutputWindow(ImDrawList *_draw_list)
                 config.path = timeline->mOutputPath.empty() ? "." : timeline->mOutputPath;
                 config.countSelectionMax = 1;
                 config.userDatas = IGFDUserDatas("OutputPath");
-                config.flags = ImGuiFileDialogFlags_SaveFile_Default | ImGuiFileDialogFlags_AllowDirectorySelect;
+                config.flags = ImGuiFileDialogFlags_ShowBookmark |
+                                ImGuiFileDialogFlags_DontShowHiddenFiles |
+                                ImGuiFileDialogFlags_CaseInsensitiveExtentionFiltering |
+                                ImGuiFileDialogFlags_AllowDirectorySelect |
+                                ImGuiFileDialogFlags_Modal;
                 ImGuiFileDialog::Instance()->OpenDialog("##MediaEditOutputPathDlgKey", ICON_IGFD_FOLDER_OPEN " Output Path", 
                                                         nullptr,
                                                         config);
