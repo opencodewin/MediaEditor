@@ -337,6 +337,11 @@ static const char* VideoPreviewScale[] = {
     "1/8",
 };
 
+static const char* VideoPrecision[] = {
+    "General(8bit)",
+    "High Precision(float 32bit)",
+};
+
 // Add by Jimmy, Start
 typedef struct _method_property
 {
@@ -416,6 +421,7 @@ struct MediaEditorSettings
     int ColorSpaceIndex {1};                // timeline color space default is bt 709
     int ColorTransferIndex {0};             // timeline color transfer default is bt 709
     int VideoFrameCacheSize {10};           // timeline video cache size
+    int VideoPrecision {0};                 // timelime video precision, 0 = low(8bit) 1 = high(float 32bit)
     int AudioChannels {2};                  // timeline audio channels
     int AudioSampleRate {44100};            // timeline audio sample rate
     int AudioFormat {2};                    // timeline audio format 0=unknown 1=s16 2=f32
@@ -1001,7 +1007,7 @@ static bool Show_Version(ImDrawList* draw_list, int32_t start_time)
     ImVec2 window_size = ImGui::GetWindowSize();
     if (!logo_texture && !icon_file.empty()) logo_texture = ImGui::ImLoadTexture(icon_file.c_str());
     if (!codewin_texture) codewin_texture = ImGui::ImCreateTexture(codewin::codewin_pixels, codewin::codewin_width, codewin::codewin_height, codewin::codewin_depth / 8);
-    draw_list->AddRectFilled(window_pos, window_pos + window_size, COL_DEEP_DARK);
+    draw_list->AddRectFilled(window_pos, window_pos + window_size, IM_COL32_BLACK);
     if (logo_texture || codewin_texture)
     {
         float logo_alpha = ImMin((float)(current_time - start_time) / 2000.f, 1.f);
@@ -1503,6 +1509,7 @@ static void ShowConfigure(MediaEditorSettings & config)
                 ImGui::Combo("Color Space", &config.ColorSpaceIndex, color_getter, (void *)ColorSpace, IM_ARRAYSIZE(ColorSpace));
                 ImGui::Combo("Color Transfer", &config.ColorTransferIndex, color_getter, (void *)ColorTransfer, IM_ARRAYSIZE(ColorTransfer));
                 ImGui::Checkbox("HW codec if available", &config.HardwareCodec); ImGui::SameLine(); ImGui::TextUnformatted("(Restart Application required)");
+                ImGui::Combo("Video Precision", &config.VideoPrecision, VideoPrecision, IM_ARRAYSIZE(VideoPrecision));
                 ImGui::Separator();
                 ImGui::BulletText(ICON_MEDIA_AUDIO " Audio");
                 if (ImGui::Combo("Audio Sample Rate", &sample_rate_index, audio_sample_rate_items, IM_ARRAYSIZE(audio_sample_rate_items)))
@@ -1686,6 +1693,17 @@ static void NewTimeline()
     timeline->mAudioAttribute.mAudioVectorScale = g_media_editor_settings.AudioVectorScale;
     timeline->mAudioAttribute.mAudioVectorMode = g_media_editor_settings.AudioVectorMode;
     timeline->mFontName = g_media_editor_settings.FontName;
+
+    if (g_media_editor_settings.VideoPrecision == 0)
+    {
+        timeline->mhMediaSettings->SetVideoOutDataType(IM_DT_INT8);
+        timeline->mhPreviewSettings->SetVideoOutDataType(IM_DT_INT8);
+    }
+    else
+    {
+        timeline->mhMediaSettings->SetVideoOutDataType(IM_DT_FLOAT32);
+        timeline->mhPreviewSettings->SetVideoOutDataType(IM_DT_FLOAT32);
+    }
 
     // init callbacks
     timeline->m_CallBacks.EditingClip = EditingClip;
@@ -11345,6 +11363,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
         else if (sscanf(line, "ColorSpaceIndex=%d", &val_int) == 1) { setting->ColorSpaceIndex = val_int; }
         else if (sscanf(line, "ColorTransferIndex=%d", &val_int) == 1) { setting->ColorTransferIndex = val_int; }
         else if (sscanf(line, "VideoFrameCache=%d", &val_int) == 1) { setting->VideoFrameCacheSize = val_int; }
+        else if (sscanf(line, "VideoPrecision=%d", &val_int) == 1) { setting->VideoPrecision = val_int; }
         else if (sscanf(line, "AudioChannels=%d", &val_int) == 1) { setting->AudioChannels = val_int; }
         else if (sscanf(line, "AudioSampleRate=%d", &val_int) == 1) { setting->AudioSampleRate = val_int; }
         else if (sscanf(line, "AudioFormat=%d", &val_int) == 1) { setting->AudioFormat = val_int; }
@@ -11477,6 +11496,7 @@ static void MediaEditor_SetupContext(ImGuiContext* ctx, void* handle, bool in_sp
         out_buf->appendf("ColorSpaceIndex=%d\n", g_media_editor_settings.ColorSpaceIndex);
         out_buf->appendf("ColorTransferIndex=%d\n", g_media_editor_settings.ColorTransferIndex);
         out_buf->appendf("VideoFrameCache=%d\n", g_media_editor_settings.VideoFrameCacheSize);
+        out_buf->appendf("VideoPrecision=%d\n", g_media_editor_settings.VideoPrecision);
         out_buf->appendf("AudioChannels=%d\n", g_media_editor_settings.AudioChannels);
         out_buf->appendf("AudioSampleRate=%d\n", g_media_editor_settings.AudioSampleRate);
         out_buf->appendf("AudioFormat=%d\n", g_media_editor_settings.AudioFormat);
@@ -11935,6 +11955,21 @@ static bool MediaEditor_Frame(void * handle, bool app_will_quit)
         if (ImGui::Button("OK", ImVec2(60, 0)))
         {
             show_configure = false;
+            if (g_new_setting.VideoPrecision != g_media_editor_settings.VideoPrecision)
+            {
+                g_media_editor_settings.VideoPrecision = g_new_setting.VideoPrecision;
+                if (g_media_editor_settings.VideoPrecision == 0)
+                {
+                    timeline->mhMediaSettings->SetVideoOutDataType(IM_DT_INT8);
+                    timeline->mhPreviewSettings->SetVideoOutDataType(IM_DT_INT8);
+                }
+                else
+                {
+                    timeline->mhMediaSettings->SetVideoOutDataType(IM_DT_FLOAT32);
+                    timeline->mhPreviewSettings->SetVideoOutDataType(IM_DT_FLOAT32);
+                }
+                needReloadProject = true;
+            }
             if (g_new_setting.VideoWidth != g_media_editor_settings.VideoWidth ||
                 g_new_setting.VideoHeight != g_media_editor_settings.VideoHeight ||
                 g_new_setting.PreviewScale != g_media_editor_settings.PreviewScale)
@@ -12784,7 +12819,7 @@ static bool MediaEditor_Splash_Screen(void* handle, bool& app_will_quit)
     ImGuiCond cond = ImGuiCond_None;
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | 
-                            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus;
+                            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground;
     ImGui::SetNextWindowPos(ImVec2(0, 0));
     ImGui::SetNextWindowSize(io.DisplaySize, cond);
     ImGui::Begin("MediaEditor Splash", nullptr, flags);
