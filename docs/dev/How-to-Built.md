@@ -29,16 +29,16 @@ git clone --recurse-submodules https://github.com/opencodewin/MediaEditor.git
 
 ---
 ## Build for Windows x64 using Mingw64
-### Step 1 &ensp;❤&ensp; Install MSYS2, VulkanSDK and NSIS
+### Step 1 &ensp;❤&ensp; Install MSYS2 and NSIS
 - [x] [MSYS2](https://www.msys2.org) is a collection of **tools and libraries** providing you with an easy-to-use environment for **building, installing and running native Windows software**.
 - [x] [NSIS](https://nsis.sourceforge.io/Download) is a professional open-source tool for **creating Windows installation programs**.
-- [x] [Vulkan](https://vulkan.lunarg.com/sdk/home) is a new-generation graphics and compute API for **high-efficiency, cross-platform** access to GPUs.
 
 ### Step 2 &ensp;❤&ensp; Install Dependencies (MSYS2 commandline)
 ``` sh
 pacman -Syu && pacman -S mingw-w64-x86_64-clang mingw-w64-x86_64-cmake \
                          mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-openmp \
-                         mingw-w64-x86_64-glew mingw-w64-x86_64-glfw
+                         mingw-w64-x86_64-glew mingw-w64-x86_64-glfw \
+                         mingw-w64-x86_64-vulkan-headers mingw-w64-x86_64-vulkan-loader
 ```
 
 ### Step 3 &ensp;❤&ensp; Build source code (Mingw64 commandline)
