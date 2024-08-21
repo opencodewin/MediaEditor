@@ -1,8 +1,7 @@
 # Build for MediaEditor Community
 ## Precondition
-### Install Git and Vulkan
+### Install Git
 - [x] [Git](https://git-scm.com/downloads/)
-- [x] [Vulkan](https://vulkan.lunarg.com/sdk/home) is a new-generation graphics and compute API for **high-efficiency, cross-platform** access to GPUs.
 
 ### Git clone MediaEditor repo with submodule
 ``` sh
@@ -11,7 +10,7 @@ git clone --recurse-submodules https://github.com/opencodewin/MediaEditor.git
 
 ---
 - [Precondition](#precondition)
-  - [Install Git and Vulkan](#install-git-and-vulkan)
+  - [Install Git](#install-git)
   - [Git clone MediaEditor repo with submodule](#git-clone-mediaeditor-repo-with-submodule)
 - [Build for Windows x64 using Mingw64](#build-for-windows-x64-using-mingw64)
   - [Step 1 ~ Install MSYS2 and NSIS](#step-1-❤-install-msys2-and-nsis)
@@ -30,9 +29,10 @@ git clone --recurse-submodules https://github.com/opencodewin/MediaEditor.git
 
 ---
 ## Build for Windows x64 using Mingw64
-### Step 1 &ensp;❤&ensp; Install MSYS2 and NSIS
+### Step 1 &ensp;❤&ensp; Install MSYS2, VulkanSDK and NSIS
 - [x] [MSYS2](https://www.msys2.org) is a collection of **tools and libraries** providing you with an easy-to-use environment for **building, installing and running native Windows software**.
 - [x] [NSIS](https://nsis.sourceforge.io/Download) is a professional open-source tool for **creating Windows installation programs**.
+- [x] [Vulkan](https://vulkan.lunarg.com/sdk/home) is a new-generation graphics and compute API for **high-efficiency, cross-platform** access to GPUs.
 
 ### Step 2 &ensp;❤&ensp; Install Dependencies (MSYS2 commandline)
 ``` sh
@@ -59,9 +59,9 @@ cmake --build . --config Release --target install -j && cpack
 ``` sh
 sudo apt update && sudo apt install build-essential cmake \
                             libavformat-dev libavcodec-dev libavutil-dev libavdevice-dev libswscale-dev libswresample-dev \
-                            libgmp-dev libomp-dev zlib1g-dev glslang-dev pkg-config spirv-tools \
+                            libgmp-dev libomp-dev zlib1g-dev glslang-dev glslang-tools pkg-config spirv-tools \
                             libglew-dev libglfw3-dev libsdl2-dev libsdl2-image-dev libass-dev \
-                            libfontconfig-dev libfreetype-dev
+                            libfontconfig-dev libfreetype-dev libvulkan-dev vulkan-tools
 ```
 
 ### Step 2 &ensp;❤&ensp; Build source code
@@ -84,8 +84,8 @@ xcode-select --install &&
 ```
 ### Step 2 &ensp;❤&ensp; Install Dependencies
 ``` sh
-brew install cmake ffmpeg libomp zlib glslang pkg-config \
-             spirv-tools glew glfw sdl2 sdl2_image libass fontconfig freetype
+brew install cmake ffmpeg libomp zlib glslang spirv-tools pkg-config glew glfw sdl2 sdl2_image \
+               libass fontconfig freetype vulkan-headers vulkan-loader vulkan-tools
 ```
 
 ### Step 3 &ensp;❤&ensp; Build source code
