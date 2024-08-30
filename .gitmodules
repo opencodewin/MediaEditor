@@ -1,12 +1,6 @@
 [submodule "imgui"]
 	path = imgui
 	url = git@github.com:opencodewin/imgui.git
-[submodule "blueprintsdk"]
-	path = blueprintsdk
-	url = git@github.com:opencodewin/blueprintsdk.git
-[submodule "MediaCore"]
-	path = MediaCore
-	url = git@github.com:opencodewin/MediaCore.git
 [submodule "plugin"]
 	path = plugin
 	url = git@github.com:opencodewin/plugin.git

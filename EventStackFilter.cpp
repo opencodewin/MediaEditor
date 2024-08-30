@@ -1,7 +1,7 @@
 #include <algorithm>
 #include <functional>
 #include <sstream>
-#include <VideoBlender.h>
+#include <MediaCore/VideoBlender.h>
 #include <MatMath.h>
 #include "EventStackFilter.h"
 

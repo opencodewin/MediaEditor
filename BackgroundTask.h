@@ -4,9 +4,9 @@
 #include <imgui_json.h>
 #include <ThreadUtils.h>
 #include <Logger.h>
-#include <SharedSettings.h>
-#include <MediaParser.h>
-#include <TextureManager.h>
+#include <MediaCore/SharedSettings.h>
+#include <MediaCore/MediaParser.h>
+#include <MediaCore/TextureManager.h>
 
 namespace MEC
 {

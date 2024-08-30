@@ -1,6 +1,6 @@
-#include "Snapshot.h"
-#include "MediaReader.h"
-#include "AudioRender.h"
+#include "MediaCore/Snapshot.h"
+#include "MediaCore/MediaReader.h"
+#include "MediaCore/AudioRender.h"
 #include <chrono>
 
 using Clock = std::chrono::steady_clock;

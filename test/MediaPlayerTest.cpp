@@ -12,9 +12,9 @@
 #include <ImVulkanShader.h>
 // #include <Lut3D.h>
 #endif
-#include "MediaReader.h"
-#include "AudioRender.h"
-#include "FFUtils.h"
+#include "MediaCore/MediaReader.h"
+#include "MediaCore/AudioRender.h"
+#include "MediaCore/FFUtils.h"
 #include "Log.h"
 
 static std::string ini_file = "Media_Player.ini";

@@ -8,7 +8,7 @@
 #include <imgui_json.h>
 #include <ThreadUtils.h>
 #include <Logger.h>
-#include <HwaccelManager.h>
+#include <MediaCore/HwaccelManager.h>
 #include "BackgroundTask.h"
 
 namespace MEC

@@ -1,8 +1,8 @@
 #pragma once
 #include <list>
 #include "Event.h"
-#include "VideoClip.h"
-#include "AudioClip.h"
+#include "MediaCore/VideoClip.h"
+#include "MediaCore/AudioClip.h"
 #include "Logger.h"
 
 namespace MEC

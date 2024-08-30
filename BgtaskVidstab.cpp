@@ -7,10 +7,10 @@
 #include <cassert>
 #include <TimeUtils.h>
 #include <FileSystemUtils.h>
-#include <MediaParser.h>
-#include <VideoClip.h>
-#include <MediaEncoder.h>
-#include <FFUtils.h>
+#include <MediaCore/MediaParser.h>
+#include <MediaCore/VideoClip.h>
+#include <MediaCore/MediaEncoder.h>
+#include <MediaCore/FFUtils.h>
 #include <imgui.h>
 #include "BackgroundTask.h"
 #include "MediaTimeline.h"

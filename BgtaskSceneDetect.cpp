@@ -2,9 +2,9 @@
 #include <limits>
 #include <list>
 #include <TimeUtils.h>
-#include <MediaParser.h>
-#include <VideoClip.h>
-#include <FFUtils.h>
+#include <MediaCore/MediaParser.h>
+#include <MediaCore/VideoClip.h>
+#include <MediaCore/FFUtils.h>
 #include "BackgroundTask.h"
 #include "MediaTimeline.h"
 extern "C"

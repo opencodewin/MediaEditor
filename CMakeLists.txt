@@ -57,6 +57,20 @@ option(BUILD_TEST  "Build Test Application" ON)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(MacroLogFeature)
 
+set(EXTRA_DEPENDENCE_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/include)
+if(APPLE)
+    if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|aarch64)")
+        set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Mac_ARM)
+    else()
+        set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Mac_X86)
+    endif()
+elseif(WIN32)
+    set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Win32)
+else()
+    set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Linux)
+endif()
+
+
 find_package(PkgConfig REQUIRED)
 
 set(IMGUI_ICONS ON CACHE BOOL "Enable Internal Icons Build by Force" FORCE)
@@ -95,33 +109,7 @@ include_directories(
     ${PROJECT_BINARY_DIR}
 )
 
-add_subdirectory(blueprintsdk)
-set_target_properties(
-    BluePrintSDK
-    PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
-)
-
-include_directories(
-    ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
-)
-
-# >>> include MediaCore as dependency
 if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-set(BUILD_DEPENDENCY_IMGUI OFF)
-option(BUILD_MEDIACORE_TEST              "Build MediaCore test" OFF)
-if (BUILD_MEDIACORE_TEST)
-set(IMGUI_SRC_PATH ${CMAKE_SOURCE_DIR}/imgui)
-endif()
-add_subdirectory(MediaCore)
-set_target_properties(
-    MediaCore
-    PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
-)
-# <<<
 
 # Basics
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
@@ -131,7 +119,7 @@ pkg_search_module(SDL2 REQUIRED sdl2)
 macro_log_feature(SDL2_FOUND "SDL2" "Simple DirectMedia Layer framework" "https://www.libsdl.org" TRUE)
 
 #
-# FFMPEG
+# FFMPEG/LibASS
 #
 if(PKG_CONFIG_FOUND)
     pkg_check_modules(
@@ -145,8 +133,14 @@ if(PKG_CONFIG_FOUND)
         libavdevice
     )
     macro_log_feature(FFMPEG_FOUND "FFMpeg" "Multimedia framework" "https://ffmpeg.org" TRUE)
-endif(PKG_CONFIG_FOUND)
 
+    pkg_check_modules(
+        LIBASS REQUIRED IMPORTED_TARGET
+        libass
+    )
+
+    pkg_search_module(FONTCONFIG REQUIRED fontconfig)
+endif(PKG_CONFIG_FOUND)
 macro_display_feature_log()
 
 option(UI_PERFORMANCE_ANALYSIS "Enable time analysis code to monitor UI actions." OFF)
@@ -201,7 +195,7 @@ add_executable(
 target_include_directories(
     ${MEDIA_EDITOR_BINARY} PRIVATE
     ${SDL2_INCLUDE_DIRS}
-    ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
+    ${EXTRA_DEPENDENCE_INCLUDE_PATH}
     ${MEDIACORE_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
 )
@@ -214,11 +208,15 @@ set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
+    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
+    BluePrintSDK
+    MediaCore
     ${IMGUI_LIBRARYS}
     ImMaskCreator
-    ${MEDIACORE_LIBRARYS}
     Threads::Threads
+    PkgConfig::FFMPEG
+    PkgConfig::LIBASS
+    ${FONTCONFIG_LIBRARIES}
 )
 
 # set the Info.plist file
@@ -300,11 +298,15 @@ add_executable(
 )
 target_link_libraries(
     media_player_test
-    ${MEDIACORE_LIBRARYS}
+    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
+    MediaCore
+    BaseUtils
     ${IMGUI_LIBRARYS}
+    PkgConfig::FFMPEG
 )
 target_include_directories(
     media_player_test PRIVATE
+    ${EXTRA_DEPENDENCE_INCLUDE_PATH}
     ${SDL2_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -333,6 +335,8 @@ if(VKSHADER_VULKAN_BENCHMARK)
     add_definitions(-DVULKAN_SHADER_BENCHMARK)
 endif(VKSHADER_VULKAN_BENCHMARK)
 
+include_directories(${EXTRA_DEPENDENCE_INCLUDE_PATH})
+
 add_subdirectory(plugin/nodes/media/SDLAudioRender)
 add_subdirectory(plugin/nodes/media/MatRGB2YUV)
 add_subdirectory(plugin/nodes/media/MatYUV2RGB)
@@ -351,7 +355,7 @@ add_subdirectory(plugin/nodes/media/ImageSource)
 add_subdirectory(plugin/nodes/media/WarpAffine)
 add_subdirectory(plugin/nodes/media/WarpPerspective)
 add_subdirectory(plugin/nodes/media/CustomVulkanShader)
-#filers
+##filers
 add_subdirectory(plugin/nodes/filters/ALM)
 add_subdirectory(plugin/nodes/filters/Bilateral)
 add_subdirectory(plugin/nodes/filters/Binary)
@@ -393,7 +397,7 @@ add_subdirectory(plugin/nodes/filters/Kuwahara)
 add_subdirectory(plugin/nodes/filters/Sketch)
 add_subdirectory(plugin/nodes/filters/Emboss)
 add_subdirectory(plugin/nodes/filters/Hatch)
-#transitions
+##transitions
 add_subdirectory(plugin/nodes/transitions/Alpha)
 add_subdirectory(plugin/nodes/transitions/BookFlip)
 add_subdirectory(plugin/nodes/transitions/Blur)
@@ -463,7 +467,7 @@ add_subdirectory(plugin/nodes/transitions/Wipe)
 add_subdirectory(plugin/nodes/transitions/ZoomInCircles)
 add_subdirectory(plugin/nodes/transitions/Luma)
 add_subdirectory(plugin/nodes/transitions/Dissolve)
-#effects
+##effects
 add_subdirectory(plugin/nodes/effects/Lighting)
 add_subdirectory(plugin/nodes/effects/Jitter)
 add_subdirectory(plugin/nodes/effects/Star)

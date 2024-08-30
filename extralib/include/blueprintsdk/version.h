@@ -1,0 +1,8 @@
+#pragma once
+#define IMGUI_BP_SDK_VERSION_MAJOR           1
+#define IMGUI_BP_SDK_VERSION_MINOR           23
+#define IMGUI_BP_SDK_VERSION_PATCH           2
+#define IMGUI_BP_SDK_VERSION_BUILD           240830
+#define IMGUI_BP_SDK_API_VERSION_MAJOR       1
+#define IMGUI_BP_SDK_API_VERSION_MINOR       2
+#define IMGUI_BP_SDK_API_VERSION_PATCH       1
