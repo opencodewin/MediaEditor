@@ -529,6 +529,13 @@ if(APPLE)
     install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
             DESTINATION "${resources_dir}/" COMPONENT Runtime)
 
+    # Install extra lib
+    file(GLOB_RECURSE EXTRALIBS ${EXTRA_DEPENDENCE_LIBRARY_PATH} "*.dylib")
+    foreach (file ${EXTRALIBS})
+        install(PROGRAMS  "${file}"
+            DESTINATION "${frameworks_dir}/" COMPONENT Runtime)
+    endforeach()
+
     # Install Plugins
     install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins"
             DESTINATION "${contents_dir}" COMPONENT Runtime)
