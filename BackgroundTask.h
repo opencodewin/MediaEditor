@@ -2,8 +2,8 @@
 #include <string>
 #include <memory>
 #include <imgui_json.h>
-#include <ThreadUtils.h>
-#include <Logger.h>
+#include <BaseUtils/ThreadUtils.h>
+#include <BaseUtils/Logger.h>
 #include <MediaCore/SharedSettings.h>
 #include <MediaCore/MediaParser.h>
 #include <MediaCore/TextureManager.h>

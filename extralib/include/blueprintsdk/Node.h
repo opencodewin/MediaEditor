@@ -2,9 +2,9 @@
 #include <blueprintsdk/BluePrint.h>
 #include <blueprintsdk/Pin.h>
 #include <blueprintsdk/Debug.h>
-#include <imgui_node_editor.h>
-#include <imgui_extra_widget.h>
-#include <imgui_curve.h>
+#include <imgui_addons/imgui_node_editor.h>
+#include <imgui_addons/imgui_extra_widget.h>
+#include <imgui_addons/imgui_curve.h>
 #include <inttypes.h>
 #include <DynObjectLoader.h>
 

@@ -1,6 +1,3 @@
-[submodule "imgui"]
-	path = imgui
-	url = git@github.com:opencodewin/imgui.git
 [submodule "plugin"]
 	path = plugin
 	url = git@github.com:opencodewin/plugin.git

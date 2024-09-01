@@ -57,7 +57,8 @@ option(BUILD_TEST  "Build Test Application" ON)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(MacroLogFeature)
 
-set(EXTRA_DEPENDENCE_INCLUDE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/include)
+set(EXTRA_DEPENDENCE_INCLUDE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/extralib/include")
+
 if(APPLE)
     if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|aarch64)")
         set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Mac_ARM)
@@ -70,7 +71,21 @@ else()
     set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Linux)
 endif()
 
-
+include_directories(
+    ${IMGUI_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${PROJECT_BINARY_DIR}
+    ${EXTRA_DEPENDENCE_INCLUDE_PATH}
+    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/imgui_addons
+    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/blueprintsdk
+    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader
+    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/effects
+    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/filters
+    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/scopes
+    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/transitions
+    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/internals
+)
+set(IMGUI_VULKAN_SHADER ON)
 find_package(PkgConfig REQUIRED)
 
 set(IMGUI_ICONS ON CACHE BOOL "Enable Internal Icons Build by Force" FORCE)
@@ -81,33 +96,8 @@ set_target_properties(
     LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
 )
-set_target_properties(
-    ImMaskCreator
-    PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
-)
-set_target_properties(
-    BaseUtils
-    PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
-)
 
-if(IMGUI_VULKAN_SHADER)
-set_target_properties(
-    VkShader
-    PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
-)
-endif()
-
-include_directories(
-    ${IMGUI_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${PROJECT_BINARY_DIR}
-)
+include_directories(${IMGUI_INCLUDE_DIRS})
 
 if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
@@ -195,8 +185,6 @@ add_executable(
 target_include_directories(
     ${MEDIA_EDITOR_BINARY} PRIVATE
     ${SDL2_INCLUDE_DIRS}
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}
-    ${MEDIACORE_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
@@ -213,6 +201,9 @@ target_link_libraries(
     MediaCore
     ${IMGUI_LIBRARYS}
     ImMaskCreator
+    imgui_addons
+    VkShader
+    BaseUtils
     Threads::Threads
     PkgConfig::FFMPEG
     PkgConfig::LIBASS
@@ -247,8 +238,6 @@ set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
-    ${MEDIACORE_LIBRARYS}
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
     ImMaskCreator
     Threads::Threads
@@ -288,6 +277,8 @@ if(DEV_BACKGROUND_TASK)
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE ENABLE_BACKGROUND_TASK)
 endif()
 
+include_directories(${EXTRA_DEPENDENCE_INCLUDE_PATH})
+
 if(BUILD_TEST)
 # MediaPlayer Test
 add_executable(
@@ -302,6 +293,7 @@ target_link_libraries(
     MediaCore
     BaseUtils
     ${IMGUI_LIBRARYS}
+    imgui_addons
     PkgConfig::FFMPEG
 )
 target_include_directories(
@@ -312,30 +304,22 @@ target_include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-#if(IMGUI_VULKAN_SHADER)
-#add_executable(
-#    transition_make
-#    test/TransitionMake.cpp
-#    plugin/nodes/transitions/Dissolve/Dissolve_vulkan.cpp
-#    ${IMGUI_APP_ENTRY_SRC}
-#)
-#target_link_libraries(
-#    transition_make
-#    ${IMGUI_LIBRARYS}
-#    ${SDL2_STATIC_LDFLAGS}
-#    ${SDL2_IMAGE_LIBRARY}
-#)
-#endif(IMGUI_VULKAN_SHADER)
-
 endif(BUILD_TEST)
 endif(IMGUI_APPS)
 
 ## build plugins
+set(EXTRA_DEPENDENCE_LIBRARYS
+    -L${CMAKE_BINARY_DIR}
+    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
+    -lBluePrintSDK
+    -limgui
+    -limgui_addons
+    -lVkShader
+)
+set(EXTRA_DEPENDENCE_PROJECT imgui)
 if(VKSHADER_VULKAN_BENCHMARK)
     add_definitions(-DVULKAN_SHADER_BENCHMARK)
 endif(VKSHADER_VULKAN_BENCHMARK)
-
-include_directories(${EXTRA_DEPENDENCE_INCLUDE_PATH})
 
 add_subdirectory(plugin/nodes/media/SDLAudioRender)
 add_subdirectory(plugin/nodes/media/MatRGB2YUV)

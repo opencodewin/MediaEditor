@@ -26,7 +26,7 @@
 #include "SharedSettings.h"
 #include "VideoTrack.h"
 #include "SubtitleTrack.h"
-#include "Logger.h"
+#include "BaseUtils/Logger.h"
 
 namespace MediaCore
 {

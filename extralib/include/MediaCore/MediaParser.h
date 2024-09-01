@@ -22,8 +22,8 @@
 #include <memory>
 #include "MediaCore.h"
 #include "MediaInfo.h"
-#include "FileSystemUtils.h"
-#include "Logger.h"
+#include "BaseUtils/FileSystemUtils.h"
+#include "BaseUtils/Logger.h"
 
 namespace MediaCore
 {

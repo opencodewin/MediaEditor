@@ -1,9 +1,9 @@
 #pragma once
 #include <imgui.h>
 #include <imgui_helper.h>
-#include <ImGuiFileDialog.h>
+#include <imgui_addons/ImGuiFileDialog.h>
 #include <dir_iterate.h>
-#include <imgui_node_editor.h>
+#include <imgui_addons/imgui_node_editor.h>
 #include <blueprintsdk/BluePrint.h>
 #include <blueprintsdk/Node.h>
 #include <blueprintsdk/Pin.h>

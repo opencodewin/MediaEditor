@@ -21,7 +21,7 @@
 #include <vector>
 #include "immat.h"
 #include "MediaParser.h"
-#include "Logger.h"
+#include "BaseUtils/Logger.h"
 #include "MediaCore.h"
 
 namespace MediaCore

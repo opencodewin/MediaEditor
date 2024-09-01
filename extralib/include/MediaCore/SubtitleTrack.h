@@ -21,7 +21,7 @@
 #include <memory>
 #include "MediaCore.h"
 #include "SubtitleClip.h"
-#include "Logger.h"
+#include "BaseUtils/Logger.h"
 
 namespace MediaCore
 {

@@ -23,7 +23,7 @@
 #include "MediaParser.h"
 #include "Overview.h"
 #include "TextureManager.h"
-#include "Logger.h"
+#include "BaseUtils/Logger.h"
 
 namespace MediaCore
 {

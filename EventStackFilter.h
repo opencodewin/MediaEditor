@@ -3,7 +3,7 @@
 #include "Event.h"
 #include "MediaCore/VideoClip.h"
 #include "MediaCore/AudioClip.h"
-#include "Logger.h"
+#include "BaseUtils/Logger.h"
 
 namespace MEC
 {

@@ -25,7 +25,7 @@
 #include "MediaData.h"
 #include "MediaParser.h"
 #include "HwaccelManager.h"
-#include "Logger.h"
+#include "BaseUtils/Logger.h"
 
 namespace MediaCore
 {

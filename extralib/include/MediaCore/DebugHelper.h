@@ -22,7 +22,7 @@
 #include <utility>
 #include <ostream>
 #include "MediaCore.h"
-#include "Logger.h"
+#include "BaseUtils/Logger.h"
 
 namespace MediaCore
 {

@@ -24,7 +24,7 @@
 #include "SharedSettings.h"
 #include "AudioClip.h"
 #include "AudioEffectFilter.h"
-#include "Logger.h"
+#include "BaseUtils/Logger.h"
 
 namespace MediaCore
 {

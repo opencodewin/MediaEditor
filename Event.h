@@ -5,9 +5,9 @@
 #include <ostream>
 #include <blueprintsdk/UI.h>
 #include <immat.h>
-#include <imgui_curve.h>
+#include <imgui_addons/imgui_curve.h>
 #include <imgui_json.h>
-#include <ImMaskCreator.h>
+#include <ImMaskCreator/ImMaskCreator.h>
 
 namespace MEC
 {

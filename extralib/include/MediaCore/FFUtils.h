@@ -23,9 +23,9 @@
 #include <imconfig.h>
 #include <immat.h>
 #if IMGUI_VULKAN_SHADER
-#include <ImVulkanShader.h>
-#include <ColorConvert_vulkan.h>
-#include <Resize_vulkan.h>
+#include <ImVulkanShader/ImVulkanShader.h>
+#include <ImVulkanShader/shader/internals/ColorConvert_vulkan.h>
+#include <ImVulkanShader/shader/internals/Resize_vulkan.h>
 #endif
 extern "C"
 {

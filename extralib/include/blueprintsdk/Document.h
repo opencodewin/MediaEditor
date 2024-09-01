@@ -1,6 +1,6 @@
 #pragma once
 #include <imgui.h>
-#include <imgui_node_editor.h>
+#include <imgui_addons/imgui_node_editor.h>
 #include <imgui_json.h>
 #include <blueprintsdk/BluePrint.h>
 #include <vector>

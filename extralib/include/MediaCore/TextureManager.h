@@ -8,9 +8,9 @@
 #include <ostream>
 #include "imgui.h"
 #include "immat.h"
-#include "MatUtilsVecTypeDef.h"
+#include "BaseUtils/MatUtilsVecTypeDef.h"
 #include "MediaCore.h"
-#include "Logger.h"
+#include "BaseUtils/Logger.h"
 
 namespace RenderUtils
 {

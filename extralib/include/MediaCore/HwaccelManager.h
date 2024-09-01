@@ -4,7 +4,7 @@
 #include <string>
 #include <memory>
 #include "MediaCore.h"
-#include "Logger.h"
+#include "BaseUtils/Logger.h"
 
 namespace MediaCore
 {

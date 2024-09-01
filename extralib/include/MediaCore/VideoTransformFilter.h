@@ -19,10 +19,10 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include <MatUtilsVecTypeDef.h>
-#include <ImNewCurve.h>
-#include <imgui_curve.h>
-#include <ImMaskCreator.h>
+#include <BaseUtils/MatUtilsVecTypeDef.h>
+#include <imgui_addons/ImNewCurve.h>
+#include <imgui_addons/imgui_curve.h>
+#include <ImMaskCreator/ImMaskCreator.h>
 #include <imgui_json.h>
 #include "SharedSettings.h"
 

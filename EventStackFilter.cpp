@@ -2,7 +2,7 @@
 #include <functional>
 #include <sstream>
 #include <MediaCore/VideoBlender.h>
-#include <MatMath.h>
+#include <ImMaskCreator/MatMath.h>
 #include "EventStackFilter.h"
 
 using namespace std;

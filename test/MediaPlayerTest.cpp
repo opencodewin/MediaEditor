@@ -1,15 +1,15 @@
 #include <imgui.h>
 #include <application.h>
 #include <imgui_helper.h>
-#include <ImGuiFileDialog.h>
-#include <imgui_extra_widget.h>
+#include <imgui_addons/ImGuiFileDialog.h>
+#include <imgui_addons/imgui_extra_widget.h>
 #include <imgui_fft.h>
 #include <iostream>
 #include <sstream>
 #include <fstream>
 #include <iomanip>
 #if IMGUI_VULKAN_SHADER
-#include <ImVulkanShader.h>
+#include <VulkanShader//ImVulkanShader.h>
 // #include <Lut3D.h>
 #endif
 #include "MediaCore/MediaReader.h"

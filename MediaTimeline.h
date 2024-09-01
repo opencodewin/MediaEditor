@@ -18,8 +18,8 @@
 #pragma once
 #include <imgui.h>
 #include <imgui_json.h>
-#include <imgui_extra_widget.h>
-#include <ImMaskCreator.h>
+#include <imgui_addons/imgui_extra_widget.h>
+#include <ImMaskCreator/ImMaskCreator.h>
 #include "MediaCore/Overview.h"
 #include "MediaCore/Snapshot.h"
 #include "MediaCore/MediaReader.h"

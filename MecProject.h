@@ -6,8 +6,8 @@
 #include <list>
 #include <vector>
 #include <imgui_json.h>
-#include <ThreadUtils.h>
-#include <Logger.h>
+#include <BaseUtils/ThreadUtils.h>
+#include <BaseUtils/Logger.h>
 #include <MediaCore/HwaccelManager.h>
 #include "BackgroundTask.h"
 

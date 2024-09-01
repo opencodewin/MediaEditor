@@ -18,8 +18,8 @@
 #pragma once
 #include <string>
 #include "imgui.h"
-#include "imgui_extra_widget.h"
-#include "imgui_curve.h"
+#include "imgui_addons/imgui_extra_widget.h"
+#include "imgui_addons/imgui_curve.h"
 
 namespace MediaCore
 {

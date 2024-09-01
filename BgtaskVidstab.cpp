@@ -5,8 +5,8 @@
 #include <vector>
 #include <cmath>
 #include <cassert>
-#include <TimeUtils.h>
-#include <FileSystemUtils.h>
+#include <BaseUtils/TimeUtils.h>
+#include <BaseUtils/FileSystemUtils.h>
 #include <MediaCore/MediaParser.h>
 #include <MediaCore/VideoClip.h>
 #include <MediaCore/MediaEncoder.h>
