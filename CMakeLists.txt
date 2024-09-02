@@ -225,9 +225,7 @@ add_executable(
 target_include_directories(
     ${MEDIA_EDITOR_BINARY} PRIVATE
     ${SDL2_INCLUDE_DIRS}
-    ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
-    ${MEDIACORE_INCLUDE_DIRS}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
 if (UI_PERFORMANCE_ANALYSIS)
@@ -235,12 +233,21 @@ target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE UI_PERFORMANCE_ANALYSI
 endif(UI_PERFORMANCE_ANALYSIS)
 #set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
+target_link_directories(${MEDIA_EDITOR_BINARY} PUBLIC ${EXTRA_DEPENDENCE_LIBRARY_PATH} PUBLIC ${EXTRA_DEPENDENCE_LIBRARY_PATH})
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
-    ${IMGUI_LIBRARYS}
+    MediaCore
+    BluePrintSDK
     ImMaskCreator
+    imgui_addons
+    VkShader
+    BaseUtils
+    ${IMGUI_LIBRARYS}
     Threads::Threads
+    PkgConfig::FFMPEG
+    PkgConfig::LIBASS
+    ${FONTCONFIG_LIBRARIES}
 )
 
 else() # this branch is for linux
@@ -591,6 +598,13 @@ elseif(WIN32)
     endmacro()
 
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
+    # Install extra lib
+    file(GLOB_RECURSE EXTRALIBS ${EXTRA_DEPENDENCE_LIBRARY_PATH} "*.dll")
+    foreach (dll ${EXTRALIBS})
+        file(COPY "${dll}" DESTINATION ${CMAKE_BINARY_DIR})
+    endforeach()
+    
+    # install app
     install( CODE "set(APPS \"${CMAKE_BINARY_DIR}/${MEDIA_EDITOR_BINARY}.exe\")" )
     install( CODE [[
         file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}")
@@ -600,7 +614,7 @@ elseif(WIN32)
             string (REGEX REPLACE "^.* => | \(.*\)" "" pruned ${line})
             string (STRIP ${pruned} dep_filename)
             if (IS_ABSOLUTE ${dep_filename})
-                string (REGEX MATCH "SYSTEM32|System32|WinSxS|MediaEditor" system_lib ${dep_filename})
+                string (REGEX MATCH "SYSTEM32|System32|system32|WinSxS|MediaEditor" system_lib ${dep_filename})
                 if ("${system_lib}" STREQUAL "")
                     set(dep_path "")
                     string (PREPEND dep_path "C:/msys64" ${dep_filename})
@@ -611,11 +625,12 @@ elseif(WIN32)
                         FILES ${dep_path}
                     )
                 endif()
-                string (REGEX MATCH "SYSTEM32|System32|WinSxS|mingw64" custom_lib ${dep_filename})
+                string (REGEX MATCH "SYSTEM32|System32|system32|WinSxS|mingw64" custom_lib ${dep_filename})
                 if ("${custom_lib}" STREQUAL "")
                     set(dep_path "")
                     #string (PREPEND dep_path "" ${dep_filename})
                     string (REPLACE "/c/" "C:/" dep_path ${dep_filename})
+                    string (REPLACE "/d/" "D:/" dep_path ${dep_filename})
                     message("Link librarys: " ${dep_path})
                     file(INSTALL 
                         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" 

@@ -17,6 +17,9 @@
 
 #pragma once
 #ifdef _WIN32
+#ifndef MEDIACORE_SHARED
+#define MEDIACORE_SHARED 1
+#endif
 #if MEDIACORE_SHARED
 #define MEDIACORE_API __declspec( dllexport )
 #else

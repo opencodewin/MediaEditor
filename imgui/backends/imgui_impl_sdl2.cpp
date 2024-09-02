@@ -206,7 +206,8 @@ static void ImGui_ImplSDL2_PlatformSetImeData(ImGuiContext*, ImGuiViewport* view
         r.h = (int)data->InputLineHeight;
         SDL_SetTextInputRect(&r);
 #ifdef _WIN32
-        SDL_Window* window = (SDL_Window*)viewport->PlatformHandle;
+        Uint32 windowID = (Uint32)(intptr_t)(viewport->PlatformHandle);
+        SDL_Window* window = SDL_GetWindowFromID(windowID);
         if (window)
         {
             SDL_SysWMinfo wmInfo;

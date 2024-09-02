@@ -307,7 +307,7 @@ struct ImVec2
 // add by Dicky
 struct ImMat4x4;
 // A Vec3, Matrix 3x3, Dot & Cross products, A Quaternion.  Some helper functions, bare minimum
-struct ImVec3
+struct IMGUI_API ImVec3
 {
     float                                   x, y, z;
     ImVec3()                                : x(0.0f), y(0.0f), z(0.0f) { }
@@ -321,7 +321,7 @@ struct ImVec3
 // add by Dicky end
 
 // ImVec4: 4D vector used to store clipping rectangles, colors etc. [Compile-time configurable type]
-struct ImVec4
+struct IMGUI_API ImVec4
 {
     float                                                     x, y, z, w;
     constexpr ImVec4()                                        : x(0.0f), y(0.0f), z(0.0f), w(0.0f) { }
@@ -335,7 +335,7 @@ struct ImVec4
 
 // add by Dicky
 // Matrix used to allow user to specify axis orientation
-struct ImMat3x3
+struct IMGUI_API ImMat3x3
 {
     float m[3][3];
     ImMat3x3()
@@ -363,7 +363,7 @@ struct ImMat3x3
     }
 };
 
-struct ImMat4x4
+struct IMGUI_API ImMat4x4
 {
     union
     {
@@ -494,7 +494,7 @@ struct ImMat4x4
     }
 };
 
-struct Vertex {
+struct IMGUI_API Vertex {
     // Attributes
     /** Vertex position */
     ImVec3 position {0.f, 0.f, 0.f};
