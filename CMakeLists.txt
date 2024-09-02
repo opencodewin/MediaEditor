@@ -269,13 +269,20 @@ endif(UI_PERFORMANCE_ANALYSIS)
 #set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
-    ${MEDIA_EDITOR_BINARY} 
+    ${MEDIA_EDITOR_BINARY}
     LINK_PRIVATE
+    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
+    BluePrintSDK
     MediaCore
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    ${IMGUI_LIBRARYS}
     ImMaskCreator
+    imgui_addons
+    VkShader
+    BaseUtils
+    ${IMGUI_LIBRARYS}
     Threads::Threads
+    PkgConfig::FFMPEG
+    PkgConfig::LIBASS
+    ${FONTCONFIG_LIBRARIES}
 )
 endif(APPLE)
 
