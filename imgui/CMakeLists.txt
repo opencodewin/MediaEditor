@@ -965,6 +965,20 @@ set(IMGUI_INC_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/misc/freetype
 )
 
+# imgui_vk_shader
+if(IMGUI_VULKAN_SHADER)
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+    add_subdirectory(misc/imgui_vkshader)
+    set(IMGUI_INC_DIRS
+        ${IMGUI_INC_DIRS}
+        ${VKSHADER_INCLUDE_DIRS}
+    )
+    set(LINK_LIBS
+        ${LINK_LIBS}
+        ${VKSHADER_LIBRARYS}
+    )
+endif(IMGUI_VULKAN_SHADER)
+
 include_directories(${IMGUI_INC_DIRS})
 
 # ZLib

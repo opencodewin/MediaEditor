@@ -26,10 +26,10 @@
 #include <imgui_addons/ImGuiTabWindow.h>
 #include <ImMaskCreator/ImMaskCreator.h>
 #if IMGUI_VULKAN_SHADER
-#include <ImVulkanShader/shader/scopes/Histogram_vulkan.h>
-#include <ImVulkanShader/shader/scopes/Waveform_vulkan.h>
-#include <ImVulkanShader/shader/scopes/CIE_vulkan.h>
-#include <ImVulkanShader/shader/scopes/Vector_vulkan.h>
+#include <Histogram_vulkan.h>
+#include <Waveform_vulkan.h>
+#include <CIE_vulkan.h>
+#include <Vector_vulkan.h>
 #endif
 #include <BaseUtils/FileSystemUtils.h>
 #include <BaseUtils/ThreadUtils.h>
