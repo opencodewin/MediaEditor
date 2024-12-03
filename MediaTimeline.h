@@ -29,7 +29,7 @@
 #include "MediaCore/MediaEncoder.h"
 #include "MediaCore/AudioRender.h"
 #include "MediaCore/SubtitleTrack.h"
-#include "blueprintsdk/UI.h"
+#include "UI.h"
 #include "MecProject.h"
 #include "Event.h"
 #include "EventStackFilter.h"

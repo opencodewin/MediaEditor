@@ -804,6 +804,13 @@ bool ImGui::SmallButton(const char* label)
     return pressed;
 }
 
+// add by Dicky
+void ImGui::SeparatorV() 
+{ 
+    SeparatorEx(ImGuiSeparatorFlags_Vertical, 1.0f, GetColorU32(ImGuiCol_Separator));
+} 
+// add by Dicky end
+
 // Tip: use ImGui::PushID()/PopID() to push indices or pointers in the ID stack.
 // Then you can keep 'str_id' empty or the same for all your buttons (instead of creating a string based on a non-string id)
 bool ImGui::InvisibleButton(const char* str_id, const ImVec2& size_arg, ImGuiButtonFlags flags)
@@ -1596,7 +1603,7 @@ void ImGui::AlignTextToFramePadding()
 // Horizontal/vertical separating line
 // FIXME: Surprisingly, this seemingly trivial widget is a victim of many different legacy/tricky layout issues.
 // Note how thickness == 1.0f is handled specifically as not moving CursorPos by 'thickness', but other values are.
-void ImGui::SeparatorEx(ImGuiSeparatorFlags flags, float thickness)
+void ImGui::SeparatorEx(ImGuiSeparatorFlags flags, float thickness, ImU32 color) // modify by Dicky
 {
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
@@ -1617,7 +1624,7 @@ void ImGui::SeparatorEx(ImGuiSeparatorFlags flags, float thickness)
             return;
 
         // Draw
-        window->DrawList->AddRectFilled(bb.Min, bb.Max, GetColorU32(ImGuiCol_Separator));
+        window->DrawList->AddRectFilled(bb.Min, bb.Max, color);
         if (g.LogEnabled)
             LogText(" |");
     }
@@ -1647,7 +1654,7 @@ void ImGui::SeparatorEx(ImGuiSeparatorFlags flags, float thickness)
         if (ItemAdd(bb, 0))
         {
             // Draw
-            window->DrawList->AddRectFilled(bb.Min, bb.Max, GetColorU32(ImGuiCol_Separator));
+            window->DrawList->AddRectFilled(bb.Min, bb.Max, color);
             if (g.LogEnabled)
                 LogRenderedText(&bb.Min, "--------------------------------\n");
 

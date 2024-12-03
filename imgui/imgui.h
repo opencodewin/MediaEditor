@@ -771,6 +771,10 @@ namespace ImGui
     IMGUI_API bool          TextLink(const char* label);                                    // hyperlink text button, return true when clicked
     IMGUI_API void          TextLinkOpenURL(const char* label, const char* url = NULL);     // hyperlink text button, automatically open file/url when clicked
 
+    // add by Dicky
+    IMGUI_API void          SeparatorV();  // vertical separator
+    // add by Dicky end
+
     // Widgets: Images
     // - Read about ImTextureID here: https://github.com/ocornut/imgui/wiki/Image-Loading-and-Displaying-Examples
     // - 'uv0' and 'uv1' are texture coordinates. Read about them from the same link above.

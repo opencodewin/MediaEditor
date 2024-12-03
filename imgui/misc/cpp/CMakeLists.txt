@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12.0)
-project(MediaEditor)
+project(MediaAIProject)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_INCLUDE_CURRENTDIR ON)
@@ -47,45 +47,20 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s USE_SDL=2  -s USE_GLFW=3 -s USE_WEBGPU=1 
 endif (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
 if(APPLE)
+#add_link_options(-ld_classic)
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath -Wl,/usr/local/lib -Wl,-no_warn_duplicate_libraries")
 SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-rpath -Wl,/usr/local/lib -Wl,-no_warn_duplicate_libraries")
 endif(APPLE)
 
-option(BUILD_TEST  "Build Test Application" ON)
+set(APP_TYPE MediaEditor CACHE STRING "Build Application Type")
+set_property(CACHE APP_TYPE PROPERTY STRINGS 
+    MediaUpscale MediaEditor MediaInpaint
+)
 
 # Find the cmake modules
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(MacroLogFeature)
 
-set(EXTRA_DEPENDENCE_INCLUDE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/extralib/include")
-
-if(APPLE)
-    if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|aarch64)")
-        set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Mac_ARM)
-    else()
-        set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Mac_X86)
-    endif()
-elseif(WIN32)
-    set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Win32)
-else()
-    set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Linux)
-endif()
-
-include_directories(
-    ${IMGUI_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${PROJECT_BINARY_DIR}
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/imgui_addons
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/blueprintsdk
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/effects
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/filters
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/scopes
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/transitions
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/internals
-)
-set(IMGUI_VULKAN_SHADER ON)
 find_package(PkgConfig REQUIRED)
 
 set(IMGUI_ICONS ON CACHE BOOL "Enable Internal Icons Build by Force" FORCE)
@@ -97,7 +72,35 @@ set_target_properties(
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
 )
 
-include_directories(${IMGUI_INCLUDE_DIRS})
+include_directories(
+    ${IMGUI_INCLUDE_DIRS}
+)
+
+add_subdirectory(imgui_addon)
+set_target_properties(
+    imgui_addons
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
+
+include_directories(
+    ${IMGUI_ADDONS_INCLUDE_DIRS}
+)
+
+if(IMGUI_VULKAN_SHADER)
+set_target_properties(
+    VkShader
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
+endif()
+
+include_directories(
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${PROJECT_BINARY_DIR}
+)
 
 add_subdirectory(blueprintsdk)
 set_target_properties(
@@ -112,6 +115,88 @@ include_directories(
 )
 
 if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+option(BUILD_MEDIACORE_TEST              "Build MediaCore test" OFF)
+add_subdirectory(MediaCore)
+set_target_properties(
+    MediaCore
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
+set(LINK_LIBS)
+
+## Base librarys
+if (${APP_TYPE} MATCHES "MediaUpscale")
+if(APPLE OR WIN32)
+set(NCNN_SYSTEM_GLSLANG OFF CACHE BOOL "Build with internal glslang by Force" FORCE)
+else()
+set(NCNN_SYSTEM_GLSLANG ON CACHE BOOL "Build with internal glslang by Force" FORCE)
+endif(APPLE OR WIN32)
+set(NCNN_SHARED_LIB ON CACHE BOOL "Build ncnn as shared library by Force" FORCE)
+set(NCNN_INSTALL_SDK OFF CACHE BOOL "Skip ncnn sdk install by Force" FORCE)
+add_subdirectory(ncnn)
+set_target_properties(
+    ncnn
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
+include_directories(${NCNN_INCLUDE_DIRS})
+
+## build ncnn conponents
+add_subdirectory(ncnn_components/RealSR)
+include_directories(
+    ${REALSR_INCLUDE_DIRS}
+)
+
+add_subdirectory(ncnn_components/FaceDetection)
+include_directories(
+    ${FACEDETECTION_INCLUDE_DIRS}
+)
+
+add_subdirectory(ncnn_components/CodeFormer)
+include_directories(
+    ${CODEFORMER_INCLUDE_DIRS}
+)
+elseif(${APP_TYPE} MATCHES "MediaInpaint")
+if(APPLE OR WIN32)
+set(NCNN_SYSTEM_GLSLANG OFF CACHE BOOL "Build with internal glslang by Force" FORCE)
+else()
+set(NCNN_SYSTEM_GLSLANG ON CACHE BOOL "Build with internal glslang by Force" FORCE)
+endif(APPLE OR WIN32)
+set(NCNN_SHARED_LIB ON CACHE BOOL "Build ncnn as shared library by Force" FORCE)
+set(NCNN_INSTALL_SDK OFF CACHE BOOL "Skip ncnn sdk install by Force" FORCE)
+add_subdirectory(ncnn)
+set_target_properties(
+    ncnn
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
+include_directories(${NCNN_INCLUDE_DIRS})
+
+add_subdirectory(ncnn_components/SegmentAnything)
+include_directories(
+    ${SEGMENTANYTHING_INCLUDE_DIRS}
+)
+
+add_subdirectory(ncnn_components/Inpainting)
+include_directories(
+    ${INPAINTING_INCLUDE_DIRS}
+)
+
+add_subdirectory(ncnn_components/NanoTrack)
+include_directories(
+    ${NANOTRACK_INCLUDE_DIRS}
+)
+
+set(LINK_LIBS
+    ${LINK_LIBS}
+    ${INPAINTING_LIBRARYS}
+    ${SEGMENTANYTHING_LIBRARYS}
+    ${NANOTRACK_LIBRARYS}
+)
+endif()
 
 # Basics
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
@@ -121,7 +206,7 @@ pkg_search_module(SDL2 REQUIRED sdl2)
 macro_log_feature(SDL2_FOUND "SDL2" "Simple DirectMedia Layer framework" "https://www.libsdl.org" TRUE)
 
 #
-# FFMPEG/LibASS
+# FFMPEG
 #
 if(PKG_CONFIG_FOUND)
     pkg_check_modules(
@@ -135,255 +220,355 @@ if(PKG_CONFIG_FOUND)
         libavdevice
     )
     macro_log_feature(FFMPEG_FOUND "FFMpeg" "Multimedia framework" "https://ffmpeg.org" TRUE)
-
-    pkg_check_modules(
-        LIBASS REQUIRED IMPORTED_TARGET
-        libass
-    )
-
-    pkg_search_module(FONTCONFIG REQUIRED fontconfig)
 endif(PKG_CONFIG_FOUND)
+
 macro_display_feature_log()
+
+message("**********************************************************\n          MeAI application: " ${APP_TYPE} "\n**********************************************************\n")
 
 option(UI_PERFORMANCE_ANALYSIS "Enable time analysis code to monitor UI actions." OFF)
 add_compile_options(-Wno-ignored-attributes -Wno-inconsistent-dllimport -Wno-deprecated-declarations)
+
 #
 #  Application
 #
-set(MEDIA_EDITOR_BINARY "mec")
-set(MEDIA_EDITOR_SRCS
-    MediaEditor.cpp
-    MediaTimeline.cpp
-    MecProject.cpp
-    Event.cpp
-    EventStackFilter.cpp
-    MediaPlayer.cpp
-    BackgroundTask.cpp
-    BgtaskSceneDetect.cpp
-    BgtaskVidstab.cpp
-    VideoTransformFilterUiCtrl.cpp
+if (${APP_TYPE} MATCHES "MediaUpscale")
+set(APP_BINARY "MediaUpscale")
+set(APP_L "mu")
+set(APP_S ".mup")
+set(PLUGIN_FOLDER "mu")
+set(APP_VERSION_MAJOR 0)
+set(APP_VERSION_MINOR 0)
+set(APP_VERSION_PATCH 1)
+elseif(${APP_TYPE} MATCHES "MediaInpaint")
+set(APP_BINARY "MediaInpaint")
+set(APP_L "mi")
+set(APP_S ".mip")
+set(PLUGIN_FOLDER "mi")
+set(APP_VERSION_MAJOR 0)
+set(APP_VERSION_MINOR 0)
+set(APP_VERSION_PATCH 1)
+elseif(${APP_TYPE} MATCHES "MediaEditor")
+set(APP_BINARY "MediaEditor")
+set(APP_L "me")
+set(APP_S ".mep")
+set(PLUGIN_FOLDER "me")
+set(APP_VERSION_MAJOR 1)
+set(APP_VERSION_MINOR 0)
+set(APP_VERSION_PATCH 0)
+endif()
+
+set(BASE_SRCS
+    MediaEngine/Engine.cpp
+    MediaEngine/Overlap.cpp
+    MediaEngine/Track.cpp
+    MediaEngine/Event.cpp
+    MediaEngine/EventTrack.cpp
+    MediaEngine/EventStack.cpp
+    MediaEngine/Clip.cpp
+    MediaEngine/Video_Clip.cpp
+    MediaEngine/Audio_Clip.cpp
+    MediaEngine/Text_Clip.cpp
+    MediaEngine/VideoTransition.cpp
+    MediaEngine/AudioTransition.cpp
+    MediaEngine/EditingClip.cpp
+    MediaEngine/EditingOverlap.cpp
+    MediaEngine/EditingItem.cpp
+    MediaEngine/VideoTransformFilterUiCtrl.cpp
+    MediaEngine/BackgroundTask.cpp
+    MediaEngine/BgtaskVidstab.cpp
+    MediaEngine/BgtaskSceneDetect.cpp
+    MediaEngine/Item.cpp
+    MediaEngine/Player.cpp
+    MediaEngine/Project.cpp
+    MediaEngine/MediaUtils.cpp
+)
+
+set(BASE_INCS
+    MediaEngine/Engine.h
+    MediaEngine/Overlap.h
+    MediaEngine/Track.h
+    MediaEngine/Event.h
+    MediaEngine/EventTrack.h
+    MediaEngine/EventStack.h
+    MediaEngine/Clip.h
+    MediaEngine/Video_Clip.h
+    MediaEngine/Audio_Clip.h
+    MediaEngine/Text_Clip.h
+    MediaEngine/VideoTransition.h
+    MediaEngine/AudioTransition.h
+    MediaEngine/EditingClip.h
+    MediaEngine/EditingOverlap.h
+    MediaEngine/EditingItem.h
+    MediaEngine/VideoTransformFilterUiCtrl.h
+    MediaEngine/BackgroundTask.h
+    MediaEngine/Item.h
+    MediaEngine/Player.h
+    MediaEngine/Project.h
+    MediaEngine/IDGenerator.h
+    MediaEngine/MediaUtils.h
+)
+
+if (${APP_TYPE} MATCHES "MediaUpscale")
+set(APP_SRCS
+    MediaUpscale.cpp
+    SingleClipTimeline.cpp
+    MediaOutputView.cpp
+    Resources.cpp
+    ${BASE_SRCS}
     ${IMGUI_APP_ENTRY_SRC}
 )
-
-set(MEDIA_EDITOR_INCS
-    MediaTimeline.h
+set(APP_INCS
+    SingleClipTimeline.h
+    MediaOutputView.h
+    ${BASE_INCS}
 )
+elseif (${APP_TYPE} MATCHES "MediaInpaint")
+set(APP_SRCS
+    MediaInpaint.cpp
+    SingleClipTimeline.cpp
+    MediaOutputView.cpp
+    Resources.cpp
+    ${BASE_SRCS}
+    ${IMGUI_APP_ENTRY_SRC}
+)
+set(APP_INCS
+    SingleClipTimeline.h
+    MediaOutputView.h
+    ${BASE_INCS}
+)
+elseif(${APP_TYPE} MATCHES "MediaEditor")
+set(APP_SRCS
+    MediaEditor.cpp
+    MainTimeline.cpp
+    MediaBankView.cpp
+    MediaOutputView.cpp
+    MediaPreviewView.cpp
+    AudioMixingView.cpp
+    EditingClipView.cpp
+    EditingTransitionView.cpp
+    EditingTextView.cpp
+    ClipTimeline.cpp
+    OverlapTimeLine.cpp
+    Resources.cpp
+    ${BASE_SRCS}
+    ${IMGUI_APP_ENTRY_SRC}
+)
+set(APP_INCS
+    MainTimeline.h
+    MediaBankView.h
+    MediaOutputView.h
+    MediaPreviewView.h
+    AudioMixingView.h
+    EditingClipView.h
+    EditingTransitionView.h
+    EditingTextView.h
+    ClipTimeline.h
+    OverlapTimeLine.h
+    ${BASE_INCS}
+)
+endif()
 
-set(MEDIAEDITOR_VERSION_MAJOR 0)
-set(MEDIAEDITOR_VERSION_MINOR 9)
-set(MEDIAEDITOR_VERSION_PATCH 9)
-string(TIMESTAMP MEDIAEDITOR_VERSION_BUILD "%y%m%d")
-set(MEDIAEDITOR_VERSION_STRING ${MEDIAEDITOR_VERSION_MAJOR}.${MEDIAEDITOR_VERSION_MINOR}.${MEDIAEDITOR_VERSION_PATCH})
-add_definitions(-DMEDIAEDITOR_VERSION_MAJOR=${MEDIAEDITOR_VERSION_MAJOR})
-add_definitions(-DMEDIAEDITOR_VERSION_MINOR=${MEDIAEDITOR_VERSION_MINOR})
-add_definitions(-DMEDIAEDITOR_VERSION_PATCH=${MEDIAEDITOR_VERSION_PATCH})
-add_definitions(-DMEDIAEDITOR_VERSION_BUILD=${MEDIAEDITOR_VERSION_BUILD})
+include_directories(${CMAKE_SOURCE_DIR}/MediaEngine)
+
+if(${APP_TYPE} MATCHES "MediaEditor")
+set(APP_VERSION_BUILD "-4")
+elseif (${APP_TYPE} MATCHES "MediaUpscale")
+string(TIMESTAMP APP_VERSION_BUILD "%y%m%d")
+elseif (${APP_TYPE} MATCHES "MediaInpaint")
+string(TIMESTAMP APP_VERSION_BUILD "%y%m%d")
+endif()
+
+set(APP_VERSION_STRING ${APP_VERSION_MAJOR}.${APP_VERSION_MINOR}.${APP_VERSION_PATCH})
+add_definitions(-DAPP_VERSION_MAJOR=${APP_VERSION_MAJOR})
+add_definitions(-DAPP_VERSION_MINOR=${APP_VERSION_MINOR})
+add_definitions(-DAPP_VERSION_PATCH=${APP_VERSION_PATCH})
+add_definitions(-DAPP_VERSION_BUILD=${APP_VERSION_BUILD})
 
 if (IMGUI_APPS)
 if(APPLE)
-set(MACOSX_BUNDLE_ICON mec_logo.icns)
-set(MACOSX_BUNDLE_ICON_FILE ${CMAKE_SOURCE_DIR}/resources/${MACOSX_BUNDLE_ICON})
+set(MACOSX_BUNDLE_ICON_FILE ${CMAKE_SOURCE_DIR}/resources/logo_${APP_L}.icns)
 # set where in the bundle to put the icns file
 set_source_files_properties(${MACOSX_BUNDLE_ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 #if we need run on MacOS before 12.0, then uncomment following code, but not guarantee it's working
 #set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0") 
 add_executable(
-    ${MEDIA_EDITOR_BINARY}
+    ${APP_BINARY}
     MACOSX_BUNDLE
-    ${MEDIA_EDITOR_SRCS}
-    ${MEDIA_EDITOR_INCS}
+    ${APP_SRCS}
+    ${APP_INCS}
     ${MACOSX_BUNDLE_ICON_FILE}
 )
 target_include_directories(
-    ${MEDIA_EDITOR_BINARY} PRIVATE
+    ${APP_BINARY} PRIVATE
     ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
+    ${MEDIACORE_INCLUDE_DIRS}
+    ${NCNN_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
 )
-target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
+
+target_compile_definitions(${APP_BINARY} PUBLIC APP_NAME="${APP_BINARY}" APP_SUFFIX="${APP_S}")
 if (UI_PERFORMANCE_ANALYSIS)
-target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE UI_PERFORMANCE_ANALYSIS=1)
+target_compile_definitions(${APP_BINARY} PRIVATE UI_PERFORMANCE_ANALYSIS=1)
 endif(UI_PERFORMANCE_ANALYSIS)
 
-set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
+set_property(TARGET ${APP_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
-    ${MEDIA_EDITOR_BINARY} 
+    ${APP_BINARY} 
     LINK_PRIVATE
-    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    MediaCore
     ${IMGUI_LIBRARYS}
-    ImMaskCreator
-    imgui_addons
-    VkShader
-    BaseUtils
+    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
+    ${MEDIACORE_LIBRARYS}
+    ${LINK_LIBS}
+    ${NCNN_LIBRARYS}
     Threads::Threads
-    PkgConfig::FFMPEG
-    PkgConfig::LIBASS
-    ${FONTCONFIG_LIBRARIES}
 )
 
 # set the Info.plist file
-set(MACOSX_BUNDLE_PLIST_FILE ${CMAKE_SOURCE_DIR}/resources/Info.plist)
-set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${MACOSX_BUNDLE_PLIST_FILE})
-set_target_properties(${MEDIA_EDITOR_BINARY} PROPERTIES MACOSX_BUNDLE TRUE MACOSX_FRAMEWORK_IDENTIFIER com.Code-Win.${MEDIA_EDITOR_BINARY} RESOURCE "${RESOURCE_FILES}")
+set(MACOSX_BUNDLE_PLIST_FILE ${CMAKE_SOURCE_DIR}/resources/Info_${APP_L}.plist)
+set_target_properties(${APP_BINARY} PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${MACOSX_BUNDLE_PLIST_FILE})
+set_target_properties(${APP_BINARY} PROPERTIES MACOSX_BUNDLE TRUE MACOSX_FRAMEWORK_IDENTIFIER com.Code-Win.${APP_BINARY} RESOURCE "${RESOURCE_FILES}")
 
 elseif(WIN32)
 add_executable(
-    ${MEDIA_EDITOR_BINARY}
-    ${MEDIA_EDITOR_SRCS}
-    ${MEDIA_EDITOR_INCS}
-    ${CMAKE_SOURCE_DIR}/resources/logo.rc
+    ${APP_BINARY}
+    ${APP_SRCS}
+    ${APP_INCS}
+    ${CMAKE_SOURCE_DIR}/resources/logo_${APP_L}.rc
 )
 target_include_directories(
-    ${MEDIA_EDITOR_BINARY} PRIVATE
+    ${APP_BINARY} PRIVATE
     ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
+    ${NCNN_INCLUDE_DIRS}
+    ${MEDIACORE_INCLUDE_DIRS}
 )
-target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
+target_compile_definitions(${APP_BINARY} PUBLIC APP_NAME="${APP_BINARY}"  APP_SUFFIX="${APP_S}")
 if (UI_PERFORMANCE_ANALYSIS)
-target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE UI_PERFORMANCE_ANALYSIS=1)
+target_compile_definitions(${APP_BINARY} PRIVATE UI_PERFORMANCE_ANALYSIS=1)
 endif(UI_PERFORMANCE_ANALYSIS)
-#set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
-set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
-target_link_directories(${MEDIA_EDITOR_BINARY} PUBLIC ${EXTRA_DEPENDENCE_LIBRARY_PATH} PUBLIC ${EXTRA_DEPENDENCE_LIBRARY_PATH})
+#set_property(TARGET ${APP_BINARY} PROPERTY CXX_STANDARD 17)
+set_property(TARGET ${APP_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
-    ${MEDIA_EDITOR_BINARY} 
+    ${APP_BINARY} 
     LINK_PRIVATE
-    MediaCore
+    ${MEDIACORE_LIBRARYS}
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    ImMaskCreator
-    imgui_addons
-    VkShader
-    BaseUtils
     ${IMGUI_LIBRARYS}
+    ${LINK_LIBS}
+    ${NCNN_LIBRARYS}
     Threads::Threads
-    PkgConfig::FFMPEG
-    PkgConfig::LIBASS
-    ${FONTCONFIG_LIBRARIES}
 )
 
 else() # this branch is for linux
 add_executable(
-    ${MEDIA_EDITOR_BINARY}
-    ${MEDIA_EDITOR_SRCS}
-    ${MEDIA_EDITOR_INCS}
+    ${APP_BINARY}
+    ${APP_SRCS}
+    ${APP_INCS}
 )
 target_include_directories(
-    ${MEDIA_EDITOR_BINARY} PRIVATE
+    ${APP_BINARY} PRIVATE
     ${SDL2_INCLUDE_DIRS}
+    ${MEDIACORE_INCLUDE_DIRS}
     ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
+    ${NCNN_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
 )
-target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
+target_compile_definitions(${APP_BINARY} PUBLIC APP_NAME="${APP_BINARY}" APP_SUFFIX="${APP_S}")
 if (UI_PERFORMANCE_ANALYSIS)
-target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE UI_PERFORMANCE_ANALYSIS=1)
+target_compile_definitions(${APP_BINARY} PRIVATE UI_PERFORMANCE_ANALYSIS=1)
 endif(UI_PERFORMANCE_ANALYSIS)
-#set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
-set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
+#set_property(TARGET ${APP_BINARY} PROPERTY CXX_STANDARD 17)
+set_property(TARGET ${APP_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
-    ${MEDIA_EDITOR_BINARY}
+    ${APP_BINARY} 
     LINK_PRIVATE
-    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     MediaCore
-    ImMaskCreator
-    imgui_addons
-    VkShader
-    BaseUtils
+    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
+    ${LINK_LIBS}
+    ${NCNN_LIBRARYS}
     Threads::Threads
-    PkgConfig::FFMPEG
-    PkgConfig::LIBASS
-    ${FONTCONFIG_LIBRARIES}
 )
 endif(APPLE)
 
-option(DEV_BACKGROUND_TASK "Developping background task feature" ON)
+option(DEV_BACKGROUND_TASK "Developping background task feature" OFF)
 if(DEV_BACKGROUND_TASK)
-target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE ENABLE_BACKGROUND_TASK)
+target_compile_definitions(${APP_BINARY} PRIVATE ENABLE_BACKGROUND_TASK)
 endif()
-
-include_directories(${EXTRA_DEPENDENCE_INCLUDE_PATH})
-
-if(BUILD_TEST)
-# MediaPlayer Test
-add_executable(
-    media_player_test
-    test/MediaPlayerTest.cpp
-    test/Log.cpp
-    ${IMGUI_APP_ENTRY_SRC}
-)
-target_link_libraries(
-    media_player_test
-    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
-    MediaCore
-    BaseUtils
-    ${IMGUI_LIBRARYS}
-    imgui_addons
-    PkgConfig::FFMPEG
-)
-target_include_directories(
-    media_player_test PRIVATE
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}
-    ${SDL2_INCLUDE_DIRS}
-    ${IMGUI_INCLUDE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-endif(BUILD_TEST)
 endif(IMGUI_APPS)
 
 ## build plugins
 set(EXTRA_DEPENDENCE_LIBRARYS
     -L${CMAKE_BINARY_DIR}
-    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
     -lBluePrintSDK
     -limgui
     -limgui_addons
+)
+
+set(EXTRA_DEPENDENCE_PROJECT BluePrintSDK imgui imgui_addons)
+if(IMGUI_VULKAN_SHADER)
+set(EXTRA_DEPENDENCE_PROJECT
+    ${EXTRA_DEPENDENCE_PROJECT}
+    VkShader
+)
+set(EXTRA_DEPENDENCE_LIBRARYS
+    ${EXTRA_DEPENDENCE_LIBRARYS}
     -lVkShader
 )
-set(EXTRA_DEPENDENCE_PROJECT imgui BluePrintSDK)
+endif()
+
 if(VKSHADER_VULKAN_BENCHMARK)
     add_definitions(-DVULKAN_SHADER_BENCHMARK)
 endif(VKSHADER_VULKAN_BENCHMARK)
-
-add_subdirectory(plugin/nodes/filters/AudioEqualizer)
-add_subdirectory(plugin/nodes/filters/AudioGain)
-add_subdirectory(plugin/nodes/filters/AudioAecho)
-add_subdirectory(plugin/nodes/transitions/AudioFade)
 if(IMGUI_VULKAN_SHADER)
-##filers
+#filers common
 add_subdirectory(plugin/nodes/filters/ALM)
-add_subdirectory(plugin/nodes/filters/Bilateral)
-add_subdirectory(plugin/nodes/filters/Binary)
-add_subdirectory(plugin/nodes/filters/Box)
 add_subdirectory(plugin/nodes/filters/Brightness)
 add_subdirectory(plugin/nodes/filters/CAS)
-add_subdirectory(plugin/nodes/filters/Canny)
-add_subdirectory(plugin/nodes/filters/Chromakey)
-#add_subdirectory(plugin/nodes/filters/ColorBalance)
-#add_subdirectory(plugin/nodes/filters/ColorCurve)
-add_subdirectory(plugin/nodes/filters/ColorInvert)
+add_subdirectory(plugin/nodes/filters/ColorBalance)
+add_subdirectory(plugin/nodes/filters/ColorCurve)
 add_subdirectory(plugin/nodes/filters/Contrast)
 add_subdirectory(plugin/nodes/filters/Deband)
 add_subdirectory(plugin/nodes/filters/Deinterlace)
-add_subdirectory(plugin/nodes/filters/Dilation)
-add_subdirectory(plugin/nodes/filters/Erosion)
 add_subdirectory(plugin/nodes/filters/Exposure)
-add_subdirectory(plugin/nodes/filters/Flip)
 add_subdirectory(plugin/nodes/filters/Gamma)
 add_subdirectory(plugin/nodes/filters/GaussianBlur)
-add_subdirectory(plugin/nodes/filters/Guided)
 add_subdirectory(plugin/nodes/filters/HQDN3D)
 add_subdirectory(plugin/nodes/filters/Hue)
-add_subdirectory(plugin/nodes/filters/Laplacian)
 add_subdirectory(plugin/nodes/filters/Lut3D)
 add_subdirectory(plugin/nodes/filters/Saturation)
-add_subdirectory(plugin/nodes/filters/Sobel)
 add_subdirectory(plugin/nodes/filters/USM)
 add_subdirectory(plugin/nodes/filters/Vibrance)
 add_subdirectory(plugin/nodes/filters/Whitebalance)
 add_subdirectory(plugin/nodes/filters/SmartDenoise)
+endif(IMGUI_VULKAN_SHADER)
+
+if(${APP_TYPE} MATCHES "MediaEditor")
+add_subdirectory(plugin/nodes/filters/AudioEqualizer)
+add_subdirectory(plugin/nodes/filters/AudioGain)
+add_subdirectory(plugin/nodes/filters/AudioAecho)
+add_subdirectory(plugin/nodes/transitions/AudioFade)
+add_subdirectory(pluginex/nodes/scope/AudioVector)
+add_subdirectory(pluginex/nodes/scope/AudioFFT)
+add_subdirectory(pluginex/nodes/scope/AudioDecibel)
+add_subdirectory(pluginex/nodes/scope/AudioSpectorgram)
+if(IMGUI_VULKAN_SHADER)
+#filers
+add_subdirectory(plugin/nodes/filters/Bilateral)
+add_subdirectory(plugin/nodes/filters/Binary)
+add_subdirectory(plugin/nodes/filters/Box)
+add_subdirectory(plugin/nodes/filters/Canny)
+add_subdirectory(plugin/nodes/filters/Chromakey)
+add_subdirectory(plugin/nodes/filters/ColorInvert)
+add_subdirectory(plugin/nodes/filters/Dilation)
+add_subdirectory(plugin/nodes/filters/Erosion)
+add_subdirectory(plugin/nodes/filters/Flip)
+add_subdirectory(plugin/nodes/filters/Guided)
+add_subdirectory(plugin/nodes/filters/Laplacian)
+add_subdirectory(plugin/nodes/filters/Sobel)
 add_subdirectory(plugin/nodes/filters/Glass)
 add_subdirectory(plugin/nodes/filters/SmudgeBlur)
 add_subdirectory(plugin/nodes/filters/RadicalBlur)
@@ -394,7 +579,38 @@ add_subdirectory(plugin/nodes/filters/Kuwahara)
 add_subdirectory(plugin/nodes/filters/Sketch)
 add_subdirectory(plugin/nodes/filters/Emboss)
 add_subdirectory(plugin/nodes/filters/Hatch)
-##transitions
+#scope
+add_subdirectory(pluginex/nodes/scope/MatHistogram)
+add_subdirectory(pluginex/nodes/scope/MatVector)
+add_subdirectory(pluginex/nodes/scope/MatWaveform)
+add_subdirectory(pluginex/nodes/scope/MatCIE)
+add_subdirectory(pluginex/nodes/scope/HarrisCorner)
+#fisheye
+add_subdirectory(pluginex/nodes/fisheye/fish2sphere)
+add_subdirectory(pluginex/nodes/fisheye/fish2panorama)
+add_subdirectory(pluginex/nodes/fisheye/equidistance2orthographic)
+add_subdirectory(pluginex/nodes/fisheye/orthographic2equidistance)
+#media
+add_subdirectory(pluginex/nodes/media/CustomVulkanShader)
+add_subdirectory(pluginex/nodes/media/SDLAudioRender)
+add_subdirectory(pluginex/nodes/media/MatRGB2YUV)
+add_subdirectory(pluginex/nodes/media/MatYUV2RGB)
+add_subdirectory(pluginex/nodes/media/MatCrop)
+add_subdirectory(pluginex/nodes/media/MatResize)
+add_subdirectory(pluginex/nodes/media/MatExpand)
+add_subdirectory(pluginex/nodes/media/MatRender)
+add_subdirectory(pluginex/nodes/media/MediaSource)
+add_subdirectory(pluginex/nodes/media/MediaEncoder)
+add_subdirectory(pluginex/nodes/media/ImageSource)
+add_subdirectory(pluginex/nodes/media/WarpAffine)
+add_subdirectory(pluginex/nodes/media/WarpPerspective)
+add_subdirectory(pluginex/nodes/media/MatRGB2LAB)
+add_subdirectory(pluginex/nodes/media/MatLAB2RGB)
+add_subdirectory(pluginex/nodes/media/MatRGB2HSL)
+add_subdirectory(pluginex/nodes/media/MatHSL2RGB)
+add_subdirectory(pluginex/nodes/media/MatRGB2HSV)
+add_subdirectory(pluginex/nodes/media/MatHSV2RGB)
+#transitions
 add_subdirectory(plugin/nodes/transitions/Alpha)
 add_subdirectory(plugin/nodes/transitions/BookFlip)
 add_subdirectory(plugin/nodes/transitions/Blur)
@@ -464,7 +680,7 @@ add_subdirectory(plugin/nodes/transitions/Wipe)
 add_subdirectory(plugin/nodes/transitions/ZoomInCircles)
 add_subdirectory(plugin/nodes/transitions/Luma)
 add_subdirectory(plugin/nodes/transitions/Dissolve)
-##effects
+#effects
 add_subdirectory(plugin/nodes/effects/Lighting)
 add_subdirectory(plugin/nodes/effects/Jitter)
 add_subdirectory(plugin/nodes/effects/Star)
@@ -472,35 +688,53 @@ add_subdirectory(plugin/nodes/effects/Soul)
 add_subdirectory(plugin/nodes/effects/Sway)
 add_subdirectory(plugin/nodes/effects/WaterRipple)
 endif(IMGUI_VULKAN_SHADER)
+endif(${APP_TYPE} MATCHES "MediaEditor")
+
+if (${APP_TYPE} MATCHES "MediaUpscale")
+#upscaling
+add_subdirectory(pluginex/nodes/upscale/SimpleFast)
+add_subdirectory(pluginex/nodes/upscale/SimpleFaster)
+add_subdirectory(pluginex/nodes/upscale/General)
+add_subdirectory(pluginex/nodes/upscale/RefineSlower)
+add_subdirectory(pluginex/nodes/upscale/AnimeFaster)
+add_subdirectory(pluginex/nodes/upscale/AnimeGeneral)
+add_subdirectory(pluginex/nodes/upscale/AnimeSlower)
+#enhance
+add_subdirectory(pluginex/nodes/enhance/denoise)
+add_subdirectory(pluginex/nodes/enhance/denoise_iso)
+add_subdirectory(pluginex/nodes/enhance/refocus)
+add_subdirectory(pluginex/nodes/enhance/over_exposure)
+add_subdirectory(pluginex/nodes/enhance/under_exposure)
+endif()
 
 ### DEFINE THE PACKAGING (OS specific)
-set(CPACK_PACKAGE_NAME  ${MEDIA_EDITOR_BINARY})
+set(CPACK_PACKAGE_NAME  ${APP_BINARY})
 if (IMGUI_VULKAN)
     if (IMGUI_SDL2)
-        set(CPACK_PACKAGE_NAME  "MEC_SDL2_Vulkan")
+        set(CPACK_PACKAGE_NAME  "${APP_BINARY}_SDL2_Vulkan")
     elseif (IMGUI_GLFW)
-        set(CPACK_PACKAGE_NAME  "MEC_GLFW_Vulkan")
+        set(CPACK_PACKAGE_NAME  "${APP_BINARY}_GLFW_Vulkan")
     endif()
 elseif (IMGUI_GL3)
     if (IMGUI_SDL2)
-        set(CPACK_PACKAGE_NAME  "MEC_SDL2_OpenGL3")
+        set(CPACK_PACKAGE_NAME  "${APP_BINARY}_SDL2_OpenGL3")
     elseif (IMGUI_GLFW)
-        set(CPACK_PACKAGE_NAME  "MEC_GLFW_OpenGL3")
+        set(CPACK_PACKAGE_NAME  "${APP_BINARY}_GLFW_OpenGL3")
     endif()
 elseif (IMGUI_GL2)
     if (IMGUI_SDL2)
-        set(CPACK_PACKAGE_NAME  "MEC_SDL2_OpenGL2")
+        set(CPACK_PACKAGE_NAME  "${APP_BINARY}_SDL2_OpenGL2")
     elseif (IMGUI_GLFW)
-        set(CPACK_PACKAGE_NAME  "MEC_GLFW_OpenGL2")
+        set(CPACK_PACKAGE_NAME  "${APP_BINARY}_GLFW_OpenGL2")
     endif()
 endif()
-set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MEC installation.")
+set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/resources/LICENSE")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${APP_BINARY} installation.")
 set(CPACK_PACKAGE_VENDOR "CodeWin")
-set(CPACK_PACKAGE_VERSION ${MEDIAEDITOR_VERSION_STRING})
-set(CPACK_PACKAGE_VERSION_MAJOR ${MEDIAEDITOR_VERSION_MAJOR})
-set(CPACK_PACKAGE_VERSION_MINOR ${MEDIAEDITOR_VERSION_MINOR})
-set(CPACK_PACKAGE_VERSION_PATCH ${MEDIAEDITOR_VERSION_PATCH})
+set(CPACK_PACKAGE_VERSION ${APP_VERSION_STRING})
+set(CPACK_PACKAGE_VERSION_MAJOR ${APP_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${APP_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${APP_VERSION_PATCH})
 
 if(IMGUI_APPS)
 if(APPLE)
@@ -510,40 +744,37 @@ if(APPLE)
     #set(CPACK_GENERATOR DragNDrop)
     #set(CPACK_BINARY_DRAGNDROP ON)
     # OSX cpack info
-    install(TARGETS ${MEDIA_EDITOR_BINARY}
+    install(TARGETS ${APP_BINARY}
             CONFIGURATIONS Release MinSizeRel RelWithDebInfo Debug
             BUNDLE  DESTINATION . COMPONENT Runtime
             RUNTIME DESTINATION bin COMPONENT Runtime
     )
-    set(bindirs ${MEDIA_EDITOR_BINARY}.app/Contents/MacOS)
-    set(frameworks_dir ${MEDIA_EDITOR_BINARY}.app/Contents/Frameworks)
-    set(resources_dir ${MEDIA_EDITOR_BINARY}.app/Contents/Resources)
-    set(contents_dir ${MEDIA_EDITOR_BINARY}.app/Contents)
+    set(bindirs ${APP_BINARY}.app/Contents/MacOS)
+    set(frameworks_dir ${APP_BINARY}.app/Contents/Frameworks)
+    set(resources_dir ${APP_BINARY}.app/Contents/Resources)
+    set(contents_dir ${APP_BINARY}.app/Contents)
 
     # Install Resource File
-    install(DIRECTORY  "${PROJECT_SOURCE_DIR}/languages"
-            DESTINATION "${resources_dir}" COMPONENT Runtime)
-    install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
+    install(DIRECTORY  "${PROJECT_SOURCE_DIR}/languages/${APP_L}/"
+            DESTINATION "${resources_dir}/languages/"
+            COMPONENT Runtime
+            PATTERN "*.ini"
+            )
+    install(FILES  "${PROJECT_SOURCE_DIR}/resources/logo_${APP_L}.png"
             DESTINATION "${resources_dir}/" COMPONENT Runtime)
 
-    # Install extra lib
-    file(GLOB_RECURSE EXTRALIBS "${EXTRA_DEPENDENCE_LIBRARY_PATH}/*.dylib")
-    foreach (file ${EXTRALIBS})
-        install(PROGRAMS  "${file}"
-            DESTINATION "${frameworks_dir}/" COMPONENT Runtime)
-    endforeach()
-
     # Install Plugins
-    install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins"
-            DESTINATION "${contents_dir}" COMPONENT Runtime)
+    install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins/${PLUGIN_FOLDER}/"
+            DESTINATION "${contents_dir}/plugins/" COMPONENT Runtime)
 
     install(CODE "
-        set(APP_NAME ${MEDIA_EDITOR_BINARY})
-        set(FRAMEWORKS_PATH ${frameworks_dir})
-        ")
+            set(APP_NAME ${APP_BINARY})
+            set(PROJECT_PATH ${PROJECT_BINARY_DIR})
+            set(FRAMEWORKS_PATH ${frameworks_dir})
+            ")
     install(CODE [[
-        set(plugins_dir "${APP_NAME}.app/Contents/plugins")
-        file(GLOB_RECURSE PLUGINS ${plugins_dir} "*.node")
+        set(plugins_dir "${PROJECT_PATH}/${APP_NAME}.app/Contents/plugins")
+        file(GLOB_RECURSE PLUGINS "${plugins_dir}/*.node")
         set(APPS "${CMAKE_INSTALL_PREFIX}/${APP_NAME}.app")
         set(DIRS ${FRAMEWORKS_PATH})
         list (APPEND DIRS "/usr/local/lib/")
@@ -566,7 +797,7 @@ if(APPLE)
                 codesign -vvv --deep --force
                 --entitlements \"${APPLE_CODESIGN_ENTITLEMENTS}\"
                 --sign \"${APPLE_CODESIGN_IDENTITY}\"
-                \"${MEDIA_EDITOR_BINARY}.app\" )
+                \"${APP_BINARY}.app\" )
                 "
                 COMPONENT Runtime
         )
@@ -578,13 +809,13 @@ elseif(UNIX)
         include(../cmake/appimage.cmake)
         make_appimage(
             PROJECT_DIR \"${PROJECT_SOURCE_DIR}\"
-            EXE \"${MEDIA_EDITOR_BINARY}\"
-            NAME \"Media Editor Community\"
+            EXE \"${APP_BINARY}\"
+            NAME \"Media AI\"
             OUTPUT_NAME \"${CPACK_PACKAGE_NAME}-${CPACK_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}-${CPACK_PACKAGE_VERSION}\"
-            DESKTOP_SRC \"${PROJECT_SOURCE_DIR}/resources/mec.desktop\"
-            ICON_SRC \"${PROJECT_SOURCE_DIR}/resources/mec_logo.png\"
+            DESKTOP_SRC \"${PROJECT_SOURCE_DIR}/resources/${APP_L}.desktop\"
+            ICON_SRC \"${PROJECT_SOURCE_DIR}/resources/logo_${APP_L}.png\"
             RESOURCE_FILES \"${PROJECT_SOURCE_DIR}/languages\"
-            PLUGINS \"${PROJECT_BINARY_DIR}/plugins\"
+            PLUGINS \"${PROJECT_BINARY_DIR}/plugins/${PLUGIN_FOLDER}\"
         )
     " COMPONENT Runtime)
 elseif(WIN32)
@@ -603,15 +834,9 @@ elseif(WIN32)
         string (REPLACE ";" "\n" CPACK_NSIS_DELETE_ICONS_EXTRA "${CPACK_NSIS_DELETE_ICONS_EXTRA}")
     endmacro()
 
-    set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
-    # Install extra lib
-    file(GLOB_RECURSE EXTRALIBS ${EXTRA_DEPENDENCE_LIBRARY_PATH} "*.dll")
-    foreach (dll ${EXTRALIBS})
-        file(COPY "${dll}" DESTINATION ${CMAKE_BINARY_DIR})
-    endforeach()
-    
-    # install app
-    install( CODE "set(APPS \"${CMAKE_BINARY_DIR}/${MEDIA_EDITOR_BINARY}.exe\")" )
+    set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install_${APP_L}")
+    install( CODE "set(APPS \"${CMAKE_BINARY_DIR}/${APP_BINARY}.exe\")" )
+    install( CODE "set(APP_NAME \"${APP_BINARY}\")" )
     install( CODE [[
         file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}")
         execute_process(COMMAND ldd ${APPS} OUTPUT_VARIABLE ldd_out)
@@ -620,7 +845,7 @@ elseif(WIN32)
             string (REGEX REPLACE "^.* => | \(.*\)" "" pruned ${line})
             string (STRIP ${pruned} dep_filename)
             if (IS_ABSOLUTE ${dep_filename})
-                string (REGEX MATCH "SYSTEM32|System32|system32|WinSxS|MediaEditor" system_lib ${dep_filename})
+                string (REGEX MATCH "SYSTEM32|System32|system32|WinSxS|MeAI" system_lib ${dep_filename})
                 if ("${system_lib}" STREQUAL "")
                     set(dep_path "")
                     string (PREPEND dep_path "C:/msys64" ${dep_filename})
@@ -648,30 +873,36 @@ elseif(WIN32)
         endforeach()
     ]])
 
-    install(TARGETS ${MEDIA_EDITOR_BINARY}
+    install(TARGETS ${APP_BINARY}
             RUNTIME DESTINATION bin
             LIBRARY DESTINATION bin
             COMPONENT applications)
 
     # Install Resource File
-    install(DIRECTORY  "${PROJECT_SOURCE_DIR}/languages/"
+    install(DIRECTORY  "${PROJECT_SOURCE_DIR}/languages/${APP_L}"
             DESTINATION languages COMPONENT Resource)
-    install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
+    install(FILES  "${PROJECT_SOURCE_DIR}/resources/logo_${APP_L}.png"
             DESTINATION resources COMPONENT Resource)
     # Install Plugins
-    install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins/"
+    install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins/${PLUGIN_FOLDER}/"
             DESTINATION plugins COMPONENT Runtime)
+    
+    if(NOT ${APP_TYPE} MATCHES "MediaEditor")
+        # Install Plugin dependence
+        install(FILES  "${CMAKE_BINARY_DIR}/libncnn.dll"
+                DESTINATION bin COMPONENT Runtime)
+    endif()
 
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL OFF)
-    set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/mec_logo.ico")
-    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/mec_logo.ico")
-    set(CPACK_NSIS_INSTALLED_ICON_NAME bin\\\\${MEDIA_EDITOR_BINARY}.exe)
+    set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/logo_${APP_L}.ico")
+    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/logo_${APP_L}.ico")
+    set(CPACK_NSIS_INSTALLED_ICON_NAME bin\\\\${APP_BINARY}.exe)
     set(CPACK_NSIS_MODIFY_PATH OFF)
-    set(CPACK_PACKAGE_NAME ${MEDIA_EDITOR_BINARY})
-    set(CPACK_NSIS_DISPLAY_NAME ${MEDIA_EDITOR_BINARY})
-    set(CPACK_PACKAGE_INSTALL_DIRECTORY ${MEDIA_EDITOR_BINARY})
+    set(CPACK_PACKAGE_NAME ${APP_BINARY})
+    set(CPACK_NSIS_DISPLAY_NAME ${APP_BINARY})
+    set(CPACK_PACKAGE_INSTALL_DIRECTORY ${APP_BINARY})
     
-    prepareNSIS_Link("${MEDIA_EDITOR_BINARY}" "${MEDIA_EDITOR_BINARY}" "")
+    prepareNSIS_Link("${APP_BINARY}" "${APP_BINARY}" "")
 endif(APPLE)
 endif(IMGUI_APPS)
 
