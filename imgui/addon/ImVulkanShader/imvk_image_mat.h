@@ -198,7 +198,7 @@ inline VkImageMat& VkImageMat::operator=(const ImMat& m)
 
 inline void VkImageMat::allocate_buffer()
 {
-    size_t totalsize = Im_AlignSize(total() * elemsize, 4);
+    size_t totalsize = Im_AlignSize(total() * elemsize, IM_CSTEP_ALIGN);
 
     data = ((VkAllocator*)allocator)->fastMalloc(w, h, c, elemsize, elempack);
     if (!data)
@@ -288,7 +288,7 @@ inline void VkImageMat::create(int _w, int _h, int _c, size_t _elemsize, VkAlloc
     color_range = IM_CR_FULL_RANGE;
     depth = _elemsize == 1 ? 8 : _elemsize == 2 ? 16 : 32;
 
-    cstep = Im_AlignSize((size_t)w * h * elemsize, 16) / elemsize;
+    cstep = Im_AlignSize((size_t)w * h * elemsize, IM_CSTEP_ALIGN) / elemsize;
 
     if (total() > 0)
         allocate_buffer();
@@ -378,7 +378,7 @@ inline void VkImageMat::create(int _w, int _h, int _c, size_t _elemsize, int _el
     color_range = IM_CR_FULL_RANGE;
     depth = _elemsize == 1 ? 8 : _elemsize == 2 ? 16 : 32;
 
-    cstep = Im_AlignSize((size_t)w * h * elemsize, 16) / elemsize;
+    cstep = Im_AlignSize((size_t)w * h * elemsize, IM_CSTEP_ALIGN) / elemsize;
 
     if (total() > 0)
         allocate_buffer();

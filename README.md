@@ -24,6 +24,9 @@
 <div>
 <a href="https://github.com/opencodewin/MediaEditor/releases/tag/v0.9.9"><img alt="v0.9.9" src="docs/assets/version_4.svg" /></a>
 
+<h3>&nbsp;&nbsp;⚠️⚠️⚠️&nbsp; Update on December 4, 2024.</h3>
+  <h4> We are very sorry, since we disable some code of submodules, Mec 0.9.9 is broken build for a long time. For this project, our developers selflessly provided time, energy, and financial resources, but it is now difficult to have the financial support to complete the promised features. </h4>
+  <h4> Currently project has been suspended, until we can find new resource or financial support. </h4>
 <h3>&nbsp;&nbsp;🎉🎉🎉&nbsp; Released on February 28, 2024.</h3>
 
   - <h4>【New 🔥】Graphic operation mode for video attribute editing.</h4>

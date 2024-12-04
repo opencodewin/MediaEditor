@@ -204,7 +204,7 @@ inline VkMat& VkMat::operator=(const ImMat& m)
 
 inline void VkMat::allocate_buffer()
 {
-    size_t totalsize = Im_AlignSize(total() * elemsize, 4);
+    size_t totalsize = Im_AlignSize(total() * elemsize, IM_CSTEP_ALIGN);
 
     data = ((VkAllocator*)allocator)->fastMalloc(totalsize);
     if (!data)
@@ -310,7 +310,7 @@ inline void VkMat::create(int _w, int _h, int _c, size_t _elemsize, VkAllocator*
     duration = NAN;
     index_count = -1;
 
-    cstep = Im_AlignSize((size_t)w * h * elemsize, 16) / elemsize;
+    cstep = Im_AlignSize((size_t)w * h * elemsize, IM_CSTEP_ALIGN) / elemsize;
 
     if (total() > 0)
         allocate_buffer();
@@ -415,7 +415,7 @@ inline void VkMat::create(int _w, int _h, int _c, size_t _elemsize, int _elempac
     duration = NAN;
     index_count = -1;
 
-    cstep = Im_AlignSize((size_t)w * h * elemsize, 16) / elemsize;
+    cstep = Im_AlignSize((size_t)w * h * elemsize, IM_CSTEP_ALIGN) / elemsize;
 
     if (total() > 0)
         allocate_buffer();
@@ -509,7 +509,7 @@ inline void VkMat::create_type(int _w, int _h, int _c, ImDataType _t, VkAllocato
     dh = h = _h;
     c = _c;
 
-    cstep = Im_AlignSize((size_t)w * h * elemsize, 16) / elemsize;
+    cstep = Im_AlignSize((size_t)w * h * elemsize, IM_CSTEP_ALIGN) / elemsize;
     type = _t;
     color_space = IM_CS_SRGB;
     color_format = c == 1 ? IM_CF_GRAY : c == 3 ? IM_CF_BGR : IM_CF_ABGR;

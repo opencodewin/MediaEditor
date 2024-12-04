@@ -33,6 +33,7 @@
 // it is common to interleave next-loop data load with arithmetic instructions
 // allocating more bytes keeps us safe from SEGV_ACCERR failure
 #define IM_MALLOC_OVERREAD 64
+#define IM_CSTEP_ALIGN  1
 
 #define OMP_THREADS 2
 // exchange-add operation for atomic operations on reference counters
@@ -1179,7 +1180,7 @@ inline ImMat::ImMat(int _w, int _h, void* _data, size_t _elemsize, Allocator* _a
 inline ImMat::ImMat(int _w, int _h, int _c, void* _data, size_t _elemsize, Allocator* _allocator)
     : data(_data), device(IM_DD_CPU), device_number(-1), elemsize(_elemsize), elempack(1), allocator(_allocator), dims(3), w(_w), h(_h), c(_c), dw(_w), dh(_h), time_stamp(NAN), index_count(-1), duration(NAN)
 {
-    cstep = Im_AlignSize((size_t)w * h * elemsize, 16) / elemsize;
+    cstep = Im_AlignSize((size_t)w * h * elemsize, IM_CSTEP_ALIGN) / elemsize;
     type = _elemsize == 1 ? IM_DT_INT8 : _elemsize == 2 ? IM_DT_INT16 : IM_DT_FLOAT32;
     color_space = IM_CS_SRGB;
     color_format = c == 1 ? IM_CF_GRAY : c == 3 ? IM_CF_BGR : IM_CF_ABGR;
@@ -1221,7 +1222,7 @@ inline ImMat::ImMat(int _w, int _h, void* _data, size_t _elemsize, int _elempack
 inline ImMat::ImMat(int _w, int _h, int _c, void* _data, size_t _elemsize, int _elempack, Allocator* _allocator)
     : data(_data), device(IM_DD_CPU), device_number(-1), elemsize(_elemsize), elempack(_elempack), allocator(_allocator), dims(3), w(_w), h(_h), c(_c), dw(_w), dh(_h), time_stamp(NAN), index_count(-1), duration(NAN)
 {
-    cstep = Im_AlignSize((size_t)w * h * elemsize, 16) / elemsize;
+    cstep = Im_AlignSize((size_t)w * h * elemsize, IM_CSTEP_ALIGN) / elemsize;
     type = _elemsize == 1 ? IM_DT_INT8 : _elemsize == 2 ? IM_DT_INT16 : IM_DT_FLOAT32;
     color_space = IM_CS_SRGB;
     color_format = c == 1 ? IM_CF_GRAY : c == 3 ? IM_CF_BGR : IM_CF_ABGR;
@@ -1282,7 +1283,7 @@ inline ImMat& ImMat::operator=(const ImMat& m)
 
 inline void ImMat::allocate_buffer()
 {
-    size_t totalsize = Im_AlignSize(total() * elemsize, 4);
+    size_t totalsize = Im_AlignSize(total() * elemsize, IM_CSTEP_ALIGN);
 
     if (allocator)
         data = allocator->fastMalloc(totalsize, device);
@@ -1386,7 +1387,7 @@ inline void ImMat::create(int _w, int _h, int _c, size_t _elemsize, Allocator* _
     duration = NAN;
     index_count = -1;
 
-    cstep = Im_AlignSize((size_t)w * h * elemsize, 16) / elemsize;
+    cstep = Im_AlignSize((size_t)w * h * elemsize, IM_CSTEP_ALIGN) / elemsize;
 
     if (total() > 0)
         allocate_buffer();
@@ -1485,7 +1486,7 @@ inline void ImMat::create(int _w, int _h, int _c, size_t _elemsize, int _elempac
     duration = NAN;
     index_count = -1;
 
-    cstep = Im_AlignSize((size_t)w * h * elemsize, 16) / elemsize;
+    cstep = Im_AlignSize((size_t)w * h * elemsize, IM_CSTEP_ALIGN) / elemsize;
 
     if (total() > 0)
         allocate_buffer();
@@ -1575,7 +1576,7 @@ inline void ImMat::create_type(int _w, int _h, int _c, ImDataType _t, Allocator*
     dh = h = _h;
     c = _c;
 
-    cstep = Im_AlignSize((size_t)w * h * elemsize, 16) / elemsize;
+    cstep = Im_AlignSize((size_t)w * h * elemsize, IM_CSTEP_ALIGN) / elemsize;
     type = _t;
     color_space = IM_CS_SRGB;
     color_format = c == 1 ? IM_CF_GRAY : c == 3 ? IM_CF_BGR : IM_CF_ABGR;
@@ -1676,7 +1677,7 @@ inline void ImMat::create_type(int _w, int _h, int _c, void* _data, ImDataType _
     dh = h = _h;
     c = _c;
 
-    cstep = Im_AlignSize((size_t)w * h * elemsize, 4) / elemsize;
+    cstep = Im_AlignSize((size_t)w * h * elemsize, IM_CSTEP_ALIGN) / elemsize;
     type = _t;
     color_space = IM_CS_SRGB;
     color_format = c == 1 ? IM_CF_GRAY : c == 3 ? IM_CF_BGR : IM_CF_ABGR;
@@ -2113,7 +2114,7 @@ inline ImMat ImMat::reshape(int _w, int _h, int _c, Allocator* _allocator) const
 
     if (dims < 3)
     {
-        if ((size_t)_w * _h != Im_AlignSize((size_t)_w * _h * elemsize, 16) / elemsize)
+        if ((size_t)_w * _h != Im_AlignSize((size_t)_w * _h * elemsize, IM_CSTEP_ALIGN) / elemsize)
         {
             ImMat m;
             m.create(_w, _h, _c, elemsize, elempack, _allocator);
@@ -2143,7 +2144,7 @@ inline ImMat ImMat::reshape(int _w, int _h, int _c, Allocator* _allocator) const
     m.dh = m.h = _h;
     m.c = _c;
     m.color_format = _c == 1 ? IM_CF_GRAY : _c == 3 ? IM_CF_BGR : IM_CF_ABGR;
-    m.cstep = Im_AlignSize((size_t)_w * _h * elemsize, 16) / elemsize;
+    m.cstep = Im_AlignSize((size_t)_w * _h * elemsize, IM_CSTEP_ALIGN) / elemsize;
 
     m.time_stamp = time_stamp;
     m.duration = duration;

@@ -2378,6 +2378,22 @@ ImTextureID ImGui_ImplVulkan_CreateTexture(const void * pixels, int width, int h
         copyBufferToImage(v, commandPool, stagingBuffer, 0, texture->textureImage, 
                     static_cast<uint32_t>(width), static_cast<uint32_t>(height));
     }
+    else if (bit_depth == 16)
+    {
+        VkImage textureImage = VK_NULL_HANDLE;
+        VkDeviceMemory textureImageMemory = VK_NULL_HANDLE;
+        createImage(v, width, height, VK_FORMAT_R16G16B16A16_UNORM,
+                    VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    textureImage, textureImageMemory);
+        copyBufferToImage(v, commandPool, stagingBuffer, 0, textureImage, 
+                    static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+        BlitImage(v, commandPool, textureImage, texture->textureImage,
+                    static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+        vkDestroyImage(v->Device, textureImage, v->Allocator);
+        vkFreeMemory(v->Device, textureImageMemory, v->Allocator);
+    }
     else if (bit_depth == 32)
     {
         VkImage textureImage = VK_NULL_HANDLE;
@@ -2438,6 +2454,22 @@ ImTextureID ImGui_ImplVulkan_CreateTexture(VkBuffer buffer, size_t buffer_offset
         copyBufferToImage(v, commandPool, buffer, buffer_offset, texture->textureImage, 
                         static_cast<uint32_t>(width), static_cast<uint32_t>(height));
     }
+    else if (bit_depth == 16)
+    {
+        VkImage textureImage = VK_NULL_HANDLE;
+        VkDeviceMemory textureImageMemory = VK_NULL_HANDLE;
+        createImage(v, width, height, VK_FORMAT_R16G16B16A16_UNORM,
+                    VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    textureImage, textureImageMemory);
+        copyBufferToImage(v, commandPool, buffer, buffer_offset, textureImage, 
+                    static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+        BlitImage(v, commandPool, textureImage, texture->textureImage,
+                    static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+        vkDestroyImage(v->Device, textureImage, v->Allocator);
+        vkFreeMemory(v->Device, textureImageMemory, v->Allocator);
+    }
     else if (bit_depth == 32)
     {
         VkImage textureImage = VK_NULL_HANDLE;
@@ -2485,6 +2517,23 @@ void ImGui_ImplVulkan_UpdateTexture(ImTextureID textureid, VkBuffer stagingBuffe
     {
         copyBufferToImage(v, commandPool, stagingBuffer, buffer_offset, texture->textureImage, 
                     static_cast<uint32_t>(width), static_cast<uint32_t>(height), offset_x, offset_y);
+    }
+    else if (bit_depth == 16)
+    {
+        VkImage textureImage = VK_NULL_HANDLE;
+        VkDeviceMemory textureImageMemory = VK_NULL_HANDLE;
+        createImage(v, static_cast<uint32_t>(width), static_cast<uint32_t>(height), VK_FORMAT_R16G16B16A16_UNORM,
+                    VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    textureImage, textureImageMemory);
+        copyBufferToImage(v, commandPool, stagingBuffer, buffer_offset, textureImage, 
+                    static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+        BlitImage(v, commandPool, textureImage, texture->textureImage,
+                    static_cast<uint32_t>(width), static_cast<uint32_t>(height),
+                    offset_x, offset_y);
+        vkDestroyImage(v->Device, textureImage, v->Allocator);
+        vkFreeMemory(v->Device, textureImageMemory, v->Allocator);
     }
     else if (bit_depth == 32)
     {
@@ -2549,6 +2598,23 @@ void ImGui_ImplVulkan_UpdateTexture(ImTextureID textureid, const void * pixels, 
     {
         copyBufferToImage(v, commandPool, stagingBuffer, 0, texture->textureImage, 
                     static_cast<uint32_t>(width), static_cast<uint32_t>(height), offset_x, offset_y);
+    }
+    else if (bit_depth == 16)
+    {
+        VkImage textureImage = VK_NULL_HANDLE;
+        VkDeviceMemory textureImageMemory = VK_NULL_HANDLE;
+        createImage(v, static_cast<uint32_t>(width), static_cast<uint32_t>(height), VK_FORMAT_R16G16B16A16_UNORM,
+                    VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    textureImage, textureImageMemory);
+        copyBufferToImage(v, commandPool, stagingBuffer, 0, textureImage, 
+                    static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+        BlitImage(v, commandPool, textureImage, texture->textureImage,
+                    static_cast<uint32_t>(width), static_cast<uint32_t>(height),
+                    offset_x, offset_y);
+        vkDestroyImage(v->Device, textureImage, v->Allocator);
+        vkFreeMemory(v->Device, textureImageMemory, v->Allocator);
     }
     else if (bit_depth == 32)
     {
