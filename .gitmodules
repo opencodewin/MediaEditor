@@ -1,3 +1,0 @@
-[submodule "plugin"]
-	path = plugin
-	url = git@github.com:opencodewin/plugin.git
