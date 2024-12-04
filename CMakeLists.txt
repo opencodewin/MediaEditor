@@ -57,35 +57,6 @@ option(BUILD_TEST  "Build Test Application" ON)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(MacroLogFeature)
 
-set(EXTRA_DEPENDENCE_INCLUDE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/extralib/include")
-
-if(APPLE)
-    if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm|aarch64)")
-        set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Mac_ARM)
-    else()
-        set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Mac_X86)
-    endif()
-elseif(WIN32)
-    set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Win32)
-else()
-    set(EXTRA_DEPENDENCE_LIBRARY_PATH ${CMAKE_CURRENT_SOURCE_DIR}/extralib/lib/Linux)
-endif()
-
-include_directories(
-    ${IMGUI_INCLUDE_DIRS}
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${PROJECT_BINARY_DIR}
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/imgui_addons
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/blueprintsdk
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/effects
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/filters
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/scopes
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/transitions
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}/ImVulkanShader/shader/internals
-)
-set(IMGUI_VULKAN_SHADER ON)
 find_package(PkgConfig REQUIRED)
 
 set(IMGUI_ICONS ON CACHE BOOL "Enable Internal Icons Build by Force" FORCE)
@@ -96,8 +67,18 @@ set_target_properties(
     LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
 )
-
-include_directories(${IMGUI_INCLUDE_DIRS})
+set_target_properties(
+    ImMaskCreator
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
+set_target_properties(
+    BaseUtils
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
 
 if(IMGUI_VULKAN_SHADER)
 set_target_properties(
@@ -109,6 +90,7 @@ set_target_properties(
 endif()
 
 include_directories(
+    ${IMGUI_INCLUDE_DIRS}
     ${CMAKE_CURRENT_BINARY_DIR}
     ${PROJECT_BINARY_DIR}
 )
@@ -125,7 +107,21 @@ include_directories(
     ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
 )
 
+# >>> include MediaCore as dependency
 if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+set(BUILD_DEPENDENCY_IMGUI OFF)
+option(BUILD_MEDIACORE_TEST              "Build MediaCore test" OFF)
+if (BUILD_MEDIACORE_TEST)
+set(IMGUI_SRC_PATH ${CMAKE_SOURCE_DIR}/imgui)
+endif()
+add_subdirectory(MediaCore)
+set_target_properties(
+    MediaCore
+    PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}"
+)
+# <<<
 
 # Basics
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
@@ -135,7 +131,7 @@ pkg_search_module(SDL2 REQUIRED sdl2)
 macro_log_feature(SDL2_FOUND "SDL2" "Simple DirectMedia Layer framework" "https://www.libsdl.org" TRUE)
 
 #
-# FFMPEG/LibASS
+# FFMPEG
 #
 if(PKG_CONFIG_FOUND)
     pkg_check_modules(
@@ -149,14 +145,8 @@ if(PKG_CONFIG_FOUND)
         libavdevice
     )
     macro_log_feature(FFMPEG_FOUND "FFMpeg" "Multimedia framework" "https://ffmpeg.org" TRUE)
-
-    pkg_check_modules(
-        LIBASS REQUIRED IMPORTED_TARGET
-        libass
-    )
-
-    pkg_search_module(FONTCONFIG REQUIRED fontconfig)
 endif(PKG_CONFIG_FOUND)
+
 macro_display_feature_log()
 
 option(UI_PERFORMANCE_ANALYSIS "Enable time analysis code to monitor UI actions." OFF)
@@ -211,6 +201,8 @@ add_executable(
 target_include_directories(
     ${MEDIA_EDITOR_BINARY} PRIVATE
     ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
+    ${MEDIACORE_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
@@ -222,18 +214,11 @@ set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
-    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    MediaCore
     ${IMGUI_LIBRARYS}
     ImMaskCreator
-    imgui_addons
-    VkShader
-    BaseUtils
+    ${MEDIACORE_LIBRARYS}
     Threads::Threads
-    PkgConfig::FFMPEG
-    PkgConfig::LIBASS
-    ${FONTCONFIG_LIBRARIES}
 )
 
 # set the Info.plist file
@@ -251,7 +236,9 @@ add_executable(
 target_include_directories(
     ${MEDIA_EDITOR_BINARY} PRIVATE
     ${SDL2_INCLUDE_DIRS}
+    ${IMGUI_BLUEPRINT_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
+    ${MEDIACORE_INCLUDE_DIRS}
 )
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PUBLIC APP_NAME="${MEDIA_EDITOR_BINARY}")
 if (UI_PERFORMANCE_ANALYSIS)
@@ -259,21 +246,14 @@ target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE UI_PERFORMANCE_ANALYSI
 endif(UI_PERFORMANCE_ANALYSIS)
 #set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
-target_link_directories(${MEDIA_EDITOR_BINARY} PUBLIC ${EXTRA_DEPENDENCE_LIBRARY_PATH} PUBLIC ${EXTRA_DEPENDENCE_LIBRARY_PATH})
 target_link_libraries(
     ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
-    MediaCore
+    ${MEDIACORE_LIBRARYS}
     ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
-    ImMaskCreator
-    imgui_addons
-    VkShader
-    BaseUtils
     ${IMGUI_LIBRARYS}
+    ImMaskCreator
     Threads::Threads
-    PkgConfig::FFMPEG
-    PkgConfig::LIBASS
-    ${FONTCONFIG_LIBRARIES}
 )
 
 else() # this branch is for linux
@@ -295,20 +275,13 @@ endif(UI_PERFORMANCE_ANALYSIS)
 #set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY CXX_STANDARD 17)
 set_property(TARGET ${MEDIA_EDITOR_BINARY} PROPERTY C_STANDARD 11)
 target_link_libraries(
-    ${MEDIA_EDITOR_BINARY}
+    ${MEDIA_EDITOR_BINARY} 
     LINK_PRIVATE
-    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
-    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     MediaCore
-    ImMaskCreator
-    imgui_addons
-    VkShader
-    BaseUtils
+    ${IMGUI_BLUEPRINT_SDK_LIBRARYS}
     ${IMGUI_LIBRARYS}
+    ImMaskCreator
     Threads::Threads
-    PkgConfig::FFMPEG
-    PkgConfig::LIBASS
-    ${FONTCONFIG_LIBRARIES}
 )
 endif(APPLE)
 
@@ -316,8 +289,6 @@ option(DEV_BACKGROUND_TASK "Developping background task feature" ON)
 if(DEV_BACKGROUND_TASK)
 target_compile_definitions(${MEDIA_EDITOR_BINARY} PRIVATE ENABLE_BACKGROUND_TASK)
 endif()
-
-include_directories(${EXTRA_DEPENDENCE_INCLUDE_PATH})
 
 if(BUILD_TEST)
 # MediaPlayer Test
@@ -329,44 +300,58 @@ add_executable(
 )
 target_link_libraries(
     media_player_test
-    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
-    MediaCore
-    BaseUtils
+    ${MEDIACORE_LIBRARYS}
     ${IMGUI_LIBRARYS}
-    imgui_addons
-    PkgConfig::FFMPEG
 )
 target_include_directories(
     media_player_test PRIVATE
-    ${EXTRA_DEPENDENCE_INCLUDE_PATH}
     ${SDL2_INCLUDE_DIRS}
     ${IMGUI_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+#if(IMGUI_VULKAN_SHADER)
+#add_executable(
+#    transition_make
+#    test/TransitionMake.cpp
+#    plugin/nodes/transitions/Dissolve/Dissolve_vulkan.cpp
+#    ${IMGUI_APP_ENTRY_SRC}
+#)
+#target_link_libraries(
+#    transition_make
+#    ${IMGUI_LIBRARYS}
+#    ${SDL2_STATIC_LDFLAGS}
+#    ${SDL2_IMAGE_LIBRARY}
+#)
+#endif(IMGUI_VULKAN_SHADER)
+
 endif(BUILD_TEST)
 endif(IMGUI_APPS)
 
 ## build plugins
-set(EXTRA_DEPENDENCE_LIBRARYS
-    -L${CMAKE_BINARY_DIR}
-    -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
-    -lBluePrintSDK
-    -limgui
-    -limgui_addons
-    -lVkShader
-)
-set(EXTRA_DEPENDENCE_PROJECT imgui BluePrintSDK)
 if(VKSHADER_VULKAN_BENCHMARK)
     add_definitions(-DVULKAN_SHADER_BENCHMARK)
 endif(VKSHADER_VULKAN_BENCHMARK)
 
+add_subdirectory(plugin/nodes/media/SDLAudioRender)
+add_subdirectory(plugin/nodes/media/MatRGB2YUV)
+add_subdirectory(plugin/nodes/media/MatYUV2RGB)
 add_subdirectory(plugin/nodes/filters/AudioEqualizer)
 add_subdirectory(plugin/nodes/filters/AudioGain)
 add_subdirectory(plugin/nodes/filters/AudioAecho)
 add_subdirectory(plugin/nodes/transitions/AudioFade)
 if(IMGUI_VULKAN_SHADER)
-##filers
+add_subdirectory(plugin/nodes/media/MatCrop)
+add_subdirectory(plugin/nodes/media/MatResize)
+add_subdirectory(plugin/nodes/media/MatExpand)
+add_subdirectory(plugin/nodes/media/MatRender)
+add_subdirectory(plugin/nodes/media/MediaSource)
+add_subdirectory(plugin/nodes/media/MediaEncoder)
+add_subdirectory(plugin/nodes/media/ImageSource)
+add_subdirectory(plugin/nodes/media/WarpAffine)
+add_subdirectory(plugin/nodes/media/WarpPerspective)
+add_subdirectory(plugin/nodes/media/CustomVulkanShader)
+#filers
 add_subdirectory(plugin/nodes/filters/ALM)
 add_subdirectory(plugin/nodes/filters/Bilateral)
 add_subdirectory(plugin/nodes/filters/Binary)
@@ -375,8 +360,8 @@ add_subdirectory(plugin/nodes/filters/Brightness)
 add_subdirectory(plugin/nodes/filters/CAS)
 add_subdirectory(plugin/nodes/filters/Canny)
 add_subdirectory(plugin/nodes/filters/Chromakey)
-#add_subdirectory(plugin/nodes/filters/ColorBalance)
-#add_subdirectory(plugin/nodes/filters/ColorCurve)
+add_subdirectory(plugin/nodes/filters/ColorBalance)
+add_subdirectory(plugin/nodes/filters/ColorCurve)
 add_subdirectory(plugin/nodes/filters/ColorInvert)
 add_subdirectory(plugin/nodes/filters/Contrast)
 add_subdirectory(plugin/nodes/filters/Deband)
@@ -408,7 +393,7 @@ add_subdirectory(plugin/nodes/filters/Kuwahara)
 add_subdirectory(plugin/nodes/filters/Sketch)
 add_subdirectory(plugin/nodes/filters/Emboss)
 add_subdirectory(plugin/nodes/filters/Hatch)
-##transitions
+#transitions
 add_subdirectory(plugin/nodes/transitions/Alpha)
 add_subdirectory(plugin/nodes/transitions/BookFlip)
 add_subdirectory(plugin/nodes/transitions/Blur)
@@ -478,7 +463,7 @@ add_subdirectory(plugin/nodes/transitions/Wipe)
 add_subdirectory(plugin/nodes/transitions/ZoomInCircles)
 add_subdirectory(plugin/nodes/transitions/Luma)
 add_subdirectory(plugin/nodes/transitions/Dissolve)
-##effects
+#effects
 add_subdirectory(plugin/nodes/effects/Lighting)
 add_subdirectory(plugin/nodes/effects/Jitter)
 add_subdirectory(plugin/nodes/effects/Star)
@@ -539,13 +524,6 @@ if(APPLE)
             DESTINATION "${resources_dir}" COMPONENT Runtime)
     install(FILES  "${PROJECT_SOURCE_DIR}/resources/mec_logo.png"
             DESTINATION "${resources_dir}/" COMPONENT Runtime)
-
-    # Install extra lib
-    file(GLOB_RECURSE EXTRALIBS "${EXTRA_DEPENDENCE_LIBRARY_PATH}/*.dylib")
-    foreach (file ${EXTRALIBS})
-        install(PROGRAMS  "${file}"
-            DESTINATION "${frameworks_dir}/" COMPONENT Runtime)
-    endforeach()
 
     # Install Plugins
     install(DIRECTORY  "${PROJECT_BINARY_DIR}/plugins"
@@ -618,13 +596,6 @@ elseif(WIN32)
     endmacro()
 
     set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
-    # Install extra lib
-    file(GLOB_RECURSE EXTRALIBS ${EXTRA_DEPENDENCE_LIBRARY_PATH} "*.dll")
-    foreach (dll ${EXTRALIBS})
-        file(COPY "${dll}" DESTINATION ${CMAKE_BINARY_DIR})
-    endforeach()
-    
-    # install app
     install( CODE "set(APPS \"${CMAKE_BINARY_DIR}/${MEDIA_EDITOR_BINARY}.exe\")" )
     install( CODE [[
         file(REMOVE_RECURSE "${CMAKE_INSTALL_PREFIX}")
@@ -634,7 +605,7 @@ elseif(WIN32)
             string (REGEX REPLACE "^.* => | \(.*\)" "" pruned ${line})
             string (STRIP ${pruned} dep_filename)
             if (IS_ABSOLUTE ${dep_filename})
-                string (REGEX MATCH "SYSTEM32|System32|system32|WinSxS|MediaEditor" system_lib ${dep_filename})
+                string (REGEX MATCH "SYSTEM32|System32|WinSxS|MediaEditor" system_lib ${dep_filename})
                 if ("${system_lib}" STREQUAL "")
                     set(dep_path "")
                     string (PREPEND dep_path "C:/msys64" ${dep_filename})
@@ -645,12 +616,11 @@ elseif(WIN32)
                         FILES ${dep_path}
                     )
                 endif()
-                string (REGEX MATCH "SYSTEM32|System32|system32|WinSxS|mingw64" custom_lib ${dep_filename})
+                string (REGEX MATCH "SYSTEM32|System32|WinSxS|mingw64" custom_lib ${dep_filename})
                 if ("${custom_lib}" STREQUAL "")
                     set(dep_path "")
                     #string (PREPEND dep_path "" ${dep_filename})
                     string (REPLACE "/c/" "C:/" dep_path ${dep_filename})
-                    string (REPLACE "/d/" "D:/" dep_path ${dep_filename})
                     message("Link librarys: " ${dep_path})
                     file(INSTALL 
                         DESTINATION "${CMAKE_INSTALL_PREFIX}/bin" 

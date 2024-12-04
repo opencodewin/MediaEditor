@@ -1,4 +1,4 @@
-// dear imgui, v1.91.1
+// dear imgui, v1.91.1 WIP
 // (widgets code)
 
 /*
@@ -804,13 +804,6 @@ bool ImGui::SmallButton(const char* label)
     return pressed;
 }
 
-// add by Dicky
-void ImGui::SeparatorV() 
-{ 
-    SeparatorEx(ImGuiSeparatorFlags_Vertical, 1.0f, GetColorU32(ImGuiCol_Separator));
-} 
-// add by Dicky end
-
 // Tip: use ImGui::PushID()/PopID() to push indices or pointers in the ID stack.
 // Then you can keep 'str_id' empty or the same for all your buttons (instead of creating a string based on a non-string id)
 bool ImGui::InvisibleButton(const char* str_id, const ImVec2& size_arg, ImGuiButtonFlags flags)
@@ -1336,14 +1329,7 @@ bool ImGui::RadioButton(const char* label, bool active)
     if (active)
     {
         const float pad = ImMax(1.0f, IM_TRUNC(square_sz / 6.0f));
-        // modify by Dicky
-        if (g.Style.FrameShading > 0.0f) {
-            ImU32 col_dark = ColorBrightnessU32(GetColorU32(ImGuiCol_CheckMark), 1.f - g.Style.FrameShading);
-            window->DrawList->AddCircleGradient(center, radius - pad, GetColorU32(ImGuiCol_CheckMark), col_dark);
-        } else {
-            window->DrawList->AddCircleFilled(center, radius - pad, GetColorU32(ImGuiCol_CheckMark));
-        }
-        // modify by Dicky end
+        window->DrawList->AddCircleFilled(center, radius - pad, GetColorU32(ImGuiCol_CheckMark));
     }
 
     // modify by Dicky, add new border style support
@@ -1603,7 +1589,7 @@ void ImGui::AlignTextToFramePadding()
 // Horizontal/vertical separating line
 // FIXME: Surprisingly, this seemingly trivial widget is a victim of many different legacy/tricky layout issues.
 // Note how thickness == 1.0f is handled specifically as not moving CursorPos by 'thickness', but other values are.
-void ImGui::SeparatorEx(ImGuiSeparatorFlags flags, float thickness, ImU32 color) // modify by Dicky
+void ImGui::SeparatorEx(ImGuiSeparatorFlags flags, float thickness)
 {
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
@@ -1624,7 +1610,7 @@ void ImGui::SeparatorEx(ImGuiSeparatorFlags flags, float thickness, ImU32 color)
             return;
 
         // Draw
-        window->DrawList->AddRectFilled(bb.Min, bb.Max, color);
+        window->DrawList->AddRectFilled(bb.Min, bb.Max, GetColorU32(ImGuiCol_Separator));
         if (g.LogEnabled)
             LogText(" |");
     }
@@ -1654,7 +1640,7 @@ void ImGui::SeparatorEx(ImGuiSeparatorFlags flags, float thickness, ImU32 color)
         if (ItemAdd(bb, 0))
         {
             // Draw
-            window->DrawList->AddRectFilled(bb.Min, bb.Max, color);
+            window->DrawList->AddRectFilled(bb.Min, bb.Max, GetColorU32(ImGuiCol_Separator));
             if (g.LogEnabled)
                 LogRenderedText(&bb.Min, "--------------------------------\n");
 
@@ -3339,15 +3325,10 @@ bool ImGui::SliderScalar(const char* label, ImGuiDataType data_type, void* p_dat
         {
             float height = frame_bb.GetHeight() / 2 - 2;
             float offset = height / 2;
-            const ImU32 col = GetColorU32(g.ActiveId == id ? ImGuiCol_SliderGrabActive : ImGuiCol_SliderGrab);
+            ImU32 col = GetColorU32(g.ActiveId == id ? ImGuiCol_SliderGrabActive : ImGuiCol_SliderGrab);
             float radius = 6;//std::fmax(grab_bb.GetWidth(), grab_bb.GetHeight()) / 3;
             ImVec2 center = grab_bb.GetCenter() + ImVec2(0, offset);
-            if (g.Style.FrameShading > 0.0f) {
-                ImU32 col_dark = ColorBrightnessU32(col, 1.f - g.Style.FrameShading);
-                window->DrawList->AddCircleGradient(center, radius, IM_COL32_ALPHA(col, 255), col_dark);
-            } else {
-                window->DrawList->AddCircleFilled(center, radius, IM_COL32_ALPHA(col, 255));
-            }
+            window->DrawList->AddCircleFilled(center, radius, IM_COL32_ALPHA(col, 255));
         }
         else if (flags & ImGuiSliderFlags_Mark)
         {
@@ -3580,15 +3561,10 @@ bool ImGui::VSliderScalar(const char* label, const ImVec2& size, ImGuiDataType d
         PushClipRect(frame_bb.Min - ImVec2(0, 4), frame_bb.Max + ImVec2(0, 4), true);
         if (flags & ImGuiSliderFlags_Stick)
         {
-            const ImU32 col = GetColorU32(g.ActiveId == id ? ImGuiCol_SliderGrabActive : ImGuiCol_SliderGrab);
+            ImU32 col = GetColorU32(g.ActiveId == id ? ImGuiCol_SliderGrabActive : ImGuiCol_SliderGrab);
             float radius = 6;//std::fmax(grab_bb.GetWidth(), grab_bb.GetHeight()) / 2;
             ImVec2 center = grab_bb.GetCenter();
-            if (g.Style.FrameShading > 0.0f) {
-                ImU32 col_dark = ColorBrightnessU32(col, 1.f - g.Style.FrameShading);
-                window->DrawList->AddCircleGradient(center, radius, IM_COL32_ALPHA(col, 255), col_dark);
-            } else {
-                window->DrawList->AddCircleFilled(center, radius, IM_COL32_ALPHA(col, 255));
-            }
+            window->DrawList->AddCircleFilled(center, radius, IM_COL32_ALPHA(col, 255));
         }
         else if (flags & ImGuiSliderFlags_Mark)
         {
@@ -3640,7 +3616,7 @@ bool ImGui::VSliderScalar(const char* label, const ImVec2& size, ImGuiDataType d
     {
         SetWindowFontScale(0.8);
         auto value_str_size = CalcTextSize(value_buf, value_buf_end);
-        ImVec2 value_str_pos = grab_bb.GetCenter() - ImVec2(value_str_size.x / 2, 16);
+        ImVec2 value_str_pos = grab_bb.GetCenter() - ImVec2(value_str_size.x / 2, 14);
         value_str_pos.x = std::max(value_str_pos.x, frame_bb.Min.x);
         if (value_str_pos.x + value_str_size.x > frame_bb.Max.x) value_str_pos.x = frame_bb.Max.x - value_str_size.x;
         RenderTextClipped(value_str_pos, value_str_pos + value_str_size, value_buf, value_buf_end, NULL, ImVec2(0.5f, 0.5f));
@@ -8539,10 +8515,9 @@ int ImGui::PlotEx(ImGuiPlotType plot_type, const char* label, float (*values_get
     const ImRect inner_bb(frame_bb.Min + style.FramePadding, frame_bb.Max - style.FramePadding);
     const ImRect total_bb(frame_bb.Min, frame_bb.Max + ImVec2(label_size.x > 0.0f ? style.ItemInnerSpacing.x + label_size.x : 0.0f, 0));
     ItemSize(total_bb, style.FramePadding.y);
-    if (!ItemAdd(total_bb, id, &frame_bb, ImGuiItemFlags_NoNav))
+    if (!ItemAdd(total_bb, 0, &frame_bb))
         return -1;
-    bool hovered;
-    ButtonBehavior(frame_bb, id, &hovered, NULL);
+    const bool hovered = ItemHoverable(frame_bb, id, g.LastItemData.InFlags);
 
     // Determine scale from values if not specified
     if (scale_min == FLT_MAX || scale_max == FLT_MAX)

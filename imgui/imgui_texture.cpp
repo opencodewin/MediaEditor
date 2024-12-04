@@ -1,9 +1,10 @@
 #include "imgui_texture.h"
 #include "imgui_helper.h"
+#include "ImGuiFileDialog.h"
 #include <thread>
-//#if IMGUI_VULKAN_SHADER
-//#include "ImVulkanShader.h"
-//#endif
+#if IMGUI_VULKAN_SHADER
+#include "ImVulkanShader.h"
+#endif
 #if IMGUI_TIFF
 #include <tiffio.h>
 #endif
@@ -314,18 +315,18 @@ void ImGenerateOrUpdateTexture(ImTextureID& imtexid,int width,int height,int cha
     if (is_immat)
     {
         ImGui::ImMat *mat = (ImGui::ImMat*)pixels;
-//#if IMGUI_VULKAN_SHADER
-//        if (mat->device == IM_DD_VULKAN)
-//        {
-//            ImGui::VkMat * vkmat = (ImGui::VkMat*)mat;
-//            if (!vkmat->empty())
-//            {
-//                auto data = ImGui::ImVulkanVkMatMapping(*vkmat);
-//                if (data) glTexImage2D(GL_TEXTURE_2D, 0, ifmt, width, height, 0, fmt, mat->type == IM_DT_FLOAT32 ? GL_FLOAT : mat->type == IM_DT_INT16 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_BYTE, data);
-//            }
-//        }
-//        else
-//#endif
+#if IMGUI_VULKAN_SHADER
+        if (mat->device == IM_DD_VULKAN)
+        {
+            ImGui::VkMat * vkmat = (ImGui::VkMat*)mat;
+            if (!vkmat->empty())
+            {
+                auto data = ImGui::ImVulkanVkMatMapping(*vkmat);
+                if (data) glTexImage2D(GL_TEXTURE_2D, 0, ifmt, width, height, 0, fmt, mat->type == IM_DT_FLOAT32 ? GL_FLOAT : mat->type == IM_DT_INT16 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_BYTE, data);
+            }
+        }
+        else
+#endif
         if (mat->device == IM_DD_CPU)
         {
             glTexImage2D(GL_TEXTURE_2D, 0, ifmt, width, height, 0, fmt, mat->type == IM_DT_FLOAT32 ? GL_FLOAT : mat->type == IM_DT_INT16 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_BYTE, mat->data);
@@ -441,18 +442,18 @@ void ImCopyToTexture(ImTextureID& imtexid, unsigned char* pixels, int width, int
     {
         ImGui::ImMat *mat = (ImGui::ImMat*)pixels;
         auto src_format = mat->type == IM_DT_FLOAT32 ? GL_FLOAT : GL_UNSIGNED_BYTE;
-//#if IMGUI_VULKAN_SHADER
-//        if (mat->device == IM_DD_VULKAN)
-//        {
-//            ImGui::VkMat * vkmat = (ImGui::VkMat*)mat;
-//            if (!vkmat->empty())
-//            {
-//                auto data = ImGui::ImVulkanVkMatMapping(*vkmat);
-//                if (data) glTexSubImage2D(GL_TEXTURE_2D, 0, offset_x, offset_y, width, height, fmt, src_format, data);
-//            }
-//        }
-//        else
-//#endif
+#if IMGUI_VULKAN_SHADER
+        if (mat->device == IM_DD_VULKAN)
+        {
+            ImGui::VkMat * vkmat = (ImGui::VkMat*)mat;
+            if (!vkmat->empty())
+            {
+                auto data = ImGui::ImVulkanVkMatMapping(*vkmat);
+                if (data) glTexSubImage2D(GL_TEXTURE_2D, 0, offset_x, offset_y, width, height, fmt, src_format, data);
+            }
+        }
+        else
+#endif
         if (mat->device == IM_DD_CPU)
         {
             glTexSubImage2D(GL_TEXTURE_2D, 0, offset_x, offset_y, width, height, fmt, src_format, mat->data);
@@ -1250,6 +1251,31 @@ void ImShowVideoWindowCompare(ImDrawList *draw_list, ImTextureID texture1, ImTex
             texture_zoom *= 1.1;
             if (texture_zoom > scale_range.y) texture_zoom = scale_range.y;
         }
+    }
+    if (texture2 && ImGui::BeginPopupContextItem())
+    {
+        if (ImGui::MenuItem((std::string(ICON_FA_IMAGE) + " Save Texture to File").c_str()))
+        {
+            IGFD::FileDialogConfig config;
+            config.path = ".";
+            config.countSelectionMax = 1;
+            config.flags = ImGuiFileDialogFlags_SaveFile_Default;
+            ImGuiFileDialog::Instance()->OpenDialog(dialog_id.c_str(), ICON_IGFD_FOLDER_OPEN " Choose File", 
+                                                    image_filter.c_str(),
+                                                    config);
+        }
+        ImGui::EndPopup();
+    }
+    ImVec2 minSize = ImVec2(600, 300);
+    ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
+    if (ImGuiFileDialog::Instance()->Display(dialog_id.c_str(), ImGuiWindowFlags_NoCollapse, minSize, maxSize))
+    {
+        if (ImGuiFileDialog::Instance()->IsOk() == true)
+        {
+            std::string file_path = ImGuiFileDialog::Instance()->GetFilePathName();
+            ImGui::ImTextureToFile(texture2, file_path);
+        }
+        ImGuiFileDialog::Instance()->Close();
     }
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
     {

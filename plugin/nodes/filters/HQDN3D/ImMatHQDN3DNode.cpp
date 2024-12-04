@@ -1,0 +1,362 @@
+#include <UI.h>
+#include <imgui_extra_widget.h>
+#include <ImVulkanShader.h>
+#include "HQDN3D_vulkan.h"
+
+#define NODE_VERSION    0x01000000
+
+namespace BluePrint
+{
+struct HQDN3DNode final : Node
+{
+    BP_NODE_WITH_NAME(HQDN3DNode, "HQDN3D Denoise", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, NodeType::External, NodeStyle::Default, "Filter#Video#Denoise")
+    HQDN3DNode(BP* blueprint): Node(blueprint) { m_Name = "HQDN3D Denoise"; m_HasCustomLayout = true; m_Skippable = true; }
+    ~HQDN3DNode()
+    {
+        if (m_filter) { delete m_filter; m_filter = nullptr; }
+        ImGui::ImDestroyTexture(&m_logo);
+    }
+
+    void Reset(Context& context) override
+    {
+        Node::Reset(context);
+        m_mutex.lock();
+        m_MatOut.SetValue(ImGui::ImMat());
+        m_mutex.unlock();
+    }
+
+    FlowPin Execute(Context& context, FlowPin& entryPoint, bool threading = false) override
+    {
+        auto mat_in = context.GetPinValue<ImGui::ImMat>(m_MatIn);
+        if (m_LumSpatialIn.IsLinked()) m_lum_spac = context.GetPinValue<float>(m_LumSpatialIn);
+        if (m_ChromaSpatialIn.IsLinked()) m_chrom_spac = context.GetPinValue<float>(m_ChromaSpatialIn);
+        if (m_LumTemporalIn.IsLinked()) m_lum_tmp = context.GetPinValue<float>(m_LumTemporalIn);
+        if (m_ChromaTemporalIn.IsLinked()) m_chrom_tmp = context.GetPinValue<float>(m_ChromaTemporalIn);
+        if (!mat_in.empty())
+        {
+            int gpu = mat_in.device == IM_DD_VULKAN ? mat_in.device_number : ImGui::get_default_gpu_index();
+            if (!m_Enabled)
+            {
+                m_MatOut.SetValue(mat_in);
+                return m_Exit;
+            }
+            if (!m_filter || gpu != m_device ||
+                m_filter->in_width != mat_in.w || 
+                m_filter->in_height != mat_in.h ||
+                m_filter->in_channels != mat_in.c)
+            {
+                if (m_filter) { delete m_filter; m_filter = nullptr; }
+                m_filter = new ImGui::HQDN3D_vulkan(mat_in.w, mat_in.h, mat_in.c, gpu);
+            }
+            if (!m_filter)
+            {
+                return {};
+            }
+            m_device = gpu;
+            m_filter->SetParam(m_lum_spac, m_chrom_spac, m_lum_tmp, m_chrom_tmp);
+            ImGui::VkMat im_RGB; im_RGB.type = m_mat_data_type == IM_DT_UNDEFINED ? mat_in.type : m_mat_data_type;
+            m_NodeTimeMs = m_filter->filter(mat_in, im_RGB);
+            m_MatOut.SetValue(im_RGB);
+        }
+        return m_Exit;
+    }
+
+    void WasUnlinked(const Pin& receiver, const Pin& provider) override
+    {
+        if (receiver.m_ID == m_LumSpatialIn.m_ID) m_LumSpatialIn.SetValue(m_lum_spac);
+        if (receiver.m_ID == m_ChromaSpatialIn.m_ID) m_ChromaSpatialIn.SetValue(m_chrom_spac);
+        if (receiver.m_ID == m_LumTemporalIn.m_ID) m_LumTemporalIn.SetValue(m_lum_tmp);
+        if (receiver.m_ID == m_ChromaTemporalIn.m_ID) m_ChromaTemporalIn.SetValue(m_chrom_tmp);
+    }
+    
+    bool DrawSettingLayout(ImGuiContext * ctx) override
+    {
+        // Draw Setting
+        auto changed = Node::DrawSettingLayout(ctx);
+        ImGui::Separator();
+        changed |= Node::DrawDataTypeSetting("Mat Type:", m_mat_data_type);
+        return changed;
+    }
+
+    bool DrawCustomLayout(ImGuiContext * ctx, float zoom, ImVec2 origin, ImGui::ImCurveEdit::Curve * key, bool embedded) override
+    {
+        ImGui::SetCurrentContext(ctx);
+        float setting_offset = 320;
+        if (!embedded)
+        {
+            ImVec2 sub_window_pos = ImGui::GetCursorScreenPos();
+            ImVec2 sub_window_size = ImGui::GetWindowSize();
+            setting_offset = sub_window_size.x - 80;
+        }
+        bool changed = false;
+        float _lum_spac = m_lum_spac;
+        float _chrom_spac = m_chrom_spac;
+        float _lum_tmp = m_lum_tmp;
+        float _chrom_tmp = m_chrom_tmp;
+        static ImGuiSliderFlags flags = ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Stick;
+        ImGui::Dummy(ImVec2(160, 8));
+        ImGui::PushStyleColor(ImGuiCol_Button, 0);
+        ImGui::PushItemWidth(200);
+        ImGui::BeginDisabled(!m_Enabled || m_LumSpatialIn.IsLinked());
+        ImGui::SliderFloat("Luma Spatial##HQDN3D", &_lum_spac, 0, 50.f, "%.1f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_luma_spatial##HQDN3D")) { _lum_spac = 6.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_luma_spatial##HQDN3D", key, ImGui::ImCurveEdit::DIM_X,  m_LumSpatialIn.IsLinked(), "luma spatial##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 6.f, m_LumSpatialIn.m_ID);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled || m_ChromaSpatialIn.IsLinked());
+        ImGui::SliderFloat("Chroma Spatial##HQDN3D", &_chrom_spac, 0, 50.f, "%.1f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_chroma_spatial##HQDN3D")) { _chrom_spac = 4.f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_chroma_spatial##HQDN3D", key, ImGui::ImCurveEdit::DIM_X, m_ChromaSpatialIn.IsLinked(), "chroma spatial##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 4.f, m_ChromaSpatialIn.m_ID);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled || m_LumTemporalIn.IsLinked());
+        ImGui::SliderFloat("Luma Temporal##HQDN3D", &_lum_tmp, 0, 50.f, "%.1f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_luma_temporal##HQDN3D")) { _lum_tmp = 4.5f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_luma_temporal##HQDN3D", key, ImGui::ImCurveEdit::DIM_X, m_LumTemporalIn.IsLinked(), "luma temporal##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 4.5f, m_LumTemporalIn.m_ID);
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled || m_ChromaTemporalIn.IsLinked());
+        ImGui::SliderFloat("Chroma Temporal##HQDN3D", &_chrom_tmp, 0, 50.f, "%.1f", flags);
+        ImGui::SameLine(setting_offset);  if (ImGui::Button(ICON_RESET "##reset_chroma_temporal##HQDN3D")) { _chrom_tmp = 3.375f; changed = true; }
+        ImGui::ShowTooltipOnHover("Reset");
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!m_Enabled);
+        if (key) ImGui::ImCurveCheckEditKeyWithIDByDim("##add_curve_chroma_temporal##HQDN3D", key, ImGui::ImCurveEdit::DIM_X, m_ChromaTemporalIn.IsLinked(), "chroma temporal##HQDN3D@" + std::to_string(m_ID), 0.f, 50.f, 3.375f, m_ChromaTemporalIn.m_ID);
+        ImGui::EndDisabled();
+        ImGui::PopItemWidth();
+        ImGui::PopStyleColor();
+        if (_lum_spac != m_lum_spac) { m_lum_spac = _lum_spac; changed = true; }
+        if (_chrom_spac != m_chrom_spac) { m_chrom_spac = _chrom_spac; changed = true; }
+        if (_lum_tmp != m_lum_tmp) { m_lum_tmp = _lum_tmp; changed = true; }
+        if (_chrom_tmp != m_chrom_tmp) { m_chrom_tmp = _chrom_tmp; changed = true; }
+        return m_Enabled ? changed : false;
+    }
+
+    int Load(const imgui_json::value& value) override
+    {
+        int ret = BP_ERR_NONE;
+        if ((ret = Node::Load(value)) != BP_ERR_NONE)
+            return ret;
+
+        if (value.contains("mat_type"))
+        {
+            auto& val = value["mat_type"];
+            if (val.is_number()) 
+                m_mat_data_type = (ImDataType)val.get<imgui_json::number>();
+        }
+        if (value.contains("lum_spac"))
+        {
+            auto& val = value["lum_spac"];
+            if (val.is_number()) 
+                m_lum_spac = val.get<imgui_json::number>();
+        }
+        if (value.contains("chrom_spac"))
+        {
+            auto& val = value["chrom_spac"];
+            if (val.is_number()) 
+                m_chrom_spac = val.get<imgui_json::number>();
+        }
+        if (value.contains("lum_tmp"))
+        {
+            auto& val = value["lum_tmp"];
+            if (val.is_number()) 
+                m_lum_tmp = val.get<imgui_json::number>();
+        }
+        if (value.contains("chrom_tmp"))
+        {
+            auto& val = value["chrom_tmp"];
+            if (val.is_number()) 
+                m_chrom_tmp = val.get<imgui_json::number>();
+        }
+        return ret;
+    }
+
+    void Save(imgui_json::value& value, std::map<ID_TYPE, ID_TYPE> MapID) override
+    {
+        Node::Save(value, MapID);
+        value["mat_type"] = imgui_json::number(m_mat_data_type);
+        value["lum_spac"] = imgui_json::number(m_lum_spac);
+        value["chrom_spac"] = imgui_json::number(m_chrom_spac);
+        value["lum_tmp"] = imgui_json::number(m_lum_tmp);
+        value["chrom_tmp"] = imgui_json::number(m_chrom_tmp);
+    }
+
+    void DrawNodeLogo(ImGuiContext * ctx, ImVec2 size, std::string logo) const override
+    {
+        // Node::DrawNodeLogo(ctx, size, std::string(u8"\ue3a4"));
+        if (ctx) ImGui::SetCurrentContext(ctx); // External Node must set context
+        if (!m_logo) m_logo = Node::LoadNodeLogo((void *)logo_data, logo_size);
+        Node::DrawNodeLogo(m_logo, m_logo_index, logo_cols, logo_rows, size);
+    }
+
+    span<Pin*> GetInputPins() override { return m_InputPins; }
+    span<Pin*> GetOutputPins() override { return m_OutputPins; }
+    Pin* GetAutoLinkInputFlowPin() override { return &m_Enter; }
+    Pin* GetAutoLinkOutputFlowPin() override { return &m_Exit; }
+    vector<Pin*> GetAutoLinkInputDataPin() override { return {&m_MatIn}; }
+    vector<Pin*> GetAutoLinkOutputDataPin() override { return {&m_MatOut}; }
+
+    FlowPin   m_Enter   = { this, "Enter" };
+    FlowPin   m_Exit    = { this, "Exit" };
+    MatPin    m_MatIn   = { this, "In" };
+    FloatPin  m_LumSpatialIn = { this, "Lum spatial"};
+    FloatPin  m_ChromaSpatialIn = { this, "Chroma spatial"};
+    FloatPin  m_LumTemporalIn = { this, "Lum temporal"};
+    FloatPin  m_ChromaTemporalIn = { this, "Chroma temporal"};
+    MatPin    m_MatOut  = { this, "Out" };
+
+    Pin* m_InputPins[6] = { &m_Enter, &m_MatIn, &m_LumSpatialIn, &m_ChromaSpatialIn, &m_LumTemporalIn, &m_ChromaTemporalIn };
+    Pin* m_OutputPins[2] = { &m_Exit, &m_MatOut };
+
+private:
+    ImDataType m_mat_data_type {IM_DT_UNDEFINED};
+    int m_device        {-1};
+    float m_lum_spac    {6.0};
+    float m_chrom_spac  {4.0};
+    float m_lum_tmp     {4.5};
+    float m_chrom_tmp   {3.375};
+    ImGui::HQDN3D_vulkan * m_filter   {nullptr};
+    mutable ImTextureID  m_logo {nullptr};
+    mutable int m_logo_index {0};
+
+    const unsigned int logo_width = 100;
+    const unsigned int logo_height = 100;
+    const unsigned int logo_cols = 1;
+    const unsigned int logo_rows = 1;
+    const unsigned int logo_size = 5878;
+    const unsigned int logo_data[5880/4] =
+{
+    0xe0ffd8ff, 0x464a1000, 0x01004649, 0x01000001, 0x00000100, 0x8400dbff, 0x02020300, 0x03020203, 0x04030303, 0x05040303, 0x04050508, 0x070a0504, 
+    0x0c080607, 0x0b0c0c0a, 0x0d0b0b0a, 0x0d10120e, 0x0b0e110e, 0x1016100b, 0x15141311, 0x0f0c1515, 0x14161817, 0x15141218, 0x04030114, 0x05040504, 
+    0x09050509, 0x0d0b0d14, 0x14141414, 0x14141414, 0x14141414, 0x14141414, 0x14141414, 0x14141414, 0x14141414, 0x14141414, 0x14141414, 0x14141414, 
+    0x14141414, 0x14141414, 0xc0ff1414, 0x00081100, 0x03640064, 0x02002201, 0x11030111, 0x01c4ff01, 0x010000a2, 0x01010105, 0x00010101, 0x00000000, 
+    0x01000000, 0x05040302, 0x09080706, 0x00100b0a, 0x03030102, 0x05030402, 0x00040405, 0x017d0100, 0x04000302, 0x21120511, 0x13064131, 0x22076151, 
+    0x81321471, 0x2308a191, 0x15c1b142, 0x24f0d152, 0x82726233, 0x17160a09, 0x251a1918, 0x29282726, 0x3635342a, 0x3a393837, 0x46454443, 0x4a494847, 
+    0x56555453, 0x5a595857, 0x66656463, 0x6a696867, 0x76757473, 0x7a797877, 0x86858483, 0x8a898887, 0x95949392, 0x99989796, 0xa4a3a29a, 0xa8a7a6a5, 
+    0xb3b2aaa9, 0xb7b6b5b4, 0xc2bab9b8, 0xc6c5c4c3, 0xcac9c8c7, 0xd5d4d3d2, 0xd9d8d7d6, 0xe3e2e1da, 0xe7e6e5e4, 0xf1eae9e8, 0xf5f4f3f2, 0xf9f8f7f6, 
+    0x030001fa, 0x01010101, 0x01010101, 0x00000001, 0x01000000, 0x05040302, 0x09080706, 0x00110b0a, 0x04020102, 0x07040304, 0x00040405, 0x00770201, 
+    0x11030201, 0x31210504, 0x51411206, 0x13716107, 0x08813222, 0xa1914214, 0x2309c1b1, 0x15f05233, 0x0ad17262, 0xe1342416, 0x1817f125, 0x27261a19, 
+    0x352a2928, 0x39383736, 0x4544433a, 0x49484746, 0x5554534a, 0x59585756, 0x6564635a, 0x69686766, 0x7574736a, 0x79787776, 0x8483827a, 0x88878685, 
+    0x93928a89, 0x97969594, 0xa29a9998, 0xa6a5a4a3, 0xaaa9a8a7, 0xb5b4b3b2, 0xb9b8b7b6, 0xc4c3c2ba, 0xc8c7c6c5, 0xd3d2cac9, 0xd7d6d5d4, 0xe2dad9d8, 
+    0xe6e5e4e3, 0xeae9e8e7, 0xf5f4f3f2, 0xf9f8f7f6, 0x00dafffa, 0x0001030c, 0x11031102, 0xf6003f00, 0x2f595b6b, 0x55e2ce24, 0x87d7e47a, 0x46b7d27e, 
+    0x2740774d, 0xea633ca9, 0xaff5d12b, 0x2cfc271b, 0x590c3f3b, 0xdbb1aec8, 0x6eb4f3bc, 0x01c60d09, 0x6b5e4fc7, 0x696a3fcb, 0x78aec7be, 0x96042070, 
+    0xf815f523, 0xdbcb19e6, 0x7ee8fac7, 0x2d5a28df, 0xe3f09ab3, 0x4f0eed1f, 0x69bbbb02, 0xc7030081, 0x0fbff36a, 0x62ba6d5d, 0x504792c9, 0x676f577a, 
+    0xfb82ad70, 0xcd725c23, 0x3ba157d0, 0xd19b59f3, 0x33d9944b, 0x3ece16e0, 0x2c5f5895, 0xd70d2f92, 0x5da69d06, 0x67dcdcdb, 0x01870eca, 0xfd7eb743, 
+    0xf8b0d73a, 0x75d1470b, 0xe91331cb, 0xe51c5236, 0x31ab90cc, 0x1978daae, 0xb1e65756, 0x38f362e5, 0x1bf99561, 0xc0e1763c, 0x00ffa3fb, 0xf17a58d5, 
+    0xa7cc0a63, 0x9fcac76b, 0xe86b0642, 0x057c1b8f, 0xa4d3bbb6, 0xb5baf0be, 0xcc2af4b5, 0x22cf77da, 0xcbcf004e, 0x00bb95d5, 0x07061d01, 0xc5bff95a, 
+    0xb7e8ddd2, 0xa16e1a97, 0x7f9f2e6b, 0xad2d2b01, 0x729114ca, 0x03583b38, 0x81043982, 0xa6a24190, 0xde19a612, 0x1b1e77da, 0xc1c7861f, 0x67af37fb, 
+    0x15deedb9, 0x81b61ab8, 0xfd307167, 0x600396ef, 0x3ce155fb, 0x57dc75ba, 0x58b2cf16, 0xd8133a5c, 0x675c9183, 0x9f86ee84, 0xb63b5be1, 0x06e5436c, 
+    0x1e004e72, 0xda8cd6a4, 0x7487bd99, 0x01061a4c, 0x11e4d095, 0xbc26aff5, 0x3a929352, 0x1d6b27d5, 0xe121ed37, 0xe153fcb8, 0x7ee2175d, 0x8c54be9a, 
+    0xc4aa61a9, 0x8473324e, 0x6cb89e61, 0xe9113b8e, 0x9bf8395f, 0x071ed6c5, 0xbbdeddf0, 0xd686f9a9, 0x0ac72a0c, 0xfd90a5e5, 0x3d991ed4, 0x9ff415cf, 
+    0x5a89cfc3, 0xcd34803f, 0x4f182f7e, 0x6e831f6f, 0xa21764ed, 0x338d54ee, 0xe502e0b4, 0xd07d7357, 0x57241909, 0xfc8e6fe5, 0xfc8e3767, 0xe6a97b53, 
+    0x6712ac58, 0x43ce3a5d, 0xee5bb39f, 0x38a107f9, 0x9a734fc6, 0x33ec32f6, 0x963dabc5, 0x7ce400ff, 0xcb537cbd, 0x77a5a85c, 0xf91f7dbc, 0xfba91e1d, 
+    0xbd45fc41, 0x4e9f27d4, 0xa0a33ef1, 0xa3e5c859, 0x0aaed3b0, 0xa7fe1845, 0x57b59ed4, 0xc5d717fe, 0x1a28fa3f, 0x06fe00ff, 0x1fd7f837, 0x43fc8407, 
+    0xb1b821ab, 0xa9b7e6f0, 0x5b0649c2, 0x4526090b, 0x0e58ea6e, 0xee917118, 0x40f84f2a, 0x00ff5b7c, 0x3f8a5742, 0xf82f51f0, 0x142ad857, 0x3e8ab292, 
+    0xb7ebe26d, 0x877d2677, 0xe2fa66f0, 0xbd39e2f7, 0x77cd90ba, 0x9234323c, 0xbd35e21f, 0x4f9557fb, 0x776ff810, 0xf7997e19, 0x66f09515, 0xe18d8f08, 
+    0x89fb31d8, 0xf756fb3b, 0x896a73ed, 0xe360f8af, 0xdcdf6339, 0xc9bce757, 0xfd65e362, 0x5f31fd58, 0x7fbdd9d9, 0x852e9ce0, 0x66c1a532, 0x6b1d1760, 
+    0x90e5d4a3, 0x683e1d5e, 0x068c171e, 0x1e04e370, 0x41e863a0, 0x70c373ae, 0x65b5ee2d, 0x4cfb3864, 0xfe93c1f1, 0xb5fe85db, 0x1d00ffe9, 0xef745934, 
+    0xcaa5ba8a, 0xf2a75805, 0xff6c2842, 0x1d05cb00, 0x35dd00ff, 0x5c996bb3, 0xc5bd2623, 0x4b74e3da, 0x17e02c68, 0xdd0d1237, 0xadee2748, 0x5dc2977b, 
+    0xbe29f41a, 0xb44d07b8, 0x675cfd97, 0xe47a9d89, 0xfaa0fb29, 0x7a077d9e, 0xe90a3ff2, 0x73c1e789, 0xe5c83772, 0x3c45b767, 0xed9d5329, 0x918cd3ef, 
+    0x2df74acf, 0x741ec403, 0xa5256502, 0x97d9bd51, 0xf28f67a3, 0x5ac3da2b, 0xcf87bee9, 0x9cdc5c66, 0x47933d90, 0xd5781b9e, 0x42b54460, 0x2c076c77, 
+    0x3d491de7, 0x683fce6b, 0x3a8000ff, 0x0e9fc66f, 0x345baccd, 0xd230bef6, 0x121626ac, 0x6e1fed5a, 0xb6a21921, 0xf9ee2397, 0x80ba0198, 0x7457ef48, 
+    0x251812df, 0x6ee6edd8, 0xfe7a05e7, 0x6fcbad58, 0x8498361b, 0x6d30b3b3, 0x763016ca, 0xf473a00e, 0x84aaaff7, 0x2c8fd6e9, 0x54063ef6, 0x2aaae1eb, 
+    0xf968f494, 0x6f9d4417, 0x0c990bfe, 0xef697765, 0x38087e94, 0x8e7a0439, 0x88fd856b, 0xc55ff1e6, 0x5aea0a8f, 0x778fae3d, 0x218d0e7d, 0xc6492d8a, 
+    0x7cea25d8, 0xcc70ecb0, 0x3170063d, 0x52d8579c, 0x3cd21d7c, 0xba757945, 0x7768dbd8, 0x3697bc91, 0x926e3b6b, 0x3fbf2457, 0xb2db0a31, 0xe319c370, 
+    0x0778dc15, 0xf8169ec3, 0x7e68a139, 0xdb2cd015, 0xfdd7d14a, 0xccdbd616, 0x71a36d92, 0x333b0b62, 0xcf493d75, 0x6cb8f335, 0x865449b1, 0xd7e86b23, 
+    0xccfad4f5, 0x3a287b5e, 0xbbabc273, 0x349dae3b, 0x9ffc58f9, 0x203eb0fd, 0x101f6b5f, 0xf008bcee, 0x78a763cb, 0xe41d736a, 0x35ad0d12, 0xfd2739ee, 
+    0x7b0a0795, 0xb8e29ee4, 0x0b7f821f, 0xf8273eef, 0x46441bca, 0x4f5c0b5b, 0x8417707b, 0x3daafc4c, 0xfa009e58, 0xacfdd59a, 0xc40f5b7c, 0xe277da3f, 
+    0xba61a93e, 0x72dd6b4b, 0xae37785b, 0x422ce2c2, 0xf219cf38, 0xd55e5fcf, 0xedec17f6, 0x861f92f0, 0xde82051e, 0xb8550754, 0x95bc683f, 0x2fad2e25, 
+    0x05003860, 0x5e4f0752, 0x92d46bbd, 0x2d8f0686, 0x9e799b2e, 0x32572764, 0xf956ebac, 0xa19700ff, 0xc173f8dd, 0x748767ba, 0xd93e6d6b, 0x1586b264, 
+    0xdb6ec3c2, 0x8e737d55, 0xadf7d4a7, 0x3f8bec2f, 0xffbbf9f9, 0xa586bf00, 0x348fe562, 0xdc7c359f, 0x6772339f, 0xb292a0b2, 0x06bfcf47, 0x667c4860, 
+    0x53def003, 0x5fabfced, 0x35f9c2f6, 0xf9b1095f, 0xa81f3173, 0x84e17fae, 0x6985f8f9, 0x7f09d683, 0x7fe91af4, 0xeab7786c, 0xc6c9131e, 0x57cc3f27, 
+    0xb8f5678b, 0x0f5d00ff, 0x8b5c93ad, 0xc73cf5d3, 0xd1989ac3, 0x6aa4417c, 0xc6d2a58c, 0x51a70bf6, 0x664552dd, 0xf435901f, 0x6d0beddf, 0xb7b8f62d, 
+    0xb7566cfa, 0xc7b26c5a, 0x52a95ce4, 0xac4cc41d, 0xdfec7437, 0xa1d97c95, 0x4cd7a4d9, 0x3c85ee1b, 0x00ff9c11, 0x5bd56b9e, 0x854f8e5f, 0xc0f01cfe, 
+    0xd320189e, 0x32b9c63c, 0x1af364e5, 0xe973dc79, 0xb7e264b6, 0x58a5bd74, 0xa5ca4cf7, 0x3d55b5e9, 0xc7987f36, 0x99b605f1, 0xba266e6c, 0x1db235fb, 
+    0xdd4e49c6, 0x130b8eed, 0xb5c39ed0, 0x3f896f79, 0xc487a669, 0x5dfa76d6, 0x29d6c2cc, 0x12d2ce77, 0x05531890, 0xc8c176c7, 0x48360c00, 0xf81baff5, 
+    0x557bf199, 0x9bd34df1, 0x3e1df44f, 0x2191e3d1, 0x86e564ea, 0x38c9794e, 0xe9e73e18, 0x1f7e8207, 0xd5577cdf, 0x181d74ac, 0x25a1a635, 0x709ab8c8, 
+    0x09788ba4, 0xa307613e, 0x0e904212, 0x03e4c939, 0x3830d18f, 0x3a58782a, 0x67be56b5, 0x27f363c3, 0x0fcb7e5e, 0xd0dfebb3, 0x5fc203fa, 0xfc2cfe13, 
+    0xbf1df14d, 0xf616bc87, 0x8d72c2b6, 0x42c4d535, 0xc540b25f, 0xeeb82db9, 0x39d71770, 0x5f73e0e4, 0xd13e7c6e, 0x1f5ec31f, 0x6ed6e0d3, 0x403cb43f, 
+    0x779746b0, 0x4cab7641, 0x3b606f14, 0xe27ab265, 0x6fe1cfbc, 0xe00f5dc3, 0x86259166, 0x5fe6759b, 0x451bc3de, 0xd93cac3c, 0x07600032, 0x24281f19, 
+    0x5eed91fa, 0x249be0d1, 0xbcce8fbd, 0x1c39f36d, 0xfa39dd1e, 0x6a558c9a, 0x3595a832, 0xa3f17964, 0x94727089, 0x115f39b4, 0x1f1ad0fe, 0xad4b3587, 
+    0x788c4607, 0xfe30c58b, 0xbe24dae8, 0x464a305c, 0xc8314b42, 0x13941d07, 0x5ebee2d8, 0x00ffa3fd, 0xc077fd68, 0xadc9d297, 0x3eb7b66a, 0x78b3ba3e, 
+    0xe90fdfb4, 0x8da6454c, 0xea02291b, 0x202fc976, 0xc6214adc, 0x0770cc4f, 0x34b5bf3a, 0xfd307c53, 0x73173cae, 0xa6952f6d, 0x29169df8, 0xf7174263, 
+    0x3dbeaafc, 0x619f1772, 0xeaba9f5f, 0x468d1bdc, 0x9fe5f9e6, 0x73bab950, 0x6731f33c, 0x1277dc67, 0xd6efc949, 0xe3a8b3b1, 0x79bae82b, 0x30946edc, 
+    0xed4a70f1, 0xb367f2f5, 0x0ebfc6fe, 0x7a7c894f, 0x92c06935, 0xd15d48d7, 0x3bdd1997, 0xc0f72964, 0x15dfc70c, 0xe6f6bcf7, 0xa057d518, 0xb29fe315, 
+    0xf0e7c3d7, 0x36bdc337, 0x5057d1e1, 0x99cd8fb8, 0xc059825b, 0xb40b7e24, 0x7abd067e, 0x9b4856e7, 0x0b4fc465, 0x7800ff0e, 0xa98a8f57, 0x3d596aed, 
+    0x3a4c3db4, 0xdca5a954, 0xe3c0c880, 0x9e347e24, 0xfe787f6b, 0x849a0475, 0x04a9e40e, 0x9fa9f61f, 0x7fd5876e, 0x765ca1ef, 0xccd5995d, 0x18be9bcf, 
+    0x9df8986a, 0x989ddba6, 0x753c2778, 0x4aaf99fb, 0x1d6db1fd, 0xa8082fb5, 0xfefdccc0, 0xf87bbea2, 0x27777f35, 0x37268dc6, 0x35fb282f, 0x81832dc9, 
+    0x2ffa1af2, 0x9f91bdf6, 0x3959f054, 0x5981d70a, 0x23a39df1, 0x53ebf29a, 0x4b303194, 0x2a2d7d76, 0xfc6eac8a, 0xcd4300ff, 0xa475337c, 0xebf25af8, 
+    0xc97df155, 0x784b34d2, 0x092e481a, 0xa932f7dc, 0x80381252, 0x4a90222d, 0xdc0800ff, 0xca6bf07a, 0xc6f8203e, 0x8c17e2eb, 0xf46dae6f, 0xf5f8b4f8, 
+    0x63f18e25, 0x118e4c28, 0x3ae61316, 0xce981b92, 0xa7c21f17, 0x3eb7623c, 0xe247dd23, 0xa72d4d1d, 0xcede9a91, 0x72348a77, 0x428d251a, 0x0a63f9e4, 
+    0xfa01ec72, 0xbce2e48c, 0xe31ce2f7, 0x71c1f845, 0xd9df170c, 0x8bc69116, 0x0aab921b, 0x760c6146, 0x5c70f9a9, 0xef497d9e, 0xb2e0a75f, 0x510a388a, 
+    0x9bf7d5c5, 0xd0bff9b7, 0xcd31fbfc, 0x4a6be26b, 0x99a21d84, 0xcdd1f8c3, 0xe9a9bba6, 0xe25ac073, 0xb1ca7e19, 0xa0cb30db, 0x606b8fc0, 0xd051f8e1, 
+    0x0a00318c, 0x9efd03fd, 0xf06f0dbc, 0xd4a0e11f, 0xaff661f5, 0x228e781c, 0x5359f6f6, 0x0485dd8f, 0x94586e9c, 0x2c272763, 0xbfe62b4e, 0xc32bf800, 
+    0xb3f8273e, 0x5475880f, 0xf8086f92, 0xd736ce52, 0x3e5549b5, 0x8a7277cd, 0xd8099931, 0x37906324, 0xbebc25b0, 0x3f7a4d32, 0xfa8a2fc2, 0x127fc5cf, 
+    0xd5287eea, 0xa7eded55, 0x4c339d94, 0xeb74f2c9, 0x0852c550, 0xa070e081, 0x6ce603b1, 0x67365e93, 0x965cf78b, 0x4ea7fecd, 0xb1558153, 0x7d37a531, 
+    0xb93bf2f6, 0x3f880f74, 0xf835ee12, 0xa5736dbc, 0x0eb6ac69, 0x7df64fba, 0xd2aac49d, 0xb9463789, 0xf1480879, 0x47c6b8bf, 0xc1477bad, 0x4b7fcdeb, 
+    0x28e247f8, 0xf56ef221, 0x304e03fd, 0x8cc5f9da, 0xca896566, 0xd9d97c33, 0xa4ca07b9, 0xde031c1c, 0x3442ad83, 0xf116960b, 0x240ed199, 0x1d6337da, 
+    0x9fe03705, 0x78432d8a, 0x8b6bdafe, 0xc9f4f377, 0x8ce6475c, 0x31860187, 0x7835bf9e, 0x5409af70, 0xb14ffc8a, 0x2c9583ad, 0x961e453d, 0xf8a896b7, 
+    0xbb0ee33b, 0x5e7cdcae, 0x17ebb3f0, 0x4353da7f, 0x25776b7b, 0xaca0acf3, 0x144babc0, 0x632c4666, 0x7afd8107, 0x78a82fd7, 0xdacfb539, 0x830c4f16, 
+    0xb500ff88, 0x07b0f3e5, 0x774682ca, 0x8cc2e9c0, 0x51fb4b57, 0xf1e9b6eb, 0xfc2c181e, 0xd1326db5, 0xb668a4ee, 0x01b75ce5, 0x03e0d0b1, 0x8f7aadcf, 
+    0x43023fc3, 0x7ed47ea8, 0x8366d736, 0x2185b5cd, 0x96ca81bb, 0xab31d742, 0xe818a79d, 0xabf7a71b, 0x4a6e85d3, 0x3e75fb1c, 0x0b42175f, 0xddc1e914, 
+    0x1fb96f27, 0xe922d947, 0x295b5076, 0xbc5600ff, 0x8af3d4e7, 0xbca873af, 0x6f6f4bd7, 0x485ddd03, 0xa428a476, 0xa6f43896, 0x2c18176a, 0x6bfc80c1, 
+    0x780bbed2, 0x219b3b2e, 0x26405dad, 0xe473baba, 0xc9e7b134, 0xe40a708c, 0xf6a84f70, 0x459d9faf, 0x77497b41, 0x356acdfc, 0x1f837367, 0xa943bc07, 
+    0x6da93c01, 0x00ffcd66, 0x404e9a2c, 0x4bebc0f7, 0x430a00ff, 0x9e00ff5d, 0xf0f7bfd6, 0x7d8500ff, 0x010c9a42, 0xfaa42a40, 0xec5f5ab7, 0x1db93f28, 
+    0xbbe2ac3f, 0xd4f6ca23, 0x9f929ffb, 0x00ff85b2, 0xbfc4a7f6, 0x1250473a, 0x13fbd4d1, 0xaf913f92, 0x6b00ffa2, 0xe35a583b, 0xd43d4bc1, 0x63edc376, 
+    0xf309986f, 0xc7cb470e, 0x024f7d40, 0x07f866be, 0x09dfeaa6, 0x1b9d243e, 0x6e2f56c4, 0x19da556f, 0xb1627855, 0xc63d4892, 0xdb0fe92b, 0x7c2ecd26, 
+    0x526aa737, 0x5c9acd1b, 0x00ffdd53, 0x57ae46a1, 0xe5dc9662, 0x3a460188, 0x38ecb10c, 0x4b7aad35, 0x63a7f0eb, 0x8fd8f0ea, 0x2f6b4ff6, 0x00ffe433, 
+    0xe2abf8de, 0x8c76d60c, 0x2dcf8460, 0x33129ed9, 0x45321f22, 0x8f2a7b6c, 0x7bcea093, 0x5f78a8d7, 0xc5af2de1, 0x4ad752ad, 0xad6eedd7, 0x36cb944f, 
+    0x39620ca1, 0x75498966, 0x3ece6983, 0x749caf72, 0x4fbcc64f, 0xbe2eb7c0, 0xbb75d320, 0x4ddb9a86, 0x6b8a259e, 0x1eef9488, 0x74102d6c, 0x5846daf5, 
+    0x0db6830e, 0xfc83ef7b, 0xc7b37c43, 0x66e92bf6, 0xd32a24f1, 0x7197de3d, 0x9da448e5, 0x1f412c98, 0x0e7fd8ea, 0xbfe61c39, 0xd708a75e, 0x5f94cac1, 
+    0x19f363bd, 0x7bc451d6, 0x20cf6c59, 0x27fea1fd, 0x4bafbb26, 0x2015bde1, 0xa4edf0b3, 0xc3dabac9, 0x19cd8468, 0x3e90a9da, 0x23b78060, 0x7098e582, 
+    0xec571d17, 0x5d3be2f3, 0xd9ec3f3a, 0xccb30b24, 0xc2fbefd9, 0xbc9afc40, 0x9fd05e0b, 0x6749b2c3, 0x3b340f21, 0x2be4ba98, 0xc0b561a1, 0x5e8fe03c, 
+    0xb4da1184, 0xbbf61bfc, 0x18c6668d, 0x59d29267, 0xcc455826, 0xd063637d, 0xdee9f4fb, 0x61c73cbf, 0x9b4ae95c, 0xb33e757b, 0x3e3cc629, 0x7fad352a, 
+    0x0df4532f, 0x657955bc, 0x9696146d, 0xe7c0dcf1, 0xdae4816c, 0x403070ca, 0xd95acfc1, 0xdeaaf8bf, 0xaa73f80e, 0x69a5c95e, 0xb8b42422, 0xa668ea9e, 
+    0x23b07173, 0x0b40393e, 0x3d17b660, 0x72f890ab, 0x20543a97, 0xa8ae5e5f, 0xd6cc47a8, 0x40f909c1, 0xfcd335f5, 0x759efd5d, 0xc02bda7f, 0x36fad656, 
+    0xcba16dbd, 0xd2561903, 0xa3cb0e78, 0x33aab2e5, 0xdd41f9a9, 0x3978908c, 0xfe7cc5c1, 0x599f2b0e, 0x67ee7d6e, 0x2e0aa789, 0x9d9f9a5c, 0x9ef7f756, 
+    0x16f1bd30, 0xdd4b76a7, 0x6277396a, 0x076e6f7a, 0x823e70d0, 0x1df8f0be, 0xedc34f68, 0x0d705617, 0xdaa6a1ce, 0x92d48fb4, 0x2763ac90, 0xe46b02fe, 
+    0x8fe14b7d, 0x780e7e88, 0xeff05a8f, 0x7489f48c, 0x2d6c4f5d, 0x3b1ebe0a, 0xde6fbe88, 0xd7e12043, 0x3a1e643c, 0xa3fa1a1c, 0xaaa9eee1, 0xbc0d9f68, 
+    0x9c9d0d2b, 0xe9513677, 0x7238f590, 0xd88e5b4e, 0xf1f50ac3, 0xe7aeec8b, 0x705be1c1, 0xe2afebe7, 0x935ccfce, 0x9999b6c8, 0xeb09b5b1, 0x07785e5f, 
+    0x837f1a42, 0x52f888b4, 0x1d27226d, 0xf50fca07, 0x2f3584af, 0x3aacc11e, 0x5c5af2e9, 0xa4234fda, 0xc03d1a6e, 0x084e7506, 0xf615c9eb, 0x8c1fc697, 
+    0x11f81ffe, 0x6baa41e0, 0x8b6a440e, 0x8366656d, 0x17c85c33, 0xcfbd880a, 0x24833e19, 0x51888dd7, 0xa9578752, 0x77524795, 0x4bfc8e85, 0xfee73a06, 
+    0xc1e64b01, 0x8e00ffeb, 0xab4ee657, 0x69fc77fb, 0xbba52fd6, 0xf80f6fb1, 0x4c42ca76, 0xb5d87b3a, 0xb79dc6cb, 0x9f645848, 0xfca72aa6, 0x3fc7df36, 
+    0x77780ffa, 0xe70400ff, 0xae8b00ff, 0x469e5aae, 0x8b91503f, 0xfc19e26b, 0xe09ff055, 0xf66e8a9f, 0x734da94f, 0x72736f7b, 0xbcc5f17e, 0xf9fe07b8, 
+    0xb75fea15, 0x5fdaac4e, 0x8ca298c3, 0x175de5c9, 0xb78d408a, 0x32ca58fe, 0xe3a9e779, 0xc1c3bcde, 0xd1b90b5e, 0x0dbf653f, 0x1c717143, 0xbd4e3af7, 
+    0x78c42b33, 0x981cc931, 0xfaf7fdc7, 0xddfea5d7, 0x019e4653, 0xb84d86b0, 0x5d862b9a, 0x469c0fc4, 0xfafe63c0, 0xd78cd335, 0xdf6ea335, 0x12703ba3, 
+    0x19ab2e6b, 0x1ffaaf3d, 0xbfcc5904, 0x374d8ef0, 0x4beea29a, 0x872896b8, 0x1c21543e, 0x21de7f92, 0x73e08e54, 0xf68bbdda, 0x9a3cf17f, 0x2d6eb78e, 
+    0x385db0c4, 0x6b9ae595, 0x1810838c, 0xb89373ea, 0xf10afa28, 0xaf39366d, 0xcfaac20b, 0x3018ea70, 0x50c8c119, 0x03d76147, 0xf0815eeb, 0x2f2f0962, 
+    0x97374f13, 0xb28e1c7a, 0x6a796f49, 0x869b64be, 0x3e261b33, 0x81e750e9, 0xaff729d4, 0x1c5530d1, 0xc7d2256a, 0x8e5756c5, 0x368ccf85, 0x8d9aea31, 
+    0x9617b6a4, 0x58b1b4da, 0xc5dd1d49, 0x7d4300b3, 0x0c2349a2, 0x91528684, 0xea084214, 0x7e5693a7, 0xea56f818, 0x5987c2e3, 0xeadc0075, 0x60db71d6, 
+    0xc9b8f273, 0x2a7f5e1f, 0x54635df3, 0x8dd7f1bd, 0x14cbbbcd, 0xb8b1c54b, 0x1453cb03, 0x3d76287f, 0x4f722049, 0x9ffa9a24, 0x9a92d6e1, 0x6b93e6a5, 
+    0x73788460, 0x70e95d44, 0xdcdd42ca, 0x670ada6d, 0x772c28aa, 0xe9789263, 0x629c155f, 0xd1519352, 0x997ff937, 0x110e19f7, 0x95349756, 0xf5d5d3f4, 
+    0xc99e2bf9, 0xc659a2a3, 0x962ab089, 0xe0dc9104, 0xf062af75, 0x6db1b11e, 0x14003990, 0x451dcfc0, 0xce8b4879, 0xb8ea8488, 0xe14557e0, 0xcbdb488d, 
+    0x2bc33112, 0x2be2c728, 0x715569e2, 0xe8675292, 0x56058579, 0x033db293, 0x49f8d7f6, 0xf683f16f, 0xd505f167, 0x25de2abc, 0xebb3ddf0, 0x0fc24d1a, 
+    0xee1a03de, 0xed7a2096, 0xd3310c74, 0xf16a4f21, 0xae5b0f1f, 0x12ede099, 0x364c72d9, 0xb40f2630, 0x57fa316a, 0xd403fed9, 0xbfb4d520, 0x9a85dcb3, 
+    0x2cc71429, 0x2365c86d, 0x41e81104, 0x899fcdaf, 0x7e8dc75a, 0xc4bf7818, 0xecb55dda, 0xeaa6ef77, 0x5b8b5b13, 0x815dbea8, 0xe4b84d89, 0xfa488502, 
+    0x4ed7d7d7, 0x3b4ae974, 0xe6d1981f, 0x9f45aa84, 0xdfcffe4d, 0x77fc2c0e, 0x56bdabe2, 0x1d0200ff, 0x704c582e, 0x26793f00, 0x619fc0ed, 0x5779a5b7, 
+    0x48e385ed, 0x68f1773c, 0x3489b35b, 0xd1c20f9f, 0xd3703742, 0x0f188913, 0xd0e7c253, 0xfee95a1f, 0xd360fc13, 0x1d7c1dbe, 0xe2a5f8b5, 0xa74eba6d, 
+    0x04756775, 0x592c0c3a, 0x2a56bae7, 0x7d722ea0, 0xd7007872, 0x9ac423ca, 0x25b58a8f, 0xfed36fd4, 0x3cf33726, 0xb9af5bb1, 0xc39ee3ce, 0x7abee6f9, 
+    0xc5572a9c, 0x9b68694a, 0xa0d7335f, 0x53cd07e1, 0x7ea99fb6, 0xe5489b7b, 0xcf43e922, 0x20535bfc, 0x2a1d7e7b, 0x9fe9b63f, 0x00ffcbf3, 0xf89fd721, 
+    0x9dfac4b3, 0xbe3db996, 0x9a7df19a, 0x822d932f, 0x9aa70e4b, 0x8400ffc7, 0xdf5fc4c3, 0x1ff9fe87, 0xa8445fe1, 0x8aa3da46, 0xd95db958, 0xccfe569f, 
+    0x7feb7056, 0x2e8a0fb2, 0xe6f3232f, 0x5863d7b7, 0x0cca899d, 0xef3f3044, 0x00ff59a3, 0x990b52f0, 0x25f04e17, 0x732262b8, 0x4eea2b31, 0xc97e6b05, 
+    0x1e67f2bf, 0xb000ff30, 0x0aed7ff2, 0x8200ffc5, 0xf0a87f91, 0xfeb5fd0f, 0xf94f9d95, 0x7ff4511a, 0xbf703993, 0xebad2ef2, 0x1acc47fe, 0xd04a9405, 
+    0x2b1201cc, 0x8e83605b, 0xfd9f0bb7, 0xba667e00, 0x9e526f0d, 0xc4e7d2de, 0x54879510, 0x49b7458e, 0x10bb5063, 0xfa18c885, 0x1beb7d9e, 0x5500ff42, 
+    0xbfd6fb1f, 0xfc5751fa, 0x2200ff41, 0x7dfdef65, 0xfd5af22f, 0x43473a06, 0x33f1e5e4, 0xe059f8a6, 0xc5db1a3d, 0x6a8ddcda, 0xa21b5e2e, 0x9f8f9b91, 
+    0x7e3c3860, 0x96a6f475, 0x46813082, 0x8e01a0d0, 0x0d9fe1d5, 0xf16ae4bf, 0x7f7efd07, 0xd374af45, 0x79e257bb, 0x1bcb49b5, 0x3fb33751, 0xc2a9c874, 
+    0x2d4d1a38, 0x43e9d5d1, 0xf4fce724, 0x94686bad, 0x3918084c, 0xa5933507, 0xd2e73f75, 0x00ff2db6, 0xb922fed6, 0x1c3db223, 0xdc435f4f, 0xf14c1abe, 
+    0x311ec3b0, 0xfd58bede, 0xb321edab, 0x1f75a7fd, 0xdd8b312e, 0xd579ce3e, 0x0afb0cb9, 0xfc55f267, 0x864feaab, 0xf92a7ffd, 0xffb9f683, 0x6f9d9300, 
+    0x7fd904fb, 0x10f7d5ec, 0x477400ff, 0xdf7f75e5, 0x3e7ee519, 0xd023edd1, 0x0931b826, 0x6b4c4924, 0x5c851ce6, 0xce76e064, 0x421bae39, 0xf04500ff, 
+    0xf57589d7, 0x782bb5f9, 0xf2234542, 0x07e84811, 0x885ff46a, 0xdc2af25f, 0xc1d700ff, 0x6bd000ff, 0xf9bf74ce, 0xff2d9e26, 0xfc69ae00, 0x772d87ab, 
+    0xb97a76a7, 0x1c49939e, 0x157c821f, 0x13fde263, 0x96504bfb, 0x95a4aee5, 0xdae51883, 0x7a4f7f0f, 0x8500ffdf, 0x00ffa145, 0xfbdf4bcf, 0x00ff00ff, 
+    0x43f8a5d6, 0x6c2200ff, 0xffd9f55f, 0xb576a500, 0x2778b6eb, 0x0000d9ff, 
+};
+};
+} //namespace BluePrint
+
+BP_NODE_DYNAMIC_WITH_NAME(HQDN3DNode, "HQDN3D Denoise", "CodeWin", NODE_VERSION, VERSION_BLUEPRINT_API, BluePrint::NodeType::External, BluePrint::NodeStyle::Default, "Filter#Video#Denoise")

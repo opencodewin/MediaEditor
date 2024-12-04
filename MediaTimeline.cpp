@@ -16,23 +16,23 @@
 */
 
 #include "MediaTimeline.h"
-#include "MediaCore/MediaInfo.h"
+#include "MediaInfo.h"
 #include <imgui_helper.h>
-#include <imgui_addons/imgui_extra_widget.h>
+#include <imgui_extra_widget.h>
 #include <imgui_fft.h>
-#include <imgui_addons/implot.h>
+#include <implot.h>
 #include <cmath>
 #include <sstream>
 #include <iomanip>
 #include <vector>
 #include <utility>
-#include <BaseUtils/ThreadUtils.h>
-#include <BaseUtils/MatUtilsImVecHelper.h>
+#include <ThreadUtils.h>
+#include <MatUtilsImVecHelper.h>
 #include "EventStackFilter.h"
-#include "MediaCore/TextureManager.h"
-#include "MediaCore/MatUtils.h"
-#include "BaseUtils/Logger.h"
-#include "MediaCore/DebugHelper.h"
+#include "TextureManager.h"
+#include "MatUtils.h"
+#include "Logger.h"
+#include "DebugHelper.h"
 
 const MediaTimeline::audio_band_config DEFAULT_BAND_CFG[10] = {
     { 32,       32,         0 },        { 64,       64,         0 },

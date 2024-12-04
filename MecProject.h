@@ -6,9 +6,9 @@
 #include <list>
 #include <vector>
 #include <imgui_json.h>
-#include <BaseUtils/ThreadUtils.h>
-#include <BaseUtils/Logger.h>
-#include <MediaCore/HwaccelManager.h>
+#include <ThreadUtils.h>
+#include <Logger.h>
+#include <HwaccelManager.h>
 #include "BackgroundTask.h"
 
 namespace MEC

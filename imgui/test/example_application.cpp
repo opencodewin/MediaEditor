@@ -6,8 +6,33 @@
 #include <sstream>
 #include <string>
 #include <cerrno>
+#include <imgui_markdown.h>
+#include <imgui_memory_editor.h>
+#include <implot.h>
+#include <ImGuiFileDialog.h>
+#include <imgui_extra_widget.h>
+#include <HotKey.h>
+#include <TextEditor.h>
+#include <ImGuiTabWindow.h>
+#include <imgui_node_editor.h>
+#include <imgui_curve.h>
+#include <ImNewCurve.h>
+#include <imgui_spline.h>
+#include <ImGuiZMOquat.h>
+#include <ImGuiZmo.h>
+#include <imgui_toggle.h>
+#include <imgui_tex_inspect.h>
+#include <ImCoolbar.h>
+#include <ImGuiOrient.h>
+#include <portable-file-dialogs.h>
+#include <ImGuiStyleSerializer.h>
 #include <imgui_cpu.h>
 
+#if IMGUI_VULKAN_SHADER
+#include <ImVulkanShader.h>
+#include <imvk_mat_shader.h>
+//#define TEST_VKIMAGEMAT
+#endif
 #include <immat.h>
 #include "Config.h"
 #if !IMGUI_ICONS
@@ -17,6 +42,16 @@
 #define ICON_TRUE u8"\ue5ca"
 #define ICON_FALSE u8"\ue5cd"
 #endif
+
+// Init HotKey
+static std::vector<ImHotKey::HotKey> hotkeys = 
+{ 
+    {"Layout", "Reorder nodes in a simpler layout", 0xFFFF26E0},
+    {"Save", "Save the current graph", 0xFFFF1FE0},
+    {"Load", "Load an existing graph file", 0xFFFF18E0},
+    {"Play/Stop", "Play or stop the animation from the current graph", 0xFFFFFF3F},
+    {"SetKey", "Make a new animation key with the current parameters values at the current time", 0xFFFFFF1F}
+};
 
 static inline void box(ImGui::ImMat& image, int x1, int y1, int x2, int y2, int R, int G, int B)
 {
@@ -55,11 +90,122 @@ static inline void gray_bar(ImGui::ImMat& image, int x1,int y1,int x2,int y2,int
     }
 }
 
+static void Show_Coolbar_demo_window(bool* p_open = NULL)
+{
+    auto coolbar_button     = [](const char* label) -> bool
+    {
+		float w         = ImGui::GetCoolBarItemWidth();
+        ImGui::SetWindowFontScale(ImGui::GetCoolBarItemScale());
+		bool res = ImGui::Button(label, ImVec2(w, w));
+        ImGui::SetWindowFontScale(1.0);
+		return res;
+	};
+    static bool show_imcoolbar_metrics = false;
+    ImGui::ImCoolBarConfig config;
+    auto viewport = ImGui::GetWindowViewport();
+    config.anchor = ImVec2(0.5, 1.0);
+    ImGui::SetNextWindowViewport(viewport->ID);
+    if (ImGui::BeginCoolBar("##CoolBarHorizontal", ImCoolBarFlags_Horizontal, config))
+    {
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("A")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("B")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("C")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("D")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("E")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("F")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("G")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("H")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("I")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("J")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("K")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("L")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("M")) { }
+		}
+		ImGui::EndCoolBar();
+	}
+    config.anchor = ImVec2(1.0, 0.5);
+    ImGui::SetNextWindowViewport(viewport->ID);
+    if (ImGui::BeginCoolBar("##CoolBarVertical", ImCoolBarFlags_Vertical, config))
+    {
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("a")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("b")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("c")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("d")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("e")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("f")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("g")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("h")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("i")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("j")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("k")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("l")) { }
+		}
+		if (ImGui::CoolBarItem()) {
+			if (coolbar_button("m")) { }
+		}
+		ImGui::EndCoolBar();
+	}
+    ImGui::ShowCoolBarMetrics(p_open ? p_open : &show_imcoolbar_metrics);
+}
+
 class Example
 {
 public:
     Example() 
     {
+        // init memory edit
+        mem_edit.Open = false;
+        mem_edit.OptShowDataPreview = true;
+        mem_edit.OptAddrDigitsCount = 8;
+        data = malloc(0x400);
         // init color inspact
         color_bar(image, 0, 0, 255, 191);
         gray_bar(image, 0, 192, 255, 255, 13);
@@ -68,27 +214,69 @@ public:
     };
     ~Example() 
     {
+        if (data)
+            free(data); 
+        ImGui::ReleaseTabWindow();
         ImGui::ImDestroyTexture(&ImageTexture);
         ImGui::ImDestroyTexture(&DrawMatTexture);
         ImGui::ImDestroyTexture(&CustomDrawTexture);
     }
 
 public:
+    // init memory edit
+    MemoryEditor mem_edit;
+    void* data = nullptr;
+
+    // Init MarkDown
+    ImGui::MarkdownConfig mdConfig;
+
+    // Init Colorful Text Edit
+    TextEditor editor;
+
+public:
     bool show_demo_window = true;
     bool show_cpu_info = false;
     bool show_viewport_fullscreen = false;
     bool show_another_window = false;
+    bool show_implot_window = false;
+    bool show_file_dialog_window = false;
+    bool show_markdown_window = false;
+    bool show_widget_window = false;
     bool show_mat_draw_window = false;
     bool show_mat_fish_circle_draw = false;
     bool show_mat_rotate_window = false;
     bool show_mat_warp_matrix = false;
-
+    bool show_kalman_window = false;
+    bool show_fft_window = false;
+    bool show_stft_window = false;
+    bool show_text_editor_window = false;
+    bool show_tab_window = false;
+    bool show_node_editor_window = false;
+    bool show_curve_demo_window = false;
+    bool show_new_curve_demo_window = false;
+    bool show_spline_demo_window = false;
+    bool show_zmoquat_window = false;
+    bool show_zmo_window = false;
+    bool show_toggle_window = false;
+    bool show_tex_inspect_window = false;
+    bool show_portable_file_dialogs = false;
+    bool show_coolbar_window = false;
+    bool show_orient_widget = false;
+    bool show_style_serializer_window = false;
 public:
     void DrawMatDemo();
     void DrawFishCircleDemo();
     void DrawRotateDemo();
     void WarpMatrixDemo();
+    std::string get_file_contents(const char *filename);
+    static ImGui::MarkdownImageData ImageCallback( ImGui::MarkdownLinkCallbackData data_ );
+    static void LinkCallback( ImGui::MarkdownLinkCallbackData data_ );
+    static void ExampleMarkdownFormatCallback( const ImGui::MarkdownFormatInfo& markdownFormatInfo_, bool start_ );
 
+#if IMGUI_VULKAN_SHADER
+public:
+    bool show_shader_window = false;
+#endif
 public:
     ImGui::ImMat image {ImGui::ImMat(256, 256, 4, 1u, 4)};
     ImGui::ImMat draw_mat {ImGui::ImMat(512, 512, 4, 1u, 4)};
@@ -100,6 +288,113 @@ public:
     ImTextureID SmallTexture = 0;
     ImTextureID CustomDrawTexture = 0;
 };
+
+std::string Example::get_file_contents(const char *filename)
+{
+#ifdef DEFAULT_DOCUMENT_PATH
+    std::string file_path = std::string(DEFAULT_DOCUMENT_PATH) + std::string(filename);
+#else
+    std::string file_path = std::string(filename);
+#endif
+    std::ifstream infile(file_path, std::ios::in | std::ios::binary);
+    if (infile.is_open())
+    {
+        std::ostringstream contents;
+        contents << infile.rdbuf();
+        infile.close();
+        return(contents.str());
+    }
+    else
+    {
+        std::string test = 
+            "Syntax Tests For imgui_markdown\n"
+            "Test - Headers\n"
+            "# Header 1\n"
+            "Paragraph\n"
+            "## Header 2\n"
+            "Paragraph\n"
+            "### Header 3\n"
+            "Paragraph\n"
+            "Test - Emphasis\n"
+            "*Emphasis with stars*\n"
+            "_Emphasis with underscores_\n"
+            "**Strong emphasis with stars**\n"
+            "__Strong emphasis with underscores__\n"
+            "_*_\n"
+            "**_**\n"
+            "Test - Emphasis In List\n"
+            "  * *List emphasis with stars*\n"
+            "    * *Sublist with emphasis*\n"
+            "    * Sublist without emphasis\n"
+            "    * **Sublist** with *some* emphasis\n"
+            "  * _List emphasis with underscores_\n"
+            "Test - Emphasis In Indented Paragraph\n"
+            "  *Indented emphasis with stars*\n"
+            "    *Double indent with emphasis*\n"
+            "    Double indent without emphasis\n"
+            "    **Double indent** with *some* emphasis\n"
+            "  _Indented emphasis with underscores_\n"
+            ;
+        return test;
+    }
+}
+
+ImGui::MarkdownImageData Example::ImageCallback( ImGui::MarkdownLinkCallbackData data_ )
+{
+    char image_url[MAX_PATH_BUFFER_SIZE] = {0};
+    strncpy(image_url, data_.link, data_.linkLength);
+    // In your application you would load an image based on data_ input. Here we just use the imgui font texture.
+    ImTextureID image = ImGui::GetIO().Fonts->TexID;
+    // > C++14 can use ImGui::MarkdownImageData imageData{ true, false, image, ImVec2( 40.0f, 20.0f ) };
+
+    ImGui::MarkdownImageData imageData;
+    imageData.isValid =         true;
+    imageData.useLinkCallback = false;
+    imageData.user_texture_id = image;
+    imageData.size =            ImVec2( 40.0f, 20.0f );
+    return imageData;
+}
+
+void Example::LinkCallback( ImGui::MarkdownLinkCallbackData data_ )
+{
+    std::string url( data_.link, data_.linkLength );
+    std::string command = "open " + url;
+    if( !data_.isImage )
+    {
+        system(command.c_str());
+    }
+}
+
+void Example::ExampleMarkdownFormatCallback( const ImGui::MarkdownFormatInfo& markdownFormatInfo_, bool start_ )
+{
+    // Call the default first so any settings can be overwritten by our implementation.
+    // Alternatively could be called or not called in a switch statement on a case by case basis.
+    // See defaultMarkdownFormatCallback definition for furhter examples of how to use it.
+    ImGui::defaultMarkdownFormatCallback( markdownFormatInfo_, start_ );        
+    switch( markdownFormatInfo_.type )
+    {
+        // example: change the colour of heading level 2
+        case ImGui::MarkdownFormatType::HEADING:
+        {
+            if( markdownFormatInfo_.level == 2 )
+            {
+                if( start_ )
+                {
+                    ImGui::PushStyleColor( ImGuiCol_Text, ImGui::GetStyle().Colors[ImGuiCol_TextDisabled] );
+                }
+                else
+                {
+                    ImGui::PopStyleColor();
+                }
+            }
+            break;
+        }
+        default:
+        {
+            break;
+        }
+    }
+}
 
 void Example::DrawMatDemo()
 {
@@ -134,6 +429,9 @@ void Example::DrawMatDemo()
     float_mat.draw_line(ImPoint(float_mat.w / 2, 0), ImPoint(float_mat.w / 2, float_mat.h - 1), 1, ImPixel(0, 0, 0, 1));
     float_mat.draw_line(ImPoint(0, float_mat.h / 2), ImPoint(float_mat.w - 1, float_mat.h / 2), 1, ImPixel(0, 0, 0, 1));
     rgb_mat.clean(text_color);
+#if IMGUI_VULKAN_SHADER
+    ImGui::VkMat float_vkmat(float_mat);
+#endif
 
     // draw line test
     for (int j = 0; j < 5; j++) 
@@ -238,7 +536,11 @@ void Example::DrawMatDemo()
     ImGui::ImMatToTexture(draw_mat, DrawMatTexture);
     
     // mat copy to texture
+#if IMGUI_VULKAN_SHADER
+    ImGui::ImCopyToTexture(DrawMatTexture, (unsigned char*)&float_vkmat, float_vkmat.w, float_vkmat.h, float_vkmat.c, offset_x, offset_y, true);
+#else
     ImGui::ImCopyToTexture(DrawMatTexture, (unsigned char*)&float_mat, float_mat.w, float_mat.h, float_mat.c, offset_x, offset_y, true);
+#endif
 
     offset_x += step_x;
     offset_y += step_y;
@@ -378,6 +680,32 @@ void Example::DrawFishCircleDemo()
     if (CustomDrawTexture)
     {
         ImGui::ImShowVideoWindow(ImGui::GetWindowDrawList(), CustomDrawTexture, ImGui::GetCursorScreenPos(), ImVec2(1024, 1024));
+        std::string dialog_id = "##TextureFileDlgKey" + std::to_string((long long)CustomDrawTexture);
+        if (ImGui::BeginPopupContextItem())
+        {
+            if (ImGui::MenuItem((std::string(ICON_FA_IMAGE) + " Save Texture to File").c_str()))
+            {
+                IGFD::FileDialogConfig config;
+                config.path = ".";
+                config.countSelectionMax = 1;
+                config.flags = ImGuiFileDialogFlags_SaveFile_Default;
+                ImGuiFileDialog::Instance()->OpenDialog(dialog_id.c_str(), ICON_IGFD_FOLDER_OPEN " Choose File", 
+                                                        "Image files (*.png *.gif *.jpg *.jpeg *.tiff *.webp){.png,.gif,.jpg,.jpeg,.tiff,.webp}",
+                                                        config);
+            }
+            ImGui::EndPopup();
+        }
+        ImVec2 minSize = ImVec2(600, 300);
+        ImVec2 maxSize = ImVec2(FLT_MAX, FLT_MAX);
+        if (ImGuiFileDialog::Instance()->Display(dialog_id.c_str(), ImGuiWindowFlags_NoCollapse, minSize, maxSize))
+        {
+            if (ImGuiFileDialog::Instance()->IsOk() == true)
+            {
+                std::string file_path = ImGuiFileDialog::Instance()->GetFilePathName();
+                ImGui::ImTextureToFile(CustomDrawTexture, file_path);
+            }
+            ImGuiFileDialog::Instance()->Close();
+        }
     }
 }
 
@@ -431,6 +759,7 @@ void Example_Initialize(void** handle)
     srand((unsigned int)time(0));
     *handle = new Example();
     Example * example = (Example *)*handle;
+    ImPlot::CreateContext();
 }
 
 void Example_Finalize(void** handle)
@@ -441,6 +770,7 @@ void Example_Finalize(void** handle)
         delete example;
         *handle = nullptr;
     }
+    ImPlot::DestroyContext();
 }
 
 bool Example_Frame(void* handle, bool app_will_quit)
@@ -484,10 +814,62 @@ bool Example_Frame(void* handle, bool app_will_quit)
                 Application_FullScreen(example->show_viewport_fullscreen);
         }
         ImGui::Checkbox("Another Window", &example->show_another_window);
+        ImGui::Checkbox("ImPlot Window", &example->show_implot_window);
+        ImGui::Checkbox("File Dialog Window", &example->show_file_dialog_window);
+        ImGui::Checkbox("Portable File Dialogs", &example->show_portable_file_dialogs);
+        ImGui::Checkbox("Memory Edit Window", &example->mem_edit.Open);
+        ImGui::Checkbox("Markdown Window", &example->show_markdown_window);
+        ImGui::Checkbox("Extra Widget Window", &example->show_widget_window);
+        ImGui::Checkbox("Kalman Window", &example->show_kalman_window);
+        ImGui::Checkbox("FFT Window", &example->show_fft_window);
+        ImGui::Checkbox("STFT Window", &example->show_stft_window);
         ImGui::Checkbox("ImMat Draw Window", &example->show_mat_draw_window);
         ImGui::Checkbox("ImMat Rotate Window", &example->show_mat_rotate_window);
         ImGui::Checkbox("ImMat Draw Fish circle Window", &example->show_mat_fish_circle_draw);
         ImGui::Checkbox("ImMat Warp Matrix", &example->show_mat_warp_matrix);
+        ImGui::Checkbox("Text Edit Window", &example->show_text_editor_window);
+        ImGui::Checkbox("Tab Window", &example->show_tab_window);
+        ImGui::Checkbox("Node Editor Window", &example->show_node_editor_window);
+        ImGui::Checkbox("Curve Demo Window", &example->show_curve_demo_window);
+        ImGui::Checkbox("New Curve Demo Window", &example->show_new_curve_demo_window);
+        ImGui::Checkbox("Spline Demo Window", &example->show_spline_demo_window);
+        ImGui::Checkbox("ZmoQuat Demo Window", &example->show_zmoquat_window);
+        ImGui::Checkbox("Zmo Demo Window", &example->show_zmo_window);
+        ImGui::Checkbox("Toggle Demo Window", &example->show_toggle_window);
+        ImGui::Checkbox("TexInspect Window", &example->show_tex_inspect_window);
+        ImGui::Checkbox("Coolbar Window", &example->show_coolbar_window);
+        ImGui::Checkbox("3D Orient Widget", &example->show_orient_widget);
+        ImGui::Checkbox("Show Style Serializer", &example->show_style_serializer_window);
+
+#if IMGUI_VULKAN_SHADER
+        ImGui::Checkbox("Show Vulkan Shader Test Window", &example->show_shader_window);
+#endif
+        // show hotkey window
+        if (ImGui::Button("Edit Hotkeys"))
+        {
+            ImGui::OpenPopup("HotKeys Editor");
+        }
+
+        // Handle hotkey popup
+        ImHotKey::Edit(hotkeys.data(), hotkeys.size(), "HotKeys Editor");
+        int hotkey = ImHotKey::GetHotKey(hotkeys.data(), hotkeys.size());
+        if (hotkey != -1)
+        {
+            // handle the hotkey index!
+        }
+
+        ImVec2 displayedTextureSize(256,256);
+        ImGui::Image((ImTextureID)(uint64_t)example->ImageTexture, displayedTextureSize);
+        {
+            ImRect rc = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+            ImVec2 mouseUVCoord = (io.MousePos - rc.Min) / rc.GetSize();
+            if (ImGui::IsItemHovered() && mouseUVCoord.x >= 0.f && mouseUVCoord.y >= 0.f)
+            {
+                ImGui::ImageInspect(example->image.w, example->image.h, 
+                                    (const unsigned char*)example->image.data, mouseUVCoord, 
+                                    displayedTextureSize);
+            }
+        }
 
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", ImGui::GetIO().DeltaTime * 1000.f, ImGui::GetIO().Framerate);
         ImGui::Text("Frames since last input: %d", ImGui::GetIO().FrameCountSinceLastUpdate);
@@ -527,6 +909,173 @@ bool Example_Frame(void* handle, bool app_will_quit)
         ImGui::End();
     }
 
+    // Show ImPlot simple window
+    if (example->show_implot_window)
+    {
+        ImPlot::ShowDemoWindow(&example->show_implot_window);
+    }
+
+    // Show FileDialog demo window
+    if (example->show_file_dialog_window)
+    {
+        show_file_dialog_demo_window(&example->show_file_dialog_window);
+    }
+
+    // Show Portable File Dialogs
+    if (example->show_portable_file_dialogs)
+    {
+        ImGui::SetNextWindowSize(ImVec2(640, 300), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Portable FileDialog window",&example->show_portable_file_dialogs, ImGuiWindowFlags_NoScrollbar);
+        // select folder
+        if (ImGui::Button("Select Folder"))
+        {
+            auto dir = pfd::select_folder("Select any directory", pfd::path::home()).result();
+            // std::cout << "Selected dir: " << dir << "\n";
+        }
+
+        // open file
+        if (ImGui::Button("Open File"))
+        {
+            auto f = pfd::open_file("Choose files to read", pfd::path::home(),
+                                { "Text Files (.txt .text)", "*.txt *.text",
+                                    "All Files", "*" },
+                                    pfd::opt::multiselect);
+            // for (auto const &name : f.result()) std::cout << " " + name; std::cout << "\n";
+        }
+
+        // save file
+        if (ImGui::Button("Save File"))
+        {
+            auto f = pfd::save_file("Choose file to save",
+                                    pfd::path::home() + pfd::path::separator() + "readme.txt",
+                                    { "Text Files (.txt .text)", "*.txt *.text" },
+                                    pfd::opt::force_overwrite);
+            // std::cout << "Selected file: " << f.result() << "\n";
+        }
+
+        // show Notification
+        static int notify_type = 0;
+        if (ImGui::Button("Notification"))
+        {
+            switch (notify_type)
+            {
+                case 0: pfd::notify("Info Notification", "Notification from imgui example!", pfd::icon::info); break;
+                case 1: pfd::notify("Warning Notification", "Notification from imgui example!", pfd::icon::warning); break;
+                case 2: pfd::notify("Error Notification", "Notification from imgui example!", pfd::icon::error); break;
+                case 3: pfd::notify("Question Notification", "Notification from imgui example!", pfd::icon::question); break;
+                default: break;
+            }
+        }
+        ImGui::SameLine(); ImGui::RadioButton("Info", &notify_type, 0);
+        ImGui::SameLine(); ImGui::RadioButton("Warning", &notify_type, 1);
+        ImGui::SameLine(); ImGui::RadioButton("Error", &notify_type, 2);
+        ImGui::SameLine(); ImGui::RadioButton("Question", &notify_type, 3);
+
+        // show Message
+        static int message_type = 0;
+        static int message_icon = 0;
+        if (ImGui::Button("Message"))
+        {
+            auto m = pfd::message("Personal Message", "You are an amazing person, don't let anyone make you think otherwise.",
+                                    (pfd::choice)message_type,
+                                    (pfd::icon)message_icon);
+    
+            // Optional: do something while waiting for user action
+            for (int i = 0; i < 10 && !m.ready(1000); ++i);
+            //    std::cout << "Waited 1 second for user input...\n";
+
+            // Do something according to the selected button
+            if (m.ready())
+            {
+                switch (m.result())
+                {
+                    case pfd::button::yes: std::cout << "User agreed.\n"; break;
+                    case pfd::button::no: std::cout << "User disagreed.\n"; break;
+                    case pfd::button::cancel: std::cout << "User freaked out.\n"; break;
+                    default: break; // Should not happen
+                }
+            }
+            else
+                m.kill();
+        }
+        ImGui::SameLine(); ImGui::RadioButton("Ok", &message_type, 0);
+        ImGui::SameLine(); ImGui::RadioButton("Ok_Cancel", &message_type, 1);
+        ImGui::SameLine(); ImGui::RadioButton("Yes_no", &message_type, 2);
+        ImGui::SameLine(); ImGui::RadioButton("Yes_no_cancel", &message_type, 3);
+        ImGui::SameLine(); ImGui::RadioButton("Abort_retry_ignore", &message_type, 4);
+        ImGui::Indent(64);
+        ImGui::RadioButton("Info##icon", &message_icon, 0); ImGui::SameLine();
+        ImGui::RadioButton("Warning##icon", &message_icon, 1); ImGui::SameLine();
+        ImGui::RadioButton("Error##icon", &message_icon, 2); ImGui::SameLine();
+        ImGui::RadioButton("Question##icon", &message_icon, 3);
+
+        ImGui::End();
+    }
+
+    // Show Memory Edit window
+    if (example->mem_edit.Open)
+    {
+        static int i = 0;
+        int * test_point = (int *)example->data;
+        *test_point = i; i++;
+        example->mem_edit.DrawWindow("Memory Editor", example->data, 0x400, 0);
+    }
+
+    // Show Markdown Window
+    if (example->show_markdown_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(1024, 768), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Markdown window",&example->show_markdown_window, ImGuiWindowFlags_NoScrollbar);
+        std::string help_doc =                   example->get_file_contents("README.md");
+        example->mdConfig.linkCallback =         example->LinkCallback;
+        example->mdConfig.tooltipCallback =      nullptr;
+        example->mdConfig.imageCallback =        example->ImageCallback;
+        example->mdConfig.linkIcon =             "->";
+        example->mdConfig.headingFormats[0] =    { io.Fonts->Fonts[0], true };
+        example->mdConfig.headingFormats[1] =    { io.Fonts->Fonts.size() > 1 ? io.Fonts->Fonts[1] : nullptr, true };
+        example->mdConfig.headingFormats[2] =    { io.Fonts->Fonts.size() > 2 ? io.Fonts->Fonts[2] : nullptr, false };
+        example->mdConfig.userData =             nullptr;
+        example->mdConfig.formatCallback =       example->ExampleMarkdownFormatCallback;
+        ImGui::Markdown( help_doc.c_str(), help_doc.length(), example->mdConfig );
+        ImGui::End();
+    }
+
+    // Show Extra widget Window
+    if (example->show_widget_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(1024, 768), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Extra Widget", &example->show_widget_window);
+        ImGui::ShowExtraWidgetDemoWindow();
+        ImGui::End();
+    }
+
+    // Show Kalman Window
+    if (example->show_kalman_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(1024, 768), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Kalman Demo", &example->show_kalman_window);
+        ImGui::ShowImKalmanDemoWindow();
+        ImGui::End();
+    }
+
+    // Show FFT Window
+    if (example->show_fft_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(1024, 1024), ImGuiCond_FirstUseEver);
+        ImGui::Begin("FFT Demo", &example->show_fft_window);
+        ImGui::ShowImFFTDemoWindow();
+        ImGui::End();
+    }
+
+    // Show STFT Window
+    if (example->show_stft_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(1024, 1024), ImGuiCond_FirstUseEver);
+        ImGui::Begin("STFT Demo", &example->show_stft_window);
+        ImGui::ShowImSTFTDemoWindow();
+        ImGui::End();
+    }
+
     // Show ImMat line/circle demo
     if (example->show_mat_draw_window)
     {
@@ -562,6 +1111,139 @@ bool Example_Frame(void* handle, bool app_will_quit)
         ImGui::End();
     }
 
+    // Show Text Edit Window
+    if (example->show_text_editor_window)
+    {
+        example->editor.text_edit_demo(&example->show_text_editor_window);
+    }
+
+    // Show Tab Window
+    if (example->show_tab_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(700,600), ImGuiCond_FirstUseEver);
+        if (ImGui::Begin("Example: TabWindow", &example->show_tab_window, ImGuiWindowFlags_NoScrollbar))
+        {
+            ImGui::ShowAddonsTabWindow();   // see its code for further info         
+        }
+        ImGui::End();
+    }
+
+    // Show Node Editor Window
+    if (example->show_node_editor_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(1024,1024), ImGuiCond_FirstUseEver);
+        if (ImGui::Begin("Example: Node Editor", &example->show_node_editor_window, ImGuiWindowFlags_NoScrollbar))
+        {
+            ImGui::ShowNodeEditorWindow();   // see its code for further info         
+        }
+        ImGui::End();
+    }
+
+    // Show Curve Demo Window
+    if (example->show_curve_demo_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(800,600), ImGuiCond_FirstUseEver);
+        if (ImGui::Begin("Example: Curve Demo", &example->show_curve_demo_window, ImGuiWindowFlags_NoScrollbar))
+        {
+            ImGui::ShowCurveDemo();   // see its code for further info         
+        }
+        ImGui::End();
+    }
+
+    // Show Curve Demo Window
+    if (example->show_new_curve_demo_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(800,600), ImGuiCond_FirstUseEver);
+        if (ImGui::Begin("Example: New Curve Demo", &example->show_new_curve_demo_window, ImGuiWindowFlags_NoScrollbar))
+        {
+            ImGui::ImNewCurve::ShowDemo();
+        }
+        ImGui::End();
+    }
+
+    // Show Spline Demo Window
+    if (example->show_spline_demo_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(800,800), ImGuiCond_FirstUseEver);
+        if (ImGui::Begin("Example: Spline Demo", &example->show_spline_demo_window, ImGuiWindowFlags_NoScrollbar))
+        {
+            ImGui::ShowSplineDemo();   // see its code for further info         
+        }
+        ImGui::End();
+    }
+
+    // Show Zmo Quat Window
+    if (example->show_zmoquat_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(1280, 900), ImGuiCond_FirstUseEver);
+        if (ImGui::Begin("ZMOQuat", &example->show_zmoquat_window, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar))
+        {
+            ImGui::ShowQuatDemo();
+        }
+        ImGui::End();
+    }
+
+    // Show Zmo Window
+    if (example->show_zmo_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(1280, 1024), ImGuiCond_FirstUseEver);
+        ImGui::Begin("##ZMO", &example->show_zmo_window, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus);
+        ImGuizmo::ShowImGuiZmoDemo();
+        ImGui::End();
+    }
+
+    // Show Toggle Window
+    if (example->show_toggle_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(1280, 800), ImGuiCond_FirstUseEver);
+        ImGui::Begin("##Toggle", &example->show_toggle_window, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar);
+        ImGui::imgui_toggle_example();
+        ImGui::End();
+    }
+
+    // Show TexInspect Window
+    if (example->show_tex_inspect_window)
+    {
+        ImGuiTexInspect::ShowImGuiTexInspectDemo(&example->show_tex_inspect_window);
+    }
+
+    // Show ImCoolbar Window
+    if (example->show_coolbar_window)
+    {
+        Show_Coolbar_demo_window(&example->show_coolbar_window);
+    }
+
+    // Show 3D orient widget
+    if (example->show_orient_widget)
+    {
+        ImGui::SetNextWindowSize(ImVec2(400, 800), ImGuiCond_FirstUseEver);
+        ImGui::Begin("##orient", &example->show_orient_widget, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar);
+        static ImVec3 dir;
+        static ImVec3 axis;
+        static ImVec4 quat;
+        static float angle;
+        ImGui::QuaternionGizmo("Quaternion", quat);
+        ImGui::AxisAngleGizmo("Axis Angle", axis, angle);
+        ImGui::DirectionGizmo("Direction", dir);
+        ImGui::End();
+    }
+
+    // Show Style Serializer Window
+    if (example->show_style_serializer_window)
+    {
+        ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Style Serializer", &example->show_style_serializer_window);
+        ImGui::ShowStyleSerializerDemoWindow();
+        ImGui::End();
+    }
+
+#if IMGUI_VULKAN_SHADER
+    // Show Vulkan Shader Test Window
+    if (example->show_shader_window)
+    {
+        ImGui::ImVulkanTestWindow("ImGui Vulkan test", &example->show_shader_window, 0);
+    }
+#endif
     if (app_will_quit)
         app_done = true;
     return app_done;
@@ -588,6 +1270,10 @@ bool Example_Splash_Screen(void* handle, bool& app_will_quit)
     ImGui::GetWindowDrawList()->AddText(ImVec2(xoft, yoft), IM_COL32_BLACK, str.c_str());
     ImGui::SetWindowFontScale(1.0);
 
+    ImGui::SetCursorPos(ImVec2(4, io.DisplaySize.y - 32));
+    float progress = (float)x / (float)delay;
+    ImGui::ProgressBar("##esplash_progress", progress, 0.f, 1.f, "", ImVec2(io.DisplaySize.x - 16, 8), 
+                                ImVec4(0.3f, 0.3f, 0.8f, 1.f), ImVec4(0.1f, 0.1f, 0.3f, 1.f), ImVec4(0.f, 0.f, 0.8f, 1.f));
     ImGui::End();
 
     if (x < delay)

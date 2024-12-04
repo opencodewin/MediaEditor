@@ -1,8 +1,8 @@
 #include <imgui.h>
 #include <application.h>
 #include <imgui_helper.h>
-#include <imgui_addons/ImGuiFileDialog.h>
-#include <imgui_addons/imgui_extra_widget.h>
+#include <ImGuiFileDialog.h>
+#include <imgui_extra_widget.h>
 #include <imgui_fft.h>
 #include <iostream>
 #include <sstream>
@@ -12,9 +12,9 @@
 #include <ImVulkanShader.h>
 // #include <Lut3D.h>
 #endif
-#include "MediaCore/MediaReader.h"
-#include "MediaCore/AudioRender.h"
-#include "MediaCore/FFUtils.h"
+#include "MediaReader.h"
+#include "AudioRender.h"
+#include "FFUtils.h"
 #include "Log.h"
 
 static std::string ini_file = "Media_Player.ini";

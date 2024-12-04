@@ -138,7 +138,7 @@ int main(int, char**)
         }
         if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED)
         {
-            show = false;
+        	show = false;
         }
         if (!show && !(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable))
         {

@@ -1,8 +1,8 @@
 #pragma once
 #include <vector>
 #include <imgui.h>
-#include <BaseUtils/Logger.h>
-#include <MediaCore/VideoTransformFilter.h>
+#include <Logger.h>
+#include <VideoTransformFilter.h>
 
 namespace MEC
 {

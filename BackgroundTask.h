@@ -2,11 +2,11 @@
 #include <string>
 #include <memory>
 #include <imgui_json.h>
-#include <BaseUtils/ThreadUtils.h>
-#include <BaseUtils/Logger.h>
-#include <MediaCore/SharedSettings.h>
-#include <MediaCore/MediaParser.h>
-#include <MediaCore/TextureManager.h>
+#include <ThreadUtils.h>
+#include <Logger.h>
+#include <SharedSettings.h>
+#include <MediaParser.h>
+#include <TextureManager.h>
 
 namespace MEC
 {

@@ -1,8 +1,8 @@
 #include <algorithm>
 #include <functional>
 #include <sstream>
-#include <MediaCore/VideoBlender.h>
-#include <ImMaskCreator/MatMath.h>
+#include <VideoBlender.h>
+#include <MatMath.h>
 #include "EventStackFilter.h"
 
 using namespace std;

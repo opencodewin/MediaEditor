@@ -1,10 +1,10 @@
 #include <iomanip>
 #include <limits>
 #include <list>
-#include <BaseUtils/TimeUtils.h>
-#include <MediaCore/MediaParser.h>
-#include <MediaCore/VideoClip.h>
-#include <MediaCore/FFUtils.h>
+#include <TimeUtils.h>
+#include <MediaParser.h>
+#include <VideoClip.h>
+#include <FFUtils.h>
 #include "BackgroundTask.h"
 #include "MediaTimeline.h"
 extern "C"

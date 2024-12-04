@@ -1,4 +1,4 @@
-// dear imgui, v1.91.1
+// dear imgui, v1.91.1 WIP
 // (tables and columns code)
 
 /*
@@ -1070,12 +1070,16 @@ void ImGui::TableUpdateLayout(ImGuiTable* table)
             continue;
         }
 
+        // Detect hovered column
+        if (is_hovering_table && mouse_skewed_x >= column->ClipRect.Min.x && mouse_skewed_x < column->ClipRect.Max.x)
+            table->HoveredColumnBody = (ImGuiTableColumnIdx)column_n;
+
         // Lock start position
         column->MinX = offset_x;
 
         // Lock width based on start position and minimum/maximum width for this position
-        column->WidthMax = TableCalcMaxColumnWidth(table, column_n);
-        column->WidthGiven = ImMin(column->WidthGiven, column->WidthMax);
+        float max_width = TableGetMaxColumnWidth(table, column_n);
+        column->WidthGiven = ImMin(column->WidthGiven, max_width);
         column->WidthGiven = ImMax(column->WidthGiven, ImMin(column->WidthRequest, table->MinColumnWidth));
         column->MaxX = offset_x + column->WidthGiven + table->CellSpacingX1 + table->CellSpacingX2 + table->CellPaddingX * 2.0f;
 
@@ -1124,13 +1128,8 @@ void ImGui::TableUpdateLayout(ImGuiTable* table)
             column->Flags |= ImGuiTableColumnFlags_IsVisible;
         if (column->SortOrder != -1)
             column->Flags |= ImGuiTableColumnFlags_IsSorted;
-
-        // Detect hovered column
-        if (is_hovering_table && mouse_skewed_x >= column->ClipRect.Min.x && mouse_skewed_x < column->ClipRect.Max.x)
-        {
+        if (table->HoveredColumnBody == column_n)
             column->Flags |= ImGuiTableColumnFlags_IsHovered;
-            table->HoveredColumnBody = (ImGuiTableColumnIdx)column_n;
-        }
 
         // Alignment
         // FIXME-TABLE: This align based on the whole column width, not per-cell, and therefore isn't useful in
@@ -2207,8 +2206,8 @@ void ImGui::TableEndCell(ImGuiTable* table)
 // Note that actual columns widths are computed in TableUpdateLayout().
 //-------------------------------------------------------------------------
 
-// Maximum column content width given current layout. Use column->MinX so this value differs on a per-column basis.
-float ImGui::TableCalcMaxColumnWidth(const ImGuiTable* table, int column_n)
+// Maximum column content width given current layout. Use column->MinX so this value on a per-column basis.
+float ImGui::TableGetMaxColumnWidth(const ImGuiTable* table, int column_n)
 {
     const ImGuiTableColumn* column = &table->Columns[column_n];
     float max_width = FLT_MAX;
@@ -2270,7 +2269,7 @@ void ImGui::TableSetColumnWidth(int column_n, float width)
     // Compare both requested and actual given width to avoid overwriting requested width when column is stuck (minimum size, bounded)
     IM_ASSERT(table->MinColumnWidth > 0.0f);
     const float min_width = table->MinColumnWidth;
-    const float max_width = ImMax(min_width, column_0->WidthMax); // Don't use TableCalcMaxColumnWidth() here as it would rely on MinX from last instance (#7933)
+    const float max_width = ImMax(min_width, TableGetMaxColumnWidth(table, column_n));
     column_0_width = ImClamp(column_0_width, min_width, max_width);
     if (column_0->WidthGiven == column_0_width || column_0->WidthRequest == column_0_width)
         return;
@@ -3019,8 +3018,7 @@ float ImGui::TableGetHeaderAngledMaxLabelWidth()
 // The intent is that advanced users willing to create customized headers would not need to use this helper
 // and can create their own! For example: TableHeader() may be preceded by Checkbox() or other custom widgets.
 // See 'Demo->Tables->Custom headers' for a demonstration of implementing a custom version of this.
-// This code is intentionally written to not make much use of internal functions, to give you better direction
-// if you need to write your own.
+// This code is constructed to not make much use of internal functions, as it is intended to be a template to copy.
 // FIXME-TABLE: TableOpenContextMenu() and TableGetHeaderRowHeight() are not public.
 void ImGui::TableHeadersRow()
 {
@@ -3028,8 +3026,7 @@ void ImGui::TableHeadersRow()
     ImGuiTable* table = g.CurrentTable;
     IM_ASSERT(table != NULL && "Need to call TableHeadersRow() after BeginTable()!");
 
-    // Call layout if not already done. This is automatically done by TableNextRow: we do it here _only_ to make
-    // it easier to debug-step in TableUpdateLayout(). Your own version of this function doesn't need this.
+    // Layout if not already done (this is automatically done by TableNextRow, we do it here solely to facilitate stepping in debugger as it is frequent to step in TableUpdateLayout)
     if (!table->IsLayoutLocked)
         TableUpdateLayout(table);
 
@@ -3046,7 +3043,8 @@ void ImGui::TableHeadersRow()
         if (!TableSetColumnIndex(column_n))
             continue;
 
-        // Push an id to allow empty/unnamed headers. This is also idiomatic as it ensure there is a consistent ID path to access columns (for e.g. automation)
+        // Push an id to allow unnamed labels (generally accidental, but let's behave nicely with them)
+        // In your own code you may omit the PushID/PopID all-together, provided you know they won't collide.
         const char* name = (TableGetColumnFlags(column_n) & ImGuiTableColumnFlags_NoHeaderLabel) ? "" : TableGetColumnName(column_n);
         PushID(column_n);
         TableHeader(name);

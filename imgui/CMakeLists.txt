@@ -82,7 +82,7 @@ include_directories(
 find_package(PkgConfig)
 
 _OPTION(IMGUI_STATIC                "Build ImGui as static library" OFF)
-_OPTION(IMGUI_BUILD_EXAMPLE         "Build ImGui example" ON)
+_OPTION(IMGUI_BUILD_EXAMPLE         "Build ImGui example" OFF)
 _OPTION(IMGUI_WGPU                  "Build ImGui wgpu backends" OFF)
 _OPTION(IMGUI_GL2                   "Build ImGui OpenGL2 backends" ON)
 _OPTION(IMGUI_GL3                   "Build ImGui OpenGL3 backends" ON)
@@ -94,11 +94,14 @@ _OPTION(IMGUI_GLEW                  "Build ImGui GLEW backends" ON)
 _OPTION(IMGUI_GLES                  "Build ImGui GLES backends" ON)
 _OPTION(IMGUI_MATAL                 "Build ImGui Apple Metal backends(Apple only)" ON IF APPLE)
 _OPTION(IMGUI_VULKAN                "Build ImGui Vulkan backends" OFF)
+_OPTION(IMGUI_VULKAN_SHADER         "Build ImGui With Vulkan compute support" ON)
 _OPTION(IMGUI_DX9                   "Build ImGui Direct9 backends(Windows only)" ON IF WIN32)
 _OPTION(IMGUI_DX10                  "Build ImGui Direct10 backends(Windows only)" ON IF WIN32)
 _OPTION(IMGUI_DX11                  "Build ImGui Direct11 backends(Windows only)" ON IF WIN32)
 _OPTION(IMGUI_DX12                  "Build ImGui Direct12 backends(Windows only)" ON IF WIN32)
 _OPTION(IMGUI_FREETYPE              "Build ImGui with FreeType support" OFF)
+_OPTION(IMGUI_BUILD_DITHER          "Build ImGui with Dither support" OFF)
+_OPTION(IMGUI_BUILD_POTRACE         "Build ImGui with Potace support" OFF)
 _OPTION(IMGUI_ICONS                 "Internal Icons build in library" ON)
 _OPTION(IMGUI_APPS                  "build apps base on imgui" ON)
 _OPTION(IMGUI_SKIP_INSTALL          "Skip imgui install" ON)
@@ -217,6 +220,7 @@ set(IMGUI_GL2 OFF CACHE BOOL "Build ImGui OpenGL2 backends by Force" FORCE)
 set(IMGUI_GL3 ON CACHE BOOL "Build ImGui OpenGL3 backends by Force" FORCE)
 set(IMGUI_WGPU ON CACHE BOOL "Build ImGui wgpu backends by Force" FORCE)
 set(IMGUI_VULKAN OFF CACHE BOOL "Disable ImGui Vulkan backends" FORCE)
+set(IMGUI_VULKAN_SHADER OFF CACHE BOOL "Disable ImGui With Vulkan compute support" FORCE)
 #set(IMGUI_GLFW ON CACHE BOOL "Enable ImGui GLFW support by Force" FORCE)
 set(IMGUI_GLEW OFF CACHE BOOL "Disable ImGui GLEW support" FORCE)
 set(IMGUI_GLUT OFF CACHE BOOL "Disable ImGui GLUT support" FORCE)
@@ -965,10 +969,12 @@ set(IMGUI_INC_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/misc/freetype
 )
 
-# imgui_vk_shader
+include_directories(${IMGUI_INC_DIRS})
+
+# ImVulkanShader
 if(IMGUI_VULKAN_SHADER)
     include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-    add_subdirectory(misc/imgui_vkshader)
+    add_subdirectory(addon/ImVulkanShader)
     set(IMGUI_INC_DIRS
         ${IMGUI_INC_DIRS}
         ${VKSHADER_INCLUDE_DIRS}
@@ -979,7 +985,365 @@ if(IMGUI_VULKAN_SHADER)
     )
 endif(IMGUI_VULKAN_SHADER)
 
-include_directories(${IMGUI_INC_DIRS})
+# Potrace
+if (IMGUI_BUILD_POTRACE)
+add_subdirectory(addon/Potrace)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/Potrace/inc
+)
+set(LINK_LIBS
+    ${LINK_LIBS}
+    ${POTRACE_LIBRARYS}
+)
+endif(IMGUI_BUILD_POTRACE)
+
+# Dither
+if (IMGUI_BUILD_DITHER)
+add_subdirectory(addon/Dither)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/Dither/inc
+)
+set(LINK_LIBS
+    ${LINK_LIBS}
+    ${DITHER_LIBRARYS}
+)
+endif(IMGUI_BUILD_DITHER)
+
+# ImGuiFileDialog
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    addon/ImGuiFileDialog/ImGuiFileDialog.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    addon/ImGuiFileDialog/ImGuiFileDialog.h
+)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiFileDialog
+)
+if (IMGUI_BUILD_EXAMPLE)
+    set(IMGUI_SRC
+        ${IMGUI_SRC}
+        addon/ImGuiFileDialog/ImGuiFileDialogDemo.cpp
+    )
+endif(IMGUI_BUILD_EXAMPLE)
+
+# implot
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    addon/implot/implot.cpp
+    addon/implot/implot_items.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    addon/implot/implot_internal.h
+    addon/implot/implot.h
+)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/implot
+)
+if (IMGUI_BUILD_EXAMPLE)
+    set(IMGUI_SRC
+        ${IMGUI_SRC}
+        addon/implot/implot_demo.cpp
+    )
+endif(IMGUI_BUILD_EXAMPLE)
+
+# Colorful Text Edit
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    addon/TextEditor/TextEditor.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    addon/TextEditor/TextEditor.h
+)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/TextEditor
+)
+
+# Extra Widget
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    addon/imgui_extra_widget/imgui_extra_widget.cpp
+    addon/imgui_extra_widget/imgui_extra_spinner.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    addon/imgui_extra_widget/imgui_extra_widget.h
+    addon/imgui_extra_widget/imgui_markdown.h
+    addon/imgui_extra_widget/imgui_memory_editor.h
+    addon/imgui_extra_widget/portable-file-dialogs.h
+    addon/imgui_extra_widget/HotKey.h
+)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_extra_widget
+)
+if (IMGUI_BUILD_EXAMPLE)
+    set(IMGUI_SRC
+        ${IMGUI_SRC}
+        addon/imgui_extra_widget/imgui_extra_widget_demo.cpp
+    )
+endif(IMGUI_BUILD_EXAMPLE)
+
+# Curve
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    addon/ImCurve/imgui_curve.cpp
+    addon/ImCurve/imgui_spline.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    addon/ImCurve/imgui_curve.h
+    addon/ImCurve/imgui_spline.h
+)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImCurve
+)
+if (IMGUI_BUILD_EXAMPLE)
+    set(IMGUI_SRC
+        ${IMGUI_SRC}
+        addon/ImCurve/imgui_curve_demo.cpp
+    )
+endif(IMGUI_BUILD_EXAMPLE)
+
+# BaseUtils
+set(BaseUtils_STATIC OFF)
+add_subdirectory(addon/BaseUtils)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/BaseUtils/Include
+)
+
+# New Curve
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    addon/ImNewCurve/ImNewCurve.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    addon/ImNewCurve/ImNewCurve.h
+)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImNewCurve
+)
+if (IMGUI_BUILD_EXAMPLE)
+    set(IMGUI_SRC
+        ${IMGUI_SRC}
+        addon/ImNewCurve/ImNewCurveDemo.cpp
+    )
+endif(IMGUI_BUILD_EXAMPLE)
+
+# ImMaskCreator
+set(ImMaskCreator_STATIC OFF)
+add_subdirectory(addon/ImMaskCreator)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImMaskCreator/Include
+)
+
+# Tab Window
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiTabWindow/ImGuiTabWindow.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiTabWindow/ImGuiTabWindow.h
+)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiTabWindow
+)
+if(IMGUI_BUILD_EXAMPLE)
+    set(IMGUI_SRC
+        ${IMGUI_SRC}
+        ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiTabWindow/ImGuiTabWindow_demo.cpp
+    )
+endif(IMGUI_BUILD_EXAMPLE)
+
+# Node Editor
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_canvas.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_node_editor_api.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_node_editor.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_bezier_math.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_bezier_math.inl
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_canvas.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_extra_math.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_extra_math.inl
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_node_editor_internal.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_node_editor_internal.inl
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_node_editor.h
+)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor
+)
+
+if(IMGUI_BUILD_EXAMPLE)
+    set(IMGUI_SRC
+        ${IMGUI_SRC}
+        ${CMAKE_CURRENT_SOURCE_DIR}/addon/node_editor/imgui_node_editor_demo.cpp
+    )
+endif(IMGUI_BUILD_EXAMPLE)
+
+# ImGuiZmoQuat
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmoQuat/ImGuiZMOquat.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmoQuat/ImGuiZMOquat.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmoQuat/vgConfig.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmoQuat/vGizmo.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmoQuat/vgMath.h
+)
+
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmoQuat
+)
+
+if(IMGUI_BUILD_EXAMPLE)
+    set(IMGUI_SRC
+        ${IMGUI_SRC}
+        ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmoQuat/ImGuiZMOquat_demo.cpp
+    )
+endif(IMGUI_BUILD_EXAMPLE)
+
+# ImGuiZmo
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmo/ImGuiOrient.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmo/ImGuiZmo.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmo/model.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmo/ImGuiOrient.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmo/ImGuiZmo.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmo/model.h
+)
+
+if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmo/mesh.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmo/mesh.h
+)
+endif()
+
+
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmo
+)
+
+if(IMGUI_BUILD_EXAMPLE)
+    set(IMGUI_SRC
+        ${IMGUI_SRC}
+        ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiZmo/ImGuiZmo_demo.cpp
+    )
+endif(IMGUI_BUILD_EXAMPLE)
+
+# imgui toggle
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle/imgui_toggle.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle/imgui_toggle_palette.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle/imgui_toggle_presets.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle/imgui_toggle_renderer.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle/imgui_toggle.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle/imgui_offset_rect.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle/imgui_toggle_math.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle/imgui_toggle_palette.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle/imgui_toggle_presets.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle/imgui_toggle_renderer.h
+)
+
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle
+)
+
+if(IMGUI_BUILD_EXAMPLE)
+    set(IMGUI_SRC
+        ${IMGUI_SRC}
+        ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_toggle/imgui_toggle_demo.cpp
+    )
+endif(IMGUI_BUILD_EXAMPLE)
+
+# imgui_tex_inspect
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_tex_inspect/imgui_tex_inspect.cpp
+)
+
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_tex_inspect/imgui_tex_inspect.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_tex_inspect/imgui_tex_inspect_internal.h
+)
+
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_tex_inspect
+)
+
+if(IMGUI_BUILD_EXAMPLE)
+    set(IMGUI_SRC
+        ${IMGUI_SRC}
+        ${CMAKE_CURRENT_SOURCE_DIR}/addon/imgui_tex_inspect/imgui_tex_inspect_demo.cpp
+    )
+endif(IMGUI_BUILD_EXAMPLE)
+
+# ImCoolbar
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    addon/ImCoolbar/ImCoolbar.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    addon/ImCoolbar/ImCoolbar.h
+)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImCoolbar
+)
+
+# Style Serializer
+set(IMGUI_SRC
+    ${IMGUI_SRC}
+    addon/ImGuiStyleSerializer/ImGuiStyleSerializer.cpp
+)
+set(IMGUI_INCS
+    ${IMGUI_INCS}
+    addon/ImGuiStyleSerializer/ImGuiStyleSerializer.h
+)
+set(IMGUI_INC_DIRS
+    ${IMGUI_INC_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/addon/ImGuiStyleSerializer
+)
 
 # ZLib
 if(ZLIB_FOUND)
@@ -989,14 +1353,6 @@ if(ZLIB_FOUND)
         ${ZLIB_LDFLAGS}
     )
 endif(ZLIB_FOUND)
-
-if(IMGUI_VULKAN_SHADER)
-    set(LINK_LIBS
-        ${LINK_LIBS}
-        -L${EXTRA_DEPENDENCE_LIBRARY_PATH}
-        VkShader
-    )
-endif(IMGUI_VULKAN_SHADER)
 
 # Application Framework
 set(IMGUI_APP_SRC)
@@ -1137,7 +1493,7 @@ endif(IMGUI_STATIC)
 
 set(IMGUI_VERSION_MAJOR 1)
 set(IMGUI_VERSION_MINOR 91)
-set(IMGUI_VERSION_PATCH 10)
+set(IMGUI_VERSION_PATCH 04)
 string(TIMESTAMP IMGUI_VERSION_BUILD "%y%m%d")
 set(IMGUI_VERSION_STRING ${IMGUI_VERSION_MAJOR}.${IMGUI_VERSION_MINOR}.${IMGUI_VERSION_PATCH})
 add_definitions(-DIMGUI_VERSION_MAJOR=${IMGUI_VERSION_MAJOR})
@@ -1151,7 +1507,7 @@ if(NOT IMGUI_STATIC)
 target_link_libraries(imgui ${LINK_LIBS})
 set_target_properties(imgui PROPERTIES VERSION ${IMGUI_VERSION_STRING} SOVERSION ${IMGUI_VERSION_MAJOR})
 endif(NOT IMGUI_STATIC)
-
+# Build Tools
 if (APPLE AND IMGUI_MATAL AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(
         imgui 
@@ -1159,7 +1515,6 @@ if (APPLE AND IMGUI_MATAL AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     )
 endif()
 
-# Build Tools
 if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 if (IMGUI_BUILD_EXAMPLE AND SDL2_FOUND AND IMGUI_SDL2)
     find_package(SDL2_image REQUIRED)
@@ -1174,6 +1529,18 @@ if (IMGUI_BUILD_EXAMPLE AND SDL2_FOUND AND IMGUI_SDL2)
             ${SDL2_IMAGE_LIBRARY}
             ${LINK_LIBS}
         )
+        if(BACKEND_RENDERING MATCHES OPENGL3)
+            add_executable(
+                example_sdl2_rendering
+                test/example_sdl2_rendering.cpp
+            )
+            target_link_libraries(
+                example_sdl2_rendering
+                imgui
+                ${SDL2_IMAGE_LIBRARY}
+                ${LINK_LIBS}
+            )
+        endif()
     endif(SDL2_IMAGE_FOUND)
     # Build utils
     add_executable(
@@ -1337,6 +1704,86 @@ if(IMGUI_BUILD_EXAMPLE AND WIN32)
 endif(IMGUI_BUILD_EXAMPLE AND WIN32)
 endif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
+if (IMGUI_BUILD_EXAMPLE AND IMGUI_APPS)
+    add_executable(
+        example_application
+        test/example_application.cpp
+        ${IMGUI_APP_SRC}
+    )
+    target_link_libraries(
+        example_application
+        imgui
+        ${LINK_LIBS}
+    )
+    add_executable(
+        example_objviewer
+        test/example_objviewer.cpp
+        ${IMGUI_APP_SRC}
+    )
+    target_link_libraries(
+        example_objviewer
+        imgui
+        ${LINK_LIBS}
+    )
+    set (FONT_SRC test/show_fonts.cpp)
+    add_executable(
+        show_fonts
+        ${FONT_SRC}
+        ${IMGUI_APP_SRC}
+    )
+    target_link_libraries(
+        show_fonts
+        imgui
+        ${LINK_LIBS}
+    )
+    add_executable(ImMaskCreatorTest
+        addon/ImMaskCreator/Src/ImMaskCreatorTest.cpp
+        ${IMGUI_APP_SRC}
+    )
+    target_link_libraries(ImMaskCreatorTest PRIVATE
+        ImMaskCreator
+    )
+    if (IMGUI_BUILD_DITHER)
+        add_executable(
+            DitherTest
+            test/DitherTest.cpp
+            ${IMGUI_APP_SRC}
+        )
+
+        target_link_libraries(
+            DitherTest
+            imgui
+            ${LINK_LIBS}
+        )
+    endif(IMGUI_BUILD_DITHER)
+    if (IMGUI_BUILD_POTRACE)
+        add_executable(
+            PotraceTest
+            test/PotraceTest.cpp
+            ${IMGUI_APP_SRC}
+        )
+        target_link_libraries(
+            PotraceTest
+            imgui
+            ${LINK_LIBS}
+        )
+    endif(IMGUI_BUILD_POTRACE)
+if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set(IMGUI_SHELL_FILE ${PROJECT_SOURCE_DIR}/test/shell_minimal.html)
+    set(IMGUI_WEB_DIR ${PROJECT_BINARY_DIR}/web/)
+    set_target_properties(
+        example_application
+        PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${IMGUI_WEB_DIR}
+        RUNTIME_OUTPUT_DIRECTORY ${IMGUI_WEB_DIR}
+        OUTPUT_NAME "index"
+        PREFIX ""
+        SUFFIX ".html"
+        LINK_FLAGS "--shell-file ${IMGUI_SHELL_FILE}"
+    )
+endif()
+endif(IMGUI_BUILD_EXAMPLE AND IMGUI_APPS)
+
 if (IMGUI_BUILD_EXAMPLE AND ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(IMGUI_WEB_WGPU_DIR ${PROJECT_BINARY_DIR}/web_wgpu/)
     SET(IMGUI_SHELL_WGPU_FILE ${PROJECT_SOURCE_DIR}/test/wgpu_index.html)
@@ -1358,6 +1805,17 @@ if (IMGUI_BUILD_EXAMPLE AND ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         SUFFIX ".html"
         LINK_FLAGS "--shell-file ${IMGUI_SHELL_WGPU_FILE}"
     )
+endif()
+
+if (IMGUI_BUILD_EXAMPLE AND IMGUI_VULKAN_SHADER AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+add_executable(
+    vulkan_shader_test
+    test/vulkan_shader_test.cpp
+)
+target_link_libraries(
+    vulkan_shader_test
+    ${VKSHADER_LIBRARYS}
+)
 endif()
 
 if (IMGUI_BUILD_EXAMPLE AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")

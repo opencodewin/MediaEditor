@@ -1,4 +1,4 @@
-// dear imgui, v1.91.1
+// dear imgui, v1.91.1 WIP
 // (drawing and font code)
 
 /*
@@ -1664,32 +1664,6 @@ void ImDrawList::AddCircleFilled(const ImVec2& center, float radius, ImU32 col, 
 
     PathFillConvex(col);
 }
-
-// add by Dicky
-void ImDrawList::AddCircleGradient(const ImVec2 center, float radius, ImU32 col_in, ImU32 col_out)
-{
-    if (((col_in | col_out) & IM_COL32_A_MASK) == 0 || radius < 0.5f)
-        return;
-
-    _PathArcToFastEx(ImVec2(center.x, center.y), radius, 0, IM_DRAWLIST_ARCFAST_SAMPLE_MAX, 0);
-    const int count = _Path.Size - 1;
-
-    unsigned int vtx_base = _VtxCurrentIdx;
-    PrimReserve(count * 3, count + 1);
-
-    const ImVec2 uv = _Data->TexUvWhitePixel;
-    PrimWriteVtx(ImVec2(center.x, center.y), uv, col_in);
-    for (int n = 0; n < count; n++)
-        PrimWriteVtx(_Path[n], uv, col_out);
-
-    for (int n = 0; n < count; n++) {
-        PrimWriteIdx((ImDrawIdx)(vtx_base));
-        PrimWriteIdx((ImDrawIdx)(vtx_base + 1 + n));
-        PrimWriteIdx((ImDrawIdx)(vtx_base + 1 + ((n + 1) % count)));
-    }
-    _Path.Size = 0;
-}
-// add by Dicky end
 
 // Guaranteed to honor 'num_segments'
 void ImDrawList::AddNgon(const ImVec2& center, float radius, ImU32 col, int num_segments, float thickness)

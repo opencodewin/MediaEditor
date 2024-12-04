@@ -16,6 +16,11 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
+#include "imgui_markdown.h"
+#include "imgui_memory_editor.h"
+#include "ImGuiFileDialog.h"
+#include "HotKey.h"
+#include "TextEditor.h"
 #include <stdio.h>          // printf, fprintf
 #include <stdlib.h>         // abort
 #define GLFW_INCLUDE_NONE
@@ -394,6 +399,78 @@ static void FramePresent(ImGui_ImplVulkanH_Window* wd)
     wd->SemaphoreIndex = (wd->SemaphoreIndex + 1) % wd->SemaphoreCount; // Now we can use the next set of semaphores
 }
 
+static std::string get_file_contents(const char *filename)
+{
+#ifdef DEFAULT_DOCUMENT_PATH
+    std::string file_path = std::string(DEFAULT_DOCUMENT_PATH) + std::string(filename);
+#else
+    std::string file_path = std::string(filename);
+#endif
+    std::ifstream infile(file_path, std::ios::in | std::ios::binary);
+    if (infile.is_open())
+    {
+        std::ostringstream contents;
+        contents << infile.rdbuf();
+        infile.close();
+        return(contents.str());
+    }
+    throw(errno);
+}
+
+inline ImGui::MarkdownImageData ImageCallback( ImGui::MarkdownLinkCallbackData data_ )
+{
+    // In your application you would load an image based on data_ input. Here we just use the imgui font texture.
+    ImTextureID image = ImGui::GetIO().Fonts->TexID;
+    // > C++14 can use ImGui::MarkdownImageData imageData{ true, false, image, ImVec2( 40.0f, 20.0f ) };
+    ImGui::MarkdownImageData imageData;
+    imageData.isValid =         true;
+    imageData.useLinkCallback = false;
+    imageData.user_texture_id = image;
+    imageData.size =            ImVec2( 40.0f, 20.0f );
+    return imageData;
+}
+
+static void LinkCallback( ImGui::MarkdownLinkCallbackData data_ )
+{
+    std::string url( data_.link, data_.linkLength );
+    std::string command = "open " + url;
+    if( !data_.isImage )
+    {
+        system(command.c_str());
+    }
+}
+
+static void ExampleMarkdownFormatCallback( const ImGui::MarkdownFormatInfo& markdownFormatInfo_, bool start_ )
+{
+    // Call the default first so any settings can be overwritten by our implementation.
+    // Alternatively could be called or not called in a switch statement on a case by case basis.
+    // See defaultMarkdownFormatCallback definition for furhter examples of how to use it.
+    ImGui::defaultMarkdownFormatCallback( markdownFormatInfo_, start_ );        
+    switch( markdownFormatInfo_.type )
+    {
+        // example: change the colour of heading level 2
+        case ImGui::MarkdownFormatType::HEADING:
+        {
+            if( markdownFormatInfo_.level == 2 )
+            {
+                if( start_ )
+                {
+                    ImGui::PushStyleColor( ImGuiCol_Text, ImGui::GetStyle().Colors[ImGuiCol_TextDisabled] );
+                }
+                else
+                {
+                    ImGui::PopStyleColor();
+                }
+            }
+            break;
+        }
+        default:
+        {
+            break;
+        }
+    }
+}
+
 // Main code
 int main(int, char**)
 {
@@ -497,9 +574,36 @@ int main(int, char**)
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
     //IM_ASSERT(font != nullptr);
 
+    // init memory edit
+    MemoryEditor mem_edit;
+    mem_edit.Open = false;
+    mem_edit.OptShowDataPreview = true;
+    size_t data_size = 0x1000;
+    void* data = malloc(data_size);
+
+    // Init MarkDown
+    ImGui::MarkdownConfig mdConfig; 
+
+    // Init Colorful Text Edit
+    TextEditor editor;
+
+    // Init HotKey
+    static std::vector<ImHotKey::HotKey> hotkeys = 
+    { 
+        {"Layout", "Reorder nodes in a simpler layout", 0xFFFF26E0},
+        {"Save", "Save the current graph", 0xFFFF1FE0},
+        {"Load", "Load an existing graph file", 0xFFFF18E0},
+        {"Play/Stop", "Play or stop the animation from the current graph", 0xFFFFFF3F},
+        {"SetKey", "Make a new animation key with the current parameters values at the current time", 0xFFFFFF1F}
+    };
+
     // Our state
     bool show_demo_window = true;
     bool show_another_window = false;
+
+    bool show_file_dialog_window = false;
+    bool show_markdown_window = false;
+    bool show_text_editor_window = false;
 
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
@@ -548,6 +652,24 @@ int main(int, char**)
             ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
             ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
             ImGui::Checkbox("Another Window", &show_another_window);
+            ImGui::Checkbox("File Dialog Window", &show_file_dialog_window);
+            ImGui::Checkbox("Memory Edit Window", &mem_edit.Open);
+            ImGui::Checkbox("Show Markdown Window", &show_markdown_window);
+            ImGui::Checkbox("Show Text Editor Window", &show_text_editor_window);
+
+            // show hotkey window
+            if (ImGui::Button("Edit Hotkeys"))
+            {
+                ImGui::OpenPopup("HotKeys Editor");
+            }
+
+            // Handle hotkey popup
+            ImHotKey::Edit(hotkeys.data(), hotkeys.size(), "HotKeys Editor");
+            int hotkey = ImHotKey::GetHotKey(hotkeys.data(), hotkeys.size());
+            if (hotkey != -1)
+            {
+                // handle the hotkey index!
+            }
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::End();
@@ -563,6 +685,39 @@ int main(int, char**)
             ImGui::End();
         }
 
+        // Show FileDialog demo window
+        if (show_file_dialog_window)
+        {
+            show_file_dialog_demo_window(&show_file_dialog_window);
+        }
+
+        // Show Memory Edit window
+        if (mem_edit.Open)
+        {
+            mem_edit.DrawWindow("Memory Editor", data, data_size, 0);
+        }
+
+        // Show Markdown Window
+        if (show_markdown_window)
+        {
+            std::string help_doc = get_file_contents("README.md");
+            mdConfig.linkCallback =         LinkCallback;
+            mdConfig.tooltipCallback =      nullptr;
+            mdConfig.imageCallback =        ImageCallback;
+            mdConfig.linkIcon =             ICON_FA_LINK;
+            mdConfig.headingFormats[0] =    { io.Fonts->Fonts[0], true };
+            mdConfig.headingFormats[1] =    { io.Fonts->Fonts.size() > 1 ? io.Fonts->Fonts[1] : nullptr, true };
+            mdConfig.headingFormats[2] =    { io.Fonts->Fonts.size() > 2 ? io.Fonts->Fonts[2] : nullptr, false };
+            mdConfig.userData =             nullptr;
+            mdConfig.formatCallback =       ExampleMarkdownFormatCallback;
+            ImGui::Markdown( help_doc.c_str(), help_doc.length(), mdConfig );
+        }
+
+        // Show Text Edit Window
+        if (show_text_editor_window)
+        {
+            editor.text_edit_demo(&show_text_editor_window);
+        }
         // Rendering
         ImGui::Render();
         ImDrawData* main_draw_data = ImGui::GetDrawData();
@@ -585,6 +740,10 @@ int main(int, char**)
         if (!main_is_minimized)
             FramePresent(wd);
     }
+
+    // Cleanup memory edit resource
+    if (data)
+        free(data);
 
     // Cleanup
     err = vkDeviceWaitIdle(g_Device);
